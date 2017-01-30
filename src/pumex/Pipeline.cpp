@@ -1,0 +1,710 @@
+#include <pumex/Pipeline.h>
+#include <pumex/RenderPass.h>
+#include <pumex/utils/Log.h>
+#include <pumex/Device.h>
+#include <fstream>
+
+using namespace pumex;
+
+DescriptorSetLayoutBinding::DescriptorSetLayoutBinding(uint32_t b, uint32_t bc, VkDescriptorType dt, VkShaderStageFlags sf)
+  : binding{ b }, bindingCount{ bc }, descriptorType{ dt }, stageFlags{ sf }
+{
+}
+
+
+VertexInputDefinition::VertexInputDefinition(uint32_t b, VkVertexInputRate ir, const std::vector<pumex::VertexSemantic>& s)
+  : binding{ b }, inputRate{ ir }, semantic(s)
+{
+}
+
+BlendAttachmentDefinition::BlendAttachmentDefinition(VkBool32 en, VkColorComponentFlags mask, VkBlendFactor srcC, VkBlendFactor dstC, VkBlendOp opC, VkBlendFactor srcA, VkBlendFactor dstA, VkBlendOp opA)
+  : blendEnable{ en }, colorWriteMask{ mask }, srcColorBlendFactor{ srcC }, dstColorBlendFactor{ dstC }, colorBlendOp{ opC }, srcAlphaBlendFactor{ srcA }, dstAlphaBlendFactor{ dstA }, alphaBlendOp{opA}
+{
+}
+
+ShaderStageDefinition::ShaderStageDefinition()
+  : stage{ VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM }, shaderModule(), entryPoint("main")
+{
+}
+
+
+ShaderStageDefinition::ShaderStageDefinition(VkShaderStageFlagBits s, std::shared_ptr<ShaderModule> sm, const std::string& ep)
+  : stage{ s }, shaderModule(sm), entryPoint(ep)
+{
+}
+
+
+DescriptorSetLayout::DescriptorSetLayout(const std::vector<pumex::DescriptorSetLayoutBinding>& b)
+  : bindings(b)
+{
+}
+
+DescriptorSetLayout::~DescriptorSetLayout()
+{
+  for ( auto& pddit : perDeviceData)
+    vkDestroyDescriptorSetLayout( pddit.first, pddit.second.descriptorSetLayout, nullptr);
+}
+
+
+void DescriptorSetLayout::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert( {device->device, PerDeviceData()} ).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.descriptorSetLayout != VK_NULL_HANDLE)
+    vkDestroyDescriptorSetLayout(pddit->first, pddit->second.descriptorSetLayout, nullptr);
+
+  std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
+  for ( const auto& b : bindings )
+  {
+    VkDescriptorSetLayoutBinding setLayoutBinding{};
+      setLayoutBinding.descriptorType  = b.descriptorType;
+      setLayoutBinding.stageFlags      = b.stageFlags;
+      setLayoutBinding.binding         = b.binding;
+      setLayoutBinding.descriptorCount = b.bindingCount;
+    setLayoutBindings.push_back(setLayoutBinding);
+  }
+
+  VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI{};
+    descriptorSetLayoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCI.pBindings = setLayoutBindings.data();
+    descriptorSetLayoutCI.bindingCount = setLayoutBindings.size();
+  VK_CHECK_LOG_THROW(vkCreateDescriptorSetLayout(pddit->first, &descriptorSetLayoutCI, nullptr, &pddit->second.descriptorSetLayout), "Cannot create descriptor set layout");
+  pddit->second.dirty = false;
+}
+
+VkDescriptorSetLayout DescriptorSetLayout::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.descriptorSetLayout;
+}
+
+void DescriptorSetLayout::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+VkDescriptorType DescriptorSetLayout::getDescriptorType(uint32_t binding) const
+{
+  for (const auto& b : bindings)
+  {
+    if (binding >= b.binding && binding < b.binding+b.bindingCount)
+      return b.descriptorType;
+  }
+  return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+}
+
+DescriptorPool::DescriptorPool(uint32_t ps, const std::vector<pumex::DescriptorSetLayoutBinding>& b)
+  : poolSize(ps), bindings(b)
+{
+}
+
+DescriptorPool::~DescriptorPool()
+{
+  for (auto& pddit : perDeviceData)
+    vkDestroyDescriptorPool(pddit.first, pddit.second.descriptorPool, nullptr);
+}
+
+
+void DescriptorPool::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.descriptorPool != VK_NULL_HANDLE)
+    vkDestroyDescriptorPool(pddit->first, pddit->second.descriptorPool, nullptr);
+
+  std::vector<VkDescriptorPoolSize> poolSizes;
+  for (const auto& b : bindings)
+  {
+    VkDescriptorPoolSize descriptorPoolSize{};
+    descriptorPoolSize.type = b.descriptorType;
+    descriptorPoolSize.descriptorCount = b.bindingCount * poolSize; // specification is not very specific here
+    poolSizes.push_back(descriptorPoolSize);
+  }
+  VkDescriptorPoolCreateInfo descriptorPoolCI{};
+    descriptorPoolCI.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolCI.poolSizeCount = poolSizes.size();
+    descriptorPoolCI.pPoolSizes    = poolSizes.data();
+    descriptorPoolCI.maxSets       = poolSize;
+    descriptorPoolCI.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // we will free our desriptor sets manually
+  VK_CHECK_LOG_THROW(vkCreateDescriptorPool(pddit->first, &descriptorPoolCI, nullptr, &pddit->second.descriptorPool), "Cannot create descriptor pool");
+  pddit->second.dirty = false;
+}
+
+VkDescriptorPool DescriptorPool::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.descriptorPool;
+}
+
+void DescriptorPool::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+DescriptorSetValue::DescriptorSetValue()
+  : vType{ Undefined }
+{
+}
+
+DescriptorSetValue::DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
+  : vType{ Buffer }
+{
+  bufferInfo.buffer = buffer;
+  bufferInfo.offset = offset;
+  bufferInfo.range  = range;
+}
+
+DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
+  : vType{ Image }
+{
+  imageInfo.sampler     = sampler;
+  imageInfo.imageView   = imageView;
+  imageInfo.imageLayout = imageLayout;
+}
+
+DescriptorSetSource::~DescriptorSetSource()
+{
+}
+
+void DescriptorSetSource::addDescriptorSet(DescriptorSet* descriptorSet)
+{
+  descriptorSets.insert(descriptorSet);
+}
+
+void DescriptorSetSource::removeDescriptorSet(DescriptorSet* descriptorSet)
+{
+  descriptorSets.erase(descriptorSet);
+}
+
+void DescriptorSetSource::notifyDescriptorSets()
+{
+  for ( auto ds : descriptorSets )
+    ds->setDirty();
+}
+
+
+DescriptorSet::DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> l, std::shared_ptr<pumex::DescriptorPool> p)
+  : layout{ l }, pool{ p }
+{
+}
+
+DescriptorSet::~DescriptorSet()
+{
+  for ( auto s : sources)
+    s.second->removeDescriptorSet(this);
+  sources.clear();
+
+  for (auto& pddit : perDeviceData)
+    vkFreeDescriptorSets(pddit.first, pool->getHandle(pddit.first), 1, &pddit.second.descriptorSet);
+}
+
+
+void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.descriptorSet != VK_NULL_HANDLE)
+    vkFreeDescriptorSets(pddit->first, pool->getHandle(pddit->first), 1, &pddit->second.descriptorSet);
+
+  VkDescriptorSetLayout layoutHandle = layout->getHandle(device->device);
+
+  VkDescriptorSetAllocateInfo descriptorSetAinfo{};
+    descriptorSetAinfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->first);
+    descriptorSetAinfo.descriptorSetCount = 1;
+    descriptorSetAinfo.pSetLayouts        = &layoutHandle;
+  VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->first, &descriptorSetAinfo, &pddit->second.descriptorSet), "Cannot allocate descriptor sets");
+
+  std::map<uint32_t, DescriptorSetValue> values;
+  for (const auto& s : sources)
+  {
+      DescriptorSetValue value = s.second->getDescriptorSetValue(pddit->first);
+      values.insert({ s.first, value });
+  }
+  std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+  for (const auto& v : values)
+  {
+    VkWriteDescriptorSet writeDescriptorSet = {};
+      writeDescriptorSet.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      writeDescriptorSet.dstSet          = pddit->second.descriptorSet;
+      writeDescriptorSet.descriptorType = layout->getDescriptorType(v.first);
+      writeDescriptorSet.dstBinding      = v.first;
+      switch (v.second.vType)
+      {
+      case DescriptorSetValue::Buffer:
+        writeDescriptorSet.pBufferInfo = &v.second.bufferInfo; break;
+      case DescriptorSetValue::Image:
+        writeDescriptorSet.pImageInfo  = &v.second.imageInfo;  break;
+      default:
+        continue;
+      }
+      writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSets.push_back(writeDescriptorSet);
+  }
+  vkUpdateDescriptorSets(pddit->first, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+  pddit->second.dirty = false;
+}
+
+VkDescriptorSet DescriptorSet::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.descriptorSet;
+}
+
+void DescriptorSet::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+void DescriptorSet::setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source)
+{
+  resetSource(binding);
+  sources[binding] = source;
+  source->addDescriptorSet(this);
+  setDirty();
+}
+
+void DescriptorSet::resetSource(uint32_t binding)
+{
+  auto it = sources.find(binding);
+  if (it != sources.end())
+  {
+    it->second->removeDescriptorSet(this);
+    sources.erase(binding);
+  }
+}
+
+
+PipelineLayout::PipelineLayout()
+{
+}
+
+PipelineLayout::~PipelineLayout()
+{
+  for (auto& pddit : perDeviceData)
+    vkDestroyPipelineLayout(pddit.first, pddit.second.pipelineLayout, nullptr);
+}
+
+
+void PipelineLayout::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert( {device->device, PerDeviceData()}).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.pipelineLayout != VK_NULL_HANDLE)
+    vkDestroyPipelineLayout(pddit->first, pddit->second.pipelineLayout, nullptr);
+
+  VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
+    pipelineLayoutCI.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    std::vector<VkDescriptorSetLayout> descriptors;
+    for ( auto dsl : descriptorSetLayouts )
+    { 
+      dsl->validate(device);
+      descriptors.push_back(dsl->getHandle(device->device));
+    }
+    pipelineLayoutCI.setLayoutCount = descriptors.size();
+    pipelineLayoutCI.pSetLayouts    = descriptors.data();
+  VK_CHECK_LOG_THROW(vkCreatePipelineLayout(pddit->first, &pipelineLayoutCI, nullptr, &pddit->second.pipelineLayout), "Cannot create pipeline layout");
+  pddit->second.dirty = false;
+}
+
+VkPipelineLayout PipelineLayout::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.pipelineLayout;
+}
+
+void PipelineLayout::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+PipelineCache::PipelineCache()
+{
+}
+
+PipelineCache::~PipelineCache()
+{
+  for (auto& pddit : perDeviceData)
+    vkDestroyPipelineCache(pddit.first, pddit.second.pipelineCache, nullptr);
+}
+
+
+void PipelineCache::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({device->device,PerDeviceData()}).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.pipelineCache != VK_NULL_HANDLE)
+    vkDestroyPipelineCache(pddit->first, pddit->second.pipelineCache, nullptr);
+
+  VkPipelineCacheCreateInfo pipelineCacheCI{};
+    pipelineCacheCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+  VK_CHECK_LOG_THROW(vkCreatePipelineCache(pddit->first, &pipelineCacheCI, nullptr, &pddit->second.pipelineCache), "Cannot create pipeline cache");
+  pddit->second.dirty = false;
+}
+
+VkPipelineCache PipelineCache::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.pipelineCache;
+}
+
+void PipelineCache::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+
+ShaderModule::ShaderModule(const std::string& f)
+  : fileName(f)
+{
+  std::ifstream file(fileName.c_str(),std::ios::in | std::ios::binary);
+  CHECK_LOG_THROW(!file, "Cannot read shader file : " << fileName);
+  file.seekg(0, std::ios::end);
+  std::ifstream::pos_type pos = file.tellg();
+  file.seekg(0, std::ios::beg);
+  shaderContents.resize(pos);
+  file.read(&shaderContents[0], pos);
+}
+
+ShaderModule::~ShaderModule()
+{
+  for (auto& pddit : perDeviceData)
+    vkDestroyShaderModule(pddit.first, pddit.second.shaderModule, nullptr);
+}
+
+
+void ShaderModule::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.shaderModule != VK_NULL_HANDLE)
+    vkDestroyShaderModule(pddit->first, pddit->second.shaderModule, nullptr);
+
+  VkShaderModuleCreateInfo shaderModuleCI{};
+    shaderModuleCI.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shaderModuleCI.codeSize = shaderContents.size();
+    shaderModuleCI.pCode    = (uint32_t*)shaderContents.data();
+  VK_CHECK_LOG_THROW(vkCreateShaderModule(device->device, &shaderModuleCI, nullptr, &pddit->second.shaderModule), "Cannot create shader module : " << fileName);
+  pddit->second.dirty = false;
+}
+
+VkShaderModule ShaderModule::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.shaderModule;
+}
+
+void ShaderModule::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+GraphicsPipeline::GraphicsPipeline(std::shared_ptr<pumex::PipelineCache> pc, std::shared_ptr<pumex::PipelineLayout> pl, std::shared_ptr<RenderPass> rp, uint32_t s)
+  : pipelineCache{ pc }, pipelineLayout{ pl }, renderPass{ rp }, subpass{s}
+{
+  front.failOp      = VK_STENCIL_OP_KEEP;
+  front.passOp      = VK_STENCIL_OP_KEEP;
+  front.depthFailOp = VK_STENCIL_OP_KEEP;
+  front.compareOp   = VK_COMPARE_OP_ALWAYS;
+  front.compareMask = 0;
+  front.writeMask   = 0;
+  front.reference   = 0;
+
+  back.failOp       = VK_STENCIL_OP_KEEP;
+  back.passOp       = VK_STENCIL_OP_KEEP;
+  back.depthFailOp  = VK_STENCIL_OP_KEEP;
+  back.compareOp    = VK_COMPARE_OP_ALWAYS;
+  back.compareMask  = 0;
+  back.writeMask    = 0;
+  back.reference    = 0;
+}
+
+GraphicsPipeline::~GraphicsPipeline()
+{
+  shaderStages.clear();
+  for (auto& pddit : perDeviceData)
+    vkDestroyPipeline(pddit.first, pddit.second.pipeline, nullptr);
+}
+
+
+void GraphicsPipeline::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.pipeline != VK_NULL_HANDLE)
+    vkDestroyPipeline(pddit->first, pddit->second.pipeline, nullptr);
+
+  std::vector<VkPipelineShaderStageCreateInfo>   shaderStagesCI;
+  std::vector<VkVertexInputBindingDescription>   bindingDescriptions;
+  std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+
+  for (const auto& state : shaderStages)
+  {
+    state.shaderModule->validate(device);
+    VkPipelineShaderStageCreateInfo shaderStage{};
+    shaderStage.sType                          = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStage.stage                          = state.stage;
+    shaderStage.module                         = state.shaderModule->getHandle(device->device);
+    shaderStage.pName                          = state.entryPoint.c_str();//"main";
+    shaderStagesCI.push_back(shaderStage);
+  }
+
+  for (const auto& state : vertexInput)
+  {
+    VkVertexInputBindingDescription inputDescription{};
+      inputDescription.binding                 = state.binding;
+      inputDescription.stride                  = calcVertexSize(state.semantic) * sizeof(float);
+      inputDescription.inputRate               = state.inputRate;
+    bindingDescriptions.emplace_back(inputDescription);
+
+    uint32_t attribOffset   = 0;
+    uint32_t attribLocation = 0;
+    for (const auto& attrib : state.semantic)
+    {
+      uint32_t attribSize = attrib.size * sizeof(float);
+      VkVertexInputAttributeDescription inputAttribDescription{};
+        inputAttribDescription.location        = attribLocation++;
+        inputAttribDescription.binding         = state.binding;
+        inputAttribDescription.format          = attrib.getVertexFormat();
+        inputAttribDescription.offset          = attribOffset;
+        attributeDescriptions.emplace_back(inputAttribDescription);
+      attribOffset += attribSize;
+    }
+  }
+  VkPipelineVertexInputStateCreateInfo inputState{};
+    inputState.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    inputState.vertexBindingDescriptionCount   = bindingDescriptions.size();
+    inputState.pVertexBindingDescriptions      = bindingDescriptions.data();
+    inputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
+    inputState.pVertexAttributeDescriptions    = attributeDescriptions.data();
+
+  VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{};
+    inputAssemblyState.sType                   = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssemblyState.topology                = topology;
+    inputAssemblyState.primitiveRestartEnable  = primitiveRestartEnable;
+
+  VkPipelineTessellationStateCreateInfo tesselationState{};
+    tesselationState.sType                       = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+    tesselationState.patchControlPoints          = patchControlPoints;
+
+  VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    if (hasDynamicState(VK_DYNAMIC_STATE_VIEWPORT))
+    {
+      viewportState.pViewports                 = nullptr;
+      viewportState.viewportCount              = 1; // FIXME - really ?!?
+    }
+    else
+    {
+      viewportState.pViewports                 = viewports.data();
+      viewportState.viewportCount              = viewports.size();
+    }
+    if (hasDynamicState(VK_DYNAMIC_STATE_SCISSOR))
+    {
+      viewportState.pScissors                  = nullptr;
+      viewportState.scissorCount               = 1; // FIXME - really ?!?
+    }
+    else
+    {
+      viewportState.pScissors                  = scissors.data();
+      viewportState.scissorCount               = scissors.size();
+    }
+
+  VkPipelineRasterizationStateCreateInfo rasterizationState{};
+    rasterizationState.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizationState.depthClampEnable        = depthClampEnable;
+    rasterizationState.rasterizerDiscardEnable = rasterizerDiscardEnable;
+    rasterizationState.polygonMode             = polygonMode;
+    rasterizationState.cullMode                = cullMode;
+    rasterizationState.frontFace               = frontFace;
+    rasterizationState.depthBiasEnable         = depthBiasEnable;
+    rasterizationState.depthBiasConstantFactor = depthBiasConstantFactor;
+    rasterizationState.depthBiasClamp          = depthBiasClamp;
+    rasterizationState.depthBiasSlopeFactor    = depthBiasSlopeFactor;
+    rasterizationState.lineWidth               = lineWidth;
+
+  VkPipelineMultisampleStateCreateInfo multisampleState{};
+    multisampleState.sType                     = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampleState.rasterizationSamples      = rasterizationSamples;
+    multisampleState.sampleShadingEnable       = sampleShadingEnable;
+    multisampleState.minSampleShading          = minSampleShading;
+    multisampleState.pSampleMask               = pSampleMask; // FIXME : a pointer ?
+    multisampleState.alphaToCoverageEnable     = alphaToCoverageEnable;
+    multisampleState.alphaToOneEnable          = alphaToOneEnable;
+
+  VkPipelineDepthStencilStateCreateInfo depthStencilState{};
+    depthStencilState.sType                    = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencilState.depthTestEnable          = depthTestEnable;
+    depthStencilState.depthWriteEnable         = depthWriteEnable;
+    depthStencilState.depthCompareOp           = depthCompareOp;
+    depthStencilState.depthBoundsTestEnable    = depthBoundsTestEnable;
+    depthStencilState.stencilTestEnable        = stencilTestEnable;
+    depthStencilState.front.failOp             = front.failOp;
+    depthStencilState.front.passOp             = front.passOp;
+    depthStencilState.front.depthFailOp        = front.depthFailOp;
+    depthStencilState.front.compareOp          = front.compareOp;
+    depthStencilState.front.compareMask        = front.compareMask;
+    depthStencilState.front.writeMask          = front.writeMask;
+    depthStencilState.front.reference          = front.reference;
+    depthStencilState.back.failOp              = back.failOp;
+    depthStencilState.back.passOp              = back.passOp;
+    depthStencilState.back.depthFailOp         = back.depthFailOp;
+    depthStencilState.back.compareOp           = back.compareOp;
+    depthStencilState.back.compareMask         = back.compareMask;
+    depthStencilState.back.writeMask           = back.writeMask;
+    depthStencilState.back.reference           = back.reference;
+    depthStencilState.minDepthBounds           = minDepthBounds;
+    depthStencilState.maxDepthBounds           = maxDepthBounds;
+
+
+  std::vector<VkPipelineColorBlendAttachmentState> vkBlendAttachments;
+  for (const auto& b : blendAttachments)
+  {
+    VkPipelineColorBlendAttachmentState blendAttachmentState{};
+    blendAttachmentState.blendEnable           = b.blendEnable;
+    blendAttachmentState.srcColorBlendFactor   = b.srcColorBlendFactor;
+    blendAttachmentState.dstColorBlendFactor   = b.dstColorBlendFactor;
+    blendAttachmentState.colorBlendOp          = b.colorBlendOp;
+    blendAttachmentState.srcAlphaBlendFactor   = b.srcAlphaBlendFactor;
+    blendAttachmentState.dstAlphaBlendFactor   = b.dstAlphaBlendFactor;
+    blendAttachmentState.alphaBlendOp          = b.alphaBlendOp;
+    blendAttachmentState.colorWriteMask        = b.colorWriteMask;
+    vkBlendAttachments.emplace_back(blendAttachmentState);
+  }
+
+  VkPipelineColorBlendStateCreateInfo colorBlendState{};
+    colorBlendState.sType                      = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlendState.attachmentCount            = vkBlendAttachments.size();
+    colorBlendState.pAttachments               = vkBlendAttachments.data();
+
+  VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType                         = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.pDynamicStates                = dynamicStates.data();
+    dynamicState.dynamicStateCount             = dynamicStates.size();
+
+  renderPass->validate(device);
+  pipelineLayout->validate(device);
+  VkGraphicsPipelineCreateInfo pipelineCI{};
+    pipelineCI.sType                           = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineCI.layout                          = pipelineLayout->getHandle(device->device);
+    pipelineCI.renderPass                      = renderPass->getHandle(device->device);
+    pipelineCI.subpass                         = subpass;
+    pipelineCI.stageCount                      = shaderStagesCI.size();
+    pipelineCI.pStages                         = shaderStagesCI.data();
+    pipelineCI.pVertexInputState               = &inputState;
+    pipelineCI.pInputAssemblyState             = &inputAssemblyState;
+    if (hasShaderStage(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT) || hasShaderStage(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT))
+      pipelineCI.pTessellationState              = &tesselationState;
+    pipelineCI.pRasterizationState             = &rasterizationState;
+    pipelineCI.pColorBlendState                = &colorBlendState;
+    pipelineCI.pMultisampleState               = &multisampleState;
+    pipelineCI.pViewportState                  = &viewportState;
+    pipelineCI.pDepthStencilState              = &depthStencilState;
+    pipelineCI.pDynamicState                   = &dynamicState;
+  VK_CHECK_LOG_THROW(vkCreateGraphicsPipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create graphics pipeline");
+  pddit->second.dirty = false;
+}
+
+VkPipeline GraphicsPipeline::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.pipeline;
+}
+
+void GraphicsPipeline::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+
+ComputePipeline::ComputePipeline(std::shared_ptr<pumex::PipelineCache> pc, std::shared_ptr<pumex::PipelineLayout> pl)
+  : pipelineCache{ pc }, pipelineLayout{ pl }
+{
+}
+
+ComputePipeline::~ComputePipeline()
+{
+  for (auto& pddit : perDeviceData)
+    vkDestroyPipeline(pddit.first, pddit.second.pipeline, nullptr);
+}
+
+
+void ComputePipeline::validate(std::shared_ptr<pumex::Device> device)
+{
+  auto pddit = perDeviceData.find(device->device);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  if (!pddit->second.dirty)
+    return;
+  if (pddit->second.pipeline != VK_NULL_HANDLE)
+    vkDestroyPipeline(pddit->first, pddit->second.pipeline, nullptr);
+
+  shaderStage.shaderModule->validate(device);
+  pipelineLayout->validate(device);
+  VkComputePipelineCreateInfo pipelineCI{};
+    pipelineCI.sType        = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineCI.layout       = pipelineLayout->getHandle(device->device);
+    pipelineCI.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineCI.stage.stage  = shaderStage.stage;
+    pipelineCI.stage.module = shaderStage.shaderModule->getHandle(device->device);
+    pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();//"main";
+
+  VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create compute pipeline");
+  pddit->second.dirty = false;
+}
+
+VkPipeline ComputePipeline::getHandle(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.pipeline;
+}
+
+void ComputePipeline::setDirty()
+{
+  for (auto& pdd : perDeviceData)
+    pdd.second.dirty = true;
+}
+

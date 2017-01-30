@@ -1,0 +1,22 @@
+#pragma once
+#include <vulkan/vulkan.h>
+#include <pumex/utils/Log.h>
+#include <pumex/Viewer.h>
+#include <pumex/PhysicalDevice.h>
+#include <pumex/Device.h>
+#include <pumex/Window.h>
+#include <pumex/Surface.h>
+#include <pumex/Thread.h>
+#include <pumex/SurfaceThread.h>
+#include <pumex/Texture.h>
+#include <pumex/Pipeline.h>
+#include <pumex/RenderPass.h>
+#include <pumex/Command.h>
+#include <pumex/Query.h>
+#include <pumex/UniformBuffer.h>
+#include <pumex/StorageBuffer.h>
+
+#include <pumex/Asset.h>
+#include <pumex/Camera.h>
+#include <pumex/AssetBuffer.h>
+#include <pumex/MaterialSet.h>
