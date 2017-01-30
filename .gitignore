@@ -1,0 +1,29 @@
+# VS files
+*.sln
+*.sdf
+*.suo
+*.vcxproj
+*.vcxproj.filters
+*.obj
+*.exp
+*.lib
+*.pdb
+*.dll
+*.exe
+
+# CMake files
+**/CMakeFiles/**
+CMakeCache.txt
+*.cmake
+
+# SPIR-V files
+*.spv
+
+# external dirs
+external/glm/
+external/gli/
+external/assimp/
+
+#others
+*.tlog
+*.log
