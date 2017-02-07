@@ -55,7 +55,7 @@ ExternalProject_Add( assimp-external
   GIT_TAG "v3.3.1"
   SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
   UPDATE_COMMAND ""
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DCMAKE_DEBUG_POSTFIX=d
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DASSIMP_BUILD_TESTS=off -DCMAKE_DEBUG_POSTFIX=d
   UPDATE_DISCONNECTED 1
 )
 
@@ -79,6 +79,29 @@ if(WIN32)
 else(WIN32)
 	find_library(ASSIMP_LIBRARIES NAMES assimp PATHS /usr/local/lib/ )
 endif(WIN32)
+
+set(TBB_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/tbb)
+set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
+ExternalProject_Add( tbb-external
+  PREFIX "${TBB_BUILD_DIR}"
+  BINARY_DIR "${TBB_BUILD_DIR}/build"
+  STAMP_DIR "${TBB_BUILD_DIR}/stamp"
+  GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
+  SOURCE_DIR "${TBB_SOURCE_DIR}"
+  UPDATE_COMMAND ""
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}
+  UPDATE_DISCONNECTED 1
+)
+
+if(WIN32)
+  set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib)
+  set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb_debug.lib)
+  set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
+else(WIN32)
+	find_library(TBB_LIBRARIES NAMES tbb PATHS /usr/local/lib/ )
+endif(WIN32)
+
+
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
@@ -135,4 +158,4 @@ target_link_libraries( pumexviewer pumex )
 
 add_executable( crowd src/crowd.cpp )
 add_dependencies( crowd shaders )
-target_link_libraries( crowd pumex )
+target_link_libraries( crowd pumex ${TBB_LIBRARIES} )

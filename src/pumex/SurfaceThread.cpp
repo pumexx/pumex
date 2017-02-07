@@ -42,7 +42,7 @@ void SurfaceThread::run()
     draw();
     surfaceSh->endFrame();
     // FIXME - shouldn't be changed to some fence maybe ?
-    VK_CHECK_LOG_THROW(vkDeviceWaitIdle(surfaceSh->device.lock()->device), "failed vkDeviceWaitIdle");
+//    VK_CHECK_LOG_THROW(vkDeviceWaitIdle(surfaceSh->device.lock()->device), "failed vkDeviceWaitIdle");
     std::this_thread::yield();
   }
 }

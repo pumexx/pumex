@@ -23,6 +23,7 @@ CMakeCache.txt
 external/glm/
 external/gli/
 external/assimp/
+external/tbb/
 
 #others
 *.tlog

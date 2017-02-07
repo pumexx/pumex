@@ -6,6 +6,7 @@
 #include <gli/gli.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
+#include <tbb/tbb.h>
 
 #define CROWD_MEASURE_TIME 1
 
@@ -103,6 +104,10 @@ struct ApplicationData
   std::vector<float>                                   animationSpeed;
 
   std::default_random_engine                           randomEngine;
+  std::exponential_distribution<float>                 randomTime2NextTurn;
+  std::uniform_real_distribution<float>                randomRotation;
+  std::uniform_int_distribution<uint32_t>              randomAnimation;
+
   std::vector<PositionData>                            positionData;
   std::vector<InstanceData>                            instanceData;
   std::vector<InstanceDataCPU>                         instanceDataCPU;
@@ -145,9 +150,8 @@ struct ApplicationData
 
 
   ApplicationData(std::shared_ptr<pumex::Viewer> v)
-    : viewer{ v }, renderMethod{ 1 }
+	  : viewer{ v }, renderMethod{ 1 }, randomTime2NextTurn{ 0.25 }, randomRotation{ -180.0f, 180.0f }
   {
-
   }
 
   void setup(const glm::vec3& minAreaParam, const glm::vec3& maxAreaParam, float objectDensity)
@@ -193,6 +197,8 @@ struct ApplicationData
       }
       animations.push_back(asset->animations[0]);
     }
+
+	randomAnimation = std::uniform_int_distribution<uint32_t>(1, animations.size() - 1);
 
     std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
     skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>();
@@ -460,10 +466,7 @@ struct ApplicationData
 
     std::uniform_real_distribution<float>   randomX(minArea.x, maxArea.x);
     std::uniform_real_distribution<float>   randomY(minArea.y, maxArea.y);
-    std::uniform_real_distribution<float>   randomRot(-180.0f, 180.0f);
     std::uniform_int_distribution<uint32_t> randomType(0, mainObjectTypeID.size() - 1);
-    std::uniform_int_distribution<uint32_t> randomAnimation(1, animations.size() - 1);
-    std::exponential_distribution<float>    randomTime2NextTurn(0.25);
     std::uniform_real_distribution<float>   randomAnimationOffset(0.0f, 5.0f);
 
     // each object type has its own number of material variants
@@ -474,7 +477,7 @@ struct ApplicationData
     for (unsigned int i = 0; i<objectQuantity; ++i)
     {
       glm::vec2 pos(randomX(randomEngine), randomY(randomEngine));
-      float rot                      = randomRot(randomEngine);
+      float rot                      = randomRotation(randomEngine);
       uint32_t objectType            = mainObjectTypeID[randomType(randomEngine)];
       uint32_t objectMaterialVariant = randomMaterialVariant[objectType](randomEngine);
       uint32_t anim                  = randomAnimation(randomEngine);
@@ -507,105 +510,33 @@ struct ApplicationData
 
   void update(float timeSinceStart, float timeSinceLastFrame)
   {
-    std::exponential_distribution<float> randomTime2NextTurn(0.25);
-    std::uniform_real_distribution<float> randomRotation(-180.0f, 180.0f);
-    std::uniform_int_distribution<uint32_t> randomAnimation(1, animations.size() - 1);
-
-    std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
-    std::fill(typeCount.begin(), typeCount.end(), 0);
-
-    for (uint32_t i = 0; i<instanceData.size(); ++i)
-    {
-      // compute how many instances of each type there is
-      typeCount[instanceData[i].typeID]++;
-
-      // skip animation calculations for instances that are not needed
-      if (instanceData[i].mainInstance == 0)
-        continue;
-      // change direction if bot is leaving designated area
-      bool isOutside[] = 
+    // parallelized version of update
+    tbb::parallel_for
+    (
+      tbb::blocked_range<size_t>(0, instanceData.size()), 
+      [=](const tbb::blocked_range<size_t>& r) 
       {
-        instanceDataCPU[i].position.x < minArea.x ,
-        instanceDataCPU[i].position.x > maxArea.x ,
-        instanceDataCPU[i].position.y < minArea.y ,
-        instanceDataCPU[i].position.y > maxArea.y
-      };
-      if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3] )
-      {
-        instanceDataCPU[i].position.x = std::max(instanceDataCPU[i].position.x, minArea.x);
-        instanceDataCPU[i].position.x = std::min(instanceDataCPU[i].position.x, maxArea.x);
-        instanceDataCPU[i].position.y = std::max(instanceDataCPU[i].position.y, minArea.y);
-        instanceDataCPU[i].position.y = std::min(instanceDataCPU[i].position.y, maxArea.y);
-        glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(instanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-        glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
-        if (isOutside[0] || isOutside[1])
-          direction.x *= -1.0f;
-        if (isOutside[2] || isOutside[3])
-          direction.y *= -1.0f;
-        direction = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
-        instanceDataCPU[i].rotation = glm::degrees(atan2f(direction.y, direction.x));
-        instanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
+        for (size_t i = r.begin(); i != r.end(); ++i)
+          updateInstance(i, timeSinceStart, timeSinceLastFrame);
       }
-      // change rotation, animation and speed if bot requires it
-      instanceDataCPU[i].time2NextTurn -= timeSinceLastFrame;
-      if (instanceDataCPU[i].time2NextTurn < 0.0f)
-      {
-        instanceDataCPU[i].rotation      = randomRotation(randomEngine);
-        instanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-        instanceDataCPU[i].animation     = randomAnimation(randomEngine);
-        instanceDataCPU[i].speed         = animationSpeed[instanceDataCPU[i].animation];
-      }
-      // calculate new position
-      glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(instanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-      glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
-      glm::vec2 dir2(direction.x, direction.y);
-      instanceDataCPU[i].position += dir2 * instanceDataCPU[i].speed * timeSinceLastFrame;
-      positionData[instanceData[i].positionIndex].position = glm::translate(glm::mat4(), glm::vec3(instanceDataCPU[i].position.x, instanceDataCPU[i].position.y, 0.0f)) * rotationMatrix;
-
-      // calculate bone matrices for the bots
-      pumex::Animation& anim = animations[instanceDataCPU[i].animation];
-      pumex::Skeleton&  skel = skeletons[instanceData[i].typeID];
-
-      uint32_t numAnimChannels = anim.channels.size();
-      uint32_t numSkelBones = skel.bones.size();
-      SkelAnimKey saKey(instanceData[i].typeID, instanceDataCPU[i].animation);
-
-      auto bmit = skelAnimBoneMapping.find(saKey);
-      if (bmit == skelAnimBoneMapping.end())
-      {
-        std::vector<uint32_t> boneChannelMapping(numSkelBones);
-        for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-        {
-          auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-          boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
-        }
-        bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
-      }
-
-      std::vector<glm::mat4> localTransforms(MAX_BONES);
-      std::vector<glm::mat4> globalTransforms(MAX_BONES);
-
-      const auto& boneChannelMapping = bmit->second;
-      anim.calculateLocalTransforms(timeSinceStart + instanceDataCPU[i].animationOffset, localTransforms.data(), numAnimChannels);
-      uint32_t bcVal = boneChannelMapping[0];
-      glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
-      globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
-      for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
-      {
-        bcVal = boneChannelMapping[boneIndex];
-        localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
-        globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
-      }
-      PositionData& posData = positionData[instanceData[i].positionIndex];
-      for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-        posData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
-    }
+    );
+    // serial version of update
+    //for (uint32_t i = 0; i < instanceData.size(); ++i)
+    //{
+    //  updateInstance(i, timeSinceStart, timeSinceLastFrame);
+    //}
 
     positionSbo->set(positionData);
     instanceSbo->set(instanceData);
 
     if (renderMethod == 1)
     {
+      std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
+      std::fill(typeCount.begin(), typeCount.end(), 0);
+      // compute how many instances of each type there is
+      for (uint32_t i = 0; i<instanceData.size(); ++i)
+        typeCount[instanceData[i].typeID]++;
+
       std::vector<uint32_t> offsets;
       for (uint32_t i = 0; i<resultsGeomToType.size(); ++i)
         offsets.push_back(typeCount[resultsGeomToType[i]]);
@@ -622,6 +553,92 @@ struct ApplicationData
       resultsSbo->set(results);
       offValuesSbo->set(std::vector<uint32_t>(offsetSum));
     }
+
+  }
+
+
+  void updateInstance(uint32_t i, float timeSinceStart, float timeSinceLastFrame)
+  {
+    // skip animation calculations for instances that are not needed
+    if (instanceData[i].mainInstance == 0)
+      return;
+    // change direction if bot is leaving designated area
+    bool isOutside[] = 
+    {
+      instanceDataCPU[i].position.x < minArea.x ,
+      instanceDataCPU[i].position.x > maxArea.x ,
+      instanceDataCPU[i].position.y < minArea.y ,
+      instanceDataCPU[i].position.y > maxArea.y
+    };
+    if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3] )
+    {
+      instanceDataCPU[i].position.x = std::max(instanceDataCPU[i].position.x, minArea.x);
+      instanceDataCPU[i].position.x = std::min(instanceDataCPU[i].position.x, maxArea.x);
+      instanceDataCPU[i].position.y = std::max(instanceDataCPU[i].position.y, minArea.y);
+      instanceDataCPU[i].position.y = std::min(instanceDataCPU[i].position.y, maxArea.y);
+      glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(instanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+      glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
+      if (isOutside[0] || isOutside[1])
+        direction.x *= -1.0f;
+      if (isOutside[2] || isOutside[3])
+        direction.y *= -1.0f;
+      direction = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
+      instanceDataCPU[i].rotation = glm::degrees(atan2f(direction.y, direction.x));
+      instanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
+    }
+    // change rotation, animation and speed if bot requires it
+    instanceDataCPU[i].time2NextTurn -= timeSinceLastFrame;
+    if (instanceDataCPU[i].time2NextTurn < 0.0f)
+    {
+      instanceDataCPU[i].rotation      = randomRotation(randomEngine);
+      instanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
+      instanceDataCPU[i].animation     = randomAnimation(randomEngine);
+      instanceDataCPU[i].speed         = animationSpeed[instanceDataCPU[i].animation];
+    }
+    // calculate new position
+    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(instanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+    glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
+    glm::vec2 dir2(direction.x, direction.y);
+    instanceDataCPU[i].position += dir2 * instanceDataCPU[i].speed * timeSinceLastFrame;
+    positionData[instanceData[i].positionIndex].position = glm::translate(glm::mat4(), glm::vec3(instanceDataCPU[i].position.x, instanceDataCPU[i].position.y, 0.0f)) * rotationMatrix;
+
+    // calculate bone matrices for the bots
+    pumex::Animation& anim = animations[instanceDataCPU[i].animation];
+    pumex::Skeleton&  skel = skeletons[instanceData[i].typeID];
+
+    uint32_t numAnimChannels = anim.channels.size();
+    uint32_t numSkelBones = skel.bones.size();
+    SkelAnimKey saKey(instanceData[i].typeID, instanceDataCPU[i].animation);
+
+    auto bmit = skelAnimBoneMapping.find(saKey);
+    if (bmit == skelAnimBoneMapping.end())
+    {
+      std::vector<uint32_t> boneChannelMapping(numSkelBones);
+      for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+      {
+        auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
+        boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+      }
+      bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
+    }
+
+    std::vector<glm::mat4> localTransforms(MAX_BONES);
+    std::vector<glm::mat4> globalTransforms(MAX_BONES);
+
+    const auto& boneChannelMapping = bmit->second;
+    anim.calculateLocalTransforms(timeSinceStart + instanceDataCPU[i].animationOffset, localTransforms.data(), numAnimChannels);
+    uint32_t bcVal = boneChannelMapping[0];
+    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+    globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
+    for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
+    {
+      bcVal = boneChannelMapping[boneIndex];
+      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+      globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
+    }
+    PositionData& posData = positionData[instanceData[i].positionIndex];
+    for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+      posData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
   }
 };
 
@@ -967,7 +984,7 @@ int main(void)
     pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, false, "Crowd rendering"};
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } });
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments = 
