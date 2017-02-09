@@ -131,14 +131,17 @@ std::shared_ptr<pumex::Surface> WindowWin32::createSurface(std::shared_ptr<pumex
   return result;
 }
 
-void WindowWin32::checkWindowMessages()
+bool WindowWin32::checkWindowMessages()
 {
   MSG msg;
-  while ( GetMessage(&msg, NULL, 0, 0) != 0 )
+  while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
   {
+    if (msg.message == WM_QUIT)
+      return false;
     TranslateMessage(&msg);
     DispatchMessage(&msg);
   }
+  return true;
 }
 
 

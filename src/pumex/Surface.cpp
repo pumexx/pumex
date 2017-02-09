@@ -230,41 +230,14 @@ void Surface::createSwapChain()
 
   for (uint32_t i = 0; i < swapChainImages.size(); ++i)
   {
-    
-    //MemoryBarriers m = { {}, {}, { 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }, swapChainImages[i].image } };
-    //postPresentCmdBuffers->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m);
     postPresentCmdBuffers[i]->cmdBegin(deviceSh);
     PipelineBarrier postPresentBarrier(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i].image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } );
     postPresentCmdBuffers[i]->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, postPresentBarrier);
-    //VkImageMemoryBarrier postPresentBarrier{};
-    //  postPresentBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    //  postPresentBarrier.srcAccessMask       = 0;
-    //  postPresentBarrier.dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    //  postPresentBarrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
-    //  postPresentBarrier.newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    //  postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    //  postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    //  postPresentBarrier.subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    //  postPresentBarrier.image               = swapChainImages[i].image;
-    //vkCmdPipelineBarrier(postPresentCmdBuffers[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-    //  0, 0, nullptr, 0, nullptr, 1, &postPresentBarrier);
     postPresentCmdBuffers[i]->cmdEnd(deviceSh);
 
     prePresentCmdBuffers[i]->cmdBegin(deviceSh);
     PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i].image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
     prePresentCmdBuffers[i]->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
-    //VkImageMemoryBarrier prePresentBarrier{};
-    //  prePresentBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    //  prePresentBarrier.srcAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    //  prePresentBarrier.dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT;
-    //  prePresentBarrier.oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    //  prePresentBarrier.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    //  prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    //  prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    //  prePresentBarrier.subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    //  prePresentBarrier.image               = swapChainImages[i].image;
-    //vkCmdPipelineBarrier( prePresentCmdBuffers[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
-    //  0, 0, nullptr, 0, nullptr, 1, &prePresentBarrier);
     prePresentCmdBuffers[i]->cmdEnd(deviceSh);
   }
 
@@ -350,12 +323,12 @@ void Surface::endFrame()
   // FIXME - isn't a place for synchronizing many windows at once ?
   // In that case we shouldn't call it for single surface, I suppose...
   VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &swapChain;
-    presentInfo.pImageIndices = &swapChainImageIndex;
+    presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.swapchainCount     = 1;
+    presentInfo.pSwapchains        = &swapChain;
+    presentInfo.pImageIndices      = &swapChainImageIndex;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &renderCompleteSemaphore;
+    presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
   VK_CHECK_LOG_THROW(vkQueuePresentKHR(presentationQueue, &presentInfo), "failed vkQueuePresentKHR");
   // FIXME : eliminate vkQueueWaitIdle ?
   VK_CHECK_LOG_THROW(vkQueueWaitIdle(presentationQueue), "failed vkQueueWaitIdle")

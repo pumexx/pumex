@@ -1112,7 +1112,7 @@ public:
   {
     cleanup();
   }
-  void draw() override
+  void draw()
   {
     std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
     std::shared_ptr<pumex::Viewer>  viewerSh  = surface.lock()->viewer.lock();

@@ -25,7 +25,7 @@ ViewerTraits::ViewerTraits(const std::string& aName, bool uv, const std::vector<
 const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const pumex::ViewerTraits& vt)
-  : viewerTraits{ vt }
+  : viewerTraits{ vt }, startGraph{ runGraph }
 {
   startTime = pumex::HPClock::now();
 
@@ -181,7 +181,7 @@ std::shared_ptr<pumex::Surface> Viewer::addSurface(std::shared_ptr<pumex::Window
   surfaceThread->setup(surface);
   surface->setSurfaceThread(surfaceThread);
   surfaces.push_back(surface);
-  addThread(surfaceThread.get());
+//  addThread(surfaceThread.get());
   return surface;
 }
 
@@ -192,12 +192,18 @@ void Viewer::addThread(pumex::Thread* thread)
 
 void Viewer::run()
 {
-  ThreadJoiner joiner;
-  for (auto t : pumexThreads)
-    joiner.addThread(t);
+//  ThreadJoiner joiner;
+//  for (auto t : pumexThreads)
+//    joiner.addThread(t);
+  while (true)
+  {
 #if defined(_WIN32)
-  WindowWin32::checkWindowMessages();
+    if (!WindowWin32::checkWindowMessages())
+      return;
 #endif
+    startGraph.try_put(tbb::flow::continue_msg());
+    runGraph.wait_for_all();
+  }
 }
 
 std::string Viewer::getFullFilePath(const std::string& shortFileName) const

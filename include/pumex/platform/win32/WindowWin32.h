@@ -23,7 +23,7 @@ namespace pumex
     static WindowWin32* getWindow(HWND hwnd);
 
     std::shared_ptr<pumex::Surface> createSurface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits) override;
-    static void checkWindowMessages();
+    static bool checkWindowMessages();
 
     LRESULT handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam);
 

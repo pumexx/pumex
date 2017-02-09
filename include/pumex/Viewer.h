@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/HPClock.h>
+#include <tbb/flow_graph.h>
 
 namespace pumex
 {
@@ -61,6 +62,8 @@ namespace pumex
     VkInstance                          instance             = VK_NULL_HANDLE;
     std::vector<VkExtensionProperties>  extensionProperties;
     bool                                viewerTerminate      = false;
+    tbb::flow::graph                    runGraph;
+    tbb::flow::broadcast_node< tbb::flow::continue_msg > startGraph;
   protected:
     void setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
     void cleanupDebugging();

@@ -8,7 +8,9 @@
 #include <pumex/AssetLoaderAssimp.h>
 #include <tbb/tbb.h>
 
-#define CROWD_MEASURE_TIME 1
+// Current measurment methods add 4ms to a single frame ( cout lags ? Or clocks are slow... )
+// I suggest using applications such as RenderDoc to measure time for now.
+//#define CROWD_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 63;
 
@@ -71,7 +73,6 @@ struct MaterialData
     auto it = textureIndices.find(pumex::TextureSemantic::Diffuse);
     diffuseTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
   }
-
 };
 
 struct SkelAnimKey
@@ -91,10 +92,25 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
   return lhs.skelID < rhs.skelID;
 }
 
+struct FrameData
+{
+  FrameData()
+    : renderMethod{ 1 }
+  {
+  }
+  pumex::Camera                camera;
+  std::vector<PositionData>    positionData;
+  std::vector<InstanceData>    instanceData;
+  std::vector<InstanceDataCPU> instanceDataCPU;
+  uint32_t                     renderMethod;
+};
+
 struct ApplicationData
 {
   std::weak_ptr<pumex::Viewer>                         viewer;
-  uint32_t                                             renderMethod;
+  std::array<FrameData, 2>                             frameData;
+  uint32_t                                             readIdx;
+  uint32_t                                             writeIdx;
 
   glm::vec3                                            minArea;
   glm::vec3                                            maxArea;
@@ -107,10 +123,6 @@ struct ApplicationData
   std::exponential_distribution<float>                 randomTime2NextTurn;
   std::uniform_real_distribution<float>                randomRotation;
   std::uniform_int_distribution<uint32_t>              randomAnimation;
-
-  std::vector<PositionData>                            positionData;
-  std::vector<InstanceData>                            instanceData;
-  std::vector<InstanceDataCPU>                         instanceDataCPU;
 
   std::shared_ptr<pumex::AssetBuffer>                  skeletalAssetBuffer;
   std::shared_ptr<pumex::TextureRegistryArray>         textureRegistryArray;
@@ -148,9 +160,20 @@ struct ApplicationData
 
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
+  glm::vec3 cameraPosition;
+  glm::vec2 cameraGeographicCoordinates;
+  float     cameraDistance;
+  glm::vec2 lastMousePos;
+  bool      leftMouseKeyPressed;
+  bool      rightMouseKeyPressed;
+  bool      xKeyPressed;
+
+  double    inputDuration;
+  double    updateDuration;
+  double    recalcDuration;
 
   ApplicationData(std::shared_ptr<pumex::Viewer> v)
-	  : viewer{ v }, renderMethod{ 1 }, randomTime2NextTurn{ 0.25 }, randomRotation{ -180.0f, 180.0f }
+	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -180.0f, 180.0f }
   {
   }
 
@@ -430,7 +453,6 @@ struct ApplicationData
     instancedRenderDescriptorSet->setSource(6, materialSet->getMaterialDefinitionBufferDescriptorSetSource());
     instancedRenderDescriptorSet->setSource(7, textureRegistryArray->getTargetTexture(0));
 
-
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
@@ -481,9 +503,9 @@ struct ApplicationData
       uint32_t objectType            = mainObjectTypeID[randomType(randomEngine)];
       uint32_t objectMaterialVariant = randomMaterialVariant[objectType](randomEngine);
       uint32_t anim                  = randomAnimation(randomEngine);
-      positionData.push_back(PositionData(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, 0.0f)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f))));
-      instanceData.push_back(InstanceData(i, objectType, objectMaterialVariant, 1));
-      instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], randomTime2NextTurn(randomEngine), randomAnimationOffset(randomEngine)));
+      frameData[0].positionData.push_back(PositionData(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, 0.0f)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f))));
+      frameData[0].instanceData.push_back(InstanceData(i, objectType, objectMaterialVariant, 1));
+      frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], randomTime2NextTurn(randomEngine), randomAnimationOffset(randomEngine)));
       auto clothPair = clothVariants.equal_range(skeletalAssetBuffer->getTypeName(objectType));
       auto clothCount = std::distance(clothPair.first, clothPair.second);
       if (clothCount > 0)
@@ -493,231 +515,39 @@ struct ApplicationData
         for( const auto& c : clothPair.first->second )
         {
           uint32_t clothType = skeletalAssetBuffer->getTypeID(c);
-          instanceData.push_back(InstanceData(i, clothType, 0, 0));
-          instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], 0.0, 0.0));
+          frameData[0].instanceData.push_back(InstanceData(i, clothType, 0, 0));
+          frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], 0.0, 0.0));
         }
       }
     }
-    positionSbo->set(positionData);
-    instanceSbo->set(instanceData);
+    frameData[1] = frameData[0];
+    readIdx = 0;
+    writeIdx = 1;
+    positionSbo->set(frameData[1].positionData);
+    instanceSbo->set(frameData[1].instanceData);
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);
     resultsSbo->set(results);
     resultsSbo2->set(results);
     offValuesSbo->set(std::vector<uint32_t>(1)); // FIXME
-  }
-
-  void update(float timeSinceStart, float timeSinceLastFrame)
-  {
-    // parallelized version of update
-    tbb::parallel_for
-    (
-      tbb::blocked_range<size_t>(0, instanceData.size()), 
-      [=](const tbb::blocked_range<size_t>& r) 
-      {
-        for (size_t i = r.begin(); i != r.end(); ++i)
-          updateInstance(i, timeSinceStart, timeSinceLastFrame);
-      }
-    );
-    // serial version of update
-    //for (uint32_t i = 0; i < instanceData.size(); ++i)
-    //{
-    //  updateInstance(i, timeSinceStart, timeSinceLastFrame);
-    //}
-
-    positionSbo->set(positionData);
-    instanceSbo->set(instanceData);
-
-    if (renderMethod == 1)
-    {
-      std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
-      std::fill(typeCount.begin(), typeCount.end(), 0);
-      // compute how many instances of each type there is
-      for (uint32_t i = 0; i<instanceData.size(); ++i)
-        typeCount[instanceData[i].typeID]++;
-
-      std::vector<uint32_t> offsets;
-      for (uint32_t i = 0; i<resultsGeomToType.size(); ++i)
-        offsets.push_back(typeCount[resultsGeomToType[i]]);
-
-      std::vector<pumex::DrawIndexedIndirectCommand> results = resultsSbo->get();
-      uint32_t offsetSum = 0;
-      for (uint32_t i = 0; i<offsets.size(); ++i)
-      {
-        uint32_t tmp = offsetSum;
-        offsetSum += offsets[i];
-        offsets[i] = tmp;
-        results[i].firstInstance = tmp;
-      }
-      resultsSbo->set(results);
-      offValuesSbo->set(std::vector<uint32_t>(offsetSum));
-    }
-
-  }
-
-
-  void updateInstance(uint32_t i, float timeSinceStart, float timeSinceLastFrame)
-  {
-    // skip animation calculations for instances that are not needed
-    if (instanceData[i].mainInstance == 0)
-      return;
-    // change direction if bot is leaving designated area
-    bool isOutside[] = 
-    {
-      instanceDataCPU[i].position.x < minArea.x ,
-      instanceDataCPU[i].position.x > maxArea.x ,
-      instanceDataCPU[i].position.y < minArea.y ,
-      instanceDataCPU[i].position.y > maxArea.y
-    };
-    if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3] )
-    {
-      instanceDataCPU[i].position.x = std::max(instanceDataCPU[i].position.x, minArea.x);
-      instanceDataCPU[i].position.x = std::min(instanceDataCPU[i].position.x, maxArea.x);
-      instanceDataCPU[i].position.y = std::max(instanceDataCPU[i].position.y, minArea.y);
-      instanceDataCPU[i].position.y = std::min(instanceDataCPU[i].position.y, maxArea.y);
-      glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(instanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-      glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
-      if (isOutside[0] || isOutside[1])
-        direction.x *= -1.0f;
-      if (isOutside[2] || isOutside[3])
-        direction.y *= -1.0f;
-      direction = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
-      instanceDataCPU[i].rotation = glm::degrees(atan2f(direction.y, direction.x));
-      instanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-    }
-    // change rotation, animation and speed if bot requires it
-    instanceDataCPU[i].time2NextTurn -= timeSinceLastFrame;
-    if (instanceDataCPU[i].time2NextTurn < 0.0f)
-    {
-      instanceDataCPU[i].rotation      = randomRotation(randomEngine);
-      instanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-      instanceDataCPU[i].animation     = randomAnimation(randomEngine);
-      instanceDataCPU[i].speed         = animationSpeed[instanceDataCPU[i].animation];
-    }
-    // calculate new position
-    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(instanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-    glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
-    glm::vec2 dir2(direction.x, direction.y);
-    instanceDataCPU[i].position += dir2 * instanceDataCPU[i].speed * timeSinceLastFrame;
-    positionData[instanceData[i].positionIndex].position = glm::translate(glm::mat4(), glm::vec3(instanceDataCPU[i].position.x, instanceDataCPU[i].position.y, 0.0f)) * rotationMatrix;
-
-    // calculate bone matrices for the bots
-    pumex::Animation& anim = animations[instanceDataCPU[i].animation];
-    pumex::Skeleton&  skel = skeletons[instanceData[i].typeID];
-
-    uint32_t numAnimChannels = anim.channels.size();
-    uint32_t numSkelBones = skel.bones.size();
-    SkelAnimKey saKey(instanceData[i].typeID, instanceDataCPU[i].animation);
-
-    auto bmit = skelAnimBoneMapping.find(saKey);
-    if (bmit == skelAnimBoneMapping.end())
-    {
-      std::vector<uint32_t> boneChannelMapping(numSkelBones);
-      for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-      {
-        auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-        boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
-      }
-      bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
-    }
-
-    std::vector<glm::mat4> localTransforms(MAX_BONES);
-    std::vector<glm::mat4> globalTransforms(MAX_BONES);
-
-    const auto& boneChannelMapping = bmit->second;
-    anim.calculateLocalTransforms(timeSinceStart + instanceDataCPU[i].animationOffset, localTransforms.data(), numAnimChannels);
-    uint32_t bcVal = boneChannelMapping[0];
-    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
-    globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
-    for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
-    {
-      bcVal = boneChannelMapping[boneIndex];
-      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
-      globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
-    }
-    PositionData& posData = positionData[instanceData[i].positionIndex];
-    for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-      posData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
-  }
-};
-
-class CrowdRenderThread : public pumex::SurfaceThread
-{
-public:
-  CrowdRenderThread( std::shared_ptr<ApplicationData> applicationData )
-    : pumex::SurfaceThread(), appData(applicationData)
-  {
-  }
-
-  void setup(std::shared_ptr<pumex::Surface> s) override
-  {
-    SurfaceThread::setup(s);
-
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
-    VkDevice                        vkDevice  = deviceSh->device;
-
-    myCmdBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, surfaceSh->commandPool);
-    myCmdBuffer->validate(deviceSh);
-
-    appData->pipelineCache->validate(deviceSh);
-
-    appData->skeletalAssetBuffer->validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
-    appData->materialSet->validate(deviceSh, surfaceSh->commandPool, surfaceSh->presentationQueue);
-    appData->simpleRenderDescriptorSetLayout->validate(deviceSh);
-    appData->simpleRenderDescriptorPool->validate(deviceSh);
-    appData->simpleRenderPipelineLayout->validate(deviceSh);
-    appData->simpleRenderPipeline->validate(deviceSh);
-
-    appData->instancedRenderDescriptorSetLayout->validate(deviceSh);
-    appData->instancedRenderDescriptorPool->validate(deviceSh);
-    appData->instancedRenderPipelineLayout->validate(deviceSh);
-    appData->instancedRenderPipeline->validate(deviceSh);
-
-    appData->filterDescriptorSetLayout->validate(deviceSh);
-    appData->filterDescriptorPool->validate(deviceSh);
-    appData->filterPipelineLayout->validate(deviceSh);
-    appData->filterPipeline->validate(deviceSh);
-
-    appData->timeStampQueryPool->validate(deviceSh);
-
-    // preparing descriptor sets
-    appData->cameraUbo->validate(deviceSh);
-    appData->positionSbo->validate(deviceSh);
-    appData->instanceSbo->validate(deviceSh);
-    appData->resultsSbo->validate(deviceSh);
-    appData->resultsSbo2->validate(deviceSh);
-    appData->offValuesSbo->validate(deviceSh);
 
     cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
     cameraDistance              = 1.0f;
     leftMouseKeyPressed         = false;
     rightMouseKeyPressed        = false;
-    xKeyPressed                 = false;
+    xKeyPressed                 = true;
   }
 
-  void cleanup() override
+  void processInput( std::shared_ptr<pumex::SurfaceThread> surfaceThread )
   {
-    SurfaceThread::cleanup();
-  }
-  ~CrowdRenderThread()
-  {
-    cleanup();
-  }
-  void draw() override
-  {
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Viewer>  viewerSh  = surface.lock()->viewer.lock();
-    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
+#if defined(CROWD_MEASURE_TIME)
+    auto inputStart = pumex::HPClock::now();
+#endif
+    std::shared_ptr<pumex::Surface> surfaceSh = surfaceThread->surface.lock();
     std::shared_ptr<pumex::Window>  windowSh  = surfaceSh->window.lock();
-    VkDevice                        vkDevice  = deviceSh->device;
 
-    double timeSinceStartInSeconds = std::chrono::duration<double, std::ratio<1,1>>(timeSinceStart).count();
-    double lastFrameInSeconds      = std::chrono::duration<double, std::ratio<1,1>>(timeSinceLastFrame).count();
-
-    // camera update
     std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
     glm::vec2 mouseMove = lastMousePos;
     for (const auto& m : mouseEvents)
@@ -781,8 +611,8 @@ public:
     {
       if (!xKeyPressed)
       {
-        appData->renderMethod = ( appData->renderMethod + 1 ) % 2;
-        switch (appData->renderMethod)
+        frameData[writeIdx].renderMethod = (frameData[readIdx].renderMethod + 1) % 2;
+        switch (frameData[writeIdx].renderMethod)
         {
         case 0: LOG_INFO << "Rendering using simple method ( each entity uses its own vkCmdDrawIndexed )" << std::endl; break;
         case 1: LOG_INFO << "Rendering using instanced method ( all entities use only a single vkCmdDrawIndexedIndirect )" << std::endl; break;
@@ -794,30 +624,271 @@ public:
       xKeyPressed = false;
 
     glm::vec3 eye
-      (
+    (
       cameraDistance * cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
       cameraDistance * sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
       cameraDistance * sin(cameraGeographicCoordinates.y * 3.1415f / 180.0f)
-      );
+    );
     glm::mat4 viewMatrix = glm::lookAt(eye + cameraPosition, cameraPosition, glm::vec3(0, 0, 1));
 
     uint32_t renderWidth  = surfaceSh->swapChainSize.width;
     uint32_t renderHeight = surfaceSh->swapChainSize.height;
 
-    pumex::Camera camera = appData->cameraUbo->get();
-    camera.setViewMatrix(viewMatrix);
-    camera.setObserverPosition(eye + cameraPosition);
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    appData->cameraUbo->set(camera);
+    frameData[writeIdx].camera.setViewMatrix(viewMatrix);
+    frameData[writeIdx].camera.setObserverPosition(eye + cameraPosition);
+    frameData[writeIdx].camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    frameData[writeIdx].camera.setTimeSinceStart(surfaceThread->timeSinceStartInSeconds);
+    cameraUbo->set(frameData[writeIdx].camera);
 
+#if defined(CROWD_MEASURE_TIME)
+    auto inputEnd = pumex::HPClock::now();
+    inputDuration = std::chrono::duration<double, std::milli>(inputEnd - inputStart).count();
+#endif
+  }
+
+  void update(float timeSinceStart, float timeSinceLastFrame)
+  {
 #if defined(CROWD_MEASURE_TIME)
     auto updateStart = pumex::HPClock::now();
 #endif
-    appData->update(timeSinceStartInSeconds, lastFrameInSeconds);
+    // parallelized version of update
+    tbb::parallel_for
+    (
+      tbb::blocked_range<size_t>(0, frameData[readIdx].instanceData.size()),
+      [=](const tbb::blocked_range<size_t>& r)
+      {
+        for (size_t i = r.begin(); i != r.end(); ++i)
+          updateInstance
+          (
+            frameData[readIdx].instanceData[i], frameData[readIdx].instanceDataCPU[i], frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex],
+            frameData[writeIdx].instanceData[i], frameData[writeIdx].instanceDataCPU[i], frameData[writeIdx].positionData[frameData[writeIdx].instanceData[i].positionIndex],
+            timeSinceStart, timeSinceLastFrame
+          );
+
+      }
+    );
+    // serial version of update
+    //for (uint32_t i = 0; i < instanceData.size(); ++i)
+    //{
+    //  updateInstance
+    //  (
+    //    frameData[readIdx].instanceData[i], frameData[readIdx].instanceDataCPU[i], frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex],
+    //    frameData[writeIdx].instanceData[i], frameData[writeIdx].instanceDataCPU[i], frameData[writeIdx].positionData[frameData[writeIdx].instanceData[i].positionIndex],
+    //    timeSinceStart, timeSinceLastFrame
+    //  };
+    // }
 #if defined(CROWD_MEASURE_TIME)
     auto updateEnd = pumex::HPClock::now();
-    double updateDuration = std::chrono::duration<double, std::milli>(updateEnd - updateStart).count();
+    updateDuration = std::chrono::duration<double, std::milli>(updateEnd - updateStart).count();
 #endif
+  }
+
+  inline void updateInstance( const InstanceData& inInstanceData, const InstanceDataCPU& inInstanceCPU, const PositionData& inPosition,
+    InstanceData& outInstanceData, InstanceDataCPU& outInstanceCPU, PositionData& outPosition,
+    float timeSinceStart, float timeSinceLastFrame)
+  {
+    // skip animation calculations for instances that are not needed
+    if (inInstanceData.mainInstance == 0)
+      return;
+    // change rotation, animation and speed if bot requires it
+    if (outInstanceCPU.time2NextTurn < 0.0f)
+    {
+      outInstanceCPU.rotation      = randomRotation(randomEngine);
+      outInstanceCPU.time2NextTurn = randomTime2NextTurn(randomEngine);
+      outInstanceCPU.animation     = randomAnimation(randomEngine);
+      outInstanceCPU.speed         = animationSpeed[outInstanceCPU.animation];
+    }
+    else
+    {
+      outInstanceCPU.rotation      = inInstanceCPU.rotation;
+      outInstanceCPU.time2NextTurn = inInstanceCPU.time2NextTurn - timeSinceLastFrame;
+      outInstanceCPU.animation     = inInstanceCPU.animation;
+      outInstanceCPU.speed         = inInstanceCPU.speed;
+    }
+    outInstanceCPU.animationOffset = inInstanceCPU.animationOffset;
+    // calculate new position
+    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(outInstanceCPU.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+    glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
+    glm::vec2 dir2(direction.x, direction.y);
+    outInstanceCPU.position = inInstanceCPU.position + dir2 * outInstanceCPU.speed * timeSinceLastFrame;
+
+    // change direction if bot is leaving designated area
+    bool isOutside[] =
+    {
+      outInstanceCPU.position.x < minArea.x ,
+      outInstanceCPU.position.x > maxArea.x ,
+      outInstanceCPU.position.y < minArea.y ,
+      outInstanceCPU.position.y > maxArea.y
+    };
+    if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3])
+    {
+      outInstanceCPU.position.x = std::max(outInstanceCPU.position.x, minArea.x);
+      outInstanceCPU.position.x = std::min(outInstanceCPU.position.x, maxArea.x);
+      outInstanceCPU.position.y = std::max(outInstanceCPU.position.y, minArea.y);
+      outInstanceCPU.position.y = std::min(outInstanceCPU.position.y, maxArea.y);
+      glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
+      if (isOutside[0] || isOutside[1])
+        direction.x *= -1.0f;
+      if (isOutside[2] || isOutside[3])
+        direction.y *= -1.0f;
+      direction = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
+      outInstanceCPU.rotation = glm::degrees(atan2f(direction.y, direction.x));
+      rotationMatrix = glm::rotate(glm::mat4(), glm::radians(outInstanceCPU.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+      outInstanceCPU.time2NextTurn = randomTime2NextTurn(randomEngine);
+    }
+
+    outPosition.position = glm::translate(glm::mat4(), glm::vec3(outInstanceCPU.position.x, outInstanceCPU.position.y, 0.0f)) * rotationMatrix;
+    outInstanceData = inInstanceData;
+
+    // calculate bone matrices for the bots
+    pumex::Animation& anim = animations[outInstanceCPU.animation];
+    pumex::Skeleton&  skel = skeletons[outInstanceData.typeID];
+
+    uint32_t numAnimChannels = anim.channels.size();
+    uint32_t numSkelBones = skel.bones.size();
+    SkelAnimKey saKey(outInstanceData.typeID, outInstanceCPU.animation);
+
+    auto bmit = skelAnimBoneMapping.find(saKey);
+    if (bmit == skelAnimBoneMapping.end())
+    {
+      std::vector<uint32_t> boneChannelMapping(numSkelBones);
+      for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+      {
+        auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
+        boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+      }
+      bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
+    }
+
+    std::vector<glm::mat4> localTransforms(MAX_BONES);
+    std::vector<glm::mat4> globalTransforms(MAX_BONES);
+
+    const auto& boneChannelMapping = bmit->second;
+    anim.calculateLocalTransforms(timeSinceStart + outInstanceCPU.animationOffset, localTransforms.data(), numAnimChannels);
+    uint32_t bcVal = boneChannelMapping[0];
+    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+    globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
+    for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
+    {
+      bcVal = boneChannelMapping[boneIndex];
+      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+      globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
+    }
+    for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+      outPosition.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+  }
+
+  void recalcOffsetsAndSetData(FrameData& fData)
+  {
+#if defined(CROWD_MEASURE_TIME)
+    auto recalcStart = pumex::HPClock::now();
+#endif
+    if (fData.renderMethod == 1)
+    {
+      std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
+      std::fill(typeCount.begin(), typeCount.end(), 0);
+      // compute how many instances of each type there is
+      for (uint32_t i = 0; i<fData.instanceData.size(); ++i)
+        typeCount[fData.instanceData[i].typeID]++;
+
+      std::vector<uint32_t> offsets;
+      for (uint32_t i = 0; i<resultsGeomToType.size(); ++i)
+        offsets.push_back(typeCount[resultsGeomToType[i]]);
+
+      std::vector<pumex::DrawIndexedIndirectCommand> results = resultsSbo->get();
+      uint32_t offsetSum = 0;
+      for (uint32_t i = 0; i<offsets.size(); ++i)
+      {
+        uint32_t tmp = offsetSum;
+        offsetSum += offsets[i];
+        offsets[i] = tmp;
+        results[i].firstInstance = tmp;
+      }
+      resultsSbo->set(results);
+      offValuesSbo->set(std::vector<uint32_t>(offsetSum));
+    }
+    positionSbo->set(fData.positionData);
+    instanceSbo->set(fData.instanceData);
+#if defined(CROWD_MEASURE_TIME)
+    auto recalcEnd = pumex::HPClock::now();
+    recalcDuration = std::chrono::duration<double, std::milli>(recalcEnd - recalcStart).count();
+#endif
+
+  }
+
+  void finish()
+  {
+    std::swap(readIdx, writeIdx);
+  }
+
+};
+
+class CrowdRenderThread : public pumex::SurfaceThread
+{
+public:
+  CrowdRenderThread( std::shared_ptr<ApplicationData> applicationData )
+    : pumex::SurfaceThread(), appData(applicationData)
+  {
+  }
+
+  void setup(std::shared_ptr<pumex::Surface> s) override
+  {
+    SurfaceThread::setup(s);
+
+    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
+    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
+
+    myCmdBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, surfaceSh->commandPool);
+    myCmdBuffer->validate(deviceSh);
+
+    appData->pipelineCache->validate(deviceSh);
+
+    appData->skeletalAssetBuffer->validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
+    appData->materialSet->validate(deviceSh, surfaceSh->commandPool, surfaceSh->presentationQueue);
+    appData->simpleRenderDescriptorSetLayout->validate(deviceSh);
+    appData->simpleRenderDescriptorPool->validate(deviceSh);
+    appData->simpleRenderPipelineLayout->validate(deviceSh);
+    appData->simpleRenderPipeline->validate(deviceSh);
+
+    appData->instancedRenderDescriptorSetLayout->validate(deviceSh);
+    appData->instancedRenderDescriptorPool->validate(deviceSh);
+    appData->instancedRenderPipelineLayout->validate(deviceSh);
+    appData->instancedRenderPipeline->validate(deviceSh);
+
+    appData->filterDescriptorSetLayout->validate(deviceSh);
+    appData->filterDescriptorPool->validate(deviceSh);
+    appData->filterPipelineLayout->validate(deviceSh);
+    appData->filterPipeline->validate(deviceSh);
+
+    appData->timeStampQueryPool->validate(deviceSh);
+
+    // preparing descriptor sets
+    appData->cameraUbo->validate(deviceSh);
+    appData->positionSbo->validate(deviceSh);
+    appData->instanceSbo->validate(deviceSh);
+    appData->resultsSbo->validate(deviceSh);
+    appData->resultsSbo2->validate(deviceSh);
+    appData->offValuesSbo->validate(deviceSh);
+  }
+
+  void cleanup() override
+  {
+    SurfaceThread::cleanup();
+  }
+  ~CrowdRenderThread()
+  {
+    cleanup();
+  }
+  void draw()
+  {
+    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
+    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
+    VkDevice                        vkDevice  = deviceSh->device;
+
+    uint32_t renderWidth  = surfaceSh->swapChainSize.width;
+    uint32_t renderHeight = surfaceSh->swapChainSize.height;
+
+    const FrameData& frameData = appData->frameData[appData->readIdx];
 
     appData->cameraUbo->validate(deviceSh);
     appData->positionSbo->validate(deviceSh);
@@ -840,7 +911,7 @@ public:
     pumex::DescriptorSetValue resultsBuffer2 = appData->resultsSbo2->getDescriptorSetValue(vkDevice);
     uint32_t drawCount = appData->resultsSbo->get().size();
 
-    if (appData->renderMethod == 1)
+    if (frameData.renderMethod == 1)
     {
 #if defined(CROWD_MEASURE_TIME)
       appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -851,7 +922,7 @@ public:
 
       myCmdBuffer->cmdBindPipeline(deviceSh, appData->filterPipeline);
       myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_COMPUTE, appData->filterPipelineLayout, 0, appData->filterDescriptorSet);
-      myCmdBuffer->cmdDispatch(deviceSh, appData->instanceData.size() / 16 + ((appData->instanceData.size() % 16>0) ? 1 : 0), 1, 1);
+      myCmdBuffer->cmdDispatch(deviceSh, frameData.instanceData.size() / 16 + ((frameData.instanceData.size() % 16>0) ? 1 : 0), 1, 1);
 
       pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
       myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
@@ -878,7 +949,7 @@ public:
 #if defined(CROWD_MEASURE_TIME)
     appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
-    switch (appData->renderMethod)
+    switch (frameData.renderMethod)
     {
     case 0: // simple rendering: no compute culling, no instancing
     {
@@ -887,12 +958,12 @@ public:
       appData->skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
       // Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
 //      glm::vec4 cameraPos = appData->cameraUbo->get().getViewMatrixInverse() * glm::vec4(0,0,0,1);
-      glm::vec4 cameraPos = appData->cameraUbo->get().getObserverPosition();
-      for (uint32_t i = 0; i<appData->instanceData.size(); ++i)
+      glm::vec4 cameraPos = frameData.camera.getObserverPosition();
+      for (uint32_t i = 0; i<frameData.instanceData.size(); ++i)
       {
-        glm::vec4 objectPos = appData->positionData[appData->instanceData[i].positionIndex].position[3];
+        glm::vec4 objectPos = frameData.positionData[frameData.instanceData[i].positionIndex].position[3];
         float distanceToCamera = glm::length(cameraPos - objectPos);
-        appData->skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer, 1, appData->instanceData[i].typeID, i, distanceToCamera);
+        appData->skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer, 1, frameData.instanceData[i].typeID, i, distanceToCamera);
       }
       break;
     }
@@ -918,50 +989,49 @@ public:
     myCmdBuffer->cmdEndRenderPass(deviceSh);
     myCmdBuffer->cmdEnd(deviceSh);
     myCmdBuffer->queueSubmit(deviceSh, surfaceSh->presentationQueue, { surfaceSh->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surfaceSh->renderCompleteSemaphore }, VK_NULL_HANDLE);
-
 #if defined(CROWD_MEASURE_TIME)
     auto drawEnd = pumex::HPClock::now();
-    double drawDuration = std::chrono::duration<double, std::milli>(drawEnd - drawStart).count();
-    LOG_ERROR << "Frame time                : " << 1000.0 * lastFrameInSeconds << " ms ( FPS = " << 1.0 / lastFrameInSeconds << " )" << std::endl;
-    LOG_ERROR << "Update skeletons          : " << updateDuration << " ms" << std::endl;
-    LOG_ERROR << "Fill command line buffers : " << drawDuration << " ms" << std::endl;
-
-    // skip GPU statistics when user switches render methods
-    if (!xKeyPressed)
-    {
-      float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
-      std::vector<uint64_t> queryResults;
-      // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-      if(appData->renderMethod==1)
-      {
-        queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4, 4, 0);
-        LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod  << " ms" << std::endl;
-        LOG_ERROR << "GPU draw shader           : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
-      }
-      else
-      {
-        queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4 + 2, 2, 0);
-        LOG_ERROR << "GPU draw duration " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
-      }
-    }
-    LOG_ERROR << std::endl;
-
+    drawDuration = std::chrono::duration<double, std::milli>(drawEnd - drawStart).count();
 #endif
+
   }
 
   std::shared_ptr<ApplicationData>      appData;
   std::shared_ptr<pumex::CommandBuffer> myCmdBuffer;
-
-  glm::vec3 cameraPosition;
-  glm::vec2 cameraGeographicCoordinates;
-  float     cameraDistance;
-  glm::vec2 lastMousePos;
-  bool      leftMouseKeyPressed;
-  bool      rightMouseKeyPressed;
-  bool      xKeyPressed;
-
-
+  double                                drawDuration;
 };
+
+void finishFrame(std::shared_ptr<ApplicationData> appData, std::shared_ptr<CrowdRenderThread> surfaceThread)
+{
+#if defined(CROWD_MEASURE_TIME)
+  std::shared_ptr<pumex::Surface> surfaceSh = surfaceThread->surface.lock();
+  std::shared_ptr<pumex::Device>  deviceSh = surfaceSh->device.lock();
+
+  LOG_ERROR << "Frame time                : " << 1000.0 * surfaceThread->lastFrameInSeconds << " ms ( FPS = " << 1.0 / surfaceThread->lastFrameInSeconds << " )" << std::endl;
+  LOG_ERROR << "Process input             : " << appData->inputDuration << " ms" << std::endl;
+  LOG_ERROR << "Update skeletons          : " << appData->updateDuration << " ms" << std::endl;
+  LOG_ERROR << "Recalculate offsets       : " << appData->recalcDuration << " ms" << std::endl;
+  LOG_ERROR << "Fill command line buffers : " << surfaceThread->drawDuration << " ms" << std::endl;
+
+  float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
+  std::vector<uint64_t> queryResults;
+  // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
+  if(appData->frameData[appData->readIdx].renderMethod==1)
+  {
+    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4, 4, 0);
+    LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod  << " ms" << std::endl;
+    LOG_ERROR << "GPU draw shader           : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
+  }
+  else
+  {
+    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4 + 2, 2, 0);
+    LOG_ERROR << "GPU draw duration " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
+  }
+  LOG_ERROR << std::endl;
+#endif
+  appData->finish();
+
+}
 
 int main(void)
 {
@@ -975,7 +1045,6 @@ int main(void)
   std::shared_ptr<pumex::Viewer> viewer = std::make_shared<pumex::Viewer>(viewerTraits);
   try
   {
-
     std::vector<pumex::QueueTraits> requestQueues = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
@@ -1014,8 +1083,25 @@ int main(void)
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
 
-    std::shared_ptr<pumex::SurfaceThread> thread0 = std::make_shared<CrowdRenderThread>(applicationData);
+    std::shared_ptr<CrowdRenderThread> thread0 = std::make_shared<CrowdRenderThread>(applicationData);
     std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits, thread0);
+
+    tbb::flow::continue_node< tbb::flow::continue_msg > processInput(viewer->runGraph, [=](tbb::flow::continue_msg) { applicationData->processInput(thread0); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->runGraph, [=](tbb::flow::continue_msg) { applicationData->update(thread0->timeSinceStartInSeconds, thread0->lastFrameInSeconds); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > recalcOffsets(viewer->runGraph, [=](tbb::flow::continue_msg) { applicationData->recalcOffsetsAndSetData(applicationData->frameData[applicationData->writeIdx]); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startFrame(viewer->runGraph, [=](tbb::flow::continue_msg) { thread0->startFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > drawFrame(viewer->runGraph, [=](tbb::flow::continue_msg) { thread0->draw(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endFrame(viewer->runGraph, [=](tbb::flow::continue_msg) { thread0->endFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > finito(viewer->runGraph, [=](tbb::flow::continue_msg) { finishFrame(applicationData, thread0); });
+
+    tbb::flow::make_edge(viewer->startGraph, processInput);
+    tbb::flow::make_edge(processInput, update);
+    tbb::flow::make_edge(update, recalcOffsets);
+    tbb::flow::make_edge(recalcOffsets, finito);
+    tbb::flow::make_edge(viewer->startGraph, startFrame);
+    tbb::flow::make_edge(startFrame, drawFrame);
+    tbb::flow::make_edge(drawFrame, endFrame);
+    tbb::flow::make_edge(endFrame, finito);
 
     viewer->run();
   }
