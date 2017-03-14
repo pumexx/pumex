@@ -1,6 +1,6 @@
 #pragma once
 
-#include <map>
+#include <unordered_map>
 #include <set>
 #include <pumex/Window.h>
 #include <windows.h>
@@ -32,7 +32,7 @@ namespace pumex
     HWND _hwnd              = nullptr;
     bool swapChainResizable = false;
     bool sizeMaximized      = false;
-    static std::map<HWND, WindowWin32*> registeredWindows;
+    static std::unordered_map<HWND, WindowWin32*> registeredWindows;
 
     std::set<MouseEvent::Button> pressedMouseButtons;
   };

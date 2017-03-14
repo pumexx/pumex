@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <memory>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
@@ -35,7 +35,7 @@ protected:
     VkCommandPool commandPool = VK_NULL_HANDLE;
     bool          dirty       = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 struct PipelineBarrier;
@@ -44,49 +44,42 @@ struct PipelineBarrier;
 class PUMEX_EXPORT CommandBuffer
 {
 public:
-  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, std::shared_ptr<CommandPool> commandPool);
+  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool);
   CommandBuffer(const CommandBuffer&)            = delete;
   CommandBuffer& operator=(const CommandBuffer&) = delete;
   virtual ~CommandBuffer();
 
-  void            validate(std::shared_ptr<pumex::Device> device);
-  VkCommandBuffer getHandle(VkDevice device) const;
-  void            setDirty();
+  VkCommandBuffer getHandle() const;
 
-  void cmdBegin(std::shared_ptr<pumex::Device> device, VkCommandBufferUsageFlags usageFlags = 0) const;
-  void cmdEnd(std::shared_ptr<pumex::Device> device) const;
-  void cmdBeginRenderPass(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const;
-  void cmdEndRenderPass(std::shared_ptr<pumex::Device> device) const;
+  void cmdBegin(VkCommandBufferUsageFlags usageFlags = 0) const;
+  void cmdEnd() const;
+  void cmdBeginRenderPass(std::shared_ptr<pumex::RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const;
+  void cmdEndRenderPass() const;
 
-  void cmdSetViewport(std::shared_ptr<pumex::Device> device, uint32_t firstViewport, const std::vector<VkViewport> viewports) const;
-  void cmdSetScissor(std::shared_ptr<pumex::Device> device, uint32_t firstScissor, const std::vector<VkRect2D> scissors) const;
+  void cmdSetViewport(uint32_t firstViewport, const std::vector<VkViewport> viewports) const;
+  void cmdSetScissor(uint32_t firstScissor, const std::vector<VkRect2D> scissors) const;
 
-  void cmdPipelineBarrier(std::shared_ptr<pumex::Device> device, VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const;
-  void cmdPipelineBarrier(std::shared_ptr<pumex::Device> device, VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
-  void cmdCopyBuffer(std::shared_ptr<pumex::Device> device, VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
-  void cmdCopyBuffer(std::shared_ptr<pumex::Device> device, VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
-  void cmdBindPipeline(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::ComputePipeline> pipeline) const;
-  void cmdBindPipeline(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::GraphicsPipeline> pipeline) const;
-  void cmdBindDescriptorSets(std::shared_ptr<pumex::Device> device, VkPipelineBindPoint bindPoint, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<pumex::DescriptorSet>> descriptorSets) const;
-  void cmdBindDescriptorSets(std::shared_ptr<pumex::Device> device, VkPipelineBindPoint bindPoint, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<pumex::DescriptorSet> descriptorSet) const;
+  void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const;
+  void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
+  void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
+  void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
+  void cmdBindPipeline(std::shared_ptr<pumex::ComputePipeline> pipeline) const;
+  void cmdBindPipeline(std::shared_ptr<pumex::GraphicsPipeline> pipeline) const;
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<pumex::DescriptorSet>> descriptorSets) const;
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<pumex::DescriptorSet> descriptorSet) const;
 
-  void cmdDrawIndexed(std::shared_ptr<pumex::Device> device, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
-  void cmdDrawIndexedIndirect(std::shared_ptr<pumex::Device> device, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
-  void cmdDispatch(std::shared_ptr<pumex::Device> device, uint32_t x, uint32_t y, uint32_t z) const;
+  void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
+  void cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
+  void cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const;
 
   // submit queue - no fences and semaphores
-  void queueSubmit(std::shared_ptr<pumex::Device> device, VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores = {}, const std::vector<VkPipelineStageFlags>& waitStages = {}, const std::vector<VkSemaphore>& signalSemaphores = {}, VkFence fence = VK_NULL_HANDLE) const;
+  void queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores = {}, const std::vector<VkPipelineStageFlags>& waitStages = {}, const std::vector<VkSemaphore>& signalSemaphores = {}, VkFence fence = VK_NULL_HANDLE) const;
 
   VkCommandBufferLevel         bufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   std::shared_ptr<CommandPool> commandPool;
 protected:
-  struct PerDeviceData
-  {
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    bool            dirty         = true;
-  };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
-
+  VkDevice                     device        = VK_NULL_HANDLE;
+  VkCommandBuffer              commandBuffer = VK_NULL_HANDLE;
 };
 
 struct PUMEX_EXPORT PipelineBarrier

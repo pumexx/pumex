@@ -259,7 +259,7 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
       for (uint32_t i=0; i<5; ++i)
       {
         copyRegion.size = stagingBuffers[i].size;
-        staggingCommandBuffer->cmdCopyBuffer(device, stagingBuffers[i].buffer, targetBuffers[i].buffer, copyRegion);
+        staggingCommandBuffer->cmdCopyBuffer(stagingBuffers[i].buffer, targetBuffers[i].buffer, copyRegion);
       }
       device->endSingleTimeCommands(staggingCommandBuffer, queue);
       destroyBuffers(device, stagingBuffers, stagingMemory);
@@ -347,8 +347,8 @@ void AssetBuffer::cmdBindVertexIndexBuffer(std::shared_ptr<pumex::Device> device
   VkBuffer vBuffer = vib->second.vertexBuffer;
   VkBuffer iBuffer = vib->second.indexBuffer;
   VkDeviceSize offsets = 0;
-  vkCmdBindVertexBuffers(commandBuffer->getHandle(pddit->first), vertexBinding, 1, &vBuffer, &offsets);
-  vkCmdBindIndexBuffer(commandBuffer->getHandle(pddit->first), iBuffer, 0, VK_INDEX_TYPE_UINT32);
+  vkCmdBindVertexBuffers(commandBuffer->getHandle(), vertexBinding, 1, &vBuffer, &offsets);
+  vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
 void AssetBuffer::cmdDrawObject(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
@@ -379,7 +379,7 @@ void AssetBuffer::cmdDrawObject(std::shared_ptr<pumex::Device> device, std::shar
         uint32_t indexCount   = vib->second.assetGeometries[g].indexCount;
         uint32_t firstIndex   = vib->second.assetGeometries[g].firstIndex;
         uint32_t vertexOffset = vib->second.assetGeometries[g].vertexOffset;
-        commandBuffer->cmdDrawIndexed(device, indexCount, 1, firstIndex, vertexOffset, firstInstance);
+        commandBuffer->cmdDrawIndexed(indexCount, 1, firstIndex, vertexOffset, firstInstance);
       }
     }
   }

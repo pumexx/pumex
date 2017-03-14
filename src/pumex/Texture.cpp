@@ -209,14 +209,14 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
 
     // Image barrier for optimal image (target)
     // Optimal image will be used as destination for the copy
-    setImageLayout( cmdBuffer->getHandle(device->device), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+    setImageLayout( cmdBuffer->getHandle(), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
 
     // Copy mip levels from staging buffer
-    vkCmdCopyBufferToImage(cmdBuffer->getHandle(device->device), stagingBuffer, pddit->second.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+    vkCmdCopyBufferToImage(cmdBuffer->getHandle(), stagingBuffer, pddit->second.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
 
     // Change texture image layout to shader read after all mip levels have been copied
     pddit->second.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    setImageLayout(cmdBuffer->getHandle(device->device), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pddit->second.imageLayout, subresourceRange);
+    setImageLayout(cmdBuffer->getHandle(), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pddit->second.imageLayout, subresourceRange);
 
     device->endSingleTimeCommands(cmdBuffer, queue);
 
@@ -291,7 +291,7 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
     pddit->second.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     // Setup image memory barrier
-    setImageLayout(cmdBuffer->getHandle(device->device), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, pddit->second.imageLayout);
+    setImageLayout(cmdBuffer->getHandle(), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, pddit->second.imageLayout);
 
     device->endSingleTimeCommands(cmdBuffer, queue);
   }

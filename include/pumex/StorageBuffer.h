@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/utils/Buffer.h>
@@ -45,7 +45,7 @@ namespace pumex
       VkDeviceMemory         storageMemory = VK_NULL_HANDLE;
     };
     std::vector<T> storageData;
-    std::map<VkDevice, PerDeviceData> perDeviceData;
+    std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
     VkBufferUsageFlagBits additionalFlags;
   };
 

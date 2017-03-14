@@ -169,32 +169,15 @@ void Device::releaseQueue(VkQueue queue)
 
 
 std::shared_ptr<pumex::CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<pumex::CommandPool> commandPool)
-//VkCommandBuffer Device::beginSingleTimeCommands(VkCommandPool commandPool)
 {
-  std::shared_ptr<pumex::CommandBuffer> commandBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool);
-  commandBuffer->validate(shared_from_this());
-  commandBuffer->cmdBegin(shared_from_this(), VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-  //VkCommandBufferAllocateInfo allocInfo{};
-  //  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  //  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  //  allocInfo.commandPool = commandPool;
-  //  allocInfo.commandBufferCount = 1;
-
-  //VkCommandBuffer commandBuffer;
-  //vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-
-  //VkCommandBufferBeginInfo beginInfo = {};
-  //  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  //  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-  //vkBeginCommandBuffer(commandBuffer, &beginInfo);
+  std::shared_ptr<pumex::CommandBuffer> commandBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, shared_from_this(), commandPool);
+  commandBuffer->cmdBegin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
   return commandBuffer;
 }
 
 void Device::endSingleTimeCommands(std::shared_ptr<pumex::CommandBuffer> commandBuffer, VkQueue queue)
-//void Device::endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue)
 {
-  commandBuffer->cmdEnd(shared_from_this());
+  commandBuffer->cmdEnd();
 
   VkFence fence;
   VkFenceCreateInfo fenceCreateInfo{};
@@ -202,7 +185,7 @@ void Device::endSingleTimeCommands(std::shared_ptr<pumex::CommandBuffer> command
     fenceCreateInfo.flags = 0;
   VK_CHECK_LOG_THROW( vkCreateFence(device, &fenceCreateInfo, nullptr, &fence), "Cannot create fence");
 
-  commandBuffer->queueSubmit(shared_from_this(), queue, {}, {}, {}, fence);
+  commandBuffer->queueSubmit(queue, {}, {}, {}, fence);
   VK_CHECK_LOG_THROW(vkWaitForFences(device, 1, &fence, VK_TRUE, 100000000000), "Waiting for a fence failed");
 
   vkDestroyFence(device, fence, nullptr);

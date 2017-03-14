@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 
@@ -38,7 +38,7 @@ protected:
     VkQueryPool queryPool = VK_NULL_HANDLE;
     bool        dirty     = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 	

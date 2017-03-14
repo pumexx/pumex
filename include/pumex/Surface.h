@@ -12,7 +12,6 @@ namespace pumex
 {
   class Viewer;
   class Window;
-  class SurfaceThread;
   class RenderPass;
   class CommandPool;
   class CommandBuffer;
@@ -53,7 +52,6 @@ namespace pumex
     Surface& operator=(const Surface&) = delete;
     ~Surface();
 
-    void setSurfaceThread(std::shared_ptr<pumex::SurfaceThread> surfaceThread);
     void cleanup();
     void beginFrame();
     void endFrame();
@@ -89,8 +87,6 @@ namespace pumex
     std::vector<VkFramebuffer>      frameBuffers;
     std::vector<std::shared_ptr<pumex::CommandBuffer>> postPresentCmdBuffers;
     std::vector<std::shared_ptr<pumex::CommandBuffer>> prePresentCmdBuffers;
-
-    std::shared_ptr<pumex::SurfaceThread> surfaceThread;
 
   protected:
     void createSwapChain();

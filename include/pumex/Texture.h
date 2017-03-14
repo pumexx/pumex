@@ -1,5 +1,5 @@
 #pragma once
-#include <map>
+#include <unordered_map>
 #include <memory>
 #include <pumex/Export.h>
 #include <vulkan/vulkan.h>
@@ -73,7 +73,7 @@ private:
     VkImageView           imageView    = VK_NULL_HANDLE;
     VkImageLayout         imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 // This is temporary solution.

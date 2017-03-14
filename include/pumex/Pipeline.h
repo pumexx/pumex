@@ -1,5 +1,6 @@
 #pragma once
 #include <set>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
@@ -43,7 +44,7 @@ protected:
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     bool                  dirty               = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 class PUMEX_EXPORT DescriptorPool
@@ -66,7 +67,7 @@ protected:
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     bool             dirty          = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 struct PUMEX_EXPORT DescriptorSetValue
@@ -121,7 +122,7 @@ protected:
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
     bool            dirty         = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 
@@ -143,7 +144,7 @@ protected:
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     bool             dirty          = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 
@@ -165,7 +166,7 @@ protected:
     VkPipelineCache pipelineCache = VK_NULL_HANDLE;
     bool            dirty         = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 
@@ -211,7 +212,7 @@ protected:
     VkShaderModule  shaderModule = VK_NULL_HANDLE;
     bool            dirty        = true;
   };
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 
@@ -303,7 +304,7 @@ protected:
     bool       dirty    = true;
   };
 
-  std::map<VkDevice,PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice,PerDeviceData> perDeviceData;
 };
 
 class PUMEX_EXPORT ComputePipeline
@@ -332,7 +333,7 @@ protected:
     bool       dirty = true;
   };
 
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 

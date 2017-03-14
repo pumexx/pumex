@@ -491,7 +491,7 @@ void MaterialSet<T>::validate(std::shared_ptr<pumex::Device> device, std::shared
     for (uint32_t i = 0; i<3; ++i)
     {
       copyRegion.size = stagingBuffers[i].size;
-      staggingCommandBuffer->cmdCopyBuffer(device, stagingBuffers[i].buffer, targetBuffers[i].buffer, copyRegion);
+      staggingCommandBuffer->cmdCopyBuffer(stagingBuffers[i].buffer, targetBuffers[i].buffer, copyRegion);
     }
     device->endSingleTimeCommands(staggingCommandBuffer, queue);
     destroyBuffers(device, stagingBuffers, stagingMemory);

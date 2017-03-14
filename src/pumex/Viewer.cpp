@@ -5,7 +5,6 @@
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
 #include <pumex/Thread.h>
-#include <pumex/SurfaceThread.h>
 #if defined(_WIN32)
   #include <pumex/platform/win32/WindowWin32.h>
   #include <direct.h>
@@ -17,17 +16,26 @@
 
 using namespace pumex;
 
-ViewerTraits::ViewerTraits(const std::string& aName, bool uv, const std::vector<std::string>& rl)
-  : applicationName(aName), useValidation{ uv }, requestedLayers(rl)
+ViewerTraits::ViewerTraits(const std::string& aName, bool uv, const std::vector<std::string>& rl, uint32_t ups)
+  : applicationName(aName), useValidation{ uv }, requestedLayers(rl), updatesPerSecond(ups)
 {
 }
 
 const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const pumex::ViewerTraits& vt)
-  : viewerTraits{ vt }, startGraph{ runGraph }
+  : viewerTraits{ vt }, 
+  startUpdateGraph { updateGraph, [=](tbb::flow::continue_msg) { startUpdate(); } },
+  endUpdateGraph   { updateGraph, [=](tbb::flow::continue_msg) { endUpdate(); } },
+  startRenderGraph { renderGraph, [=](tbb::flow::continue_msg) { startRender(); } },
+  endRenderGraph   { renderGraph, [=](tbb::flow::continue_msg) { endRender(); } }
 {
-  startTime = pumex::HPClock::now();
+  viewerStartTime     = pumex::HPClock::now();
+  renderStartTime     = viewerStartTime;
+  updateStartTime     = viewerStartTime;
+  applicationDuration = viewerStartTime - viewerStartTime;
+  lastRenderDuration  = viewerStartTime - renderStartTime;
+  lastUpdateDuration  = viewerStartTime - updateStartTime;
 
   // register basic directories - current directory
   char strCurrentPath[MAX_PATH_LENGTH];
@@ -77,7 +85,7 @@ Viewer::Viewer(const pumex::ViewerTraits& vt)
 #endif
 
 
-  // create vulkan instance with requierd extensions
+  // create vulkan instance with required extensions
   std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
 #if defined(_WIN32)
   enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
@@ -144,13 +152,83 @@ Viewer::~Viewer()
   cleanup();
 }
 
+void Viewer::run()
+{
+  std::thread renderThread([&]
+  {
+    while (true)
+    {
+      if (terminating())
+        break;
+
+      {
+        std::lock_guard<std::mutex> lck(updateMutex);
+        renderStartTime = pumex::HPClock::now();
+        renderIndex     = getFreeSlot();
+        updateConditionVariable.notify_one();
+      }
+//      LOG_INFO << "Render index = " << renderIndex << std::endl;
+      startRenderGraph.try_put(tbb::flow::continue_msg());
+      renderGraph.wait_for_all();
+
+      auto renderEndTime = pumex::HPClock::now();
+      lastRenderDuration = renderEndTime - renderStartTime;
+    }
+  }
+  );
+  while (true)
+  {
+    {
+      std::unique_lock<std::mutex> lck(updateMutex);
+      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTime; });
+      updateStartTime = updateStartTime + pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
+      updateIndex     = getFreeSlot();
+    }
+//    LOG_INFO << "Update index = " << updateIndex << std::endl;
+    auto realUpdateStartTime = pumex::HPClock::now();
+    applicationDuration = realUpdateStartTime - viewerStartTime;
+
+#if defined(_WIN32)
+    if (!WindowWin32::checkWindowMessages())
+      break;
+#endif
+
+    startUpdateGraph.try_put(tbb::flow::continue_msg());
+    updateGraph.wait_for_all();
+
+    auto updateEndTime = pumex::HPClock::now();
+    lastUpdateDuration = updateEndTime - realUpdateStartTime;
+
+  }
+  renderThread.join();
+}
+
+void Viewer::startUpdate()
+{
+
+}
+
+void Viewer::endUpdate()
+{
+
+}
+
+void Viewer::startRender()
+{
+
+}
+
+void Viewer::endRender()
+{
+
+}
+
 void Viewer::cleanup()
 {
+  updateGraph.reset();
+  renderGraph.reset();
   if (instance != VK_NULL_HANDLE)
   {
-    for( auto t : pumexThreads )
-      t->cleanup();
-    pumexThreads.clear();
     for( auto s : surfaces )
       s->cleanup();
     surfaces.clear();
@@ -168,42 +246,18 @@ void Viewer::cleanup()
 std::shared_ptr<pumex::Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
 {
   CHECK_LOG_THROW(physicalDeviceIndex >= physicalDevices.size(), "Could not create device. Index is too high : " << physicalDeviceIndex);
+  CHECK_LOG_THROW(requestedQueues.empty(), "Could not create device with no queues");
 
   std::shared_ptr<pumex::Device> device = std::make_shared<pumex::Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedQueues, requestedExtensions);
-  // FIXME - co gdy nie ma kolejek ?
   devices.push_back(device);
   return device;
 }
 
-std::shared_ptr<pumex::Surface> Viewer::addSurface(std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits, std::shared_ptr<pumex::SurfaceThread> surfaceThread)
+std::shared_ptr<pumex::Surface> Viewer::addSurface(std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits)
 {
   std::shared_ptr<pumex::Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
-  surfaceThread->setup(surface);
-  surface->setSurfaceThread(surfaceThread);
   surfaces.push_back(surface);
-//  addThread(surfaceThread.get());
   return surface;
-}
-
-void Viewer::addThread(pumex::Thread* thread)
-{
-  pumexThreads.push_back(thread);
-}
-
-void Viewer::run()
-{
-//  ThreadJoiner joiner;
-//  for (auto t : pumexThreads)
-//    joiner.addThread(t);
-  while (true)
-  {
-#if defined(_WIN32)
-    if (!WindowWin32::checkWindowMessages())
-      return;
-#endif
-    startGraph.try_put(tbb::flow::continue_msg());
-    runGraph.wait_for_all();
-  }
 }
 
 std::string Viewer::getFullFilePath(const std::string& shortFileName) const
@@ -258,6 +312,5 @@ VkBool32 pumex::messageCallback(VkDebugReportFlagsEXT flags, VkDebugReportObject
     LOG_INFO << "INFO: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
   if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT)
     LOG_JUNK << "DEBUG: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
-  FLUSH_LOG;
   return VK_FALSE;
 }

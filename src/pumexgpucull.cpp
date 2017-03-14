@@ -465,6 +465,17 @@ pumex::Asset* createAirplane(float detailRatio, const glm::vec4& hullColor, cons
 }
 
 
+struct FrameData
+{
+  FrameData()
+  {
+  }
+  pumex::Camera                       camera;
+  std::vector<StaticInstanceData>     staticInstanceData;
+  std::vector<DynamicInstanceData>    dynamicInstanceData;
+  std::vector<DynamicInstanceDataCPU> dynamicInstanceDataCPU;
+};
+
 // struct that works as an application database. Render thread uses data from it
 // Look at createStaticRendering() and createDynamicRendering() methods to see how to
 // register object types, add procedurally created assets and generate object instances
@@ -481,6 +492,9 @@ struct GpuCullCommonData
   float _triangleModifier     = 1.0f;
 
   std::weak_ptr<pumex::Viewer>                         viewer;
+  std::array<FrameData, 2>                             frameData;
+  uint32_t                                             readIdx;
+  uint32_t                                             writeIdx;
 
   std::vector<pumex::VertexSemantic>                   vertexSemantic;
   std::vector<pumex::TextureSemantic>                  textureSemantic;
@@ -488,12 +502,9 @@ struct GpuCullCommonData
 
   std::default_random_engine                           randomEngine;
 
-  std::vector<StaticInstanceData>                      staticInstanceData;
   std::shared_ptr<pumex::AssetBuffer>                  staticAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> staticMaterialSet;
 
-  std::vector<DynamicInstanceData>                     dynamicInstanceData;
-  std::vector<DynamicInstanceDataCPU>                  dynamicInstanceDataCPU;
   std::shared_ptr<pumex::AssetBuffer>                  dynamicAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> dynamicMaterialSet;
 
@@ -597,16 +608,17 @@ struct GpuCullCommonData
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
 
     if (showStaticRendering)
-      createStaticRendering();
+      createStaticRendering(frameData[0]);
 
     if (showDynamicRendering)
-      createDynamicRendering();
+      createDynamicRendering(frameData[0]);
+    frameData[1] = frameData[0];
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4*3);
 
   }
 
-  void createStaticRendering()
+  void createStaticRendering(FrameData& fData)
   {
     std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
     CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
@@ -622,7 +634,7 @@ struct GpuCullCommonData
     uint32_t groundTypeID = staticAssetBuffer->registerType("ground", pumex::AssetTypeDefinition(groundBbox));
     staticMaterialSet->registerMaterials(groundTypeID, groundAsset);
     staticAssetBuffer->registerObjectLOD(groundTypeID, groundAsset, pumex::AssetLodDefinition(0.0f, 5.0f * _staticAreaSize));
-    staticInstanceData.push_back(StaticInstanceData(glm::mat4(), groundTypeID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
+    fData.staticInstanceData.push_back(StaticInstanceData(glm::mat4(), groundTypeID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
 
     std::shared_ptr<pumex::Asset> coniferTree0 ( createConiferTree( 0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
     std::shared_ptr<pumex::Asset> coniferTree1 ( createConiferTree(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
@@ -692,7 +704,7 @@ struct GpuCullCommonData
         float wavingFrequency = rFrequency(randomEngine);
         float wavingOffset    = rOffset(randomEngine);
         glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::scale(glm::mat4(), glm::vec3(scale, scale, scale)));
-        staticInstanceData.push_back(StaticInstanceData(position, objectIDs[i], 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
+        fData.staticInstanceData.push_back(StaticInstanceData(position, objectIDs[i], 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
       }
     }
 
@@ -743,11 +755,11 @@ struct GpuCullCommonData
     staticResultsSbo2->set(results);
 
     // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
-    staticInstanceSbo->set(staticInstanceData);
-    recalculateStaticInstanceOffsets();
+    staticInstanceSbo->set(fData.staticInstanceData);
+    recalculateStaticInstanceOffsets(fData);
   }
 
-  void createDynamicRendering()
+  void createDynamicRendering(FrameData& fData)
   {
     std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
     CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
@@ -835,8 +847,8 @@ struct GpuCullCommonData
         for (uint32_t k = 0; k<bonesReset[objectIDs[i]].size() && k<MAX_BONES; ++k)
           instanceData.bones[k] = bonesReset[objectIDs[i]][k];
 
-        dynamicInstanceData.push_back(instanceData);
-        dynamicInstanceDataCPU.push_back(instanceDataCPU);
+        fData.dynamicInstanceData.push_back(instanceData);
+        fData.dynamicInstanceDataCPU.push_back(instanceDataCPU);
       }
     }
 
@@ -886,18 +898,18 @@ struct GpuCullCommonData
     dynamicResultsSbo2->set(results);
 
     // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
-    dynamicInstanceSbo->set(dynamicInstanceData);
-    recalculateDynamicInstanceOffsets();
+    dynamicInstanceSbo->set(fData.dynamicInstanceData);
+    recalculateDynamicInstanceOffsets(fData);
   }
 
-  void recalculateStaticInstanceOffsets()
+  void recalculateStaticInstanceOffsets(FrameData& fData)
   {
     std::vector<uint32_t> typeCount(staticAssetBuffer->getNumTypesID());
     std::fill(typeCount.begin(), typeCount.end(), 0);
 
     // compute how many instances of each type there is
-    for (uint32_t i = 0; i<staticInstanceData.size(); ++i)
-      typeCount[staticInstanceData[i].typeID]++;
+    for (uint32_t i = 0; i<fData.staticInstanceData.size(); ++i)
+      typeCount[fData.staticInstanceData[i].typeID]++;
 
     std::vector<uint32_t> offsets;
     for (uint32_t i = 0; i<staticResultsGeomToType.size(); ++i)
@@ -916,14 +928,14 @@ struct GpuCullCommonData
     staticOffValuesSbo->set(std::vector<uint32_t>(offsetSum));
   }
 
-  void recalculateDynamicInstanceOffsets()
+  void recalculateDynamicInstanceOffsets(FrameData& fData)
   {
     std::vector<uint32_t> typeCount(dynamicAssetBuffer->getNumTypesID());
     std::fill(typeCount.begin(), typeCount.end(), 0);
 
     // compute how many instances of each type there is
-    for (uint32_t i = 0; i<dynamicInstanceData.size(); ++i)
-      typeCount[dynamicInstanceData[i].typeID]++;
+    for (uint32_t i = 0; i<fData.dynamicInstanceData.size(); ++i)
+      typeCount[fData.dynamicInstanceData[i].typeID]++;
 
     std::vector<uint32_t> offsets;
     for (uint32_t i = 0; i<dynamicResultsGeomToType.size(); ++i)
@@ -970,64 +982,14 @@ struct GpuCullCommonData
       std::shared_ptr<pumex::Asset> airplaneAsset = dynamicAssetBuffer->getAsset(airplaneID, 0);
       uint32_t airplaneProp                       = airplaneAsset->skeleton.invBoneNames["prop"];
 
-      for (uint32_t i = 0; i<dynamicInstanceData.size(); ++i)
+      for (uint32_t i = 0; i<frameData[readIdx].dynamicInstanceData.size(); ++i)
       {
-        // change direction if bot is leaving designated area
-        // change direction if bot is leaving designated area
-        bool isOutside[] =
-        {
-          dynamicInstanceDataCPU[i].position.x < minArea.x,
-          dynamicInstanceDataCPU[i].position.x > maxArea.x,
-          dynamicInstanceDataCPU[i].position.y < minArea.y,
-          dynamicInstanceDataCPU[i].position.y > maxArea.y
-        };
-        if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3])
-        {
-          dynamicInstanceDataCPU[i].position.x = std::max(dynamicInstanceDataCPU[i].position.x, minArea.x);
-          dynamicInstanceDataCPU[i].position.x = std::min(dynamicInstanceDataCPU[i].position.x, maxArea.x);
-          dynamicInstanceDataCPU[i].position.y = std::max(dynamicInstanceDataCPU[i].position.y, minArea.y);
-          dynamicInstanceDataCPU[i].position.y = std::min(dynamicInstanceDataCPU[i].position.y, maxArea.y);
-          glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(dynamicInstanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-          glm::vec4 direction = rotationMatrix *  glm::vec4(1, 0, 0, 1); // models move along x axis
-          if (isOutside[0] || isOutside[1])
-            direction.x *= -1.0f;
-          if (isOutside[2] || isOutside[3])
-            direction.y *= -1.0f;
-          dynamicInstanceDataCPU[i].rotation = glm::degrees(atan2f(direction.y, direction.x));
-          dynamicInstanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-        }
-        // change rotation, animation and speed if bot requires it
-        dynamicInstanceDataCPU[i].time2NextTurn -= timeSinceLastFrame;
-        if (dynamicInstanceDataCPU[i].time2NextTurn < 0.0f)
-        {
-          dynamicInstanceDataCPU[i].rotation      = randomRotation(randomEngine);
-          dynamicInstanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-        }
-        // calculate new position
-        glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), dynamicInstanceDataCPU[i].rotation, glm::vec3(0.0f, 0.0f, 1.0f));
-        glm::vec4 direction = rotationMatrix * glm::vec4(1, 0, 0, 1);
-        glm::vec3 dir3(direction.x, direction.y, 0.0f);
-        dynamicInstanceDataCPU[i].position += dir3 * dynamicInstanceDataCPU[i].speed * float(timeSinceLastFrame);
-        dynamicInstanceData[i].position = glm::translate(glm::mat4(), dynamicInstanceDataCPU[i].position) * rotationMatrix;
-
-        // calculate new positions for wheels and propellers
-        if(dynamicInstanceData[i].typeID == blimpID)
-        {
-          dynamicInstanceData[i].bones[blimpPropL] = bonesReset[dynamicInstanceData[i].typeID][blimpPropL] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi *  0.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-          dynamicInstanceData[i].bones[blimpPropR] = bonesReset[dynamicInstanceData[i].typeID][blimpPropR] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi * -0.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-        }
-        if (dynamicInstanceData[i].typeID == carID)
-        {
-          dynamicInstanceData[i].bones[carWheel0] = bonesReset[dynamicInstanceData[i].typeID][carWheel0] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-          dynamicInstanceData[i].bones[carWheel1] = bonesReset[dynamicInstanceData[i].typeID][carWheel1] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-          dynamicInstanceData[i].bones[carWheel2] = bonesReset[dynamicInstanceData[i].typeID][carWheel2] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-          dynamicInstanceData[i].bones[carWheel3] = bonesReset[dynamicInstanceData[i].typeID][carWheel3] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-        }
-        if (dynamicInstanceData[i].typeID == airplaneID)
-        {
-          dynamicInstanceData[i].bones[airplaneProp] = bonesReset[dynamicInstanceData[i].typeID][airplaneProp] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi *  -1.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-        }
-
+        updateInstance
+        (
+          frameData[readIdx].dynamicInstanceData[i], frameData[readIdx].dynamicInstanceDataCPU[i],
+          frameData[writeIdx].dynamicInstanceData[i], frameData[writeIdx].dynamicInstanceDataCPU[i],
+          timeSinceStart, timeSinceLastFrame
+        );
       }
 
       // reset values to 0
@@ -1037,6 +999,67 @@ struct GpuCullCommonData
 //      recalculateDynamicInstanceOffsets();
     }
   }
+  void updateInstance(const DynamicInstanceData& inInstanceData, const DynamicInstanceDataCPU& inInstanceDataCPU,
+    DynamicInstanceData& outInstanceData, DynamicInstanceDataCPU& outInstanceDataCPU,
+    double timeSinceStart, double timeSinceLastFrame)
+  {
+    // change direction if bot is leaving designated area
+    // change direction if bot is leaving designated area
+    bool isOutside[] =
+    {
+      dynamicInstanceDataCPU[i].position.x < minArea.x,
+      dynamicInstanceDataCPU[i].position.x > maxArea.x,
+      dynamicInstanceDataCPU[i].position.y < minArea.y,
+      dynamicInstanceDataCPU[i].position.y > maxArea.y
+    };
+    if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3])
+    {
+      dynamicInstanceDataCPU[i].position.x = std::max(dynamicInstanceDataCPU[i].position.x, minArea.x);
+      dynamicInstanceDataCPU[i].position.x = std::min(dynamicInstanceDataCPU[i].position.x, maxArea.x);
+      dynamicInstanceDataCPU[i].position.y = std::max(dynamicInstanceDataCPU[i].position.y, minArea.y);
+      dynamicInstanceDataCPU[i].position.y = std::min(dynamicInstanceDataCPU[i].position.y, maxArea.y);
+      glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(dynamicInstanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+      glm::vec4 direction = rotationMatrix *  glm::vec4(1, 0, 0, 1); // models move along x axis
+      if (isOutside[0] || isOutside[1])
+        direction.x *= -1.0f;
+      if (isOutside[2] || isOutside[3])
+        direction.y *= -1.0f;
+      dynamicInstanceDataCPU[i].rotation = glm::degrees(atan2f(direction.y, direction.x));
+      dynamicInstanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
+    }
+    // change rotation, animation and speed if bot requires it
+    dynamicInstanceDataCPU[i].time2NextTurn -= timeSinceLastFrame;
+    if (dynamicInstanceDataCPU[i].time2NextTurn < 0.0f)
+    {
+      dynamicInstanceDataCPU[i].rotation = randomRotation(randomEngine);
+      dynamicInstanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
+    }
+    // calculate new position
+    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), dynamicInstanceDataCPU[i].rotation, glm::vec3(0.0f, 0.0f, 1.0f));
+    glm::vec4 direction = rotationMatrix * glm::vec4(1, 0, 0, 1);
+    glm::vec3 dir3(direction.x, direction.y, 0.0f);
+    dynamicInstanceDataCPU[i].position += dir3 * dynamicInstanceDataCPU[i].speed * float(timeSinceLastFrame);
+    dynamicInstanceData[i].position = glm::translate(glm::mat4(), dynamicInstanceDataCPU[i].position) * rotationMatrix;
+
+    // calculate new positions for wheels and propellers
+    if (dynamicInstanceData[i].typeID == blimpID)
+    {
+      dynamicInstanceData[i].bones[blimpPropL] = bonesReset[dynamicInstanceData[i].typeID][blimpPropL] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi *  0.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[blimpPropR] = bonesReset[dynamicInstanceData[i].typeID][blimpPropR] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi * -0.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+    }
+    if (dynamicInstanceData[i].typeID == carID)
+    {
+      dynamicInstanceData[i].bones[carWheel0] = bonesReset[dynamicInstanceData[i].typeID][carWheel0] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel1] = bonesReset[dynamicInstanceData[i].typeID][carWheel1] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel2] = bonesReset[dynamicInstanceData[i].typeID][carWheel2] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel3] = bonesReset[dynamicInstanceData[i].typeID][carWheel3] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+    }
+    if (dynamicInstanceData[i].typeID == airplaneID)
+    {
+      dynamicInstanceData[i].bones[airplaneProp] = bonesReset[dynamicInstanceData[i].typeID][airplaneProp] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi *  -1.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+    }
+  }
+
 
 };
 

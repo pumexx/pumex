@@ -41,28 +41,28 @@ void QueryPool::reset(std::shared_ptr<pumex::Device> device, std::shared_ptr<pum
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before resetting");
   if (firstQuery == 0 && queryCount == 0)
     queryCount = poolSize;
-  vkCmdResetQueryPool(cmdBuffer->getHandle(pddit->first), pddit->second.queryPool, firstQuery, queryCount);
+  vkCmdResetQueryPool(cmdBuffer->getHandle(), pddit->second.queryPool, firstQuery, queryCount);
 }
 
 void QueryPool::beginQuery(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before beginQuery");
-  vkCmdBeginQuery(cmdBuffer->getHandle(pddit->first), pddit->second.queryPool, query, controlFlags);
+  vkCmdBeginQuery(cmdBuffer->getHandle(), pddit->second.queryPool, query, controlFlags);
 }
 
 void QueryPool::endQuery(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before endQuery");
-  vkCmdEndQuery(cmdBuffer->getHandle(pddit->first), pddit->second.queryPool, query);
+  vkCmdEndQuery(cmdBuffer->getHandle(), pddit->second.queryPool, query);
 }
 
 void QueryPool::queryTimeStamp(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before endQuery");
-  vkCmdWriteTimestamp(cmdBuffer->getHandle(pddit->first), pipelineStage, pddit->second.queryPool, query);
+  vkCmdWriteTimestamp(cmdBuffer->getHandle(), pipelineStage, pddit->second.queryPool, query);
 }
 
 std::vector<uint64_t> QueryPool::getResults(std::shared_ptr<pumex::Device> device, uint32_t firstQuery, uint32_t queryCount, VkQueryResultFlags resultFlags)

@@ -6,8 +6,6 @@
 #include <pumex/Device.h>
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
-#include <pumex/Thread.h>
-#include <pumex/SurfaceThread.h>
 #include <pumex/Texture.h>
 #include <pumex/Pipeline.h>
 #include <pumex/RenderPass.h>

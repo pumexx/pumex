@@ -8,8 +8,8 @@
 #include <pumex/AssetLoaderAssimp.h>
 #include <tbb/tbb.h>
 
-// Current measurment methods add 4ms to a single frame ( cout lags ? Or clocks are slow... )
-// I suggest using applications such as RenderDoc to measure time for now.
+// Current measurment methods add 4ms to a single frame ( cout lags )
+// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define CROWD_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 63;
@@ -171,6 +171,9 @@ struct ApplicationData
   double    inputDuration;
   double    updateDuration;
   double    recalcDuration;
+  double    drawDuration;
+
+  std::unordered_map<VkDevice,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
   ApplicationData(std::shared_ptr<pumex::Viewer> v)
 	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -180.0f, 180.0f }
@@ -537,16 +540,53 @@ struct ApplicationData
     cameraDistance              = 1.0f;
     leftMouseKeyPressed         = false;
     rightMouseKeyPressed        = false;
-    xKeyPressed                 = true;
+    xKeyPressed                 = false;
   }
 
-  void processInput( std::shared_ptr<pumex::SurfaceThread> surfaceThread )
+  void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
+  {
+    std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
+    VkDevice vkDevice = deviceSh->device;
+
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool);
+
+    pipelineCache->validate(deviceSh);
+
+    skeletalAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+    materialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
+    simpleRenderDescriptorSetLayout->validate(deviceSh);
+    simpleRenderDescriptorPool->validate(deviceSh);
+    simpleRenderPipelineLayout->validate(deviceSh);
+    simpleRenderPipeline->validate(deviceSh);
+
+    instancedRenderDescriptorSetLayout->validate(deviceSh);
+    instancedRenderDescriptorPool->validate(deviceSh);
+    instancedRenderPipelineLayout->validate(deviceSh);
+    instancedRenderPipeline->validate(deviceSh);
+
+    filterDescriptorSetLayout->validate(deviceSh);
+    filterDescriptorPool->validate(deviceSh);
+    filterPipelineLayout->validate(deviceSh);
+    filterPipeline->validate(deviceSh);
+
+    timeStampQueryPool->validate(deviceSh);
+
+    // preparing descriptor sets
+    cameraUbo->validate(deviceSh);
+    positionSbo->validate(deviceSh);
+    instanceSbo->validate(deviceSh);
+    resultsSbo->validate(deviceSh);
+    resultsSbo2->validate(deviceSh);
+    offValuesSbo->validate(deviceSh);
+  }
+
+
+  void processInput(std::shared_ptr<pumex::Surface> surface )
   {
 #if defined(CROWD_MEASURE_TIME)
     auto inputStart = pumex::HPClock::now();
 #endif
-    std::shared_ptr<pumex::Surface> surfaceSh = surfaceThread->surface.lock();
-    std::shared_ptr<pumex::Window>  windowSh  = surfaceSh->window.lock();
+    std::shared_ptr<pumex::Window>  windowSh  = surface->window.lock();
 
     std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
     glm::vec2 mouseMove = lastMousePos;
@@ -631,13 +671,13 @@ struct ApplicationData
     );
     glm::mat4 viewMatrix = glm::lookAt(eye + cameraPosition, cameraPosition, glm::vec3(0, 0, 1));
 
-    uint32_t renderWidth  = surfaceSh->swapChainSize.width;
-    uint32_t renderHeight = surfaceSh->swapChainSize.height;
+    uint32_t renderWidth  = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
 
     frameData[writeIdx].camera.setViewMatrix(viewMatrix);
     frameData[writeIdx].camera.setObserverPosition(eye + cameraPosition);
     frameData[writeIdx].camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    frameData[writeIdx].camera.setTimeSinceStart(surfaceThread->timeSinceStartInSeconds);
+    frameData[writeIdx].camera.setTimeSinceStart(surface->viewer.lock()->getApplicationDuration());
     cameraUbo->set(frameData[writeIdx].camera);
 
 #if defined(CROWD_MEASURE_TIME)
@@ -646,7 +686,7 @@ struct ApplicationData
 #endif
   }
 
-  void update(float timeSinceStart, float timeSinceLastFrame)
+  void update(double timeSinceStart, double timeSinceLastFrame)
   {
 #if defined(CROWD_MEASURE_TIME)
     auto updateStart = pumex::HPClock::now();
@@ -816,179 +856,113 @@ struct ApplicationData
 
   }
 
-  void finish()
+  void draw( std::shared_ptr<pumex::Surface> surface)
   {
-    std::swap(readIdx, writeIdx);
-  }
+    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
+    VkDevice                        vkDevice = deviceSh->device;
 
-};
+    uint32_t renderWidth = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
 
-class CrowdRenderThread : public pumex::SurfaceThread
-{
-public:
-  CrowdRenderThread( std::shared_ptr<ApplicationData> applicationData )
-    : pumex::SurfaceThread(), appData(applicationData)
-  {
-  }
+    cameraUbo->validate(deviceSh);
+    positionSbo->validate(deviceSh);
+    instanceSbo->validate(deviceSh);
+    resultsSbo->validate(deviceSh);
+    offValuesSbo->validate(deviceSh);
 
-  void setup(std::shared_ptr<pumex::Surface> s) override
-  {
-    SurfaceThread::setup(s);
-
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
-
-    myCmdBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, surfaceSh->commandPool);
-    myCmdBuffer->validate(deviceSh);
-
-    appData->pipelineCache->validate(deviceSh);
-
-    appData->skeletalAssetBuffer->validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
-    appData->materialSet->validate(deviceSh, surfaceSh->commandPool, surfaceSh->presentationQueue);
-    appData->simpleRenderDescriptorSetLayout->validate(deviceSh);
-    appData->simpleRenderDescriptorPool->validate(deviceSh);
-    appData->simpleRenderPipelineLayout->validate(deviceSh);
-    appData->simpleRenderPipeline->validate(deviceSh);
-
-    appData->instancedRenderDescriptorSetLayout->validate(deviceSh);
-    appData->instancedRenderDescriptorPool->validate(deviceSh);
-    appData->instancedRenderPipelineLayout->validate(deviceSh);
-    appData->instancedRenderPipeline->validate(deviceSh);
-
-    appData->filterDescriptorSetLayout->validate(deviceSh);
-    appData->filterDescriptorPool->validate(deviceSh);
-    appData->filterPipelineLayout->validate(deviceSh);
-    appData->filterPipeline->validate(deviceSh);
-
-    appData->timeStampQueryPool->validate(deviceSh);
-
-    // preparing descriptor sets
-    appData->cameraUbo->validate(deviceSh);
-    appData->positionSbo->validate(deviceSh);
-    appData->instanceSbo->validate(deviceSh);
-    appData->resultsSbo->validate(deviceSh);
-    appData->resultsSbo2->validate(deviceSh);
-    appData->offValuesSbo->validate(deviceSh);
-  }
-
-  void cleanup() override
-  {
-    SurfaceThread::cleanup();
-  }
-  ~CrowdRenderThread()
-  {
-    cleanup();
-  }
-  void draw()
-  {
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
-    VkDevice                        vkDevice  = deviceSh->device;
-
-    uint32_t renderWidth  = surfaceSh->swapChainSize.width;
-    uint32_t renderHeight = surfaceSh->swapChainSize.height;
-
-    const FrameData& frameData = appData->frameData[appData->readIdx];
-
-    appData->cameraUbo->validate(deviceSh);
-    appData->positionSbo->validate(deviceSh);
-    appData->instanceSbo->validate(deviceSh);
-    appData->resultsSbo->validate(deviceSh);
-    appData->offValuesSbo->validate(deviceSh);
-
-    appData->simpleRenderDescriptorSet->validate(deviceSh);
-    appData->instancedRenderDescriptorSet->validate(deviceSh);
-    appData->filterDescriptorSet->validate(deviceSh);
+    simpleRenderDescriptorSet->validate(deviceSh);
+    instancedRenderDescriptorSet->validate(deviceSh);
+    filterDescriptorSet->validate(deviceSh);
 
 
 #if defined(CROWD_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
-    myCmdBuffer->cmdBegin(deviceSh);
-    appData->timeStampQueryPool->reset(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex*4,4);
+    myCmdBuffer[vkDevice]->cmdBegin();
+    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4, 4);
 
-    pumex::DescriptorSetValue resultsBuffer = appData->resultsSbo->getDescriptorSetValue(vkDevice);
-    pumex::DescriptorSetValue resultsBuffer2 = appData->resultsSbo2->getDescriptorSetValue(vkDevice);
-    uint32_t drawCount = appData->resultsSbo->get().size();
+    pumex::DescriptorSetValue resultsBuffer = resultsSbo->getDescriptorSetValue(vkDevice);
+    pumex::DescriptorSetValue resultsBuffer2 = resultsSbo2->getDescriptorSetValue(vkDevice);
+    uint32_t drawCount = resultsSbo->get().size();
 
-    if (frameData.renderMethod == 1)
+    if (frameData[readIdx].renderMethod == 1)
     {
 #if defined(CROWD_MEASURE_TIME)
-      appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
       // Add memory barrier to ensure that the indirect commands have been consumed before the compute shader updates them
-      pumex::PipelineBarrier beforeBufferBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
-      myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarrier);
+      pumex::PipelineBarrier beforeBufferBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
+      myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarrier);
 
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->filterPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_COMPUTE, appData->filterPipelineLayout, 0, appData->filterDescriptorSet);
-      myCmdBuffer->cmdDispatch(deviceSh, frameData.instanceData.size() / 16 + ((frameData.instanceData.size() % 16>0) ? 1 : 0), 1, 1);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(filterPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, filterDescriptorSet);
+      myCmdBuffer[vkDevice]->cmdDispatch(frameData[readIdx].instanceData.size() / 16 + ((frameData[readIdx].instanceData.size() % 16>0) ? 1 : 0), 1, 1);
 
-      pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
-      myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
+      pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
+      myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
 
       VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = resultsBuffer.bufferInfo.offset;
-        copyRegion.size      = resultsBuffer.bufferInfo.range;
-        copyRegion.dstOffset = resultsBuffer2.bufferInfo.offset;
-      myCmdBuffer->cmdCopyBuffer(deviceSh, resultsBuffer.bufferInfo.buffer, resultsBuffer2.bufferInfo.buffer, copyRegion);
-      
-      pumex::PipelineBarrier afterCopyBufferBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, resultsBuffer2.bufferInfo);
-      myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarrier);
+      copyRegion.srcOffset = resultsBuffer.bufferInfo.offset;
+      copyRegion.size = resultsBuffer.bufferInfo.range;
+      copyRegion.dstOffset = resultsBuffer2.bufferInfo.offset;
+      myCmdBuffer[vkDevice]->cmdCopyBuffer(resultsBuffer.bufferInfo.buffer, resultsBuffer2.bufferInfo.buffer, copyRegion);
+
+      pumex::PipelineBarrier afterCopyBufferBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer2.bufferInfo);
+      myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarrier);
 
 #if defined(CROWD_MEASURE_TIME)
-      appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
     }
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    myCmdBuffer->cmdBeginRenderPass(deviceSh, appData->defaultRenderPass, surfaceSh->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    myCmdBuffer->cmdSetViewport(deviceSh, 0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    myCmdBuffer->cmdSetScissor(deviceSh, 0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+    myCmdBuffer[vkDevice]->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+    myCmdBuffer[vkDevice]->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+    myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(CROWD_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
-    switch (frameData.renderMethod)
+    switch (frameData[readIdx].renderMethod)
     {
     case 0: // simple rendering: no compute culling, no instancing
     {
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->simpleRenderPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_GRAPHICS, appData->simpleRenderPipelineLayout, 0, appData->simpleRenderDescriptorSet);
-      appData->skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(simpleRenderPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, simpleRenderPipelineLayout, 0, simpleRenderDescriptorSet);
+      skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
       // Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
-//      glm::vec4 cameraPos = appData->cameraUbo->get().getViewMatrixInverse() * glm::vec4(0,0,0,1);
-      glm::vec4 cameraPos = frameData.camera.getObserverPosition();
-      for (uint32_t i = 0; i<frameData.instanceData.size(); ++i)
+      //      glm::vec4 cameraPos = frameData.camera.getViewMatrixInverse() * glm::vec4(0,0,0,1);
+      glm::vec4 cameraPos = frameData[readIdx].camera.getObserverPosition();
+      for (uint32_t i = 0; i<frameData[readIdx].instanceData.size(); ++i)
       {
-        glm::vec4 objectPos = frameData.positionData[frameData.instanceData[i].positionIndex].position[3];
+        glm::vec4 objectPos = frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex].position[3];
         float distanceToCamera = glm::length(cameraPos - objectPos);
-        appData->skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer, 1, frameData.instanceData[i].typeID, i, distanceToCamera);
+        skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, frameData[readIdx].instanceData[i].typeID, i, distanceToCamera);
       }
       break;
     }
     case 1: // compute culling and instanced rendering
     {
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->instancedRenderPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_GRAPHICS, appData->instancedRenderPipelineLayout, 0, appData->instancedRenderDescriptorSet);
-      appData->skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(instancedRenderPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
+      skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
-        myCmdBuffer->cmdDrawIndexedIndirect(deviceSh, resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
         for (uint32_t i = 0; i < drawCount; ++i)
-          myCmdBuffer->cmdDrawIndexedIndirect(deviceSh, resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset + i*sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+          myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
       }
       break;
     }
     }
 #if defined(CROWD_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
-    myCmdBuffer->cmdEndRenderPass(deviceSh);
-    myCmdBuffer->cmdEnd(deviceSh);
-    myCmdBuffer->queueSubmit(deviceSh, surfaceSh->presentationQueue, { surfaceSh->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surfaceSh->renderCompleteSemaphore }, VK_NULL_HANDLE);
+    myCmdBuffer[vkDevice]->cmdEndRenderPass();
+    myCmdBuffer[vkDevice]->cmdEnd();
+    myCmdBuffer[vkDevice]->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
 #if defined(CROWD_MEASURE_TIME)
     auto drawEnd = pumex::HPClock::now();
     drawDuration = std::chrono::duration<double, std::milli>(drawEnd - drawStart).count();
@@ -996,42 +970,44 @@ public:
 
   }
 
-  std::shared_ptr<ApplicationData>      appData;
-  std::shared_ptr<pumex::CommandBuffer> myCmdBuffer;
-  double                                drawDuration;
+  void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
+  {
+#if defined(CROWD_MEASURE_TIME)
+    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
+
+    LOG_ERROR << "Frame time                : " << 1000.0 * viewer->getLastFrameDuration() << " ms ( FPS = " << 1.0 / viewer->getLastFrameDuration() << " )" << std::endl;
+    LOG_ERROR << "Process input             : " << inputDuration << " ms" << std::endl;
+    LOG_ERROR << "Update skeletons          : " << updateDuration << " ms" << std::endl;
+    LOG_ERROR << "Recalculate offsets       : " << recalcDuration << " ms" << std::endl;
+    LOG_ERROR << "Fill command line buffers : " << drawDuration << " ms" << std::endl;
+
+    float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
+    std::vector<uint64_t> queryResults;
+    // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
+    if (frameData[readIdx].renderMethod == 1)
+    {
+      queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->swapChainImageIndex + 2) % 3) * 4, 4, 0);
+      LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
+      LOG_ERROR << "GPU draw shader           : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
+    }
+    else
+    {
+      queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->swapChainImageIndex + 2) % 3) * 4 + 2, 2, 0);
+      LOG_ERROR << "GPU draw duration         : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
+    }
+    LOG_ERROR << std::endl;
+#endif
+    swapFrameData();
+  }
+
+
+  void swapFrameData()
+  {
+    std::swap(readIdx, writeIdx);
+  }
+
 };
 
-void finishFrame(std::shared_ptr<ApplicationData> appData, std::shared_ptr<CrowdRenderThread> surfaceThread)
-{
-#if defined(CROWD_MEASURE_TIME)
-  std::shared_ptr<pumex::Surface> surfaceSh = surfaceThread->surface.lock();
-  std::shared_ptr<pumex::Device>  deviceSh = surfaceSh->device.lock();
-
-  LOG_ERROR << "Frame time                : " << 1000.0 * surfaceThread->lastFrameInSeconds << " ms ( FPS = " << 1.0 / surfaceThread->lastFrameInSeconds << " )" << std::endl;
-  LOG_ERROR << "Process input             : " << appData->inputDuration << " ms" << std::endl;
-  LOG_ERROR << "Update skeletons          : " << appData->updateDuration << " ms" << std::endl;
-  LOG_ERROR << "Recalculate offsets       : " << appData->recalcDuration << " ms" << std::endl;
-  LOG_ERROR << "Fill command line buffers : " << surfaceThread->drawDuration << " ms" << std::endl;
-
-  float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
-  std::vector<uint64_t> queryResults;
-  // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-  if(appData->frameData[appData->readIdx].renderMethod==1)
-  {
-    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4, 4, 0);
-    LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod  << " ms" << std::endl;
-    LOG_ERROR << "GPU draw shader           : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
-  }
-  else
-  {
-    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4 + 2, 2, 0);
-    LOG_ERROR << "GPU draw duration " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
-  }
-  LOG_ERROR << std::endl;
-#endif
-  appData->finish();
-
-}
 
 int main(void)
 {
@@ -1039,21 +1015,23 @@ int main(void)
   LOG_INFO << "Crowd rendering" << std::endl;
 	
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", true, requestDebugLayers };
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", true, requestDebugLayers, 120 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
-  std::shared_ptr<pumex::Viewer> viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+  std::shared_ptr<pumex::Viewer> viewer;
   try
   {
-    std::vector<pumex::QueueTraits> requestQueues = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } } };
+    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+
+    std::vector<pumex::QueueTraits> requestQueues    = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-    std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
+    std::shared_ptr<pumex::Device> device            = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
 
     pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, false, "Crowd rendering"};
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } });
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments = 
@@ -1083,25 +1061,40 @@ int main(void)
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
 
-    std::shared_ptr<CrowdRenderThread> thread0 = std::make_shared<CrowdRenderThread>(applicationData);
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits, thread0);
+    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
+    applicationData->surfaceSetup(surface);
 
-    tbb::flow::continue_node< tbb::flow::continue_msg > processInput(viewer->runGraph, [=](tbb::flow::continue_msg) { applicationData->processInput(thread0); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->runGraph, [=](tbb::flow::continue_msg) { applicationData->update(thread0->timeSinceStartInSeconds, thread0->lastFrameInSeconds); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > recalcOffsets(viewer->runGraph, [=](tbb::flow::continue_msg) { applicationData->recalcOffsetsAndSetData(applicationData->frameData[applicationData->writeIdx]); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startFrame(viewer->runGraph, [=](tbb::flow::continue_msg) { thread0->startFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawFrame(viewer->runGraph, [=](tbb::flow::continue_msg) { thread0->draw(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endFrame(viewer->runGraph, [=](tbb::flow::continue_msg) { thread0->endFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > finito(viewer->runGraph, [=](tbb::flow::continue_msg) { finishFrame(applicationData, thread0); });
+    // Making the update graph
+    // The update in this example is "almost" singlethreaded. 
+    // In more complicated scenarios update should be also divided into advanced update graph.
+    // Consider make_edge() in update graph :
+    // viewer->startUpdateGraph should point to all root nodes.
+    // All leaf nodes should point to viewer->endUpdateGraph.
+    tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
+    {
+      applicationData->processInput(surface); 
+      applicationData->update(viewer->getApplicationDuration(), viewer->getUpdateDuration());
+      applicationData->recalcOffsetsAndSetData(applicationData->frameData[applicationData->writeIdx]);
+    });
 
-    tbb::flow::make_edge(viewer->startGraph, processInput);
-    tbb::flow::make_edge(processInput, update);
-    tbb::flow::make_edge(update, recalcOffsets);
-    tbb::flow::make_edge(recalcOffsets, finito);
-    tbb::flow::make_edge(viewer->startGraph, startFrame);
-    tbb::flow::make_edge(startFrame, drawFrame);
-    tbb::flow::make_edge(drawFrame, endFrame);
-    tbb::flow::make_edge(endFrame, finito);
+    tbb::flow::make_edge(viewer->startUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+
+    // Making the render graph.
+    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
+    // Consider make_edge() in render graph :
+    // viewer->startRenderGraph should point to all root nodes.
+    // All leaf nodes should point to viewer->endRenderGraph.
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
+
+    tbb::flow::make_edge(viewer->startRenderGraph, startSurfaceFrame);
+    tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
+    tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
+    tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
+    tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
 
     viewer->run();
   }

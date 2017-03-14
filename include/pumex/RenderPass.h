@@ -1,5 +1,5 @@
 #pragma once
-#include <map>
+#include <unordered_map>
 #include <vector>
 #include <memory>
 #include <vulkan/vulkan.h>
@@ -87,7 +87,7 @@ protected:
     bool         dirty      = true;
   };
 
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 	
 }

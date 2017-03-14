@@ -6,7 +6,7 @@
 
 using namespace pumex;
 
-std::map<HWND, WindowWin32*> WindowWin32::registeredWindows;
+std::unordered_map<HWND, WindowWin32*> WindowWin32::registeredWindows;
 
 LRESULT CALLBACK WindowWin32Proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -304,7 +304,7 @@ void WindowWin32::unregisterWindow(HWND hwnd)
 
 WindowWin32* WindowWin32::getWindow(HWND hwnd)
 {
-  std::map<HWND, WindowWin32*>::iterator it = registeredWindows.find(hwnd);
+  auto it = registeredWindows.find(hwnd);
   if (it == registeredWindows.end())
     it = registeredWindows.find(nullptr);
   if (it == registeredWindows.end())

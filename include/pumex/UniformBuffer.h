@@ -1,6 +1,6 @@
 #pragma once
 #include <memory>
-#include <map>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/utils/Buffer.h>
@@ -42,7 +42,7 @@ private:
     VkDeviceMemory         uboMemory = VK_NULL_HANDLE;
   };
   T uboData;
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 template <typename T>

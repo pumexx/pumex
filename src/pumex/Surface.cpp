@@ -2,7 +2,6 @@
 #include <pumex/Viewer.h>
 #include <pumex/Window.h>
 #include <pumex/PhysicalDevice.h>
-#include <pumex/SurfaceThread.h>
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
 #include <pumex/utils/Log.h>
@@ -83,13 +82,8 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
   {
-    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY,commandPool));
-    postPresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool));
-  }
-  for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
-  {
-    prePresentCmdBuffers[i]->validate(deviceSh);
-    postPresentCmdBuffers[i]->validate(deviceSh);
+    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh,commandPool));
+    postPresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh,commandPool));
   }
 
   // create swapchain
@@ -100,12 +94,6 @@ Surface::~Surface()
 {
   cleanup();
 }
-
-void Surface::setSurfaceThread(std::shared_ptr<pumex::SurfaceThread> s)
-{
-  surfaceThread = s;
-}
-
 
 void Surface::cleanup()
 {
@@ -125,7 +113,7 @@ void Surface::cleanup()
   {
     postPresentCmdBuffers.resize(0);
     prePresentCmdBuffers.resize(0);
-    defaultRenderPass = VK_NULL_HANDLE;
+    defaultRenderPass = nullptr;
     vkDestroySemaphore(dev, renderCompleteSemaphore, nullptr);
     vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
     commandPool = nullptr;
@@ -230,15 +218,15 @@ void Surface::createSwapChain()
 
   for (uint32_t i = 0; i < swapChainImages.size(); ++i)
   {
-    postPresentCmdBuffers[i]->cmdBegin(deviceSh);
+    postPresentCmdBuffers[i]->cmdBegin();
     PipelineBarrier postPresentBarrier(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i].image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } );
-    postPresentCmdBuffers[i]->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, postPresentBarrier);
-    postPresentCmdBuffers[i]->cmdEnd(deviceSh);
+    postPresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, postPresentBarrier);
+    postPresentCmdBuffers[i]->cmdEnd();
 
-    prePresentCmdBuffers[i]->cmdBegin(deviceSh);
+    prePresentCmdBuffers[i]->cmdBegin();
     PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i].image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-    prePresentCmdBuffers[i]->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
-    prePresentCmdBuffers[i]->cmdEnd(deviceSh);
+    prePresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
+    prePresentCmdBuffers[i]->cmdEnd();
   }
 
 }
@@ -289,7 +277,7 @@ void Surface::setupDepthStencil(uint32_t width, uint32_t height, uint32_t depth,
 
   auto commandBuffer = deviceSh->beginSingleTimeCommands(commandPool);
   // FIXME - move setImageLayout to pumex::CommandBuffer
-  pumex::setImageLayout(commandBuffer->getHandle(deviceSh->device), depthStencil.image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+  pumex::setImageLayout(commandBuffer->getHandle(), depthStencil.image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
   deviceSh->endSingleTimeCommands(commandBuffer, presentationQueue);
   depthStencilView.image = depthStencil.image;
   VK_CHECK_LOG_THROW(vkCreateImageView(vkDevice, &depthStencilView, nullptr, &depthStencil.view), "failed vkCreateImageView");
@@ -306,19 +294,20 @@ void Surface::cleanupDepthStencil()
 
 void Surface::beginFrame()
 {
+  if (viewer.lock()->terminating())
+    return;
+  actions.performActions();
   // FIXME : VK_SUBOPTIMAL_KHR
   auto deviceSh = device.lock();
   VK_CHECK_LOG_THROW(vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex), "failed vkAcquireNextImageKHR" );
-
-  // Submit post present image barrier to transform the image back to a color attachment that our render pass can write to
-  postPresentCmdBuffers[swapChainImageIndex]->queueSubmit(deviceSh, presentationQueue);
+  postPresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue);
 }
 
 void Surface::endFrame()
 {
   auto deviceSh = device.lock();
   // Submit pre present image barrier to transform the image from color attachment to present(khr) for presenting to the swap chain
-  prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(deviceSh, presentationQueue);
+  prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue);
 
   // FIXME - isn't a place for synchronizing many windows at once ?
   // In that case we shouldn't call it for single surface, I suppose...
@@ -330,7 +319,6 @@ void Surface::endFrame()
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
   VK_CHECK_LOG_THROW(vkQueuePresentKHR(presentationQueue, &presentInfo), "failed vkQueuePresentKHR");
-  // FIXME : eliminate vkQueueWaitIdle ?
   VK_CHECK_LOG_THROW(vkQueueWaitIdle(presentationQueue), "failed vkQueueWaitIdle")
 }
 
