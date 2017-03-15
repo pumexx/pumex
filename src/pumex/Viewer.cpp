@@ -31,11 +31,12 @@ Viewer::Viewer(const pumex::ViewerTraits& vt)
   endRenderGraph   { renderGraph, [=](tbb::flow::continue_msg) { endRender(); } }
 {
   viewerStartTime     = pumex::HPClock::now();
+  for(uint32_t i=0; i<3;++i)
+    updateStartTimes[i] = viewerStartTime;
   renderStartTime     = viewerStartTime;
-  updateStartTime     = viewerStartTime;
   applicationDuration = viewerStartTime - viewerStartTime;
   lastRenderDuration  = viewerStartTime - renderStartTime;
-  lastUpdateDuration  = viewerStartTime - updateStartTime;
+  lastUpdateDuration  = viewerStartTime - updateStartTimes[0];
 
   // register basic directories - current directory
   char strCurrentPath[MAX_PATH_LENGTH];
@@ -163,11 +164,19 @@ void Viewer::run()
 
       {
         std::lock_guard<std::mutex> lck(updateMutex);
-        renderStartTime = pumex::HPClock::now();
-        renderIndex     = getFreeSlot();
+        renderIndex      = getRenderSlot();
+        renderStartTime  = pumex::HPClock::now();
         updateConditionVariable.notify_one();
       }
-//      LOG_INFO << "Render index = " << renderIndex << std::endl;
+      switch (renderIndex)
+      {
+      case 0:
+        LOG_INFO << "R:+  " << std::endl; break;
+      case 1:
+        LOG_INFO << "R: + " << std::endl; break;
+      case 2:
+        LOG_INFO << "R:  +" << std::endl; break;
+      }
       startRenderGraph.try_put(tbb::flow::continue_msg());
       renderGraph.wait_for_all();
 
@@ -180,11 +189,20 @@ void Viewer::run()
   {
     {
       std::unique_lock<std::mutex> lck(updateMutex);
-      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTime; });
-      updateStartTime = updateStartTime + pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
-      updateIndex     = getFreeSlot();
+      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTimes[updateIndex]; });
+      auto prevUpdateIndex = updateIndex;
+      updateIndex = getUpdateSlot();
+      updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
     }
-//    LOG_INFO << "Update index = " << updateIndex << std::endl;
+    switch (updateIndex)
+    {
+    case 0:
+      LOG_INFO << "U:*  " << std::endl; break;
+    case 1:
+      LOG_INFO << "U: * " << std::endl; break;
+    case 2:
+      LOG_INFO << "U:  *" << std::endl; break;
+    }
     auto realUpdateStartTime = pumex::HPClock::now();
     applicationDuration = realUpdateStartTime - viewerStartTime;
 

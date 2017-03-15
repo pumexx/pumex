@@ -87,7 +87,7 @@ namespace pumex
 
     pumex::HPClock::time_point                          viewerStartTime;
     pumex::HPClock::time_point                          renderStartTime;
-    pumex::HPClock::time_point                          updateStartTime;
+    pumex::HPClock::time_point                          updateStartTimes[3];
     pumex::HPClock::duration                            applicationDuration;
     pumex::HPClock::duration                            lastRenderDuration;
     pumex::HPClock::duration                            lastUpdateDuration;
@@ -95,7 +95,8 @@ namespace pumex
     uint32_t                                            renderIndex = 0;
     uint32_t                                            updateIndex = 1;
 
-    inline uint32_t getFreeSlot() const;
+    inline uint32_t getRenderSlot() const;
+    inline uint32_t getUpdateSlot() const;
     inline uint32_t getRenderIndex() const;
     inline uint32_t getUpdateIndex() const;
 
@@ -114,9 +115,36 @@ namespace pumex
   VkInstance Viewer::getInstance() const            { return instance; }
   void       Viewer::setTerminate()                 { viewerTerminate = true; }
   bool       Viewer::terminating() const            { return viewerTerminate; }
-  uint32_t   Viewer::getFreeSlot() const { for (uint32_t i = 0; i < 3; ++i) if (i != renderIndex && i != updateIndex) return i; return 0; }
-  uint32_t   Viewer::getRenderIndex() const { return renderIndex; };
+  uint32_t   Viewer::getUpdateSlot() const 
+  { 
+    // pick up the frame not used currently by render nor update
+    uint32_t slot;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+      if (i != renderIndex && i != updateIndex)
+        slot = i;
+    }
+    return slot; 
+  }
+  uint32_t   Viewer::getRenderSlot() const
+  {
+    // pick up the newest frame not used currently by update
+    auto value = viewerStartTime;
+    auto slot  = 0;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+      if (i == updateIndex)
+        continue;
+      if (updateStartTimes[i] > value)
+      {
+        value = updateStartTimes[i];
+        slot = i;
+      }
+    }
+    return slot; 
+  }
   uint32_t   Viewer::getUpdateIndex() const { return updateIndex; };
+  uint32_t   Viewer::getRenderIndex() const { return renderIndex; };
 
   PUMEX_EXPORT VkBool32 messageCallback( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
 
