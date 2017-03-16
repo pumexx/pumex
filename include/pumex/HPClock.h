@@ -12,5 +12,11 @@ namespace pumex
 #else  
   #define HPClock std::chrono::high_resolution_clock
 #endif
+
+inline double inSeconds(const pumex::HPClock::duration& duration)
+{
+  return std::chrono::duration<double, std::ratio<1, 1>>(duration).count();
+}
+
 	
 }

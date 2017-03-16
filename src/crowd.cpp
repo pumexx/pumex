@@ -14,6 +14,59 @@
 
 const uint32_t MAX_BONES = 63;
 
+// Structure holding information about people and objects.
+// Structure is used by update loop to update its parameters.
+// Then it is sent to a render loop and used to produce a render data ( PositionData and InstanceData )
+
+struct ObjectData
+{
+  ObjectData()
+    : animation{ 0 }, animationOffset{ 0.0f }, typeID{ 0 }, materialVariant{ 0 }, time2NextTurn { 0.0f }, ownerID{ UINT32_MAX }
+  {
+  }
+  pumex::Kinematic kinematic;       // not used by clothes
+  uint32_t         animation;       // not used by clothes
+  float            animationOffset; // not used by clothes
+  uint32_t         typeID;
+  uint32_t         materialVariant;
+  float            time2NextTurn;   // not used by clothes
+  uint32_t         ownerID;         // not used by people
+};
+
+struct UpdateData
+{
+  UpdateData()
+  {
+  }
+  glm::vec3                                cameraPosition;
+  glm::vec2                                cameraGeographicCoordinates;
+  float                                    cameraDistance;
+
+  std::unordered_map<uint32_t, ObjectData> people;
+  std::unordered_map<uint32_t, ObjectData> clothes;
+
+  uint32_t                                 renderMethod;
+  glm::vec2                                lastMousePos;
+  bool                                     leftMouseKeyPressed;
+  bool                                     rightMouseKeyPressed;
+  bool                                     xKeyPressed;
+};
+
+
+struct RenderData
+{
+  RenderData()
+    : renderMethod{ 1 }
+  {
+  }
+  uint32_t                renderMethod;
+
+  pumex::Kinematic        cameraKinematic;
+
+  std::vector<ObjectData> people;
+  std::vector<ObjectData> clothes;
+};
+
 struct PositionData
 {
   PositionData(const glm::mat4& p)
@@ -36,19 +89,19 @@ struct InstanceData
   uint32_t mainInstance;
 };
 
-struct InstanceDataCPU
-{
-  InstanceDataCPU(uint32_t a, const glm::vec2& p, float r, float s, float t, float o)
-    : animation{ a }, position{ p }, rotation{ r }, speed{ s }, time2NextTurn{ t }, animationOffset{o}
-  {
-  }
-  uint32_t  animation;
-  glm::vec2 position;
-  float     rotation;
-  float     speed;
-  float     time2NextTurn;
-  float     animationOffset;
-};
+//struct InstanceDataCPU
+//{
+//  InstanceDataCPU(uint32_t a, const glm::vec2& p, float r, float s, float t, float o)
+//    : animation{ a }, position{ p }, rotation{ r }, speed{ s }, time2NextTurn{ t }, animationOffset{o}
+//  {
+//  }
+//  uint32_t  animation;
+//  glm::vec2 position;
+//  float     rotation;
+//  float     speed;
+//  float     time2NextTurn;
+//  float     animationOffset;
+//};
 
 struct MaterialData
 {
@@ -92,25 +145,16 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
   return lhs.skelID < rhs.skelID;
 }
 
-struct FrameData
-{
-  FrameData()
-    : renderMethod{ 1 }
-  {
-  }
-  pumex::Camera                camera;
-  std::vector<PositionData>    positionData;
-  std::vector<InstanceData>    instanceData;
-  std::vector<InstanceDataCPU> instanceDataCPU;
-  uint32_t                     renderMethod;
-};
-
 struct ApplicationData
 {
   std::weak_ptr<pumex::Viewer>                         viewer;
-  std::array<FrameData, 2>                             frameData;
-  uint32_t                                             readIdx;
-  uint32_t                                             writeIdx;
+
+  UpdateData                                           updateData;
+  std::array<RenderData, 3>                            renderData;
+
+//  std::vector<PositionData>                            positionData;
+//  std::vector<InstanceData>                            instanceData;
+//  pumex::Camera                                        camera;
 
   glm::vec3                                            minArea;
   glm::vec3                                            maxArea;
@@ -159,14 +203,6 @@ struct ApplicationData
   std::shared_ptr<pumex::DescriptorSet>                filterDescriptorSet;
 
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
-
-  glm::vec3 cameraPosition;
-  glm::vec2 cameraGeographicCoordinates;
-  float     cameraDistance;
-  glm::vec2 lastMousePos;
-  bool      leftMouseKeyPressed;
-  bool      rightMouseKeyPressed;
-  bool      xKeyPressed;
 
   double    inputDuration;
   double    updateDuration;
@@ -499,35 +535,62 @@ struct ApplicationData
     for (uint32_t i = 0; i < materialVariantCount.size(); ++i)
       randomMaterialVariant.push_back(std::uniform_int_distribution<uint32_t>(0, materialVariantCount[i] - 1));
 
+    uint32_t humanID = 0;
+    uint32_t clothID = 0;
     for (unsigned int i = 0; i<objectQuantity; ++i)
     {
-      glm::vec2 pos(randomX(randomEngine), randomY(randomEngine));
-      float rot                      = randomRotation(randomEngine);
-      uint32_t objectType            = mainObjectTypeID[randomType(randomEngine)];
-      uint32_t objectMaterialVariant = randomMaterialVariant[objectType](randomEngine);
-      uint32_t anim                  = randomAnimation(randomEngine);
-      frameData[0].positionData.push_back(PositionData(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, 0.0f)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f))));
-      frameData[0].instanceData.push_back(InstanceData(i, objectType, objectMaterialVariant, 1));
-      frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], randomTime2NextTurn(randomEngine), randomAnimationOffset(randomEngine)));
-      auto clothPair = clothVariants.equal_range(skeletalAssetBuffer->getTypeName(objectType));
+      humanID++;
+      ObjectData human;
+        human.kinematic.position    = glm::vec3( randomX(randomEngine), randomY(randomEngine), 0.0f );
+        human.kinematic.orientation = glm::quat( randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f) );
+        human.animation             = randomAnimation(randomEngine);
+        glm::mat4 rotationMatrix    = glm::mat4_cast(human.kinematic.orientation);
+        glm::vec4 direction4        = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to take it into account
+        glm::vec3 direction3 (direction4.x/ direction4.w, direction4.y / direction4.w, direction4.z / direction4.w);
+        human.kinematic.velocity    = direction3 * (animationSpeed[human.animation] / direction3.length());
+        human.animationOffset       = randomAnimationOffset(randomEngine);
+        human.typeID                = mainObjectTypeID[randomType(randomEngine)];
+        human.materialVariant       = randomMaterialVariant[human.typeID](randomEngine);
+        human.time2NextTurn         = randomTime2NextTurn(randomEngine);
+      updateData.people.insert({ humanID, human });
+
+//      float rot                      = randomRotation(randomEngine);
+//      uint32_t objectType            = mainObjectTypeID[randomType(randomEngine)];
+//      uint32_t objectMaterialVariant = randomMaterialVariant[objectType](randomEngine);
+//      uint32_t anim                  = randomAnimation(randomEngine);
+//      frameData[0].positionData.push_back(PositionData(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, 0.0f)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f))));
+//      frameData[0].instanceData.push_back(InstanceData(i, objectType, objectMaterialVariant, 1));
+//      frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], randomTime2NextTurn(randomEngine), randomAnimationOffset(randomEngine)));
+      auto clothPair = clothVariants.equal_range(skeletalAssetBuffer->getTypeName(human.typeID));
       auto clothCount = std::distance(clothPair.first, clothPair.second);
       if (clothCount > 0)
       {
+
         uint32_t clothIndex = i % clothCount;
         std::advance(clothPair.first, clothIndex);
         for( const auto& c : clothPair.first->second )
         {
-          uint32_t clothType = skeletalAssetBuffer->getTypeID(c);
-          frameData[0].instanceData.push_back(InstanceData(i, clothType, 0, 0));
-          frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], 0.0, 0.0));
+          clothID++;
+          ObjectData cloth;
+            cloth.typeID          = skeletalAssetBuffer->getTypeID(c);
+            cloth.materialVariant = 0;
+            cloth.ownerID         = humanID;
+          updateData.clothes.insert({ clothID, cloth });
+//          uint32_t clothType = skeletalAssetBuffer->getTypeID(c);
+//          frameData[0].instanceData.push_back(InstanceData(i, clothType, 0, 0));
+//          frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], 0.0, 0.0));
         }
       }
     }
-    frameData[1] = frameData[0];
-    readIdx = 0;
-    writeIdx = 1;
-    positionSbo->set(frameData[1].positionData);
-    instanceSbo->set(frameData[1].instanceData);
+    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
+    updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
+    updateData.cameraDistance              = 1.0f;
+    updateData.leftMouseKeyPressed         = false;
+    updateData.rightMouseKeyPressed        = false;
+    updateData.xKeyPressed                 = false;
+
+//    positionSbo->set(frameData[1].positionData);
+//    instanceSbo->set(frameData[1].instanceData);
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);
@@ -535,12 +598,6 @@ struct ApplicationData
     resultsSbo2->set(results);
     offValuesSbo->set(std::vector<uint32_t>(1)); // FIXME
 
-    cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
-    cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    cameraDistance              = 1.0f;
-    leftMouseKeyPressed         = false;
-    rightMouseKeyPressed        = false;
-    xKeyPressed                 = false;
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
@@ -583,34 +640,36 @@ struct ApplicationData
 
   void processInput(std::shared_ptr<pumex::Surface> surface )
   {
+    auto updateTime = surface->viewer.lock()->getUpdateTime();
+
 #if defined(CROWD_MEASURE_TIME)
     auto inputStart = pumex::HPClock::now();
 #endif
     std::shared_ptr<pumex::Window>  windowSh  = surface->window.lock();
 
     std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
-    glm::vec2 mouseMove = lastMousePos;
+    glm::vec2 mouseMove = updateData.lastMousePos;
     for (const auto& m : mouseEvents)
     {
       switch (m.type)
       {
       case pumex::MouseEvent::KEY_PRESSED:
         if (m.button == pumex::MouseEvent::LEFT)
-          leftMouseKeyPressed = true;
+          updateData.leftMouseKeyPressed = true;
         if (m.button == pumex::MouseEvent::RIGHT)
-          rightMouseKeyPressed = true;
+          updateData.rightMouseKeyPressed = true;
         mouseMove.x = m.x;
         mouseMove.y = m.y;
-        lastMousePos = mouseMove;
+        updateData.lastMousePos = mouseMove;
         break;
       case pumex::MouseEvent::KEY_RELEASED:
         if (m.button == pumex::MouseEvent::LEFT)
-          leftMouseKeyPressed = false;
+          updateData.leftMouseKeyPressed = false;
         if (m.button == pumex::MouseEvent::RIGHT)
-          rightMouseKeyPressed = false;
+          updateData.rightMouseKeyPressed = false;
         break;
       case pumex::MouseEvent::MOVE:
-        if (leftMouseKeyPressed || rightMouseKeyPressed)
+        if (updateData.leftMouseKeyPressed || updateData.rightMouseKeyPressed)
         {
           mouseMove.x = m.x;
           mouseMove.y = m.y;
@@ -618,58 +677,58 @@ struct ApplicationData
         break;
       }
     }
-    if (leftMouseKeyPressed)
+    if (updateData.leftMouseKeyPressed)
     {
-      cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - lastMousePos.x);
-      cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - lastMousePos.y);
-      while (cameraGeographicCoordinates.x < -180.0f)
-        cameraGeographicCoordinates.x += 360.0f;
-      while (cameraGeographicCoordinates.x>180.0f)
-        cameraGeographicCoordinates.x -= 360.0f;
-      cameraGeographicCoordinates.y = glm::clamp(cameraGeographicCoordinates.y, -90.0f, 90.0f);
-      lastMousePos = mouseMove;
+      updateData.cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - updateData.lastMousePos.x);
+      updateData.cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - updateData.lastMousePos.y);
+      while (updateData.cameraGeographicCoordinates.x < -180.0f)
+        updateData.cameraGeographicCoordinates.x += 360.0f;
+      while (updateData.cameraGeographicCoordinates.x>180.0f)
+        updateData.cameraGeographicCoordinates.x -= 360.0f;
+      updateData.cameraGeographicCoordinates.y = glm::clamp(updateData.cameraGeographicCoordinates.y, -90.0f, 90.0f);
+      updateData.lastMousePos = mouseMove;
     }
-    if (rightMouseKeyPressed)
+    if (updateData.rightMouseKeyPressed)
     {
-      cameraDistance += 10.0f*(lastMousePos.y - mouseMove.y);
-      if (cameraDistance<0.1f)
-        cameraDistance = 0.1f;
-      lastMousePos = mouseMove;
+      updateData.cameraDistance += 10.0f*(updateData.lastMousePos.y - mouseMove.y);
+      if (updateData.cameraDistance<0.1f)
+        updateData.cameraDistance = 0.1f;
+      updateData.lastMousePos = mouseMove;
     }
 
-    glm::vec3 forward = glm::vec3(cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
-    glm::vec3 right = glm::vec3(cos((cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
+    glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
+    glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
     if (windowSh->isKeyPressed('W'))
-      cameraPosition -= forward;
+      updateData.cameraPosition -= forward;
     if (windowSh->isKeyPressed('S'))
-      cameraPosition += forward;
+      updateData.cameraPosition += forward;
     if (windowSh->isKeyPressed('A'))
-      cameraPosition -= right;
+      updateData.cameraPosition -= right;
     if (windowSh->isKeyPressed('D'))
-      cameraPosition += right;
+      updateData.cameraPosition += right;
     if (windowSh->isKeyPressed('X'))
     {
-      if (!xKeyPressed)
+      if (!updateData.xKeyPressed)
       {
-        frameData[writeIdx].renderMethod = (frameData[readIdx].renderMethod + 1) % 2;
-        switch (frameData[writeIdx].renderMethod)
+        updateData.renderMethod = (updateData.renderMethod + 1) % 2;
+        switch (updateData.renderMethod)
         {
         case 0: LOG_INFO << "Rendering using simple method ( each entity uses its own vkCmdDrawIndexed )" << std::endl; break;
         case 1: LOG_INFO << "Rendering using instanced method ( all entities use only a single vkCmdDrawIndexedIndirect )" << std::endl; break;
         }
-        xKeyPressed = true;
+        updateData.xKeyPressed = true;
       }
     }
     else
-      xKeyPressed = false;
+      updateData.xKeyPressed = false;
 
     glm::vec3 eye
     (
-      cameraDistance * cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      cameraDistance * sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      cameraDistance * sin(cameraGeographicCoordinates.y * 3.1415f / 180.0f)
+      updateData.cameraDistance * cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(updateData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      updateData.cameraDistance * sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(updateData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      updateData.cameraDistance * sin(updateData.cameraGeographicCoordinates.y * 3.1415f / 180.0f)
     );
-    glm::mat4 viewMatrix = glm::lookAt(eye + cameraPosition, cameraPosition, glm::vec3(0, 0, 1));
+    glm::mat4 viewMatrix = glm::lookAt(eye + updateData.cameraPosition, updateData.cameraPosition, glm::vec3(0, 0, 1));
 
     uint32_t renderWidth  = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
@@ -1015,7 +1074,7 @@ int main(void)
   LOG_INFO << "Crowd rendering" << std::endl;
 	
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", true, requestDebugLayers, 180 };
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", true, requestDebugLayers, 100 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -1073,7 +1132,7 @@ int main(void)
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
       applicationData->processInput(surface); 
-      applicationData->update(viewer->getApplicationDuration(), viewer->getUpdateDuration());
+      applicationData->update(pumex::inSeconds( viewer->getApplicationDuration() ), viewer->getUpdateDuration());
       applicationData->recalcOffsetsAndSetData(applicationData->frameData[applicationData->writeIdx]);
     });
 

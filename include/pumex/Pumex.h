@@ -1,6 +1,7 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include <pumex/utils/Log.h>
+#include <pumex/HPClock.h>
 #include <pumex/Viewer.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Device.h>
@@ -16,5 +17,6 @@
 
 #include <pumex/Asset.h>
 #include <pumex/Camera.h>
+#include <pumex/Kinematic.h>
 #include <pumex/AssetBuffer.h>
 #include <pumex/MaterialSet.h>

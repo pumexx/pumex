@@ -34,7 +34,6 @@ Viewer::Viewer(const pumex::ViewerTraits& vt)
   for(uint32_t i=0; i<3;++i)
     updateStartTimes[i] = viewerStartTime;
   renderStartTime     = viewerStartTime;
-  applicationDuration = viewerStartTime - viewerStartTime;
   lastRenderDuration  = viewerStartTime - renderStartTime;
   lastUpdateDuration  = viewerStartTime - updateStartTimes[0];
 
@@ -164,7 +163,7 @@ void Viewer::run()
 
       {
         std::lock_guard<std::mutex> lck(updateMutex);
-        renderIndex      = getRenderSlot();
+        renderIndex      = getNextRenderSlot();
         renderStartTime  = pumex::HPClock::now();
         updateConditionVariable.notify_one();
       }
@@ -191,7 +190,7 @@ void Viewer::run()
       std::unique_lock<std::mutex> lck(updateMutex);
       updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTimes[updateIndex]; });
       auto prevUpdateIndex = updateIndex;
-      updateIndex = getUpdateSlot();
+      updateIndex = getNextUpdateSlot();
       updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
     }
     switch (updateIndex)
@@ -204,7 +203,6 @@ void Viewer::run()
       LOG_INFO << "U:  *" << std::endl; break;
     }
     auto realUpdateStartTime = pumex::HPClock::now();
-    applicationDuration = realUpdateStartTime - viewerStartTime;
 
 #if defined(_WIN32)
     if (!WindowWin32::checkWindowMessages())

@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <condition_variable>
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <tbb/flow_graph.h>
@@ -46,8 +47,6 @@ namespace pumex
 
     std::shared_ptr<pumex::Device>    addDevice( unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions );
     std::shared_ptr<pumex::Surface>   addSurface(std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits);
-    inline double getApplicationDuration() const;
-    inline double getUpdateDuration() const;
     void run();
     void cleanup();
 
@@ -70,9 +69,20 @@ namespace pumex
     tbb::flow::continue_node< tbb::flow::continue_msg > startRenderGraph;
     tbb::flow::continue_node< tbb::flow::continue_msg > endRenderGraph;
 
+    inline uint32_t getUpdateIndex() const;
+    inline uint32_t getRenderIndex() const;
+
+    inline pumex::HPClock::duration   getUpdateDuration() const;      // time of one update ( = 1 / viewerTraits.updatesPerSecond )
+    inline pumex::HPClock::time_point getApplicationStartTime() const;// get the time point of the application start
+    inline pumex::HPClock::time_point getUpdateTime() const;          // get the time point of the update
+    inline pumex::HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
+
   protected:
     void setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
     void cleanupDebugging();
+
+    inline uint32_t getNextRenderSlot() const;
+    inline uint32_t getNextUpdateSlot() const;
 
     void startUpdate();
     void endUpdate();
@@ -88,17 +98,11 @@ namespace pumex
     pumex::HPClock::time_point                          viewerStartTime;
     pumex::HPClock::time_point                          renderStartTime;
     pumex::HPClock::time_point                          updateStartTimes[3];
-    pumex::HPClock::duration                            applicationDuration;
     pumex::HPClock::duration                            lastRenderDuration;
     pumex::HPClock::duration                            lastUpdateDuration;
 
     uint32_t                                            renderIndex = 0;
     uint32_t                                            updateIndex = 1;
-
-    inline uint32_t getRenderSlot() const;
-    inline uint32_t getUpdateSlot() const;
-    inline uint32_t getRenderIndex() const;
-    inline uint32_t getUpdateIndex() const;
 
     std::mutex                                          updateMutex;
     std::condition_variable                             updateConditionVariable;
@@ -110,13 +114,18 @@ namespace pumex
 
   };
 
-  double     Viewer::getApplicationDuration() const { return std::chrono::duration<double, std::ratio<1, 1>>(applicationDuration).count(); }
-  double     Viewer::getUpdateDuration() const      { return std::chrono::duration<double, std::ratio<1, 1>>(pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond).count(); }
-  VkInstance Viewer::getInstance() const            { return instance; }
-  void       Viewer::setTerminate()                 { viewerTerminate = true; }
-  bool       Viewer::terminating() const            { return viewerTerminate; }
-  uint32_t   Viewer::getUpdateSlot() const 
-  { 
+  VkInstance                 Viewer::getInstance() const             { return instance; }
+  void                       Viewer::setTerminate()                  { viewerTerminate = true; }
+  bool                       Viewer::terminating() const             { return viewerTerminate; }
+  uint32_t                   Viewer::getUpdateIndex() const          { return updateIndex; };
+  uint32_t                   Viewer::getRenderIndex() const          { return renderIndex; };
+  pumex::HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStartTime; }
+  pumex::HPClock::duration   Viewer::getUpdateDuration() const       { return (pumex::HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
+  pumex::HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; };
+  pumex::HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; };
+
+  uint32_t   Viewer::getNextUpdateSlot() const
+  {
     // pick up the frame not used currently by render nor update
     uint32_t slot;
     for (uint32_t i = 0; i < 3; ++i)
@@ -124,13 +133,13 @@ namespace pumex
       if (i != renderIndex && i != updateIndex)
         slot = i;
     }
-    return slot; 
+    return slot;
   }
-  uint32_t   Viewer::getRenderSlot() const
+  uint32_t   Viewer::getNextRenderSlot() const
   {
     // pick up the newest frame not used currently by update
     auto value = viewerStartTime;
-    auto slot  = 0;
+    auto slot = 0;
     for (uint32_t i = 0; i < 3; ++i)
     {
       if (i == updateIndex)
@@ -141,12 +150,12 @@ namespace pumex
         slot = i;
       }
     }
-    return slot; 
+    return slot;
   }
-  uint32_t   Viewer::getUpdateIndex() const { return updateIndex; };
-  uint32_t   Viewer::getRenderIndex() const { return renderIndex; };
+
 
   PUMEX_EXPORT VkBool32 messageCallback( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
 
 }
+
 
