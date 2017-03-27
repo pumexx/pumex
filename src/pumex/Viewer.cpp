@@ -167,15 +167,15 @@ void Viewer::run()
         renderStartTime  = pumex::HPClock::now();
         updateConditionVariable.notify_one();
       }
-      switch (renderIndex)
-      {
-      case 0:
-        LOG_INFO << "R:+  " << std::endl; break;
-      case 1:
-        LOG_INFO << "R: + " << std::endl; break;
-      case 2:
-        LOG_INFO << "R:  +" << std::endl; break;
-      }
+      //switch (renderIndex)
+      //{
+      //case 0:
+      //  LOG_INFO << "R:+  " << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //case 1:
+      //  LOG_INFO << "R: + " << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //case 2:
+      //  LOG_INFO << "R:  +" << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //}
       startRenderGraph.try_put(tbb::flow::continue_msg());
       renderGraph.wait_for_all();
 
@@ -193,15 +193,15 @@ void Viewer::run()
       updateIndex = getNextUpdateSlot();
       updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
     }
-    switch (updateIndex)
-    {
-    case 0:
-      LOG_INFO << "U:*  " << std::endl; break;
-    case 1:
-      LOG_INFO << "U: * " << std::endl; break;
-    case 2:
-      LOG_INFO << "U:  *" << std::endl; break;
-    }
+    //switch (updateIndex)
+    //{
+    //case 0:
+    //  LOG_INFO << "U:*  " << std::endl; break;
+    //case 1:
+    //  LOG_INFO << "U: * " << std::endl; break;
+    //case 2:
+    //  LOG_INFO << "U:  *" << std::endl; break;
+    //}
     auto realUpdateStartTime = pumex::HPClock::now();
 
 #if defined(_WIN32)

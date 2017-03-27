@@ -69,7 +69,7 @@ void addCone(Geometry& geometry, const glm::vec3& origin, float radius, float he
   float normalRatio = 1.0f / (sqrtf(1.0f + normalz*normalz));
   normalz           *= normalRatio;
 
-  float angleDelta        = 2.0f* fpi / (float)numSegments;
+  float angleDelta        = glm::two_pi<float>() / (float)numSegments;
   float texCoordHorzDelta = 1.0 / (float)numSegments;
   float texCoordRowDelta  = 1.0 / (float)numRows;
   float hDelta            = height / (float)numRows;
@@ -168,7 +168,7 @@ void addCylinder(Geometry& geometry, const glm::vec3& origin, float radius, floa
 {
   VertexAccumulator acc(geometry.semantic);
 
-  const float angleDelta = 2.0f * fpi / (float)numSegments;
+  const float angleDelta = glm::two_pi<float>() / (float)numSegments;
   const float texCoordDelta = 1.0f / (float)numSegments;
 
   addCylinderBody(geometry, origin, radius,height, numSegments,drawFrontFace);
@@ -342,7 +342,7 @@ void addCylinderBody(Geometry& geometry, const glm::vec3& origin, float radius, 
 {
   VertexAccumulator acc(geometry.semantic);
 
-  const float angleDelta = 2.0f * fpi / (float)numSegments;
+  const float angleDelta = glm::two_pi<float>() / (float)numSegments;
   const float texCoordDelta = 1.0f / (float)numSegments;
 
   const float r = radius;
@@ -426,13 +426,13 @@ void addHalfSphere(Geometry& geometry, const glm::vec3& origin, float radius, un
 {
   VertexAccumulator acc(geometry.semantic);
 
-  float lDelta = fpi / (float)numRows;
+  float lDelta = glm::pi<float>() / (float)numRows;
   float vDelta = 1.0f / (float)numRows;
 
-  float angleDelta = fpi*2.0f / (float)numSegments;
+  float angleDelta = glm::two_pi<float>() / (float)numSegments;
   float texCoordHorzDelta = 1.0f / (float)numSegments;
 
-  float lBase = -fpi*0.5f + (top ? (lDelta*(numRows / 2)) : 0.0f);
+  float lBase = -glm::half_pi<float>() + (top ? (lDelta*(numRows / 2)) : 0.0f);
   float rBase = (top ? (cosf(lBase)*radius) : 0.0f);
   float zBase = (top ? (sinf(lBase)*radius) : -radius);
   float vBase = (top ? (vDelta*(numRows / 2)) : 0.0f);

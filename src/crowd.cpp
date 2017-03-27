@@ -1,7 +1,7 @@
 #include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/simd/matrix.h>
 #include <gli/gli.hpp>
 #include <pumex/Pumex.h>
@@ -36,6 +36,7 @@ struct ObjectData
 struct UpdateData
 {
   UpdateData()
+    : renderMethod{1}
   {
   }
   glm::vec3                                cameraPosition;
@@ -56,15 +57,21 @@ struct UpdateData
 struct RenderData
 {
   RenderData()
-    : renderMethod{ 1 }
+    : renderMethod{ 1 }, prevCameraDistance{ 1.0f }, cameraDistance{ 1.0f }
   {
   }
   uint32_t                renderMethod;
 
-  pumex::Kinematic        cameraKinematic;
+  glm::vec3               prevCameraPosition;
+  glm::vec2               prevCameraGeographicCoordinates;
+  float                   prevCameraDistance;
+  glm::vec3               cameraPosition;
+  glm::vec2               cameraGeographicCoordinates;
+  float                   cameraDistance;
 
   std::vector<ObjectData> people;
   std::vector<ObjectData> clothes;
+  std::vector<uint32_t>   clothOwners;
 };
 
 struct PositionData
@@ -88,20 +95,6 @@ struct InstanceData
   uint32_t materialVariant;
   uint32_t mainInstance;
 };
-
-//struct InstanceDataCPU
-//{
-//  InstanceDataCPU(uint32_t a, const glm::vec2& p, float r, float s, float t, float o)
-//    : animation{ a }, position{ p }, rotation{ r }, speed{ s }, time2NextTurn{ t }, animationOffset{o}
-//  {
-//  }
-//  uint32_t  animation;
-//  glm::vec2 position;
-//  float     rotation;
-//  float     speed;
-//  float     time2NextTurn;
-//  float     animationOffset;
-//};
 
 struct MaterialData
 {
@@ -151,10 +144,6 @@ struct ApplicationData
 
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
-
-//  std::vector<PositionData>                            positionData;
-//  std::vector<InstanceData>                            instanceData;
-//  pumex::Camera                                        camera;
 
   glm::vec3                                            minArea;
   glm::vec3                                            maxArea;
@@ -206,13 +195,13 @@ struct ApplicationData
 
   double    inputDuration;
   double    updateDuration;
-  double    recalcDuration;
+  double    prepareBuffersDuration;
   double    drawDuration;
 
   std::unordered_map<VkDevice,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
   ApplicationData(std::shared_ptr<pumex::Viewer> v)
-	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -180.0f, 180.0f }
+	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -glm::pi<float>(), glm::pi<float>() }
   {
   }
 
@@ -542,12 +531,9 @@ struct ApplicationData
       humanID++;
       ObjectData human;
         human.kinematic.position    = glm::vec3( randomX(randomEngine), randomY(randomEngine), 0.0f );
-        human.kinematic.orientation = glm::quat( randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f) );
+        human.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
         human.animation             = randomAnimation(randomEngine);
-        glm::mat4 rotationMatrix    = glm::mat4_cast(human.kinematic.orientation);
-        glm::vec4 direction4        = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to take it into account
-        glm::vec3 direction3 (direction4.x/ direction4.w, direction4.y / direction4.w, direction4.z / direction4.w);
-        human.kinematic.velocity    = direction3 * (animationSpeed[human.animation] / direction3.length());
+        human.kinematic.velocity    =  glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * animationSpeed[human.animation];
         human.animationOffset       = randomAnimationOffset(randomEngine);
         human.typeID                = mainObjectTypeID[randomType(randomEngine)];
         human.materialVariant       = randomMaterialVariant[human.typeID](randomEngine);
@@ -640,8 +626,6 @@ struct ApplicationData
 
   void processInput(std::shared_ptr<pumex::Surface> surface )
   {
-    auto updateTime = surface->viewer.lock()->getUpdateTime();
-
 #if defined(CROWD_MEASURE_TIME)
     auto inputStart = pumex::HPClock::now();
 #endif
@@ -677,6 +661,11 @@ struct ApplicationData
         break;
       }
     }
+    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+    renderData[updateIndex].prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    renderData[updateIndex].prevCameraDistance              = updateData.cameraDistance;
+    renderData[updateIndex].prevCameraPosition              = updateData.cameraPosition;
+
     if (updateData.leftMouseKeyPressed)
     {
       updateData.cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - updateData.lastMousePos.x);
@@ -721,182 +710,160 @@ struct ApplicationData
     }
     else
       updateData.xKeyPressed = false;
+    renderData[updateIndex].renderMethod                = updateData.renderMethod;
 
-    glm::vec3 eye
-    (
-      updateData.cameraDistance * cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(updateData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      updateData.cameraDistance * sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(updateData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      updateData.cameraDistance * sin(updateData.cameraGeographicCoordinates.y * 3.1415f / 180.0f)
-    );
-    glm::mat4 viewMatrix = glm::lookAt(eye + updateData.cameraPosition, updateData.cameraPosition, glm::vec3(0, 0, 1));
+    renderData[updateIndex].cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    renderData[updateIndex].cameraDistance              = updateData.cameraDistance;
+    renderData[updateIndex].cameraPosition              = updateData.cameraPosition;
 
-    uint32_t renderWidth  = surface->swapChainSize.width;
-    uint32_t renderHeight = surface->swapChainSize.height;
-
-    frameData[writeIdx].camera.setViewMatrix(viewMatrix);
-    frameData[writeIdx].camera.setObserverPosition(eye + cameraPosition);
-    frameData[writeIdx].camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    frameData[writeIdx].camera.setTimeSinceStart(surface->viewer.lock()->getApplicationDuration());
-    cameraUbo->set(frameData[writeIdx].camera);
 
 #if defined(CROWD_MEASURE_TIME)
     auto inputEnd = pumex::HPClock::now();
-    inputDuration = std::chrono::duration<double, std::milli>(inputEnd - inputStart).count();
+    inputDuration = pumex::inSeconds(inputEnd - inputStart);
 #endif
   }
 
-  void update(double timeSinceStart, double timeSinceLastFrame)
+  void update(double timeSinceStart, double updateStep)
   {
 #if defined(CROWD_MEASURE_TIME)
     auto updateStart = pumex::HPClock::now();
 #endif
-    // parallelized version of update
+    // update people positions and state
+    std::vector< std::unordered_map<uint32_t, ObjectData>::iterator > iters;
+    for (auto it = updateData.people.begin(); it != updateData.people.end(); ++it)
+      iters.push_back(it);
     tbb::parallel_for
     (
-      tbb::blocked_range<size_t>(0, frameData[readIdx].instanceData.size()),
+      tbb::blocked_range<size_t>(0,iters.size()),
       [=](const tbb::blocked_range<size_t>& r)
       {
         for (size_t i = r.begin(); i != r.end(); ++i)
-          updateInstance
-          (
-            frameData[readIdx].instanceData[i], frameData[readIdx].instanceDataCPU[i], frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex],
-            frameData[writeIdx].instanceData[i], frameData[writeIdx].instanceDataCPU[i], frameData[writeIdx].positionData[frameData[writeIdx].instanceData[i].positionIndex],
-            timeSinceStart, timeSinceLastFrame
-          );
-
+          updateHuman(iters[i]->second, timeSinceStart, updateStep);
       }
     );
-    // serial version of update
-    //for (uint32_t i = 0; i < instanceData.size(); ++i)
-    //{
-    //  updateInstance
-    //  (
-    //    frameData[readIdx].instanceData[i], frameData[readIdx].instanceDataCPU[i], frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex],
-    //    frameData[writeIdx].instanceData[i], frameData[writeIdx].instanceDataCPU[i], frameData[writeIdx].positionData[frameData[writeIdx].instanceData[i].positionIndex],
-    //    timeSinceStart, timeSinceLastFrame
-    //  };
-    // }
+    // send UpdateData to RenderData
+    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+
+    std::unordered_map<uint32_t, uint32_t> humanIndexByID;
+    renderData[updateIndex].people.resize(0);
+    for (auto it = updateData.people.begin(); it != updateData.people.end(); ++it)
+    {
+      humanIndexByID.insert({ it->first,(uint32_t)renderData[updateIndex].people.size() });
+      renderData[updateIndex].people.push_back(it->second);
+    }
+    renderData[updateIndex].clothes.resize(0);
+    renderData[updateIndex].clothOwners.resize(0);
+    for (auto it = updateData.clothes.begin(); it != updateData.clothes.end(); ++it)
+    {
+      renderData[updateIndex].clothes.push_back(it->second);
+      renderData[updateIndex].clothOwners.push_back(humanIndexByID[it->second.ownerID]);
+    }
+
 #if defined(CROWD_MEASURE_TIME)
     auto updateEnd = pumex::HPClock::now();
-    updateDuration = std::chrono::duration<double, std::milli>(updateEnd - updateStart).count();
+    updateDuration = pumex::inSeconds(updateEnd - updateStart);
 #endif
   }
 
-  inline void updateInstance( const InstanceData& inInstanceData, const InstanceDataCPU& inInstanceCPU, const PositionData& inPosition,
-    InstanceData& outInstanceData, InstanceDataCPU& outInstanceCPU, PositionData& outPosition,
-    float timeSinceStart, float timeSinceLastFrame)
+  inline void updateHuman( ObjectData& human, float timeSinceStart, float timeSinceLastFrame)
   {
-    // skip animation calculations for instances that are not needed
-    if (inInstanceData.mainInstance == 0)
-      return;
     // change rotation, animation and speed if bot requires it
-    if (outInstanceCPU.time2NextTurn < 0.0f)
+    if (human.time2NextTurn < 0.0f)
     {
-      outInstanceCPU.rotation      = randomRotation(randomEngine);
-      outInstanceCPU.time2NextTurn = randomTime2NextTurn(randomEngine);
-      outInstanceCPU.animation     = randomAnimation(randomEngine);
-      outInstanceCPU.speed         = animationSpeed[outInstanceCPU.animation];
+      human.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+      human.animation             = randomAnimation(randomEngine);
+      human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * animationSpeed[human.animation];
+      human.time2NextTurn         = randomTime2NextTurn(randomEngine);
     }
     else
-    {
-      outInstanceCPU.rotation      = inInstanceCPU.rotation;
-      outInstanceCPU.time2NextTurn = inInstanceCPU.time2NextTurn - timeSinceLastFrame;
-      outInstanceCPU.animation     = inInstanceCPU.animation;
-      outInstanceCPU.speed         = inInstanceCPU.speed;
-    }
-    outInstanceCPU.animationOffset = inInstanceCPU.animationOffset;
+      human.time2NextTurn -= timeSinceLastFrame;
+
     // calculate new position
-    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(outInstanceCPU.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-    glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
-    glm::vec2 dir2(direction.x, direction.y);
-    outInstanceCPU.position = inInstanceCPU.position + dir2 * outInstanceCPU.speed * timeSinceLastFrame;
+    human.kinematic.position += human.kinematic.velocity * timeSinceLastFrame;
 
     // change direction if bot is leaving designated area
     bool isOutside[] =
     {
-      outInstanceCPU.position.x < minArea.x ,
-      outInstanceCPU.position.x > maxArea.x ,
-      outInstanceCPU.position.y < minArea.y ,
-      outInstanceCPU.position.y > maxArea.y
+      human.kinematic.position.x < minArea.x ,
+      human.kinematic.position.x > maxArea.x ,
+      human.kinematic.position.y < minArea.y ,
+      human.kinematic.position.y > maxArea.y
     };
     if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3])
     {
-      outInstanceCPU.position.x = std::max(outInstanceCPU.position.x, minArea.x);
-      outInstanceCPU.position.x = std::min(outInstanceCPU.position.x, maxArea.x);
-      outInstanceCPU.position.y = std::max(outInstanceCPU.position.y, minArea.y);
-      outInstanceCPU.position.y = std::min(outInstanceCPU.position.y, maxArea.y);
+      human.kinematic.position.x = std::max(human.kinematic.position.x, minArea.x);
+      human.kinematic.position.x = std::min(human.kinematic.position.x, maxArea.x);
+      human.kinematic.position.y = std::max(human.kinematic.position.y, minArea.y);
+      human.kinematic.position.y = std::min(human.kinematic.position.y, maxArea.y);
+
+      glm::mat4 rotationMatrix = glm::mat4_cast(human.kinematic.orientation);
       glm::vec4 direction = rotationMatrix * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * glm::vec4(1, 0, 0, 1);// MakeHuman models are rotated looking at Y=-1, we have to rotate it
       if (isOutside[0] || isOutside[1])
         direction.x *= -1.0f;
       if (isOutside[2] || isOutside[3])
         direction.y *= -1.0f;
-      direction = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
-      outInstanceCPU.rotation = glm::degrees(atan2f(direction.y, direction.x));
-      rotationMatrix = glm::rotate(glm::mat4(), glm::radians(outInstanceCPU.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-      outInstanceCPU.time2NextTurn = randomTime2NextTurn(randomEngine);
+      direction                   = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
+
+      human.kinematic.orientation = glm::angleAxis(atan2f(direction.y, direction.x), glm::vec3(0.0f, 0.0f, 1.0f));
+      human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * animationSpeed[human.animation];
+      human.time2NextTurn         = randomTime2NextTurn(randomEngine);
     }
-
-    outPosition.position = glm::translate(glm::mat4(), glm::vec3(outInstanceCPU.position.x, outInstanceCPU.position.y, 0.0f)) * rotationMatrix;
-    outInstanceData = inInstanceData;
-
-    // calculate bone matrices for the bots
-    pumex::Animation& anim = animations[outInstanceCPU.animation];
-    pumex::Skeleton&  skel = skeletons[outInstanceData.typeID];
-
-    uint32_t numAnimChannels = anim.channels.size();
-    uint32_t numSkelBones = skel.bones.size();
-    SkelAnimKey saKey(outInstanceData.typeID, outInstanceCPU.animation);
-
-    auto bmit = skelAnimBoneMapping.find(saKey);
-    if (bmit == skelAnimBoneMapping.end())
-    {
-      std::vector<uint32_t> boneChannelMapping(numSkelBones);
-      for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-      {
-        auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-        boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
-      }
-      bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
-    }
-
-    std::vector<glm::mat4> localTransforms(MAX_BONES);
-    std::vector<glm::mat4> globalTransforms(MAX_BONES);
-
-    const auto& boneChannelMapping = bmit->second;
-    anim.calculateLocalTransforms(timeSinceStart + outInstanceCPU.animationOffset, localTransforms.data(), numAnimChannels);
-    uint32_t bcVal = boneChannelMapping[0];
-    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
-    globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
-    for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
-    {
-      bcVal = boneChannelMapping[boneIndex];
-      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
-      globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
-    }
-    for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-      outPosition.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
   }
 
-  void recalcOffsetsAndSetData(FrameData& fData)
+  void prepareBuffersForRendering()
   {
 #if defined(CROWD_MEASURE_TIME)
-    auto recalcStart = pumex::HPClock::now();
+    auto prepareBuffersStart = pumex::HPClock::now();
 #endif
-    if (fData.renderMethod == 1)
+    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    float deltaTime  = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
+
+    glm::vec3 relCam
+    (
+      rData.cameraDistance * cos(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f)
+    );
+    glm::vec3 prevRelCam
+    (
+      rData.prevCameraDistance * cos(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f)
+    );
+    glm::vec3 eye     = relCam + rData.cameraPosition;
+    glm::vec3 prevEye = prevRelCam + rData.prevCameraPosition;
+
+    glm::vec3 realEye    = eye + deltaTime * (eye - prevEye);
+    glm::vec3 realCenter = rData.cameraPosition + deltaTime * (rData.cameraPosition - rData.prevCameraPosition);
+
+    glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
+
+    pumex::Camera camera = cameraUbo->get();
+    camera.setViewMatrix(viewMatrix);
+    camera.setObserverPosition(realEye);
+    camera.setTimeSinceStart(renderTime);
+    cameraUbo->set(camera);
+
+    if (rData.renderMethod == 1)
     {
       std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
       std::fill(typeCount.begin(), typeCount.end(), 0);
       // compute how many instances of each type there is
-      for (uint32_t i = 0; i<fData.instanceData.size(); ++i)
-        typeCount[fData.instanceData[i].typeID]++;
+      for (uint32_t i = 0; i < rData.people.size(); ++i)
+        typeCount[rData.people[i].typeID]++;
+      for (uint32_t i = 0; i < rData.clothes.size(); ++i)
+        typeCount[rData.clothes[i].typeID]++;
 
       std::vector<uint32_t> offsets;
-      for (uint32_t i = 0; i<resultsGeomToType.size(); ++i)
+      for (uint32_t i = 0; i < resultsGeomToType.size(); ++i)
         offsets.push_back(typeCount[resultsGeomToType[i]]);
 
       std::vector<pumex::DrawIndexedIndirectCommand> results = resultsSbo->get();
       uint32_t offsetSum = 0;
-      for (uint32_t i = 0; i<offsets.size(); ++i)
+      for (uint32_t i = 0; i < offsets.size(); ++i)
       {
         uint32_t tmp = offsetSum;
         offsetSum += offsets[i];
@@ -906,22 +873,98 @@ struct ApplicationData
       resultsSbo->set(results);
       offValuesSbo->set(std::vector<uint32_t>(offsetSum));
     }
-    positionSbo->set(fData.positionData);
-    instanceSbo->set(fData.instanceData);
+
+    std::vector<PositionData> positionData;
+    std::vector<InstanceData> instanceData;
+    std::vector<uint32_t> animIndex;
+    std::vector<float> animOffset;
+    for (auto it = rData.people.begin(); it != rData.people.end(); ++it)
+    {
+      uint32_t index = positionData.size();
+      PositionData position(pumex::extrapolate(it->kinematic, deltaTime));
+
+      positionData.emplace_back(position);
+      instanceData.emplace_back(InstanceData(index, it->typeID, it->materialVariant, 1));
+
+      animIndex.emplace_back(it->animation);
+      animOffset.emplace_back(it->animationOffset);
+    }
+
+    // calculate bone matrices for the people
+    tbb::parallel_for
+    (
+      tbb::blocked_range<size_t>(0, positionData.size()),
+      [&](const tbb::blocked_range<size_t>& r)
+      {
+        for (size_t i = r.begin(); i != r.end(); ++i)
+        {
+          pumex::Animation& anim = animations[animIndex[i]];
+          pumex::Skeleton&  skel = skeletons[instanceData[i].typeID];
+
+          uint32_t numAnimChannels = anim.channels.size();
+          uint32_t numSkelBones = skel.bones.size();
+          SkelAnimKey saKey(instanceData[i].typeID, animIndex[i]);
+
+          auto bmit = skelAnimBoneMapping.find(saKey);
+          if (bmit == skelAnimBoneMapping.end())
+          {
+            std::vector<uint32_t> boneChannelMapping(numSkelBones);
+            for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+            {
+              auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
+              boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+            }
+            bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
+          }
+
+          std::vector<glm::mat4> localTransforms(MAX_BONES);
+          std::vector<glm::mat4> globalTransforms(MAX_BONES);
+
+          const auto& boneChannelMapping = bmit->second;
+          anim.calculateLocalTransforms(renderTime + animOffset[i], localTransforms.data(), numAnimChannels);
+          uint32_t bcVal = boneChannelMapping[0];
+          glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+          globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
+          for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
+          {
+            bcVal = boneChannelMapping[boneIndex];
+            localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+            globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
+          }
+          for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+            positionData[i].bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+
+        }
+      }
+    );
+
+    uint32_t ii = 0;
+    for (auto it = rData.clothes.begin(); it != rData.clothes.end(); ++it, ++ii)
+    {
+      instanceData.emplace_back(InstanceData(rData.clothOwners[ii], it->typeID, it->materialVariant, 0));
+    }
+    positionSbo->set(positionData);
+    instanceSbo->set(instanceData);
 #if defined(CROWD_MEASURE_TIME)
-    auto recalcEnd = pumex::HPClock::now();
-    recalcDuration = std::chrono::duration<double, std::milli>(recalcEnd - recalcStart).count();
+    auto prepareBuffersEnd = pumex::HPClock::now();
+    prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
 #endif
 
   }
 
-  void draw( std::shared_ptr<pumex::Surface> surface)
+  void draw( std::shared_ptr<pumex::Surface> surface )
   {
-    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
-    VkDevice                        vkDevice = deviceSh->device;
+    std::shared_ptr<pumex::Device> deviceSh    = surface->device.lock();
+    VkDevice                       vkDevice    = deviceSh->device;
+    uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
+    const RenderData&              rData       = renderData[renderIndex];
 
-    uint32_t renderWidth = surface->swapChainSize.width;
+    uint32_t renderWidth  = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
+
+    pumex::Camera camera = cameraUbo->get();
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    cameraUbo->set(camera);
 
     cameraUbo->validate(deviceSh);
     positionSbo->validate(deviceSh);
@@ -933,7 +976,6 @@ struct ApplicationData
     instancedRenderDescriptorSet->validate(deviceSh);
     filterDescriptorSet->validate(deviceSh);
 
-
 #if defined(CROWD_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
@@ -944,7 +986,7 @@ struct ApplicationData
     pumex::DescriptorSetValue resultsBuffer2 = resultsSbo2->getDescriptorSetValue(vkDevice);
     uint32_t drawCount = resultsSbo->get().size();
 
-    if (frameData[readIdx].renderMethod == 1)
+    if (rData.renderMethod == 1)
     {
 #if defined(CROWD_MEASURE_TIME)
       timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -955,7 +997,8 @@ struct ApplicationData
 
       myCmdBuffer[vkDevice]->cmdBindPipeline(filterPipeline);
       myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, filterDescriptorSet);
-      myCmdBuffer[vkDevice]->cmdDispatch(frameData[readIdx].instanceData.size() / 16 + ((frameData[readIdx].instanceData.size() % 16>0) ? 1 : 0), 1, 1);
+      uint32_t instanceCount = rData.people.size() + rData.clothes.size();
+      myCmdBuffer[vkDevice]->cmdDispatch(instanceCount / 16 + ((instanceCount % 16>0) ? 1 : 0), 1, 1);
 
       pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
       myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
@@ -982,22 +1025,22 @@ struct ApplicationData
 #if defined(CROWD_MEASURE_TIME)
     timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
-    switch (frameData[readIdx].renderMethod)
+    switch (rData.renderMethod)
     {
     case 0: // simple rendering: no compute culling, no instancing
     {
-      myCmdBuffer[vkDevice]->cmdBindPipeline(simpleRenderPipeline);
-      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, simpleRenderPipelineLayout, 0, simpleRenderDescriptorSet);
-      skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
-      // Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
-      //      glm::vec4 cameraPos = frameData.camera.getViewMatrixInverse() * glm::vec4(0,0,0,1);
-      glm::vec4 cameraPos = frameData[readIdx].camera.getObserverPosition();
-      for (uint32_t i = 0; i<frameData[readIdx].instanceData.size(); ++i)
-      {
-        glm::vec4 objectPos = frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex].position[3];
-        float distanceToCamera = glm::length(cameraPos - objectPos);
-        skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, frameData[readIdx].instanceData[i].typeID, i, distanceToCamera);
-      }
+      //myCmdBuffer[vkDevice]->cmdBindPipeline(simpleRenderPipeline);
+      //myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, simpleRenderPipelineLayout, 0, simpleRenderDescriptorSet);
+      //skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
+      //// Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
+      ////      glm::vec4 cameraPos = frameData.camera.getViewMatrixInverse() * glm::vec4(0,0,0,1);
+      //glm::vec4 cameraPos = frameData[readIdx].camera.getObserverPosition();
+      //for (uint32_t i = 0; i<frameData[readIdx].instanceData.size(); ++i)
+      //{
+      //  glm::vec4 objectPos = frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex].position[3];
+      //  float distanceToCamera = glm::length(cameraPos - objectPos);
+      //  skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, frameData[readIdx].instanceData[i].typeID, i, distanceToCamera);
+      //}
       break;
     }
     case 1: // compute culling and instanced rendering
@@ -1024,7 +1067,7 @@ struct ApplicationData
     myCmdBuffer[vkDevice]->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
 #if defined(CROWD_MEASURE_TIME)
     auto drawEnd = pumex::HPClock::now();
-    drawDuration = std::chrono::duration<double, std::milli>(drawEnd - drawStart).count();
+    drawDuration = pumex::inSeconds(drawEnd - drawStart);
 #endif
 
   }
@@ -1034,16 +1077,15 @@ struct ApplicationData
 #if defined(CROWD_MEASURE_TIME)
     std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
 
-    LOG_ERROR << "Frame time                : " << 1000.0 * viewer->getLastFrameDuration() << " ms ( FPS = " << 1.0 / viewer->getLastFrameDuration() << " )" << std::endl;
-    LOG_ERROR << "Process input             : " << inputDuration << " ms" << std::endl;
-    LOG_ERROR << "Update skeletons          : " << updateDuration << " ms" << std::endl;
-    LOG_ERROR << "Recalculate offsets       : " << recalcDuration << " ms" << std::endl;
-    LOG_ERROR << "Fill command line buffers : " << drawDuration << " ms" << std::endl;
+    LOG_ERROR << "Process input             : " << 1000.0f * inputDuration << " ms" << std::endl;
+    LOG_ERROR << "Update skeletons          : " << 1000.0f * updateDuration << " ms" << std::endl;
+    LOG_ERROR << "Prepare buffers           : " << 1000.0f * prepareBuffersDuration << " ms" << std::endl;
+    LOG_ERROR << "Fill command line buffers : " << 1000.0f * drawDuration << " ms" << std::endl;
 
     float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
     std::vector<uint64_t> queryResults;
     // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-    if (frameData[readIdx].renderMethod == 1)
+    if (updateData.renderMethod == 1)
     {
       queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->swapChainImageIndex + 2) % 3) * 4, 4, 0);
       LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
@@ -1056,15 +1098,7 @@ struct ApplicationData
     }
     LOG_ERROR << std::endl;
 #endif
-    swapFrameData();
   }
-
-
-  void swapFrameData()
-  {
-    std::swap(readIdx, writeIdx);
-  }
-
 };
 
 
@@ -1090,7 +1124,7 @@ int main(void)
     pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, false, "Crowd rendering"};
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } });
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments = 
@@ -1132,8 +1166,7 @@ int main(void)
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
       applicationData->processInput(surface); 
-      applicationData->update(pumex::inSeconds( viewer->getApplicationDuration() ), viewer->getUpdateDuration());
-      applicationData->recalcOffsetsAndSetData(applicationData->frameData[applicationData->writeIdx]);
+      applicationData->update(pumex::inSeconds( viewer->getUpdateTime() - viewer->getApplicationStartTime() ), pumex::inSeconds(viewer->getUpdateDuration()));
     });
 
     tbb::flow::make_edge(viewer->startUpdateGraph, update);
@@ -1144,12 +1177,14 @@ int main(void)
     // Consider make_edge() in render graph :
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareBuffersForRendering(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
 
-    tbb::flow::make_edge(viewer->startRenderGraph, startSurfaceFrame);
+    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
+    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
     tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
     tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
     tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);

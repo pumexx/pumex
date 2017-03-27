@@ -21,8 +21,4 @@ PUMEX_EXPORT void addHalfSphere(Geometry& geometry, const glm::vec3& origin, flo
 
 PUMEX_EXPORT Asset* createSimpleAsset( const Geometry& geometry, const std::string rootName );
 
-// just a PI definition...
-static const float fpi = 4.0f * atanf(1);
-
-
 }

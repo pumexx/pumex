@@ -1,4 +1,5 @@
 #pragma once
+#include <pumex/Export.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -33,8 +34,8 @@ struct Kinematic
   glm::vec3	angularVelocity;
 };
 
-Kinematic interpolate(const Kinematic& object0, const Kinematic& object1, float interpolation);
+PUMEX_EXPORT Kinematic interpolate(const Kinematic& object0, const Kinematic& object1, float interpolation);
 
-glm::mat4 extrapolate(const Kinematic& kinematic, float deltaTime);
+PUMEX_EXPORT glm::mat4 extrapolate(const Kinematic& kinematic, float deltaTime);
 
 }

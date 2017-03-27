@@ -268,7 +268,7 @@ pumex::Asset* createPropeller(const std::string& boneName, float detailRatio, in
 
   for (int i = 0; i<propNum; ++i)
   {
-    float angle = (float)i * 2.0f * pumex::fpi / (float)propNum;
+    float angle = (float)i * glm::two_pi<float>() / (float)propNum;
     pumex::Geometry oneProp;
     oneProp.semantic = vertexSemantic;
     pumex::addCone(oneProp, glm::vec3(0.0, 0.0, -0.9*propRadius), 0.1 * propRadius, 1.0*propRadius, detailRatio * 40, detailRatio * 10, true);
@@ -687,8 +687,8 @@ struct GpuCullCommonData
     std::uniform_real_distribution<float>   xyzScale(0.8f, 1.2f);
     std::uniform_real_distribution<float>   rBrightness(0.5f, 1.0f);
     std::uniform_real_distribution<float>   rAmplitude(0.01f, 0.05f);
-    std::uniform_real_distribution<float>   rFrequency(0.1f * 2.0f * pumex::fpi, 0.5f * 2.0f * pumex::fpi);
-    std::uniform_real_distribution<float>   rOffset(0.0f * 2.0f * pumex::fpi, 1.0f * 2.0f * pumex::fpi);
+    std::uniform_real_distribution<float>   rFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
+    std::uniform_real_distribution<float>   rOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
 
     for (unsigned int i = 0; i<objectIDs.size(); ++i)
     {
@@ -1044,19 +1044,19 @@ struct GpuCullCommonData
     // calculate new positions for wheels and propellers
     if (dynamicInstanceData[i].typeID == blimpID)
     {
-      dynamicInstanceData[i].bones[blimpPropL] = bonesReset[dynamicInstanceData[i].typeID][blimpPropL] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi *  0.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[blimpPropR] = bonesReset[dynamicInstanceData[i].typeID][blimpPropR] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi * -0.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[blimpPropL] = bonesReset[dynamicInstanceData[i].typeID][blimpPropL] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  0.5f * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[blimpPropR] = bonesReset[dynamicInstanceData[i].typeID][blimpPropR] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() * -0.5f * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
     }
     if (dynamicInstanceData[i].typeID == carID)
     {
-      dynamicInstanceData[i].bones[carWheel0] = bonesReset[dynamicInstanceData[i].typeID][carWheel0] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[carWheel1] = bonesReset[dynamicInstanceData[i].typeID][carWheel1] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[carWheel2] = bonesReset[dynamicInstanceData[i].typeID][carWheel2] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[carWheel3] = bonesReset[dynamicInstanceData[i].typeID][carWheel3] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel0] = bonesReset[dynamicInstanceData[i].typeID][carWheel0] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel1] = bonesReset[dynamicInstanceData[i].typeID][carWheel1] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel2] = bonesReset[dynamicInstanceData[i].typeID][carWheel2] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[carWheel3] = bonesReset[dynamicInstanceData[i].typeID][carWheel3] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
     }
     if (dynamicInstanceData[i].typeID == airplaneID)
     {
-      dynamicInstanceData[i].bones[airplaneProp] = bonesReset[dynamicInstanceData[i].typeID][airplaneProp] * glm::rotate(glm::mat4(), fmodf(2.0f * pumex::fpi *  -1.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
+      dynamicInstanceData[i].bones[airplaneProp] = bonesReset[dynamicInstanceData[i].typeID][airplaneProp] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  -1.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
     }
   }
 
