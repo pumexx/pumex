@@ -1,8 +1,9 @@
 #include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <gli/gli.hpp>
+#include <tbb/tbb.h>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
@@ -25,7 +26,7 @@
 // compare Vulkan and OpenGL performance ( I didn't use compute shaders in OpenGL demo, but performance of rendering is comparable ).
 
 // all time measurments may be turned off 
-#define GPU_CULL_MEASURE_TIME 1
+//#define GPU_CULL_MEASURE_TIME 1
 
 // struct holding the whole information required to render a single static object
 struct StaticInstanceData
@@ -47,6 +48,15 @@ struct StaticInstanceData
 
 const uint32_t MAX_BONES = 9;
 
+struct DynamicObjectData
+{
+  pumex::Kinematic kinematic;
+  uint32_t         typeID;
+  uint32_t         materialVariant;
+  float            time2NextTurn;
+  float            brightness;
+};
+
 // struct holding the whole information required to render a single dynamic object
 struct DynamicInstanceData
 {
@@ -62,18 +72,54 @@ struct DynamicInstanceData
   uint32_t  std430pad0;
 };
 
-// Very simple dynamic object state that is not sent to GPU.
-struct DynamicInstanceDataCPU
+struct UpdateData
 {
-  DynamicInstanceDataCPU(const glm::vec3& p, float r, float s, float tnt)
-    : position{ p }, rotation{ r }, speed{ s }, time2NextTurn{ tnt }
+  UpdateData()
   {
   }
-  glm::vec3 position;
-  float rotation;
-  float speed;
-  float time2NextTurn;
+  glm::vec3                                       cameraPosition;
+  glm::vec2                                       cameraGeographicCoordinates;
+  float                                           cameraDistance;
+
+  std::vector<StaticInstanceData> staticInstanceData; // this will only be copied to render data
+  std::unordered_map<uint32_t, DynamicObjectData> dynamicObjectData;
+
+  glm::vec2                                       lastMousePos;
+  bool                                            leftMouseKeyPressed;
+  bool                                            rightMouseKeyPressed;
 };
+
+struct RenderData
+{
+  RenderData()
+    : prevCameraDistance{ 1.0f }, cameraDistance{ 1.0f }
+  {
+  }
+  glm::vec3               prevCameraPosition;
+  glm::vec2               prevCameraGeographicCoordinates;
+  float                   prevCameraDistance;
+  glm::vec3               cameraPosition;
+  glm::vec2               cameraGeographicCoordinates;
+  float                   cameraDistance;
+
+  std::vector<StaticInstanceData> staticInstanceData;
+  std::vector<DynamicObjectData> dynamicObjectData;
+};
+
+
+
+//// Very simple dynamic object state that is not sent to GPU.
+//struct DynamicInstanceDataCPU
+//{
+//  DynamicInstanceDataCPU(const glm::vec3& p, float r, float s, float tnt)
+//    : position{ p }, rotation{ r }, speed{ s }, time2NextTurn{ tnt }
+//  {
+//  }
+//  glm::vec3 position;
+//  float rotation;
+//  float speed;
+//  float time2NextTurn;
+//};
 
 // struct that holds information about material used by specific object type. Demo does not use textures ( in contrast to crowd example )
 struct MaterialGpuCull
@@ -465,23 +511,17 @@ pumex::Asset* createAirplane(float detailRatio, const glm::vec4& hullColor, cons
 }
 
 
-struct FrameData
-{
-  FrameData()
-  {
-  }
-  pumex::Camera                       camera;
-  std::vector<StaticInstanceData>     staticInstanceData;
-  std::vector<DynamicInstanceData>    dynamicInstanceData;
-  std::vector<DynamicInstanceDataCPU> dynamicInstanceDataCPU;
-};
 
 // struct that works as an application database. Render thread uses data from it
 // Look at createStaticRendering() and createDynamicRendering() methods to see how to
 // register object types, add procedurally created assets and generate object instances
 // Look at update() method to see how dynamic objects are updated.
-struct GpuCullCommonData
+struct GpuCullApplicationData
 {
+  std::weak_ptr<pumex::Viewer> viewer;
+  UpdateData                   updateData;
+  std::array<RenderData, 3>    renderData;
+
   bool  _showStaticRendering  = true;
   bool  _showDynamicRendering = true;
   uint32_t _instancesPerCell  = 4096;
@@ -490,11 +530,6 @@ struct GpuCullCommonData
   float _lodModifier          = 1.0f;
   float _densityModifier      = 1.0f;
   float _triangleModifier     = 1.0f;
-
-  std::weak_ptr<pumex::Viewer>                         viewer;
-  std::array<FrameData, 2>                             frameData;
-  uint32_t                                             readIdx;
-  uint32_t                                             writeIdx;
 
   std::vector<pumex::VertexSemantic>                   vertexSemantic;
   std::vector<pumex::TextureSemantic>                  textureSemantic;
@@ -507,6 +542,7 @@ struct GpuCullCommonData
 
   std::shared_ptr<pumex::AssetBuffer>                  dynamicAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> dynamicMaterialSet;
+
 
 
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
@@ -526,6 +562,18 @@ struct GpuCullCommonData
   uint32_t                                                                  airplaneID;
   std::map<uint32_t, std::vector<glm::mat4>>                                bonesReset;
 
+  std::exponential_distribution<float>                                      randomTime2NextTurn;
+  std::uniform_real_distribution<float>                                     randomRotation;
+  std::unordered_map<uint32_t, std::uniform_real_distribution<float>>       randomObjectSpeed;
+  uint32_t                                                                 _blimpPropL   = 0;
+  uint32_t                                                                 _blimpPropR   = 0;
+  uint32_t                                                                 _carWheel0    = 0;
+  uint32_t                                                                 _carWheel1    = 0;
+  uint32_t                                                                 _carWheel2    = 0;
+  uint32_t                                                                 _carWheel3    = 0;
+  uint32_t                                                                 _airplaneProp = 0;
+  glm::vec2                                                                _minArea;
+  glm::vec2                                                                _maxArea;
 
   std::shared_ptr<pumex::RenderPass>                   defaultRenderPass;
 
@@ -553,10 +601,12 @@ struct GpuCullCommonData
 
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
-  GpuCullCommonData(std::shared_ptr<pumex::Viewer> v)
-    : viewer{ v }
-  {
+  std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
+
+  GpuCullApplicationData(std::shared_ptr<pumex::Viewer> v)
+    : viewer{ v }, randomTime2NextTurn { 0.1f }, randomRotation(-glm::pi<float>(), glm::pi<float>())
+  {
   }
   
   void setup(bool showStaticRendering, bool showDynamicRendering, float staticAreaSize, float dynamicAreaSize, float lodModifier, float densityModifier, float triangleModifier)
@@ -569,6 +619,9 @@ struct GpuCullCommonData
     _lodModifier          = lodModifier;
     _densityModifier      = densityModifier;
     _triangleModifier     = triangleModifier;
+    _minArea = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
+    _maxArea = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
+
 
     vertexSemantic      = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
     textureSemantic     = {};
@@ -608,22 +661,26 @@ struct GpuCullCommonData
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
 
     if (showStaticRendering)
-      createStaticRendering(frameData[0]);
+      createStaticRendering();
 
     if (showDynamicRendering)
-      createDynamicRendering(frameData[0]);
-    frameData[1] = frameData[0];
+      createDynamicRendering();
+
+    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
+    updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
+    updateData.cameraDistance              = 1.0f;
+    updateData.leftMouseKeyPressed         = false;
+    updateData.rightMouseKeyPressed        = false;
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4*3);
-
   }
 
-  void createStaticRendering(FrameData& fData)
+  void createStaticRendering()
   {
     std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
     CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
 
-    std::vector<uint32_t> objectIDs;
+    std::vector<uint32_t> typeIDs;
 
     staticAssetBuffer = std::make_shared<pumex::AssetBuffer>();
     staticAssetBuffer->registerVertexSemantic(1, vertexSemantic);
@@ -634,7 +691,7 @@ struct GpuCullCommonData
     uint32_t groundTypeID = staticAssetBuffer->registerType("ground", pumex::AssetTypeDefinition(groundBbox));
     staticMaterialSet->registerMaterials(groundTypeID, groundAsset);
     staticAssetBuffer->registerObjectLOD(groundTypeID, groundAsset, pumex::AssetLodDefinition(0.0f, 5.0f * _staticAreaSize));
-    fData.staticInstanceData.push_back(StaticInstanceData(glm::mat4(), groundTypeID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
+    updateData.staticInstanceData.push_back(StaticInstanceData(glm::mat4(), groundTypeID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
 
     std::shared_ptr<pumex::Asset> coniferTree0 ( createConiferTree( 0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
     std::shared_ptr<pumex::Asset> coniferTree1 ( createConiferTree(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
@@ -647,7 +704,7 @@ struct GpuCullCommonData
     staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree0, pumex::AssetLodDefinition(  0.0f * _lodModifier,   100.0f * _lodModifier ));
     staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree1, pumex::AssetLodDefinition( 100.0f * _lodModifier,  500.0f * _lodModifier ));
     staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree2, pumex::AssetLodDefinition( 500.0f * _lodModifier, 1200.0f * _lodModifier ));
-    objectIDs.push_back(coniferTreeID);
+    typeIDs.push_back(coniferTreeID);
 
     std::shared_ptr<pumex::Asset> decidousTree0 ( createDecidousTree(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
     std::shared_ptr<pumex::Asset> decidousTree1 ( createDecidousTree(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
@@ -660,7 +717,7 @@ struct GpuCullCommonData
     staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree0, pumex::AssetLodDefinition(  0.0f * _lodModifier,   120.0f * _lodModifier ));
     staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree1, pumex::AssetLodDefinition( 120.0f * _lodModifier,  600.0f * _lodModifier ));
     staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree2, pumex::AssetLodDefinition( 600.0f * _lodModifier, 1400.0f * _lodModifier ));
-    objectIDs.push_back(decidousTreeID);
+    typeIDs.push_back(decidousTreeID);
 
     std::shared_ptr<pumex::Asset> simpleHouse0 ( createSimpleHouse(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
     std::shared_ptr<pumex::Asset> simpleHouse1 ( createSimpleHouse(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
@@ -673,7 +730,7 @@ struct GpuCullCommonData
     staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse0, pumex::AssetLodDefinition(0.0f * _lodModifier, 120.0f * _lodModifier));
     staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse1, pumex::AssetLodDefinition(120.0f * _lodModifier, 600.0f * _lodModifier));
     staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse2, pumex::AssetLodDefinition(600.0f * _lodModifier, 1400.0f * _lodModifier));
-    objectIDs.push_back(simpleHouseID);
+    typeIDs.push_back(simpleHouseID);
 
     staticMaterialSet->refreshMaterialStructures();
 
@@ -681,30 +738,29 @@ struct GpuCullCommonData
     float amplitudeModifier[3] = { 1.0f, 1.0f, 0.0f }; // we don't want the house to wave in the wind
 
     float fullArea = _staticAreaSize * _staticAreaSize;
-    std::uniform_real_distribution<float>   xAxis(-0.5f*_staticAreaSize, 0.5f * _staticAreaSize);
-    std::uniform_real_distribution<float>   yAxis(-0.5f*_staticAreaSize, 0.5f * _staticAreaSize);
-    std::uniform_real_distribution<float>   zRot(-180.0f, 180.0f);
-    std::uniform_real_distribution<float>   xyzScale(0.8f, 1.2f);
-    std::uniform_real_distribution<float>   rBrightness(0.5f, 1.0f);
-    std::uniform_real_distribution<float>   rAmplitude(0.01f, 0.05f);
-    std::uniform_real_distribution<float>   rFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
-    std::uniform_real_distribution<float>   rOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
+    std::uniform_real_distribution<float>   randomX(-0.5f*_staticAreaSize, 0.5f * _staticAreaSize);
+    std::uniform_real_distribution<float>   randomY(-0.5f*_staticAreaSize, 0.5f * _staticAreaSize);
+    std::uniform_real_distribution<float>   randomScale(0.8f, 1.2f);
+    std::uniform_real_distribution<float>   randomBrightness(0.5f, 1.0f);
+    std::uniform_real_distribution<float>   randomAmplitude(0.01f, 0.05f);
+    std::uniform_real_distribution<float>   randomFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
+    std::uniform_real_distribution<float>   randomOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
 
-    for (unsigned int i = 0; i<objectIDs.size(); ++i)
+    for (unsigned int i = 0; i<typeIDs.size(); ++i)
     {
       int objectQuantity = (int)floor(objectDensity[i] * fullArea / 1000000.0f);
 
       for (int j = 0; j<objectQuantity; ++j)
       {
-        glm::vec3 pos( xAxis(randomEngine), yAxis(randomEngine), 0.0f );
-        float rot             = zRot(randomEngine);
-        float scale           = xyzScale(randomEngine);
-        float brightness      = rBrightness(randomEngine);
-        float wavingAmplitude = rAmplitude(randomEngine) * amplitudeModifier[i];
-        float wavingFrequency = rFrequency(randomEngine);
-        float wavingOffset    = rOffset(randomEngine);
+        glm::vec3 pos( randomX(randomEngine), randomY(randomEngine), 0.0f );
+        float rot             = randomRotation(randomEngine);
+        float scale           = randomScale(randomEngine);
+        float brightness      = randomBrightness(randomEngine);
+        float wavingAmplitude = randomAmplitude(randomEngine) * amplitudeModifier[i];
+        float wavingFrequency = randomFrequency(randomEngine);
+        float wavingOffset    = randomOffset(randomEngine);
         glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::scale(glm::mat4(), glm::vec3(scale, scale, scale)));
-        fData.staticInstanceData.push_back(StaticInstanceData(position, objectIDs[i], 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
+        updateData.staticInstanceData.push_back(StaticInstanceData(position, typeIDs[i], 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
       }
     }
 
@@ -753,18 +809,14 @@ struct GpuCullCommonData
     staticAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1, results, staticResultsGeomToType);
     staticResultsSbo->set(results);
     staticResultsSbo2->set(results);
-
-    // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
-    staticInstanceSbo->set(fData.staticInstanceData);
-    recalculateStaticInstanceOffsets(fData);
   }
 
-  void createDynamicRendering(FrameData& fData)
+  void createDynamicRendering()
   {
     std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
     CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
 
-    std::vector<uint32_t> objectIDs;
+    std::vector<uint32_t> typeIDs;
 
     dynamicAssetBuffer = std::make_shared<pumex::AssetBuffer>();
     dynamicAssetBuffer->registerVertexSemantic(1, vertexSemantic);
@@ -781,7 +833,9 @@ struct GpuCullCommonData
     dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod0, pumex::AssetLodDefinition(0.0f * _lodModifier, 150.0f * _lodModifier));
     dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod1, pumex::AssetLodDefinition(150.0f * _lodModifier, 800.0f * _lodModifier));
     dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod2, pumex::AssetLodDefinition(800.0f * _lodModifier, 6500.0f * _lodModifier));
-    objectIDs.push_back(blimpID);
+    typeIDs.push_back(blimpID);
+    _blimpPropL = blimpLod0->skeleton.invBoneNames["propL"];
+    _blimpPropR = blimpLod0->skeleton.invBoneNames["propR"];
     bonesReset[blimpID] = pumex::calculateResetPosition(*blimpLod0);
 
     std::shared_ptr<pumex::Asset> carLod0(createCar(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.3, 0.3, 0.3, 1.0)));
@@ -795,7 +849,12 @@ struct GpuCullCommonData
     dynamicAssetBuffer->registerObjectLOD(carID, carLod0, pumex::AssetLodDefinition(0.0f * _lodModifier, 50.0f * _lodModifier));
     dynamicAssetBuffer->registerObjectLOD(carID, carLod1, pumex::AssetLodDefinition(50.0f * _lodModifier, 300.0f * _lodModifier));
     dynamicAssetBuffer->registerObjectLOD(carID, carLod2, pumex::AssetLodDefinition(300.0f * _lodModifier, 1000.0f * _lodModifier));
-    objectIDs.push_back(carID);
+    typeIDs.push_back(carID);
+    _carWheel0 = carLod0->skeleton.invBoneNames["wheel0"];
+    _carWheel1 = carLod0->skeleton.invBoneNames["wheel1"];
+    _carWheel2 = carLod0->skeleton.invBoneNames["wheel2"];
+    _carWheel3 = carLod0->skeleton.invBoneNames["wheel3"];
+
     bonesReset[carID] = pumex::calculateResetPosition(*carLod0);
 
     std::shared_ptr<pumex::Asset> airplaneLod0(createAirplane(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
@@ -809,7 +868,8 @@ struct GpuCullCommonData
     dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod0, pumex::AssetLodDefinition(0.0f * _lodModifier, 80.0f * _lodModifier));
     dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod1, pumex::AssetLodDefinition(80.0f * _lodModifier, 400.0f * _lodModifier));
     dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod2, pumex::AssetLodDefinition(400.0f * _lodModifier, 1200.0f * _lodModifier));
-    objectIDs.push_back(airplaneID);
+    typeIDs.push_back(airplaneID);
+    _airplaneProp = airplaneLod0->skeleton.invBoneNames["prop"];
     bonesReset[airplaneID] = pumex::calculateResetPosition(*airplaneLod0);
 
     dynamicMaterialSet->refreshMaterialStructures();
@@ -819,36 +879,36 @@ struct GpuCullCommonData
     float minObjectSpeed[3] = { 5.0f, 1.0f, 10.0f };
     float maxObjectSpeed[3] = { 10.0f, 5.0f, 16.0f };
 
-    float fullArea = _dynamicAreaSize * _dynamicAreaSize;
-    std::uniform_real_distribution<float>              randomX(-0.5f*_dynamicAreaSize, 0.5f * _dynamicAreaSize);
-    std::uniform_real_distribution<float>              randomY(-0.5f*_dynamicAreaSize, 0.5f * _dynamicAreaSize);
-    std::uniform_real_distribution<float>              randomRot(-180.0f, 180.0f);
-    std::uniform_real_distribution<float>              randomBrightness(0.5f, 1.0f);
-    std::vector<std::uniform_real_distribution<float>> randomObjectSpeed;
-    std::exponential_distribution<float>               randomTime2NextTurn(0.1f);
-    for (uint32_t i = 0; i<objectIDs.size(); ++i)
-      randomObjectSpeed.push_back(std::uniform_real_distribution<float>(minObjectSpeed[i], maxObjectSpeed[i]));
+    for (uint32_t i = 0; i<typeIDs.size(); ++i)
+      randomObjectSpeed.insert({ typeIDs[i],std::uniform_real_distribution<float>(minObjectSpeed[i], maxObjectSpeed[i]) });
 
-    for (uint32_t i = 0; i<objectIDs.size(); ++i)
+    float fullArea = _dynamicAreaSize * _dynamicAreaSize;
+    std::uniform_real_distribution<float>              randomX(_minArea.x, _maxArea.x);
+    std::uniform_real_distribution<float>              randomY(_minArea.y, _maxArea.y);
+    std::uniform_real_distribution<float>              randomBrightness(0.5f, 1.0f);
+
+    uint32_t objectID = 0;
+    for (uint32_t i = 0; i<typeIDs.size(); ++i)
     {
+
       int objectQuantity = (int)floor(objectDensity[i] * fullArea / 1000000.0f);
       for (int j = 0; j<objectQuantity; ++j)
       {
-        glm::vec3 pos(randomX(randomEngine), randomY(randomEngine), objectZ[i]);
-        float rot           = randomRot(randomEngine);
-        float brightness    = randomBrightness(randomEngine);
-        float speed         = randomObjectSpeed[i](randomEngine);
-        float time2NextTurn = randomTime2NextTurn(randomEngine);
+        objectID++;
+        DynamicObjectData objectData;
+        objectData.typeID                = typeIDs[i];
+        objectData.kinematic.position    = glm::vec3(randomX(randomEngine), randomY(randomEngine), objectZ[i]);
+        objectData.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+        objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
+        objectData.brightness            = randomBrightness(randomEngine);
+        objectData.time2NextTurn         = randomTime2NextTurn(randomEngine);
 
-        glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)));
-
-        DynamicInstanceDataCPU instanceDataCPU(pos, rot, speed, time2NextTurn);
-        DynamicInstanceData instanceData(position, objectIDs[i], 0, brightness);
-        for (uint32_t k = 0; k<bonesReset[objectIDs[i]].size() && k<MAX_BONES; ++k)
-          instanceData.bones[k] = bonesReset[objectIDs[i]][k];
-
-        fData.dynamicInstanceData.push_back(instanceData);
-        fData.dynamicInstanceDataCPU.push_back(instanceDataCPU);
+        //glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)));
+        //DynamicInstanceDataCPU instanceDataCPU(pos, rot, speed, time2NextTurn);
+        //DynamicInstanceData instanceData(position, typeIDs[i], 0, brightness);
+        //for (uint32_t k = 0; k<bonesReset[typeIDs[i]].size() && k<MAX_BONES; ++k)
+        //  instanceData.bones[k] = bonesReset[typeIDs[i]][k];
+        updateData.dynamicObjectData.insert({ objectID,objectData });
       }
     }
 
@@ -892,24 +952,264 @@ struct GpuCullCommonData
     dynamicRenderDescriptorSet->setSource(4, dynamicMaterialSet->getMaterialVariantBufferDescriptorSetSource());
     dynamicRenderDescriptorSet->setSource(5, dynamicMaterialSet->getMaterialDefinitionBufferDescriptorSetSource());
 
+    // FIXME : need to relocate
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     dynamicAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1, results, dynamicResultsGeomToType);
     dynamicResultsSbo->set(results);
     dynamicResultsSbo2->set(results);
-
-    // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
-    dynamicInstanceSbo->set(fData.dynamicInstanceData);
-    recalculateDynamicInstanceOffsets(fData);
   }
 
-  void recalculateStaticInstanceOffsets(FrameData& fData)
+  void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
+    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
+    VkDevice                        vkDevice = deviceSh->device;
+
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool);
+
+    pipelineCache->validate(deviceSh);
+    instancedRenderDescriptorSetLayout->validate(deviceSh);
+    instancedRenderDescriptorPool->validate(deviceSh);
+    instancedRenderPipelineLayout->validate(deviceSh);
+    filterDescriptorSetLayout->validate(deviceSh);
+    filterDescriptorPool->validate(deviceSh);
+    filterPipelineLayout->validate(deviceSh);
+    timeStampQueryPool->validate(deviceSh);
+
+    cameraUbo->validate(deviceSh);
+
+    if (_showStaticRendering)
+    {
+      staticAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+      staticMaterialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
+      staticRenderPipeline->validate(deviceSh);
+      staticFilterPipeline->validate(deviceSh);
+
+      staticInstanceSbo->validate(deviceSh);
+      staticResultsSbo->validate(deviceSh);
+      staticResultsSbo2->validate(deviceSh);
+      staticOffValuesSbo->validate(deviceSh);
+    }
+
+    if (_showDynamicRendering)
+    {
+      dynamicAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+      dynamicMaterialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
+      dynamicRenderPipeline->validate(deviceSh);
+      dynamicFilterPipeline->validate(deviceSh);
+
+      dynamicInstanceSbo->validate(deviceSh);
+      dynamicResultsSbo->validate(deviceSh);
+      dynamicResultsSbo2->validate(deviceSh);
+      dynamicOffValuesSbo->validate(deviceSh);
+    }
+  }
+
+  void processInput(std::shared_ptr<pumex::Surface> surface)
+  {
+#if defined(GPU_CULL_MEASURE_TIME)
+    auto inputStart = pumex::HPClock::now();
+#endif
+    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
+
+    std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
+    glm::vec2 mouseMove = updateData.lastMousePos;
+    for (const auto& m : mouseEvents)
+    {
+      switch (m.type)
+      {
+      case pumex::MouseEvent::KEY_PRESSED:
+        if (m.button == pumex::MouseEvent::LEFT)
+          updateData.leftMouseKeyPressed = true;
+        if (m.button == pumex::MouseEvent::RIGHT)
+          updateData.rightMouseKeyPressed = true;
+        mouseMove.x = m.x;
+        mouseMove.y = m.y;
+        updateData.lastMousePos = mouseMove;
+        break;
+      case pumex::MouseEvent::KEY_RELEASED:
+        if (m.button == pumex::MouseEvent::LEFT)
+          updateData.leftMouseKeyPressed = false;
+        if (m.button == pumex::MouseEvent::RIGHT)
+          updateData.rightMouseKeyPressed = false;
+        break;
+      case pumex::MouseEvent::MOVE:
+        if (updateData.leftMouseKeyPressed || updateData.rightMouseKeyPressed)
+        {
+          mouseMove.x = m.x;
+          mouseMove.y = m.y;
+        }
+        break;
+      }
+    }
+    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+    RenderData& uData = renderData[updateIndex];
+
+    uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    uData.prevCameraDistance = updateData.cameraDistance;
+    uData.prevCameraPosition = updateData.cameraPosition;
+
+    if (updateData.leftMouseKeyPressed)
+    {
+      updateData.cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - updateData.lastMousePos.x);
+      updateData.cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - updateData.lastMousePos.y);
+      while (updateData.cameraGeographicCoordinates.x < -180.0f)
+        updateData.cameraGeographicCoordinates.x += 360.0f;
+      while (updateData.cameraGeographicCoordinates.x>180.0f)
+        updateData.cameraGeographicCoordinates.x -= 360.0f;
+      updateData.cameraGeographicCoordinates.y = glm::clamp(updateData.cameraGeographicCoordinates.y, -90.0f, 90.0f);
+      updateData.lastMousePos = mouseMove;
+    }
+    if (updateData.rightMouseKeyPressed)
+    {
+      updateData.cameraDistance += 10.0f*(updateData.lastMousePos.y - mouseMove.y);
+      if (updateData.cameraDistance<0.1f)
+        updateData.cameraDistance = 0.1f;
+      updateData.lastMousePos = mouseMove;
+    }
+
+    glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
+    glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
+    if (windowSh->isKeyPressed('W'))
+      updateData.cameraPosition -= forward;
+    if (windowSh->isKeyPressed('S'))
+      updateData.cameraPosition += forward;
+    if (windowSh->isKeyPressed('A'))
+      updateData.cameraPosition -= right;
+    if (windowSh->isKeyPressed('D'))
+      updateData.cameraPosition += right;
+
+    uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    uData.cameraDistance = updateData.cameraDistance;
+    uData.cameraPosition = updateData.cameraPosition;
+
+
+#if defined(GPU_CULL_MEASURE_TIME)
+    auto inputEnd = pumex::HPClock::now();
+    inputDuration = pumex::inSeconds(inputEnd - inputStart);
+#endif
+  }
+
+  void update(float timeSinceStart, float updateStep)
+  {
+    // send UpdateData to RenderData
+    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+
+    if (_showStaticRendering)
+    {
+      // no modifications to static data - just copy it to render data
+      renderData[updateIndex].staticInstanceData = updateData.staticInstanceData;
+    }
+    if (_showDynamicRendering)
+    {
+      std::vector< std::unordered_map<uint32_t, DynamicObjectData>::iterator > iters;
+      for (auto it = updateData.dynamicObjectData.begin(); it != updateData.dynamicObjectData.end(); ++it)
+        iters.push_back(it);
+      tbb::parallel_for
+      (
+        tbb::blocked_range<size_t>(0, iters.size()),
+        [=](const tbb::blocked_range<size_t>& r)
+        {
+          for (size_t i = r.begin(); i != r.end(); ++i)
+            updateInstance(iters[i]->second, timeSinceStart, updateStep);
+        }
+      );
+
+      renderData[updateIndex].dynamicObjectData.resize(0);
+      for (auto it = updateData.dynamicObjectData.begin(); it != updateData.dynamicObjectData.end(); ++it)
+        renderData[updateIndex].dynamicObjectData.push_back(it->second);
+
+    }
+  }
+  void updateInstance(DynamicObjectData& objectData, float timeSinceStart, float updateStep)
+  {
+    if (objectData.time2NextTurn < 0.0f)
+    {
+      objectData.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+      objectData.kinematic.velocity = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
+      objectData.time2NextTurn = randomTime2NextTurn(randomEngine);
+    }
+    else
+      objectData.time2NextTurn -= updateStep;
+
+    // calculate new position
+    objectData.kinematic.position += objectData.kinematic.velocity * updateStep;
+
+    // change direction if bot is leaving designated area
+    bool isOutside[] =
+    {
+      objectData.kinematic.position.x < _minArea.x ,
+      objectData.kinematic.position.x > _maxArea.x ,
+      objectData.kinematic.position.y < _minArea.y ,
+      objectData.kinematic.position.y > _maxArea.y
+    };
+    if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3])
+    {
+      objectData.kinematic.position.x = std::max(objectData.kinematic.position.x, _minArea.x);
+      objectData.kinematic.position.x = std::min(objectData.kinematic.position.x, _maxArea.x);
+      objectData.kinematic.position.y = std::max(objectData.kinematic.position.y, _minArea.y);
+      objectData.kinematic.position.y = std::min(objectData.kinematic.position.y, _maxArea.y);
+
+      glm::vec4 direction = objectData.kinematic.orientation *  glm::vec4(1, 0, 0, 1);
+      if (isOutside[0] || isOutside[1])
+        direction.x *= -1.0f;
+      if (isOutside[2] || isOutside[3])
+        direction.y *= -1.0f;
+
+      objectData.kinematic.orientation = glm::angleAxis(atan2f(direction.y, direction.x), glm::vec3(0.0f, 0.0f, 1.0f));
+      objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
+      objectData.time2NextTurn         = randomTime2NextTurn(randomEngine);
+    }
+  }
+
+  void prepareCameraForRendering()
+  {
+    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    float deltaTime = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
+
+    glm::vec3 relCam
+    (
+      rData.cameraDistance * cos(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f)
+    );
+    glm::vec3 prevRelCam
+    (
+      rData.prevCameraDistance * cos(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f)
+    );
+    glm::vec3 eye = relCam + rData.cameraPosition;
+    glm::vec3 prevEye = prevRelCam + rData.prevCameraPosition;
+
+    glm::vec3 realEye = eye + deltaTime * (eye - prevEye);
+    glm::vec3 realCenter = rData.cameraPosition + deltaTime * (rData.cameraPosition - rData.prevCameraPosition);
+
+    glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
+
+    pumex::Camera camera = cameraUbo->get();
+    camera.setViewMatrix(viewMatrix);
+    camera.setObserverPosition(realEye);
+    camera.setTimeSinceStart(renderTime);
+    cameraUbo->set(camera);
+  }
+
+  void prepareStaticBuffersForRendering()
+  {
+    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
+    staticInstanceSbo->set(rData.staticInstanceData);
+
     std::vector<uint32_t> typeCount(staticAssetBuffer->getNumTypesID());
     std::fill(typeCount.begin(), typeCount.end(), 0);
 
     // compute how many instances of each type there is
-    for (uint32_t i = 0; i<fData.staticInstanceData.size(); ++i)
-      typeCount[fData.staticInstanceData[i].typeID]++;
+    for (uint32_t i = 0; i<rData.staticInstanceData.size(); ++i)
+      typeCount[rData.staticInstanceData[i].typeID]++;
 
     std::vector<uint32_t> offsets;
     for (uint32_t i = 0; i<staticResultsGeomToType.size(); ++i)
@@ -928,14 +1228,20 @@ struct GpuCullCommonData
     staticOffValuesSbo->set(std::vector<uint32_t>(offsetSum));
   }
 
-  void recalculateDynamicInstanceOffsets(FrameData& fData)
+  void prepareDynamicBuffersForRendering()
   {
+    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    float deltaTime = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
+
     std::vector<uint32_t> typeCount(dynamicAssetBuffer->getNumTypesID());
     std::fill(typeCount.begin(), typeCount.end(), 0);
 
     // compute how many instances of each type there is
-    for (uint32_t i = 0; i<fData.dynamicInstanceData.size(); ++i)
-      typeCount[fData.dynamicInstanceData[i].typeID]++;
+    for (uint32_t i = 0; i<rData.dynamicObjectData.size(); ++i)
+      typeCount[rData.dynamicObjectData[i].typeID]++;
 
     std::vector<uint32_t> offsets;
     for (uint32_t i = 0; i<dynamicResultsGeomToType.size(); ++i)
@@ -952,315 +1258,74 @@ struct GpuCullCommonData
     }
     dynamicResultsSbo->set(results);
     dynamicOffValuesSbo->set(std::vector<uint32_t>(offsetSum));
+
+    for (auto it = rData.dynamicObjectData.begin(); it != rData.dynamicObjectData.end(); ++it)
+    {
+      DynamicInstanceData diData(pumex::extrapolate(it->kinematic, deltaTime), it->typeID, it->materialVariant, it->brightness);
+
+      float speed = glm::length(it->kinematic.velocity);
+      // calculate new positions for wheels and propellers
+      if (diData.typeID == blimpID)
+      {
+        diData.bones[_blimpPropL] = bonesReset[diData.typeID][_blimpPropL] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  0.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+        diData.bones[_blimpPropR] = bonesReset[diData.typeID][_blimpPropR] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() * -0.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      }
+      if (diData.typeID == carID)
+      {
+        diData.bones[_carWheel0] = bonesReset[diData.typeID][_carWheel0] * glm::rotate(glm::mat4(), fmodf(( speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+        diData.bones[_carWheel1] = bonesReset[diData.typeID][_carWheel1] * glm::rotate(glm::mat4(), fmodf(( speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+        diData.bones[_carWheel2] = bonesReset[diData.typeID][_carWheel2] * glm::rotate(glm::mat4(), fmodf((-speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+        diData.bones[_carWheel3] = bonesReset[diData.typeID][_carWheel3] * glm::rotate(glm::mat4(), fmodf((-speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      }
+      if (diData.typeID == airplaneID)
+      {
+        diData.bones[_airplaneProp] = bonesReset[diData.typeID][_airplaneProp] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  -1.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+      }
+    }
   }
 
-
-  void update(double timeSinceStart, double timeSinceLastFrame)
+  void draw(std::shared_ptr<pumex::Surface> surface)
   {
+    std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
+    VkDevice                       vkDevice = deviceSh->device;
+    uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
+    const RenderData&              rData = renderData[renderIndex];
+
+    uint32_t renderWidth = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
+
+    pumex::Camera camera = cameraUbo->get();
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    cameraUbo->set(camera);
+
+    cameraUbo->validate(deviceSh);
+
     if (_showStaticRendering)
     {
-      // reset values to 0
-      staticResultsSbo->setDirty();
+      staticInstanceSbo->validate(deviceSh);
+      staticResultsSbo->validate(deviceSh);
+      staticOffValuesSbo->validate(deviceSh);
+
+      staticRenderDescriptorSet->validate(deviceSh);
+      staticFilterDescriptorSet->validate(deviceSh);
     }
+
     if (_showDynamicRendering)
     {
-      std::exponential_distribution<float>  randomTime2NextTurn(0.1f);
-      std::uniform_real_distribution<float> randomRotation(-180.0f, 180.0f);
-      glm::vec2 minArea(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
-      glm::vec2 maxArea(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
+      dynamicInstanceSbo->validate(deviceSh);
+      dynamicResultsSbo->validate(deviceSh);
+      dynamicOffValuesSbo->validate(deviceSh);
 
-      std::shared_ptr<pumex::Asset> blimpAsset    = dynamicAssetBuffer->getAsset(blimpID, 0);
-      uint32_t blimpPropL                         = blimpAsset->skeleton.invBoneNames["propL"];
-      uint32_t blimpPropR                         = blimpAsset->skeleton.invBoneNames["propR"];
-
-      std::shared_ptr<pumex::Asset> carAsset      = dynamicAssetBuffer->getAsset(carID, 0);
-      uint32_t carWheel0                          = carAsset->skeleton.invBoneNames["wheel0"];
-      uint32_t carWheel1                          = carAsset->skeleton.invBoneNames["wheel1"];
-      uint32_t carWheel2                          = carAsset->skeleton.invBoneNames["wheel2"];
-      uint32_t carWheel3                          = carAsset->skeleton.invBoneNames["wheel3"];
-
-      std::shared_ptr<pumex::Asset> airplaneAsset = dynamicAssetBuffer->getAsset(airplaneID, 0);
-      uint32_t airplaneProp                       = airplaneAsset->skeleton.invBoneNames["prop"];
-
-      for (uint32_t i = 0; i<frameData[readIdx].dynamicInstanceData.size(); ++i)
-      {
-        updateInstance
-        (
-          frameData[readIdx].dynamicInstanceData[i], frameData[readIdx].dynamicInstanceDataCPU[i],
-          frameData[writeIdx].dynamicInstanceData[i], frameData[writeIdx].dynamicInstanceDataCPU[i],
-          timeSinceStart, timeSinceLastFrame
-        );
-      }
-
-      // reset values to 0
-      dynamicResultsSbo->setDirty();
-      dynamicInstanceSbo->set(dynamicInstanceData);
-      // if you changed types or quantity of objects in dynamicInstanceData then you need to ...
-//      recalculateDynamicInstanceOffsets();
-    }
-  }
-  void updateInstance(const DynamicInstanceData& inInstanceData, const DynamicInstanceDataCPU& inInstanceDataCPU,
-    DynamicInstanceData& outInstanceData, DynamicInstanceDataCPU& outInstanceDataCPU,
-    double timeSinceStart, double timeSinceLastFrame)
-  {
-    // change direction if bot is leaving designated area
-    // change direction if bot is leaving designated area
-    bool isOutside[] =
-    {
-      dynamicInstanceDataCPU[i].position.x < minArea.x,
-      dynamicInstanceDataCPU[i].position.x > maxArea.x,
-      dynamicInstanceDataCPU[i].position.y < minArea.y,
-      dynamicInstanceDataCPU[i].position.y > maxArea.y
-    };
-    if (isOutside[0] || isOutside[1] || isOutside[2] || isOutside[3])
-    {
-      dynamicInstanceDataCPU[i].position.x = std::max(dynamicInstanceDataCPU[i].position.x, minArea.x);
-      dynamicInstanceDataCPU[i].position.x = std::min(dynamicInstanceDataCPU[i].position.x, maxArea.x);
-      dynamicInstanceDataCPU[i].position.y = std::max(dynamicInstanceDataCPU[i].position.y, minArea.y);
-      dynamicInstanceDataCPU[i].position.y = std::min(dynamicInstanceDataCPU[i].position.y, maxArea.y);
-      glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), glm::radians(dynamicInstanceDataCPU[i].rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-      glm::vec4 direction = rotationMatrix *  glm::vec4(1, 0, 0, 1); // models move along x axis
-      if (isOutside[0] || isOutside[1])
-        direction.x *= -1.0f;
-      if (isOutside[2] || isOutside[3])
-        direction.y *= -1.0f;
-      dynamicInstanceDataCPU[i].rotation = glm::degrees(atan2f(direction.y, direction.x));
-      dynamicInstanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-    }
-    // change rotation, animation and speed if bot requires it
-    dynamicInstanceDataCPU[i].time2NextTurn -= timeSinceLastFrame;
-    if (dynamicInstanceDataCPU[i].time2NextTurn < 0.0f)
-    {
-      dynamicInstanceDataCPU[i].rotation = randomRotation(randomEngine);
-      dynamicInstanceDataCPU[i].time2NextTurn = randomTime2NextTurn(randomEngine);
-    }
-    // calculate new position
-    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(), dynamicInstanceDataCPU[i].rotation, glm::vec3(0.0f, 0.0f, 1.0f));
-    glm::vec4 direction = rotationMatrix * glm::vec4(1, 0, 0, 1);
-    glm::vec3 dir3(direction.x, direction.y, 0.0f);
-    dynamicInstanceDataCPU[i].position += dir3 * dynamicInstanceDataCPU[i].speed * float(timeSinceLastFrame);
-    dynamicInstanceData[i].position = glm::translate(glm::mat4(), dynamicInstanceDataCPU[i].position) * rotationMatrix;
-
-    // calculate new positions for wheels and propellers
-    if (dynamicInstanceData[i].typeID == blimpID)
-    {
-      dynamicInstanceData[i].bones[blimpPropL] = bonesReset[dynamicInstanceData[i].typeID][blimpPropL] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  0.5f * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[blimpPropR] = bonesReset[dynamicInstanceData[i].typeID][blimpPropR] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() * -0.5f * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-    }
-    if (dynamicInstanceData[i].typeID == carID)
-    {
-      dynamicInstanceData[i].bones[carWheel0] = bonesReset[dynamicInstanceData[i].typeID][carWheel0] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[carWheel1] = bonesReset[dynamicInstanceData[i].typeID][carWheel1] * glm::rotate(glm::mat4(), fmodf((dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[carWheel2] = bonesReset[dynamicInstanceData[i].typeID][carWheel2] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      dynamicInstanceData[i].bones[carWheel3] = bonesReset[dynamicInstanceData[i].typeID][carWheel3] * glm::rotate(glm::mat4(), fmodf((-dynamicInstanceDataCPU[i].speed / 0.5f) * timeSinceStart, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-    }
-    if (dynamicInstanceData[i].typeID == airplaneID)
-    {
-      dynamicInstanceData[i].bones[airplaneProp] = bonesReset[dynamicInstanceData[i].typeID][airplaneProp] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  -1.5f * timeSinceStart, 2.0f*pumex::fpi), glm::vec3(0.0, 0.0, 1.0));
-    }
-  }
-
-
-};
-
-// thread that renders data to a Vulkan surface
-class GpuCullRenderThread : public pumex::SurfaceThread
-{
-public:
-  GpuCullRenderThread( std::shared_ptr<GpuCullCommonData> GpuCullCommonData )
-    : pumex::SurfaceThread(), appData(GpuCullCommonData)
-  {
-  }
-
-  void setup(std::shared_ptr<pumex::Surface> s) override
-  {
-    SurfaceThread::setup(s);
-
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
-    VkDevice                        vkDevice  = deviceSh->device;
-
-    myCmdBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, surfaceSh->commandPool);
-    myCmdBuffer->validate(deviceSh);
-
-    appData->pipelineCache->validate(deviceSh);
-    appData->instancedRenderDescriptorSetLayout->validate(deviceSh);
-    appData->instancedRenderDescriptorPool->validate(deviceSh);
-    appData->instancedRenderPipelineLayout->validate(deviceSh);
-    appData->filterDescriptorSetLayout->validate(deviceSh);
-    appData->filterDescriptorPool->validate(deviceSh);
-    appData->filterPipelineLayout->validate(deviceSh);
-    appData->timeStampQueryPool->validate(deviceSh);
-
-    appData->cameraUbo->validate(deviceSh);
-
-    if (appData->_showStaticRendering)
-    {
-      appData->staticAssetBuffer->validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
-      appData->staticMaterialSet->validate(deviceSh, surfaceSh->commandPool, surfaceSh->presentationQueue);
-      appData->staticRenderPipeline->validate(deviceSh);
-      appData->staticFilterPipeline->validate(deviceSh);
-
-      appData->staticInstanceSbo->validate(deviceSh);
-      appData->staticResultsSbo->validate(deviceSh);
-      appData->staticResultsSbo2->validate(deviceSh);
-      appData->staticOffValuesSbo->validate(deviceSh);
-    }
-
-    if (appData->_showDynamicRendering)
-    {
-      appData->dynamicAssetBuffer->validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
-      appData->dynamicMaterialSet->validate(deviceSh, surfaceSh->commandPool, surfaceSh->presentationQueue);
-      appData->dynamicRenderPipeline->validate(deviceSh);
-      appData->dynamicFilterPipeline->validate(deviceSh);
-
-      appData->dynamicInstanceSbo->validate(deviceSh);
-      appData->dynamicResultsSbo->validate(deviceSh);
-      appData->dynamicResultsSbo2->validate(deviceSh);
-      appData->dynamicOffValuesSbo->validate(deviceSh);
-    }
-
-    cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
-    cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    cameraDistance              = 1.0f;
-    leftMouseKeyPressed         = false;
-    rightMouseKeyPressed        = false;
-  }
-
-  void cleanup() override
-  {
-    SurfaceThread::cleanup();
-  }
-  ~GpuCullRenderThread()
-  {
-    cleanup();
-  }
-  void draw()
-  {
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Viewer>  viewerSh  = surface.lock()->viewer.lock();
-    std::shared_ptr<pumex::Device>  deviceSh = surfaceSh->device.lock();
-    std::shared_ptr<pumex::Window>  windowSh  = surfaceSh->window.lock();
-    VkDevice                        vkDevice  = deviceSh->device;
-
-    double timeSinceStartInSeconds = std::chrono::duration<double, std::ratio<1,1>>(timeSinceStart).count();
-    double lastFrameInSeconds      = std::chrono::duration<double, std::ratio<1,1>>(timeSinceLastFrame).count();
-
-    // camera update
-    std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
-    glm::vec2 mouseMove = lastMousePos;
-    for (const auto& m : mouseEvents)
-    {
-      switch (m.type)
-      {
-      case pumex::MouseEvent::KEY_PRESSED:
-        if (m.button == pumex::MouseEvent::LEFT)
-          leftMouseKeyPressed = true;
-        if (m.button == pumex::MouseEvent::RIGHT)
-          rightMouseKeyPressed = true;
-        mouseMove.x = m.x;
-        mouseMove.y = m.y;
-        lastMousePos = mouseMove;
-        break;
-      case pumex::MouseEvent::KEY_RELEASED:
-        if (m.button == pumex::MouseEvent::LEFT)
-          leftMouseKeyPressed = false;
-        if (m.button == pumex::MouseEvent::RIGHT)
-          rightMouseKeyPressed = false;
-        break;
-      case pumex::MouseEvent::MOVE:
-        if (leftMouseKeyPressed || rightMouseKeyPressed)
-        {
-          mouseMove.x = m.x;
-          mouseMove.y = m.y;
-        }
-        break;
-      }
-    }
-    if (leftMouseKeyPressed)
-    {
-      cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - lastMousePos.x);
-      cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - lastMousePos.y);
-      while (cameraGeographicCoordinates.x < -180.0f)
-        cameraGeographicCoordinates.x += 360.0f;
-      while (cameraGeographicCoordinates.x>180.0f)
-        cameraGeographicCoordinates.x -= 360.0f;
-      cameraGeographicCoordinates.y = glm::clamp(cameraGeographicCoordinates.y, -90.0f, 90.0f);
-      lastMousePos = mouseMove;
-    }
-    if (rightMouseKeyPressed)
-    {
-      cameraDistance += 10.0f*(lastMousePos.y - mouseMove.y);
-      if (cameraDistance<0.1f)
-        cameraDistance = 0.1f;
-      lastMousePos = mouseMove;
-    }
-
-    glm::vec3 forward = glm::vec3(cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
-    glm::vec3 right = glm::vec3(cos((cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (windowSh->isKeyPressed('W'))
-      cameraPosition -= forward;
-    if (windowSh->isKeyPressed('S'))
-      cameraPosition += forward;
-    if (windowSh->isKeyPressed('A'))
-      cameraPosition -= right;
-    if (windowSh->isKeyPressed('D'))
-      cameraPosition += right;
-
-    glm::vec3 eye
-      (
-      cameraDistance * cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      cameraDistance * sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      cameraDistance * sin(cameraGeographicCoordinates.y * 3.1415f / 180.0f)
-      );
-    glm::mat4 viewMatrix = glm::lookAt(eye + cameraPosition, cameraPosition, glm::vec3(0, 0, 1));
-
-    uint32_t renderWidth  = surfaceSh->swapChainSize.width;
-    uint32_t renderHeight = surfaceSh->swapChainSize.height;
-
-    pumex::Camera camera = appData->cameraUbo->get();
-    camera.setViewMatrix(viewMatrix);
-    camera.setObserverPosition(eye + cameraPosition);
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    camera.setTimeSinceStart(timeSinceStartInSeconds);
-    appData->cameraUbo->set(camera);
-
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto updateStart = pumex::HPClock::now();
-#endif
-    appData->update(timeSinceStartInSeconds, lastFrameInSeconds);
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto updateEnd = pumex::HPClock::now();
-    double updateDuration = std::chrono::duration<double, std::milli>(updateEnd - updateStart).count();
-#endif
-    appData->cameraUbo->validate(deviceSh);
-
-    if (appData->_showStaticRendering)
-    {
-      appData->staticInstanceSbo->validate(deviceSh);
-      appData->staticResultsSbo->validate(deviceSh);
-      appData->staticOffValuesSbo->validate(deviceSh);
-
-      appData->staticRenderDescriptorSet->validate(deviceSh);
-      appData->staticFilterDescriptorSet->validate(deviceSh);
-    }
-
-    if (appData->_showDynamicRendering)
-    {
-      appData->dynamicInstanceSbo->validate(deviceSh);
-      appData->dynamicResultsSbo->validate(deviceSh);
-      appData->dynamicOffValuesSbo->validate(deviceSh);
-
-      appData->dynamicRenderDescriptorSet->validate(deviceSh);
-      appData->dynamicFilterDescriptorSet->validate(deviceSh);
+      dynamicRenderDescriptorSet->validate(deviceSh);
+      dynamicFilterDescriptorSet->validate(deviceSh);
     }
 #if defined(GPU_CULL_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
 
-    myCmdBuffer->cmdBegin(deviceSh);
+    myCmdBuffer[vkDevice]->cmdBegin();
 
-    appData->timeStampQueryPool->reset(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex*4,4);
+    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4, 4);
 
 #if defined(GPU_CULL_MEASURE_TIME)
     appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -1270,114 +1335,114 @@ public:
 
     // Set up memory barrier to ensure that the indirect commands have been consumed before the compute shaders update them
     std::vector<pumex::PipelineBarrier> beforeBufferBarriers;
-    if (appData->_showStaticRendering)
+    if (_showStaticRendering)
     {
-      staticResultsBuffer  = appData->staticResultsSbo->getDescriptorSetValue(vkDevice);
-      staticResultsBuffer2 = appData->staticResultsSbo2->getDescriptorSetValue(vkDevice);
-      staticDrawCount      = appData->staticResultsSbo->get().size();
-      beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, staticResultsBuffer.bufferInfo));
+      staticResultsBuffer  = staticResultsSbo->getDescriptorSetValue(vkDevice);
+      staticResultsBuffer2 = staticResultsSbo2->getDescriptorSetValue(vkDevice);
+      staticDrawCount      = staticResultsSbo->get().size();
+      beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer.bufferInfo));
     }
-    if (appData->_showDynamicRendering)
+    if (_showDynamicRendering)
     {
-      dynamicResultsBuffer  = appData->dynamicResultsSbo->getDescriptorSetValue(vkDevice);
-      dynamicResultsBuffer2 = appData->dynamicResultsSbo2->getDescriptorSetValue(vkDevice);
-      dynamicDrawCount      = appData->dynamicResultsSbo->get().size();
-      beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, dynamicResultsBuffer.bufferInfo));
+      dynamicResultsBuffer  = dynamicResultsSbo->getDescriptorSetValue(vkDevice);
+      dynamicResultsBuffer2 = dynamicResultsSbo2->getDescriptorSetValue(vkDevice);
+      dynamicDrawCount      = dynamicResultsSbo->get().size();
+      beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer.bufferInfo));
     }
-    myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarriers);
+    myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarriers);
 
     // perform compute shaders
-    if (appData->_showStaticRendering)
+    if (_showStaticRendering)
     {
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->staticFilterPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_COMPUTE, appData->filterPipelineLayout, 0, appData->staticFilterDescriptorSet);
-      myCmdBuffer->cmdDispatch(deviceSh, appData->staticInstanceData.size() / 16 + ((appData->staticInstanceData.size() % 16>0) ? 1 : 0), 1, 1);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(staticFilterPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, staticFilterDescriptorSet);
+      myCmdBuffer[vkDevice]->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16>0) ? 1 : 0), 1, 1);
     }
-    if (appData->_showDynamicRendering)
+    if (_showDynamicRendering)
     {
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->dynamicFilterPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_COMPUTE, appData->filterPipelineLayout, 0, appData->dynamicFilterDescriptorSet);
-      myCmdBuffer->cmdDispatch(deviceSh, appData->dynamicInstanceData.size() / 16 + ((appData->dynamicInstanceData.size() % 16>0) ? 1 : 0), 1, 1);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(dynamicFilterPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, dynamicFilterDescriptorSet);
+      myCmdBuffer[vkDevice]->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16>0) ? 1 : 0), 1, 1);
     }
 
     // setup memory barriers, so that copying data to *resultsSbo2 will start only after compute shaders finish working
     std::vector<pumex::PipelineBarrier> afterBufferBarriers;
-    if (appData->_showStaticRendering)
-      afterBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, staticResultsBuffer.bufferInfo));
-    if (appData->_showDynamicRendering)
-      afterBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, dynamicResultsBuffer.bufferInfo));
-    myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, afterBufferBarriers);
+    if (_showStaticRendering)
+      afterBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer.bufferInfo));
+    if (_showDynamicRendering)
+      afterBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer.bufferInfo));
+    myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, afterBufferBarriers);
 
-    if (appData->_showStaticRendering)
+    if (_showStaticRendering)
     {
       VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = staticResultsBuffer.bufferInfo.offset;
-        copyRegion.size      = staticResultsBuffer.bufferInfo.range;
-        copyRegion.dstOffset = staticResultsBuffer2.bufferInfo.offset;
-      myCmdBuffer->cmdCopyBuffer(deviceSh, staticResultsBuffer.bufferInfo.buffer, staticResultsBuffer2.bufferInfo.buffer, copyRegion);
+      copyRegion.srcOffset = staticResultsBuffer.bufferInfo.offset;
+      copyRegion.size = staticResultsBuffer.bufferInfo.range;
+      copyRegion.dstOffset = staticResultsBuffer2.bufferInfo.offset;
+      myCmdBuffer[vkDevice]->cmdCopyBuffer(staticResultsBuffer.bufferInfo.buffer, staticResultsBuffer2.bufferInfo.buffer, copyRegion);
     }
-    if (appData->_showDynamicRendering)
+    if (_showDynamicRendering)
     {
       VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = dynamicResultsBuffer.bufferInfo.offset;
-        copyRegion.size      = dynamicResultsBuffer.bufferInfo.range;
-        copyRegion.dstOffset = dynamicResultsBuffer2.bufferInfo.offset;
-      myCmdBuffer->cmdCopyBuffer(deviceSh, dynamicResultsBuffer.bufferInfo.buffer, dynamicResultsBuffer2.bufferInfo.buffer, copyRegion);
+      copyRegion.srcOffset = dynamicResultsBuffer.bufferInfo.offset;
+      copyRegion.size = dynamicResultsBuffer.bufferInfo.range;
+      copyRegion.dstOffset = dynamicResultsBuffer2.bufferInfo.offset;
+      myCmdBuffer[vkDevice]->cmdCopyBuffer(dynamicResultsBuffer.bufferInfo.buffer, dynamicResultsBuffer2.bufferInfo.buffer, copyRegion);
     }
-    
+
     // wait until copying finishes before rendering data  
     std::vector<pumex::PipelineBarrier> afterCopyBufferBarriers;
-    if (appData->_showStaticRendering)
-      afterCopyBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, staticResultsBuffer2.bufferInfo));
-    if (appData->_showDynamicRendering)
-      afterCopyBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surfaceSh->presentationQueueFamilyIndex, surfaceSh->presentationQueueFamilyIndex, dynamicResultsBuffer2.bufferInfo));
-    myCmdBuffer->cmdPipelineBarrier(deviceSh, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarriers);
+    if (_showStaticRendering)
+      afterCopyBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer2.bufferInfo));
+    if (_showDynamicRendering)
+      afterCopyBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer2.bufferInfo));
+    myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarriers);
 
 #if defined(GPU_CULL_MEASURE_TIME)
     appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    myCmdBuffer->cmdBeginRenderPass(deviceSh, appData->defaultRenderPass, surfaceSh->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    myCmdBuffer->cmdSetViewport( deviceSh, 0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f ) } );
-    myCmdBuffer->cmdSetScissor( deviceSh, 0, { pumex::makeVkRect2D( 0, 0, renderWidth, renderHeight ) } );
+    myCmdBuffer[vkDevice]->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+    myCmdBuffer[vkDevice]->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+    myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(GPU_CULL_MEASURE_TIME)
     appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
-    if (appData->_showStaticRendering)
+    if (_showStaticRendering)
     {
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->staticRenderPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_GRAPHICS, appData->instancedRenderPipelineLayout, 0, appData->staticRenderDescriptorSet);
-      appData->staticAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(staticRenderPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, staticRenderDescriptorSet);
+      staticAssetBuffer->cmdBindVertexIndexBuffer(deviceSh,myCmdBuffer[vkDevice], 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
-        myCmdBuffer->cmdDrawIndexedIndirect(deviceSh, staticResultsBuffer2.bufferInfo.buffer, staticResultsBuffer2.bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(staticResultsBuffer2.bufferInfo.buffer, staticResultsBuffer2.bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
         for (uint32_t i = 0; i < staticDrawCount; ++i)
-          myCmdBuffer->cmdDrawIndexedIndirect(deviceSh, staticResultsBuffer2.bufferInfo.buffer, staticResultsBuffer2.bufferInfo.offset + i*sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+          myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(staticResultsBuffer2.bufferInfo.buffer, staticResultsBuffer2.bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
       }
     }
-    if (appData->_showDynamicRendering)
+    if (_showDynamicRendering)
     {
-      myCmdBuffer->cmdBindPipeline(deviceSh, appData->dynamicRenderPipeline);
-      myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_GRAPHICS, appData->instancedRenderPipelineLayout, 0, appData->dynamicRenderDescriptorSet);
-      appData->dynamicAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
+      myCmdBuffer[vkDevice]->cmdBindPipeline(dynamicRenderPipeline);
+      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, dynamicRenderDescriptorSet);
+      dynamicAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
-        myCmdBuffer->cmdDrawIndexedIndirect(deviceSh, dynamicResultsBuffer2.bufferInfo.buffer, dynamicResultsBuffer2.bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(dynamicResultsBuffer2.bufferInfo.buffer, dynamicResultsBuffer2.bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
         for (uint32_t i = 0; i < dynamicDrawCount; ++i)
-          myCmdBuffer->cmdDrawIndexedIndirect(deviceSh, dynamicResultsBuffer2.bufferInfo.buffer, dynamicResultsBuffer2.bufferInfo.offset + i*sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+          myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(dynamicResultsBuffer2.bufferInfo.buffer, dynamicResultsBuffer2.bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
       }
     }
 #if defined(GPU_CULL_MEASURE_TIME)
     appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
-    myCmdBuffer->cmdEndRenderPass(deviceSh);
-    myCmdBuffer->cmdEnd(deviceSh);
-    myCmdBuffer->queueSubmit(deviceSh, surfaceSh->presentationQueue, { surface.lock()->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface.lock()->renderCompleteSemaphore }, VK_NULL_HANDLE);
+    myCmdBuffer[vkDevice]->cmdEndRenderPass();
+    myCmdBuffer[vkDevice]->cmdEnd();
+    myCmdBuffer[vkDevice]->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
 
 #if defined(GPU_CULL_MEASURE_TIME)
     auto drawEnd = pumex::HPClock::now();
@@ -1390,23 +1455,19 @@ public:
     std::vector<uint64_t> queryResults;
     // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
     queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4, 4, 0);
-    LOG_ERROR << "GPU compute duration      : " << (queryResults[1] - queryResults[0]) * timeStampPeriod  << " ms" << std::endl;
+    LOG_ERROR << "GPU compute duration      : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << "GPU draw duration         : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << std::endl;
 
 #endif
   }
 
-  std::shared_ptr<GpuCullCommonData> appData;
-  std::shared_ptr<pumex::CommandBuffer> myCmdBuffer;
-
-  glm::vec3 cameraPosition;
-  glm::vec2 cameraGeographicCoordinates;
-  float     cameraDistance;
-  glm::vec2 lastMousePos;
-  bool      leftMouseKeyPressed;
-  bool      rightMouseKeyPressed;
+  void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
+  {
+  }
 };
+
+// thread that renders data to a Vulkan surface
 
 int main(int argc, char * argv[])
 {
@@ -1424,7 +1485,7 @@ int main(int argc, char * argv[])
 	
   // Below is the definition of Vulkan instance, devices, queues, surfaces, windows, render passes and render threads. All in one place - with all parameters listed
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", true, requestDebugLayers };
+  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", true, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer = std::make_shared<pumex::Viewer>(viewerTraits);
@@ -1464,12 +1525,52 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
     surfaceTraits.setDefaultRenderPass(renderPass);
 
-    std::shared_ptr<GpuCullCommonData> gpuCullCommonData = std::make_shared<GpuCullCommonData>(viewer);
-    gpuCullCommonData->defaultRenderPass = renderPass;
-    gpuCullCommonData->setup(showStaticRendering, showDynamicRendering, staticAreaSize, dynamicAreaSize, lodModifier, densityModifier, triangleModifier);
+    std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(viewer);
+    applicationData->defaultRenderPass = renderPass;
+    applicationData->setup(showStaticRendering,showDynamicRendering, staticAreaSize, dynamicAreaSize, lodModifier, densityModifier, triangleModifier);
 
-    std::shared_ptr<pumex::SurfaceThread> thread0 = std::make_shared<GpuCullRenderThread>(gpuCullCommonData);
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits, thread0);
+    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
+    applicationData->surfaceSetup(surface);
+
+    // Making the update graph
+    // The update in this example is "almost" singlethreaded. 
+    // In more complicated scenarios update should be also divided into advanced update graph.
+    // Consider make_edge() in update graph :
+    // viewer->startUpdateGraph should point to all root nodes.
+    // All leaf nodes should point to viewer->endUpdateGraph.
+    tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
+    {
+      applicationData->processInput(surface);
+      applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
+    });
+
+    tbb::flow::make_edge(viewer->startUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+
+    // Making the render graph.
+    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
+    // Consider make_edge() in render graph :
+    // viewer->startRenderGraph should point to all root nodes.
+    // All leaf nodes should point to viewer->endRenderGraph.
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg)
+    {
+      applicationData->prepareCameraForRendering();
+      if (applicationData->_showStaticRendering)
+        applicationData->prepareStaticBuffersForRendering();
+      if (applicationData->_showDynamicRendering)
+        applicationData->prepareDynamicBuffersForRendering();
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
+
+    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
+    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
+    tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
+    tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
+    tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
+    tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
 
     viewer->run();
   }

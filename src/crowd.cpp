@@ -4,9 +4,9 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/simd/matrix.h>
 #include <gli/gli.hpp>
+#include <tbb/tbb.h>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
-#include <tbb/tbb.h>
 
 // Current measurment methods add 4ms to a single frame ( cout lags )
 // I suggest using applications such as RenderDoc to measure frame time for now.
@@ -138,7 +138,7 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
   return lhs.skelID < rhs.skelID;
 }
 
-struct ApplicationData
+struct CrowdApplicationData
 {
   std::weak_ptr<pumex::Viewer>                         viewer;
 
@@ -200,7 +200,7 @@ struct ApplicationData
 
   std::unordered_map<VkDevice,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
-  ApplicationData(std::shared_ptr<pumex::Viewer> v)
+  CrowdApplicationData(std::shared_ptr<pumex::Viewer> v)
 	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -glm::pi<float>(), glm::pi<float>() }
   {
   }
@@ -540,13 +540,6 @@ struct ApplicationData
         human.time2NextTurn         = randomTime2NextTurn(randomEngine);
       updateData.people.insert({ humanID, human });
 
-//      float rot                      = randomRotation(randomEngine);
-//      uint32_t objectType            = mainObjectTypeID[randomType(randomEngine)];
-//      uint32_t objectMaterialVariant = randomMaterialVariant[objectType](randomEngine);
-//      uint32_t anim                  = randomAnimation(randomEngine);
-//      frameData[0].positionData.push_back(PositionData(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, 0.0f)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f))));
-//      frameData[0].instanceData.push_back(InstanceData(i, objectType, objectMaterialVariant, 1));
-//      frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], randomTime2NextTurn(randomEngine), randomAnimationOffset(randomEngine)));
       auto clothPair = clothVariants.equal_range(skeletalAssetBuffer->getTypeName(human.typeID));
       auto clothCount = std::distance(clothPair.first, clothPair.second);
       if (clothCount > 0)
@@ -562,9 +555,6 @@ struct ApplicationData
             cloth.materialVariant = 0;
             cloth.ownerID         = humanID;
           updateData.clothes.insert({ clothID, cloth });
-//          uint32_t clothType = skeletalAssetBuffer->getTypeID(c);
-//          frameData[0].instanceData.push_back(InstanceData(i, clothType, 0, 0));
-//          frameData[0].instanceDataCPU.push_back(InstanceDataCPU(anim, pos, rot, animationSpeed[anim], 0.0, 0.0));
         }
       }
     }
@@ -574,9 +564,6 @@ struct ApplicationData
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
     updateData.xKeyPressed                 = false;
-
-//    positionSbo->set(frameData[1].positionData);
-//    instanceSbo->set(frameData[1].instanceData);
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);
@@ -661,10 +648,12 @@ struct ApplicationData
         break;
       }
     }
+
     uint32_t updateIndex = viewer.lock()->getUpdateIndex();
-    renderData[updateIndex].prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
-    renderData[updateIndex].prevCameraDistance              = updateData.cameraDistance;
-    renderData[updateIndex].prevCameraPosition              = updateData.cameraPosition;
+    RenderData& uData = renderData[updateIndex];
+    uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    uData.prevCameraDistance              = updateData.cameraDistance;
+    uData.prevCameraPosition              = updateData.cameraPosition;
 
     if (updateData.leftMouseKeyPressed)
     {
@@ -710,11 +699,11 @@ struct ApplicationData
     }
     else
       updateData.xKeyPressed = false;
-    renderData[updateIndex].renderMethod                = updateData.renderMethod;
 
-    renderData[updateIndex].cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
-    renderData[updateIndex].cameraDistance              = updateData.cameraDistance;
-    renderData[updateIndex].cameraPosition              = updateData.cameraPosition;
+    uData.renderMethod                = updateData.renderMethod;
+    uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    uData.cameraDistance              = updateData.cameraDistance;
+    uData.cameraPosition              = updateData.cameraPosition;
 
 
 #if defined(CROWD_MEASURE_TIME)
@@ -765,7 +754,7 @@ struct ApplicationData
 #endif
   }
 
-  inline void updateHuman( ObjectData& human, float timeSinceStart, float timeSinceLastFrame)
+  inline void updateHuman( ObjectData& human, float timeSinceStart, float updateStep)
   {
     // change rotation, animation and speed if bot requires it
     if (human.time2NextTurn < 0.0f)
@@ -776,10 +765,10 @@ struct ApplicationData
       human.time2NextTurn         = randomTime2NextTurn(randomEngine);
     }
     else
-      human.time2NextTurn -= timeSinceLastFrame;
+      human.time2NextTurn -= updateStep;
 
     // calculate new position
-    human.kinematic.position += human.kinematic.velocity * timeSinceLastFrame;
+    human.kinematic.position += human.kinematic.velocity * updateStep;
 
     // change direction if bot is leaving designated area
     bool isOutside[] =
@@ -810,15 +799,12 @@ struct ApplicationData
     }
   }
 
-  void prepareBuffersForRendering()
+  void prepareCameraForRendering()
   {
-#if defined(CROWD_MEASURE_TIME)
-    auto prepareBuffersStart = pumex::HPClock::now();
-#endif
     uint32_t renderIndex = viewer.lock()->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    float deltaTime  = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
+    float deltaTime = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
     float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
 
     glm::vec3 relCam
@@ -833,10 +819,10 @@ struct ApplicationData
       rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
       rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f)
     );
-    glm::vec3 eye     = relCam + rData.cameraPosition;
+    glm::vec3 eye = relCam + rData.cameraPosition;
     glm::vec3 prevEye = prevRelCam + rData.prevCameraPosition;
 
-    glm::vec3 realEye    = eye + deltaTime * (eye - prevEye);
+    glm::vec3 realEye = eye + deltaTime * (eye - prevEye);
     glm::vec3 realCenter = rData.cameraPosition + deltaTime * (rData.cameraPosition - rData.prevCameraPosition);
 
     glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
@@ -846,6 +832,18 @@ struct ApplicationData
     camera.setObserverPosition(realEye);
     camera.setTimeSinceStart(renderTime);
     cameraUbo->set(camera);
+  }
+
+  void prepareBuffersForRendering()
+  {
+#if defined(CROWD_MEASURE_TIME)
+    auto prepareBuffersStart = pumex::HPClock::now();
+#endif
+    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    float deltaTime  = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
 
     if (rData.renderMethod == 1)
     {
@@ -1150,7 +1148,7 @@ int main(void)
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
     surfaceTraits.setDefaultRenderPass(renderPass);
 
-    std::shared_ptr<ApplicationData> applicationData = std::make_shared<ApplicationData>(viewer);
+    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(viewer);
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
 
@@ -1177,7 +1175,7 @@ int main(void)
     // Consider make_edge() in render graph :
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareBuffersForRendering(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering();  applicationData->prepareBuffersForRendering(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
