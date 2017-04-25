@@ -29,11 +29,11 @@ namespace pumex
     bool                     useValidation;
     std::vector<std::string> requestedLayers;
 
-    VkDebugReportFlagsEXT    debugReportFlags    = VK_DEBUG_REPORT_ERROR_BIT_EXT; // | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+    VkDebugReportFlagsEXT    debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT; // | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
     // use debugReportCallback if you want to overwrite default messageCallback() logging function
     VkDebugReportCallbackEXT debugReportCallback = nullptr;
 
-    uint32_t updatesPerSecond   = 100;
+    uint32_t updatesPerSecond = 100;
   };
 
   // Viewer class holds Vulkan instance and manages devices and surfaces
@@ -41,25 +41,25 @@ namespace pumex
   {
   public:
     explicit Viewer(const pumex::ViewerTraits& viewerTraits);
-    Viewer(const Viewer&)            = delete;
+    Viewer(const Viewer&) = delete;
     Viewer& operator=(const Viewer&) = delete;
     ~Viewer();
 
-    std::shared_ptr<pumex::Device>    addDevice( unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions );
+    std::shared_ptr<pumex::Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
     std::shared_ptr<pumex::Surface>   addSurface(std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits);
     void run();
     void cleanup();
+    void setTerminate();
 
     inline VkInstance getInstance() const;
-    inline void setTerminate();
     inline bool terminating() const;
 
     std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem> ASAP
 
     ViewerTraits                        viewerTraits;
-    VkInstance                          instance             = VK_NULL_HANDLE;
+    VkInstance                          instance = VK_NULL_HANDLE;
     std::vector<VkExtensionProperties>  extensionProperties;
-    bool                                viewerTerminate      = false;
+    bool                                viewerTerminate = false;
 
     tbb::flow::graph                                    updateGraph;
     tbb::flow::continue_node< tbb::flow::continue_msg > startUpdateGraph;
@@ -83,12 +83,7 @@ namespace pumex
 
     inline uint32_t getNextRenderSlot() const;
     inline uint32_t getNextUpdateSlot() const;
-
-    void startUpdate();
-    void endUpdate();
-
-    void startRender();
-    void endRender();
+    inline void doNothing() const;
 
     std::vector<std::string>                            defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
     std::vector<std::shared_ptr<pumex::PhysicalDevice>> physicalDevices;
@@ -107,22 +102,22 @@ namespace pumex
     std::mutex                                          updateMutex;
     std::condition_variable                             updateConditionVariable;
 
-    PFN_vkCreateDebugReportCallbackEXT                  pfnCreateDebugReportCallback  = VK_NULL_HANDLE;
+    PFN_vkCreateDebugReportCallbackEXT                  pfnCreateDebugReportCallback = VK_NULL_HANDLE;
     PFN_vkDestroyDebugReportCallbackEXT                 pfnDestroyDebugReportCallback = VK_NULL_HANDLE;
-    PFN_vkDebugReportMessageEXT                         pfnDebugReportMessage         = VK_NULL_HANDLE;
+    PFN_vkDebugReportMessageEXT                         pfnDebugReportMessage = VK_NULL_HANDLE;
     VkDebugReportCallbackEXT                            msgCallback;
 
   };
 
   VkInstance                 Viewer::getInstance() const             { return instance; }
-  void                       Viewer::setTerminate()                  { viewerTerminate = true; }
   bool                       Viewer::terminating() const             { return viewerTerminate; }
-  uint32_t                   Viewer::getUpdateIndex() const          { return updateIndex; };
-  uint32_t                   Viewer::getRenderIndex() const          { return renderIndex; };
+  uint32_t                   Viewer::getUpdateIndex() const          { return updateIndex; }
+  uint32_t                   Viewer::getRenderIndex() const          { return renderIndex; }
   pumex::HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStartTime; }
   pumex::HPClock::duration   Viewer::getUpdateDuration() const       { return (pumex::HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
-  pumex::HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; };
-  pumex::HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; };
+  pumex::HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
+  pumex::HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
+  void                       Viewer::doNothing() const               {}
 
   uint32_t   Viewer::getNextUpdateSlot() const
   {

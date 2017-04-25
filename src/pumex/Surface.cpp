@@ -86,6 +86,13 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
     postPresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh,commandPool));
   }
 
+  VkFenceCreateInfo fenceCreateInfo{};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+  waitFences.resize(surfaceTraits.imageCount);
+  for (auto& fence : waitFences)
+    VK_CHECK_LOG_THROW(vkCreateFence(vkDevice, &fenceCreateInfo, nullptr, &fence), "Could not create a surface wait fence");
+
   // create swapchain
   resizeSurface(window.lock()->width, window.lock()->height);
 }
@@ -111,8 +118,10 @@ void Surface::cleanup()
   }
   if (surface != VK_NULL_HANDLE)
   {
-    postPresentCmdBuffers.resize(0);
-    prePresentCmdBuffers.resize(0);
+    for (auto& fence : waitFences)
+      vkDestroyFence(dev, fence, nullptr);
+    postPresentCmdBuffers.clear();
+    prePresentCmdBuffers.clear();
     defaultRenderPass = nullptr;
     vkDestroySemaphore(dev, renderCompleteSemaphore, nullptr);
     vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
@@ -294,12 +303,13 @@ void Surface::cleanupDepthStencil()
 
 void Surface::beginFrame()
 {
-  if (viewer.lock()->terminating())
-    return;
   actions.performActions();
   // FIXME : VK_SUBOPTIMAL_KHR
   auto deviceSh = device.lock();
+
   VK_CHECK_LOG_THROW(vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex), "failed vkAcquireNextImageKHR" );
+  VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
+  VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
   postPresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue);
 }
 
@@ -307,7 +317,7 @@ void Surface::endFrame()
 {
   auto deviceSh = device.lock();
   // Submit pre present image barrier to transform the image from color attachment to present(khr) for presenting to the swap chain
-  prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue);
+  prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue, {}, {}, {}, waitFences[swapChainImageIndex]);
 
   // FIXME - isn't a place for synchronizing many windows at once ?
   // In that case we shouldn't call it for single surface, I suppose...
@@ -319,7 +329,7 @@ void Surface::endFrame()
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
   VK_CHECK_LOG_THROW(vkQueuePresentKHR(presentationQueue, &presentInfo), "failed vkQueuePresentKHR");
-  VK_CHECK_LOG_THROW(vkQueueWaitIdle(presentationQueue), "failed vkQueueWaitIdle")
+//  VK_CHECK_LOG_THROW(vkQueueWaitIdle(presentationQueue), "failed vkQueueWaitIdle")
 }
 
 void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)

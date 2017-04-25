@@ -34,7 +34,6 @@ public:
 
   void                  validate(std::shared_ptr<pumex::Device> device);
   VkDescriptorSetLayout getHandle(VkDevice device) const;
-  void                  setDirty();
   VkDescriptorType      getDescriptorType(uint32_t binding) const;
 
   std::vector<pumex::DescriptorSetLayoutBinding> bindings;
@@ -42,7 +41,6 @@ protected:
   struct PerDeviceData
   {
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-    bool                  dirty               = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
@@ -57,7 +55,6 @@ public:
 
   void             validate(std::shared_ptr<pumex::Device> device);
   VkDescriptorPool getHandle(VkDevice device) const;
-  void             setDirty();
 
   uint32_t poolSize;
   std::vector<pumex::DescriptorSetLayoutBinding> bindings;
@@ -65,7 +62,6 @@ protected:
   struct PerDeviceData
   {
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-    bool             dirty          = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
@@ -102,10 +98,13 @@ protected:
 class PUMEX_EXPORT DescriptorSet
 {
 public:
-  explicit DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> layout, std::shared_ptr<pumex::DescriptorPool> pool);
+  explicit DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> layout, std::shared_ptr<pumex::DescriptorPool> pool, uint32_t activeCount = 1);
   DescriptorSet(const DescriptorSet&) = delete;
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   virtual ~DescriptorSet();
+
+  inline void setActiveIndex(uint32_t index);
+  inline uint32_t getActiveIndex() const;
 
   void            validate(std::shared_ptr<pumex::Device> device);
   VkDescriptorSet getHandle(VkDevice device) const;
@@ -119,12 +118,21 @@ public:
 protected:
   struct PerDeviceData
   {
-    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-    bool            dirty         = true;
+    PerDeviceData(uint32_t ac)
+    {
+      descriptorSet.resize(ac,VK_NULL_HANDLE);
+      dirty.resize(ac,true);
+    }
+    std::vector<VkDescriptorSet> descriptorSet;
+    std::vector<bool>            dirty;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  uint32_t                       activeCount;
+  uint32_t                       activeIndex = 0;
 };
 
+void DescriptorSet::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }
+uint32_t DescriptorSet::getActiveIndex() const     { return activeIndex; }
 
 class PUMEX_EXPORT PipelineLayout
 {
@@ -135,14 +143,12 @@ public:
   virtual ~PipelineLayout();
   void             validate(std::shared_ptr<pumex::Device> device);
   VkPipelineLayout getHandle(VkDevice device) const;
-  void             setDirty();
 
   std::vector<std::shared_ptr<pumex::DescriptorSetLayout>> descriptorSetLayouts;
 protected:
   struct PerDeviceData
   {
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    bool             dirty          = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
@@ -158,13 +164,11 @@ public:
 
   void            validate(std::shared_ptr<pumex::Device> device);
   VkPipelineCache getHandle(VkDevice device) const;
-  void            setDirty();
 
 protected:
   struct PerDeviceData
   {
     VkPipelineCache pipelineCache = VK_NULL_HANDLE;
-    bool            dirty         = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
@@ -202,7 +206,6 @@ public:
 
   void           validate(std::shared_ptr<pumex::Device> device);
   VkShaderModule getHandle(VkDevice device) const;
-  void           setDirty();
 
   std::string fileName;
   std::string shaderContents;
@@ -210,7 +213,6 @@ protected:
   struct PerDeviceData
   {
     VkShaderModule  shaderModule = VK_NULL_HANDLE;
-    bool            dirty        = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
@@ -314,8 +316,6 @@ public:
   ComputePipeline(const ComputePipeline&)            = delete;
   ComputePipeline& operator=(const ComputePipeline&) = delete;
   virtual ~ComputePipeline();
-
-  // FIXME : add a bunch of handy functions defining different pipeline aspects
 
   void       validate(std::shared_ptr<pumex::Device> device);
   VkPipeline getHandle(VkDevice device) const;

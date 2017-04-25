@@ -76,7 +76,7 @@ struct RenderData
 
 struct PositionData
 {
-  PositionData(const glm::mat4& p)
+  PositionData(const glm::mat4& p = glm::mat4())
     : position{p}
   {
   }
@@ -86,7 +86,7 @@ struct PositionData
 
 struct InstanceData
 {
-  InstanceData(uint32_t p, uint32_t t, uint32_t m, uint32_t i)
+  InstanceData(uint32_t p=0, uint32_t t=0, uint32_t m=0, uint32_t i=0)
     : positionIndex{ p }, typeID{ t }, materialVariant{ m }, mainInstance {i}
   {
   }
@@ -578,7 +578,7 @@ struct CrowdApplicationData
     std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
     VkDevice vkDevice = deviceSh->device;
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool);
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool, surface->getImageCount());
 
     pipelineCache->validate(deviceSh);
 
@@ -977,8 +977,9 @@ struct CrowdApplicationData
 #if defined(CROWD_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
+    myCmdBuffer[vkDevice]->setActiveIndex(surface->getImageIndex());
     myCmdBuffer[vkDevice]->cmdBegin();
-    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4, 4);
+    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4, 4);
 
     pumex::DescriptorSetValue resultsBuffer = resultsSbo->getDescriptorSetValue(vkDevice);
     pumex::DescriptorSetValue resultsBuffer2 = resultsSbo2->getDescriptorSetValue(vkDevice);
@@ -987,7 +988,7 @@ struct CrowdApplicationData
     if (rData.renderMethod == 1)
     {
 #if defined(CROWD_MEASURE_TIME)
-      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
       // Add memory barrier to ensure that the indirect commands have been consumed before the compute shader updates them
       pumex::PipelineBarrier beforeBufferBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
@@ -1011,7 +1012,7 @@ struct CrowdApplicationData
       myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarrier);
 
 #if defined(CROWD_MEASURE_TIME)
-      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
     }
 
@@ -1021,7 +1022,7 @@ struct CrowdApplicationData
     myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(CROWD_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
     switch (rData.renderMethod)
     {
@@ -1057,7 +1058,7 @@ struct CrowdApplicationData
     }
     }
 #if defined(CROWD_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
     myCmdBuffer[vkDevice]->cmdEndRenderPass();
@@ -1085,13 +1086,13 @@ struct CrowdApplicationData
     // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
     if (updateData.renderMethod == 1)
     {
-      queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->swapChainImageIndex + 2) % 3) * 4, 4, 0);
+      queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->getImageIndex() + 2) % 3) * 4, 4, 0);
       LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
       LOG_ERROR << "GPU draw shader           : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
     }
     else
     {
-      queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->swapChainImageIndex + 2) % 3) * 4 + 2, 2, 0);
+      queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->getImageIndex() + 2) % 3) * 4 + 2, 2, 0);
       LOG_ERROR << "GPU draw duration         : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
     }
     LOG_ERROR << std::endl;

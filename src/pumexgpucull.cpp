@@ -31,7 +31,7 @@
 // struct holding the whole information required to render a single static object
 struct StaticInstanceData
 {
-  StaticInstanceData(const glm::mat4& p, uint32_t t, uint32_t m, float b, float wa, float wf, float wo)
+  StaticInstanceData(const glm::mat4& p = glm::mat4(), uint32_t t = 0, uint32_t m = 0, float b=1.0f, float wa=0.0f, float wf=1.0f, float wo=0.0f)
     : position{ p }, typeID{ t }, materialVariant{ m }, brightness{ b }, wavingAmplitude{ wa }, wavingFrequency{ wf }, wavingOffset{ wo }
   {
   }
@@ -60,7 +60,7 @@ struct DynamicObjectData
 // struct holding the whole information required to render a single dynamic object
 struct DynamicInstanceData
 {
-  DynamicInstanceData(const glm::mat4& p, uint32_t t, uint32_t m, float b)
+  DynamicInstanceData(const glm::mat4& p = glm::mat4(), uint32_t t=0, uint32_t m=0, float b=1.0f)
     : position{ p }, typeID{ t }, materialVariant{ m }, brightness{ b }
   {
   }
@@ -106,20 +106,6 @@ struct RenderData
   std::vector<DynamicObjectData> dynamicObjectData;
 };
 
-
-
-//// Very simple dynamic object state that is not sent to GPU.
-//struct DynamicInstanceDataCPU
-//{
-//  DynamicInstanceDataCPU(const glm::vec3& p, float r, float s, float tnt)
-//    : position{ p }, rotation{ r }, speed{ s }, time2NextTurn{ tnt }
-//  {
-//  }
-//  glm::vec3 position;
-//  float rotation;
-//  float speed;
-//  float time2NextTurn;
-//};
 
 // struct that holds information about material used by specific object type. Demo does not use textures ( in contrast to crowd example )
 struct MaterialGpuCull
@@ -510,8 +496,6 @@ pumex::Asset* createAirplane(float detailRatio, const glm::vec4& hullColor, cons
   return result;
 }
 
-
-
 // struct that works as an application database. Render thread uses data from it
 // Look at createStaticRendering() and createDynamicRendering() methods to see how to
 // register object types, add procedurally created assets and generate object instances
@@ -542,8 +526,6 @@ struct GpuCullApplicationData
 
   std::shared_ptr<pumex::AssetBuffer>                  dynamicAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> dynamicMaterialSet;
-
-
 
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
   std::shared_ptr<pumex::StorageBuffer<StaticInstanceData>>                 staticInstanceSbo;
@@ -640,7 +622,7 @@ struct GpuCullApplicationData
       { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
-    instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(2, instancedRenderLayoutBindings);
+    instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(2*3, instancedRenderLayoutBindings);
     instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
 
@@ -655,7 +637,7 @@ struct GpuCullApplicationData
       { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
     };
     filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(2, filterLayoutBindings);
+    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(2*3, filterLayoutBindings);
     // building pipeline layout
     filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
@@ -773,7 +755,7 @@ struct GpuCullApplicationData
     staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
     staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_static_filter_instances.comp.spv")), "main" };
 
-    staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
+    staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
     staticFilterDescriptorSet->setSource(0, staticAssetBuffer->getTypeBufferDescriptorSetSource(1));
     staticFilterDescriptorSet->setSource(1, staticAssetBuffer->getLODBufferDescriptorSetSource(1));
     staticFilterDescriptorSet->setSource(2, cameraUbo);
@@ -797,7 +779,7 @@ struct GpuCullApplicationData
     };
     staticRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
+    staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
     staticRenderDescriptorSet->setSource(0, cameraUbo);
     staticRenderDescriptorSet->setSource(1, staticInstanceSbo);
     staticRenderDescriptorSet->setSource(2, staticOffValuesSbo);
@@ -920,7 +902,7 @@ struct GpuCullApplicationData
     dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
     dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_dynamic_filter_instances.comp.spv")), "main" };
 
-    dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
+    dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3 );
     dynamicFilterDescriptorSet->setSource(0, dynamicAssetBuffer->getTypeBufferDescriptorSetSource(1));
     dynamicFilterDescriptorSet->setSource(1, dynamicAssetBuffer->getLODBufferDescriptorSetSource(1));
     dynamicFilterDescriptorSet->setSource(2, cameraUbo);
@@ -944,7 +926,7 @@ struct GpuCullApplicationData
     };
     dynamicRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
+    dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
     dynamicRenderDescriptorSet->setSource(0, cameraUbo);
     dynamicRenderDescriptorSet->setSource(1, dynamicInstanceSbo);
     dynamicRenderDescriptorSet->setSource(2, dynamicOffValuesSbo);
@@ -964,7 +946,7 @@ struct GpuCullApplicationData
     std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
     VkDevice                        vkDevice = deviceSh->device;
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool);
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool, surface->getImageCount());
 
     pipelineCache->validate(deviceSh);
     instancedRenderDescriptorSetLayout->validate(deviceSh);
@@ -983,11 +965,7 @@ struct GpuCullApplicationData
       staticMaterialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
       staticRenderPipeline->validate(deviceSh);
       staticFilterPipeline->validate(deviceSh);
-
-      staticInstanceSbo->validate(deviceSh);
-      staticResultsSbo->validate(deviceSh);
       staticResultsSbo2->validate(deviceSh);
-      staticOffValuesSbo->validate(deviceSh);
     }
 
     if (_showDynamicRendering)
@@ -996,11 +974,7 @@ struct GpuCullApplicationData
       dynamicMaterialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
       dynamicRenderPipeline->validate(deviceSh);
       dynamicFilterPipeline->validate(deviceSh);
-
-      dynamicInstanceSbo->validate(deviceSh);
-      dynamicResultsSbo->validate(deviceSh);
       dynamicResultsSbo2->validate(deviceSh);
-      dynamicOffValuesSbo->validate(deviceSh);
     }
   }
 
@@ -1067,16 +1041,19 @@ struct GpuCullApplicationData
       updateData.lastMousePos = mouseMove;
     }
 
+    float camSpeed = 1.0f;
+    if (windowSh->isKeyPressed(VK_LSHIFT))
+      camSpeed = 5.0f;
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
     glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
     if (windowSh->isKeyPressed('W'))
-      updateData.cameraPosition -= forward;
+      updateData.cameraPosition -= forward * camSpeed;
     if (windowSh->isKeyPressed('S'))
-      updateData.cameraPosition += forward;
+      updateData.cameraPosition += forward * camSpeed;
     if (windowSh->isKeyPressed('A'))
-      updateData.cameraPosition -= right;
+      updateData.cameraPosition -= right * camSpeed;
     if (windowSh->isKeyPressed('D'))
-      updateData.cameraPosition += right;
+      updateData.cameraPosition += right * camSpeed;
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.cameraDistance = updateData.cameraDistance;
@@ -1259,6 +1236,7 @@ struct GpuCullApplicationData
     dynamicResultsSbo->set(results);
     dynamicOffValuesSbo->set(std::vector<uint32_t>(offsetSum));
 
+    std::vector<DynamicInstanceData> dynamicInstanceData;
     for (auto it = rData.dynamicObjectData.begin(); it != rData.dynamicObjectData.end(); ++it)
     {
       DynamicInstanceData diData(pumex::extrapolate(it->kinematic, deltaTime), it->typeID, it->materialVariant, it->brightness);
@@ -1281,7 +1259,9 @@ struct GpuCullApplicationData
       {
         diData.bones[_airplaneProp] = bonesReset[diData.typeID][_airplaneProp] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  -1.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
       }
+      dynamicInstanceData.emplace_back(diData);
     }
+    dynamicInstanceSbo->set(dynamicInstanceData);
   }
 
   void draw(std::shared_ptr<pumex::Surface> surface)
@@ -1306,7 +1286,9 @@ struct GpuCullApplicationData
       staticResultsSbo->validate(deviceSh);
       staticOffValuesSbo->validate(deviceSh);
 
+      staticRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
       staticRenderDescriptorSet->validate(deviceSh);
+      staticFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
       staticFilterDescriptorSet->validate(deviceSh);
     }
 
@@ -1316,19 +1298,22 @@ struct GpuCullApplicationData
       dynamicResultsSbo->validate(deviceSh);
       dynamicOffValuesSbo->validate(deviceSh);
 
+      dynamicRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
       dynamicRenderDescriptorSet->validate(deviceSh);
+      dynamicFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
       dynamicFilterDescriptorSet->validate(deviceSh);
     }
 #if defined(GPU_CULL_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
 
+    myCmdBuffer[vkDevice]->setActiveIndex(surface->getImageIndex());
     myCmdBuffer[vkDevice]->cmdBegin();
 
-    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->swapChainImageIndex * 4, 4);
+    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4, 4);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
     pumex::DescriptorSetValue staticResultsBuffer, staticResultsBuffer2, dynamicResultsBuffer, dynamicResultsBuffer2;
     uint32_t staticDrawCount, dynamicDrawCount;
@@ -1399,7 +1384,7 @@ struct GpuCullApplicationData
     myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarriers);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
@@ -1408,7 +1393,7 @@ struct GpuCullApplicationData
     myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
     if (_showStaticRendering)
     {
@@ -1437,7 +1422,7 @@ struct GpuCullApplicationData
       }
     }
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->swapChainImageIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
     myCmdBuffer[vkDevice]->cmdEndRenderPass();
@@ -1454,7 +1439,7 @@ struct GpuCullApplicationData
     float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
     std::vector<uint64_t> queryResults;
     // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->swapChainImageIndex + 2) % 3) * 4, 4, 0);
+    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->getImageIndex() + 2) % 3) * 4, 4, 0);
     LOG_ERROR << "GPU compute duration      : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << "GPU draw duration         : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << std::endl;
@@ -1499,7 +1484,7 @@ int main(int argc, char * argv[])
     pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, false, "Object culling on GPU"};
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } });
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments = 

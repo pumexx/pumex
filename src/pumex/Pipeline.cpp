@@ -49,12 +49,9 @@ DescriptorSetLayout::~DescriptorSetLayout()
 void DescriptorSetLayout::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert( {device->device, PerDeviceData()} ).first;
-  if (!pddit->second.dirty)
+  if (pddit != perDeviceData.end())
     return;
-  if (pddit->second.descriptorSetLayout != VK_NULL_HANDLE)
-    vkDestroyDescriptorSetLayout(pddit->first, pddit->second.descriptorSetLayout, nullptr);
+  pddit = perDeviceData.insert( {device->device, PerDeviceData()} ).first;
 
   std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
   for ( const auto& b : bindings )
@@ -72,7 +69,6 @@ void DescriptorSetLayout::validate(std::shared_ptr<pumex::Device> device)
     descriptorSetLayoutCI.pBindings = setLayoutBindings.data();
     descriptorSetLayoutCI.bindingCount = setLayoutBindings.size();
   VK_CHECK_LOG_THROW(vkCreateDescriptorSetLayout(pddit->first, &descriptorSetLayoutCI, nullptr, &pddit->second.descriptorSetLayout), "Cannot create descriptor set layout");
-  pddit->second.dirty = false;
 }
 
 VkDescriptorSetLayout DescriptorSetLayout::getHandle(VkDevice device) const
@@ -81,12 +77,6 @@ VkDescriptorSetLayout DescriptorSetLayout::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.descriptorSetLayout;
-}
-
-void DescriptorSetLayout::setDirty()
-{
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
 VkDescriptorType DescriptorSetLayout::getDescriptorType(uint32_t binding) const
@@ -114,12 +104,9 @@ DescriptorPool::~DescriptorPool()
 void DescriptorPool::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit != perDeviceData.end())
     return;
-  if (pddit->second.descriptorPool != VK_NULL_HANDLE)
-    vkDestroyDescriptorPool(pddit->first, pddit->second.descriptorPool, nullptr);
+  pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
 
   std::vector<VkDescriptorPoolSize> poolSizes;
   for (const auto& b : bindings)
@@ -136,7 +123,6 @@ void DescriptorPool::validate(std::shared_ptr<pumex::Device> device)
     descriptorPoolCI.maxSets       = poolSize;
     descriptorPoolCI.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // we will free our desriptor sets manually
   VK_CHECK_LOG_THROW(vkCreateDescriptorPool(pddit->first, &descriptorPoolCI, nullptr, &pddit->second.descriptorPool), "Cannot create descriptor pool");
-  pddit->second.dirty = false;
 }
 
 VkDescriptorPool DescriptorPool::getHandle(VkDevice device) const
@@ -145,12 +131,6 @@ VkDescriptorPool DescriptorPool::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.descriptorPool;
-}
-
-void DescriptorPool::setDirty()
-{
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
 DescriptorSetValue::DescriptorSetValue()
@@ -195,8 +175,8 @@ void DescriptorSetSource::notifyDescriptorSets()
 }
 
 
-DescriptorSet::DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> l, std::shared_ptr<pumex::DescriptorPool> p)
-  : layout{ l }, pool{ p }
+DescriptorSet::DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> l, std::shared_ptr<pumex::DescriptorPool> p, uint32_t ac)
+  : layout{ l }, pool{ p }, activeCount{ ac }
 {
 }
 
@@ -207,7 +187,7 @@ DescriptorSet::~DescriptorSet()
   sources.clear();
 
   for (auto& pddit : perDeviceData)
-    vkFreeDescriptorSets(pddit.first, pool->getHandle(pddit.first), 1, &pddit.second.descriptorSet);
+    vkFreeDescriptorSets(pddit.first, pool->getHandle(pddit.first), activeCount, pddit.second.descriptorSet.data());
 }
 
 
@@ -215,20 +195,20 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+    pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
+  if (!pddit->second.dirty[activeIndex])
     return;
-  if (pddit->second.descriptorSet != VK_NULL_HANDLE)
-    vkFreeDescriptorSets(pddit->first, pool->getHandle(pddit->first), 1, &pddit->second.descriptorSet);
+  if (pddit->second.descriptorSet[activeIndex] == VK_NULL_HANDLE)
+  {
+    VkDescriptorSetLayout layoutHandle = layout->getHandle(device->device);
 
-  VkDescriptorSetLayout layoutHandle = layout->getHandle(device->device);
-
-  VkDescriptorSetAllocateInfo descriptorSetAinfo{};
-    descriptorSetAinfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->first);
-    descriptorSetAinfo.descriptorSetCount = 1;
-    descriptorSetAinfo.pSetLayouts        = &layoutHandle;
-  VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->first, &descriptorSetAinfo, &pddit->second.descriptorSet), "Cannot allocate descriptor sets");
+    VkDescriptorSetAllocateInfo descriptorSetAinfo{};
+      descriptorSetAinfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+      descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->first);
+      descriptorSetAinfo.descriptorSetCount = 1;
+      descriptorSetAinfo.pSetLayouts        = &layoutHandle;
+    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->first, &descriptorSetAinfo, &pddit->second.descriptorSet[activeIndex]), "Cannot allocate descriptor sets");
+  }
 
   std::map<uint32_t, DescriptorSetValue> values;
   for (const auto& s : sources)
@@ -241,8 +221,8 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
   {
     VkWriteDescriptorSet writeDescriptorSet = {};
       writeDescriptorSet.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-      writeDescriptorSet.dstSet          = pddit->second.descriptorSet;
-      writeDescriptorSet.descriptorType = layout->getDescriptorType(v.first);
+      writeDescriptorSet.dstSet          = pddit->second.descriptorSet[activeIndex];
+      writeDescriptorSet.descriptorType  = layout->getDescriptorType(v.first);
       writeDescriptorSet.dstBinding      = v.first;
       switch (v.second.vType)
       {
@@ -257,7 +237,7 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
   vkUpdateDescriptorSets(pddit->first, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
-  pddit->second.dirty = false;
+  pddit->second.dirty[activeIndex] = false;
 }
 
 VkDescriptorSet DescriptorSet::getHandle(VkDevice device) const
@@ -265,13 +245,14 @@ VkDescriptorSet DescriptorSet::getHandle(VkDevice device) const
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
-  return pddit->second.descriptorSet;
+  return pddit->second.descriptorSet[activeIndex];
 }
 
 void DescriptorSet::setDirty()
 {
   for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
+    for(auto& d : pdd.second.dirty)
+      d = true;
 }
 
 void DescriptorSet::setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source)
@@ -307,12 +288,9 @@ PipelineLayout::~PipelineLayout()
 void PipelineLayout::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert( {device->device, PerDeviceData()}).first;
-  if (!pddit->second.dirty)
+  if (pddit != perDeviceData.end())
     return;
-  if (pddit->second.pipelineLayout != VK_NULL_HANDLE)
-    vkDestroyPipelineLayout(pddit->first, pddit->second.pipelineLayout, nullptr);
+  pddit = perDeviceData.insert( {device->device, PerDeviceData()}).first;
 
   VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
     pipelineLayoutCI.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -325,7 +303,6 @@ void PipelineLayout::validate(std::shared_ptr<pumex::Device> device)
     pipelineLayoutCI.setLayoutCount = descriptors.size();
     pipelineLayoutCI.pSetLayouts    = descriptors.data();
   VK_CHECK_LOG_THROW(vkCreatePipelineLayout(pddit->first, &pipelineLayoutCI, nullptr, &pddit->second.pipelineLayout), "Cannot create pipeline layout");
-  pddit->second.dirty = false;
 }
 
 VkPipelineLayout PipelineLayout::getHandle(VkDevice device) const
@@ -334,12 +311,6 @@ VkPipelineLayout PipelineLayout::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.pipelineLayout;
-}
-
-void PipelineLayout::setDirty()
-{
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
 PipelineCache::PipelineCache()
@@ -356,17 +327,13 @@ PipelineCache::~PipelineCache()
 void PipelineCache::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({device->device,PerDeviceData()}).first;
-  if (!pddit->second.dirty)
+  if (pddit != perDeviceData.end())
     return;
-  if (pddit->second.pipelineCache != VK_NULL_HANDLE)
-    vkDestroyPipelineCache(pddit->first, pddit->second.pipelineCache, nullptr);
+  pddit = perDeviceData.insert({device->device,PerDeviceData()}).first;
 
   VkPipelineCacheCreateInfo pipelineCacheCI{};
     pipelineCacheCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
   VK_CHECK_LOG_THROW(vkCreatePipelineCache(pddit->first, &pipelineCacheCI, nullptr, &pddit->second.pipelineCache), "Cannot create pipeline cache");
-  pddit->second.dirty = false;
 }
 
 VkPipelineCache PipelineCache::getHandle(VkDevice device) const
@@ -375,12 +342,6 @@ VkPipelineCache PipelineCache::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.pipelineCache;
-}
-
-void PipelineCache::setDirty()
-{
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
 
@@ -406,19 +367,15 @@ ShaderModule::~ShaderModule()
 void ShaderModule::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit != perDeviceData.end())
     return;
-  if (pddit->second.shaderModule != VK_NULL_HANDLE)
-    vkDestroyShaderModule(pddit->first, pddit->second.shaderModule, nullptr);
+  pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
 
   VkShaderModuleCreateInfo shaderModuleCI{};
     shaderModuleCI.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shaderModuleCI.codeSize = shaderContents.size();
     shaderModuleCI.pCode    = (uint32_t*)shaderContents.data();
   VK_CHECK_LOG_THROW(vkCreateShaderModule(device->device, &shaderModuleCI, nullptr, &pddit->second.shaderModule), "Cannot create shader module : " << fileName);
-  pddit->second.dirty = false;
 }
 
 VkShaderModule ShaderModule::getHandle(VkDevice device) const
@@ -427,12 +384,6 @@ VkShaderModule ShaderModule::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.shaderModule;
-}
-
-void ShaderModule::setDirty()
-{
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
 GraphicsPipeline::GraphicsPipeline(std::shared_ptr<pumex::PipelineCache> pc, std::shared_ptr<pumex::PipelineLayout> pl, std::shared_ptr<RenderPass> rp, uint32_t s)

@@ -56,6 +56,8 @@ namespace pumex
     void beginFrame();
     void endFrame();
     void resizeSurface(uint32_t newWidth, uint32_t newHeight);
+    inline uint32_t getImageCount() const;
+    inline uint32_t getImageIndex() const;
     inline VkFramebuffer getCurrentFrameBuffer() const;
     
     std::weak_ptr<pumex::Viewer>    viewer;
@@ -85,6 +87,7 @@ namespace pumex
   protected:
     VkSwapchainKHR                  swapChain                    = VK_NULL_HANDLE;
     std::vector<VkFramebuffer>      frameBuffers;
+    std::vector<VkFence>            waitFences;
     std::vector<std::shared_ptr<pumex::CommandBuffer>> postPresentCmdBuffers;
     std::vector<std::shared_ptr<pumex::CommandBuffer>> prePresentCmdBuffers;
 
@@ -93,6 +96,9 @@ namespace pumex
     void setupDepthStencil(uint32_t width, uint32_t height, uint32_t depth, VkFormat depthFormat);
     void cleanupDepthStencil();
   };
+
+  uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }
+  uint32_t Surface::getImageIndex() const { return swapChainImageIndex; }
 
   VkFramebuffer Surface::getCurrentFrameBuffer() const { return frameBuffers[swapChainImageIndex]; }
 

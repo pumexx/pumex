@@ -25,10 +25,10 @@ const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const pumex::ViewerTraits& vt)
   : viewerTraits{ vt }, 
-  startUpdateGraph { updateGraph, [=](tbb::flow::continue_msg) { startUpdate(); } },
-  endUpdateGraph   { updateGraph, [=](tbb::flow::continue_msg) { endUpdate(); } },
-  startRenderGraph { renderGraph, [=](tbb::flow::continue_msg) { startRender(); } },
-  endRenderGraph   { renderGraph, [=](tbb::flow::continue_msg) { endRender(); } }
+  startUpdateGraph { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  endUpdateGraph   { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  startRenderGraph { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  endRenderGraph   { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } }
 {
   viewerStartTime     = pumex::HPClock::now();
   for(uint32_t i=0; i<3;++i)
@@ -158,9 +158,6 @@ void Viewer::run()
   {
     while (true)
     {
-      if (terminating())
-        break;
-
       {
         std::lock_guard<std::mutex> lck(updateMutex);
         renderIndex      = getNextRenderSlot();
@@ -176,11 +173,25 @@ void Viewer::run()
       //case 2:
       //  LOG_INFO << "R:  +" << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
       //}
-      startRenderGraph.try_put(tbb::flow::continue_msg());
-      renderGraph.wait_for_all();
+      bool continueRun = true;
+      try
+      {
+        continueRun = !terminating();
+        if (continueRun)
+        {
+          startRenderGraph.try_put(tbb::flow::continue_msg());
+          renderGraph.wait_for_all();
+        }
+      }
+      catch (...)
+      {
+        continueRun = false;
+      }
 
       auto renderEndTime = pumex::HPClock::now();
       lastRenderDuration = renderEndTime - renderStartTime;
+      if (!continueRun)
+        break;
     }
   }
   );
@@ -204,39 +215,32 @@ void Viewer::run()
     //}
     auto realUpdateStartTime = pumex::HPClock::now();
 
+    bool continueRun = true;
 #if defined(_WIN32)
-    if (!WindowWin32::checkWindowMessages())
-      break;
+    continueRun = WindowWin32::checkWindowMessages();
 #endif
 
-    startUpdateGraph.try_put(tbb::flow::continue_msg());
-    updateGraph.wait_for_all();
+    if (continueRun)
+    {
+      try
+      {
+        startUpdateGraph.try_put(tbb::flow::continue_msg());
+        updateGraph.wait_for_all();
+      }
+      catch (...)
+      {
+        continueRun = false;
+      }
+    }
 
-    auto updateEndTime = pumex::HPClock::now();
-    lastUpdateDuration = updateEndTime - realUpdateStartTime;
-
+    auto realUpdateEndTime = pumex::HPClock::now();
+    lastUpdateDuration = realUpdateEndTime - realUpdateStartTime;
+    if (!continueRun)
+      break;
   }
   renderThread.join();
-}
-
-void Viewer::startUpdate()
-{
-
-}
-
-void Viewer::endUpdate()
-{
-
-}
-
-void Viewer::startRender()
-{
-
-}
-
-void Viewer::endRender()
-{
-
+  for (auto& d : devices)
+    vkDeviceWaitIdle(d->device);
 }
 
 void Viewer::cleanup()
@@ -248,7 +252,7 @@ void Viewer::cleanup()
     for( auto s : surfaces )
       s->cleanup();
     surfaces.clear();
-    for ( auto d : devices )
+    for (auto d : devices)
       d->cleanup();
     devices.clear();
     physicalDevices.clear();
@@ -258,6 +262,12 @@ void Viewer::cleanup()
     instance = VK_NULL_HANDLE;
   }
 }
+
+void Viewer::setTerminate()
+{
+  viewerTerminate = true;
+}
+
 
 std::shared_ptr<pumex::Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
 {

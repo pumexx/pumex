@@ -21,18 +21,16 @@ QueryPool::~QueryPool()
 void QueryPool::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit != perDeviceData.end())
     return;
+  pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
 
   VkQueryPoolCreateInfo queryPoolCI{};
-  queryPoolCI.sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-  queryPoolCI.queryType          = queryType;
-  queryPoolCI.queryCount         = poolSize;
-  queryPoolCI.pipelineStatistics = pipelineStatistics;
+    queryPoolCI.sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    queryPoolCI.queryType          = queryType;
+    queryPoolCI.queryCount         = poolSize;
+    queryPoolCI.pipelineStatistics = pipelineStatistics;
   VK_CHECK_LOG_THROW(vkCreateQueryPool(pddit->first, &queryPoolCI, nullptr, &pddit->second.queryPool), "Cannot create query pool");
-  pddit->second.dirty = false;
 }
 
 void QueryPool::reset(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t firstQuery, uint32_t queryCount)

@@ -72,7 +72,13 @@ namespace pumex
   template <typename T>
   void StorageBuffer<T>::set(const std::vector<T>& data)
   {
-    storageData = data;
+    if(!data.empty())
+      storageData = data;
+    else
+    {
+      storageData.resize(0);
+      storageData.push_back(T());
+    }
     setDirty();
   }
 
@@ -120,10 +126,13 @@ namespace pumex
       CHECK_LOG_THROW(pddit->second.memorySize == 0, "Cannot create SBO");
       notifyDescriptorSets();
     }
-    uint8_t *pData;
-    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, 0, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
-    memcpy(pData, storageData.data(), sizeof(T)*storageData.size());
-    vkUnmapMemory(device->device, pddit->second.storageMemory);
+    if (storageData.size() > 0)
+    {
+      uint8_t *pData;
+      VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, 0, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
+      memcpy(pData, storageData.data(), sizeof(T)*storageData.size());
+      vkUnmapMemory(device->device, pddit->second.storageMemory);
+    }
     pddit->second.dirty = false;
   }
 }

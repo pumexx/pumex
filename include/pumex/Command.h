@@ -26,28 +26,28 @@ public:
 
   void          validate(std::shared_ptr<pumex::Device> device);
   VkCommandPool getHandle(VkDevice device) const;
-  void          setDirty();
 
   uint32_t queueFamilyIndex;
 protected:
   struct PerDeviceData
   {
     VkCommandPool commandPool = VK_NULL_HANDLE;
-    bool          dirty       = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 struct PipelineBarrier;
 
-
 class PUMEX_EXPORT CommandBuffer
 {
 public:
-  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool);
+  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, uint32_t cbCount = 1);
   CommandBuffer(const CommandBuffer&)            = delete;
   CommandBuffer& operator=(const CommandBuffer&) = delete;
   virtual ~CommandBuffer();
+
+  inline void setActiveIndex(uint32_t index);
+  inline uint32_t getActiveIndex() const;
 
   VkCommandBuffer getHandle() const;
 
@@ -79,8 +79,12 @@ public:
   std::shared_ptr<CommandPool> commandPool;
 protected:
   VkDevice                     device        = VK_NULL_HANDLE;
-  VkCommandBuffer              commandBuffer = VK_NULL_HANDLE;
+  std::vector<VkCommandBuffer> commandBuffer;
+  uint32_t                     activeIndex   = 0;
 };
+
+void     CommandBuffer::setActiveIndex(uint32_t index) { activeIndex = index % commandBuffer.size(); }
+uint32_t CommandBuffer::getActiveIndex() const         { return activeIndex; }
 
 struct PUMEX_EXPORT PipelineBarrier
 {

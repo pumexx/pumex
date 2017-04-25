@@ -27,7 +27,6 @@ public:
   void endQuery(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query);
   void queryTimeStamp(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
   std::vector<uint64_t> getResults(std::shared_ptr<pumex::Device> device, uint32_t firstQuery = 0, uint32_t queryCount = 0, VkQueryResultFlags resultFlags = 0);
-//  void copyResultsToBuffer(std::shared_ptr<pumex::Device> device, FIXME )
 
   VkQueryType                   queryType;
   uint32_t                      poolSize;
@@ -36,7 +35,6 @@ protected:
   struct PerDeviceData
   {
     VkQueryPool queryPool = VK_NULL_HANDLE;
-    bool        dirty     = true;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
