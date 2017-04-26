@@ -5,6 +5,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+//#define VIEWER_MEASURE_TIME 1
+
 const uint32_t MAX_BONES = 63;
 
 struct PositionData
@@ -20,13 +22,45 @@ struct PositionData
   glm::mat4 bones[MAX_BONES];
 };
 
-struct ApplicationData
+struct UpdateData
 {
-  ApplicationData(const std::string& mName, std::shared_ptr<pumex::Viewer> v)
+  UpdateData()
+  {
+  }
+  glm::vec3                                cameraPosition;
+  glm::vec2                                cameraGeographicCoordinates;
+  float                                    cameraDistance;
+
+  glm::vec2                                lastMousePos;
+  bool                                     leftMouseKeyPressed;
+  bool                                     rightMouseKeyPressed;
+  bool                                     xKeyPressed;
+
+};
+
+struct RenderData
+{
+  RenderData()
+    : prevCameraDistance{ 1.0f }, cameraDistance{ 1.0f }
+  {
+  }
+  glm::vec3               prevCameraPosition;
+  glm::vec2               prevCameraGeographicCoordinates;
+  float                   prevCameraDistance;
+  glm::vec3               cameraPosition;
+  glm::vec2               cameraGeographicCoordinates;
+  float                   cameraDistance;
+
+};
+
+
+
+struct ViewerApplicationData
+{
+  ViewerApplicationData(std::shared_ptr<pumex::Viewer> v, const std::string& mName )
     : viewer{v}
   {
     modelName = viewer->getFullFilePath(mName);
-
   }
   void setup()
   {
@@ -74,7 +108,7 @@ struct ApplicationData
     };
     descriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
 
-    descriptorPool = std::make_shared<pumex::DescriptorPool>(10, layoutBindings);
+    descriptorPool = std::make_shared<pumex::DescriptorPool>(2, layoutBindings);
 
     // building pipeline layout
     pipelineLayout = std::make_shared<pumex::PipelineLayout>();
@@ -130,22 +164,277 @@ struct ApplicationData
     boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
     boxDescriptorSet->setSource(0, cameraUbo);
     boxDescriptorSet->setSource(1, positionUbo);
+
+    updateData.cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+    updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
+    updateData.cameraDistance = 1.0f;
+    updateData.leftMouseKeyPressed = false;
+    updateData.rightMouseKeyPressed = false;
   }
-  void update(float timeSinceStart)
+
+  void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
+    std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
+    VkDevice vkDevice = deviceSh->device;
+
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool, surface->getImageCount());
+
+    cameraUbo->validate(deviceSh);
+    positionUbo->validate(deviceSh);
+
+    // loading models
+    assetBuffer.validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+    boxAssetBuffer.validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+    descriptorSetLayout->validate(deviceSh);
+    descriptorPool->validate(deviceSh);
+    pipelineLayout->validate(deviceSh);
+    pipelineCache->validate(deviceSh);
+    pipeline->validate(deviceSh);
+    boxPipeline->validate(deviceSh);
+
+    // preparing descriptor sets
+    descriptorSet->validate(deviceSh);
+    boxDescriptorSet->validate(deviceSh);
+  }
+
+  void processInput(std::shared_ptr<pumex::Surface> surface)
+  {
+#if defined(VIEWER_MEASURE_TIME)
+    auto inputStart = pumex::HPClock::now();
+#endif
+    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
+
+    std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
+    glm::vec2 mouseMove = updateData.lastMousePos;
+    for (const auto& m : mouseEvents)
+    {
+      switch (m.type)
+      {
+      case pumex::MouseEvent::KEY_PRESSED:
+        if (m.button == pumex::MouseEvent::LEFT)
+          updateData.leftMouseKeyPressed = true;
+        if (m.button == pumex::MouseEvent::RIGHT)
+          updateData.rightMouseKeyPressed = true;
+        mouseMove.x = m.x;
+        mouseMove.y = m.y;
+        updateData.lastMousePos = mouseMove;
+        break;
+      case pumex::MouseEvent::KEY_RELEASED:
+        if (m.button == pumex::MouseEvent::LEFT)
+          updateData.leftMouseKeyPressed = false;
+        if (m.button == pumex::MouseEvent::RIGHT)
+          updateData.rightMouseKeyPressed = false;
+        break;
+      case pumex::MouseEvent::MOVE:
+        if (updateData.leftMouseKeyPressed || updateData.rightMouseKeyPressed)
+        {
+          mouseMove.x = m.x;
+          mouseMove.y = m.y;
+        }
+        break;
+      }
+    }
+
+    uint32_t updateIndex = viewer->getUpdateIndex();
+    RenderData& uData = renderData[updateIndex];
+    uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    uData.prevCameraDistance = updateData.cameraDistance;
+    uData.prevCameraPosition = updateData.cameraPosition;
+
+    if (updateData.leftMouseKeyPressed)
+    {
+      updateData.cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - updateData.lastMousePos.x);
+      updateData.cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - updateData.lastMousePos.y);
+      while (updateData.cameraGeographicCoordinates.x < -180.0f)
+        updateData.cameraGeographicCoordinates.x += 360.0f;
+      while (updateData.cameraGeographicCoordinates.x>180.0f)
+        updateData.cameraGeographicCoordinates.x -= 360.0f;
+      updateData.cameraGeographicCoordinates.y = glm::clamp(updateData.cameraGeographicCoordinates.y, -90.0f, 90.0f);
+      updateData.lastMousePos = mouseMove;
+    }
+    if (updateData.rightMouseKeyPressed)
+    {
+      updateData.cameraDistance += 10.0f*(updateData.lastMousePos.y - mouseMove.y);
+      if (updateData.cameraDistance<0.1f)
+        updateData.cameraDistance = 0.1f;
+      updateData.lastMousePos = mouseMove;
+    }
+
+    glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
+    glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
+    if (windowSh->isKeyPressed('W'))
+      updateData.cameraPosition -= forward;
+    if (windowSh->isKeyPressed('S'))
+      updateData.cameraPosition += forward;
+    if (windowSh->isKeyPressed('A'))
+      updateData.cameraPosition -= right;
+    if (windowSh->isKeyPressed('D'))
+      updateData.cameraPosition += right;
+
+    uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
+    uData.cameraDistance = updateData.cameraDistance;
+    uData.cameraPosition = updateData.cameraPosition;
+
+#if defined(VIEWER_MEASURE_TIME)
+    auto inputEnd = pumex::HPClock::now();
+    inputDuration = pumex::inSeconds(inputEnd - inputStart);
+#endif
+  }
+
+  void update(double timeSinceStart, double updateStep)
+  {
+  }
+
+  void prepareCameraForRendering()
+  {
+    uint32_t renderIndex = viewer->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
+
+    glm::vec3 relCam
+    (
+      rData.cameraDistance * cos(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f)
+    );
+    glm::vec3 prevRelCam
+    (
+      rData.prevCameraDistance * cos(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
+      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f)
+    );
+    glm::vec3 eye = relCam + rData.cameraPosition;
+    glm::vec3 prevEye = prevRelCam + rData.prevCameraPosition;
+
+    glm::vec3 realEye = eye + deltaTime * (eye - prevEye);
+    glm::vec3 realCenter = rData.cameraPosition + deltaTime * (rData.cameraPosition - rData.prevCameraPosition);
+
+    glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
+
+    pumex::Camera camera = cameraUbo->get();
+    camera.setViewMatrix(viewMatrix);
+    camera.setObserverPosition(realEye);
+    camera.setTimeSinceStart(renderTime);
+    cameraUbo->set(camera);
+  }
+
+  void prepareModelForRendering()
+  {
+#if defined(VIEWER_MEASURE_TIME)
+    auto prepareBuffersStart = pumex::HPClock::now();
+#endif
+
     std::shared_ptr<pumex::Asset> assetX = assetBuffer.getAsset(modelTypeID, 0);
-    if (assetX->animations.size() <1)
+    if (assetX->animations.empty())
       return;
 
-    PositionData modelData = positionUbo->get();
-    positionUbo->set(modelData);
-   
+    uint32_t renderIndex = viewer->getRenderIndex();
+    const RenderData& rData = renderData[renderIndex];
+
+    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
+
+
+    PositionData positionData;
+    pumex::Animation& anim = assetX->animations[0];
+    pumex::Skeleton& skel = assetX->skeleton;
+
+    uint32_t numAnimChannels = anim.channels.size();
+    uint32_t numSkelBones = skel.bones.size();
+
+    std::vector<uint32_t> boneChannelMapping(numSkelBones);
+    for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+    {
+      auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
+      boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+    }
+
+    std::vector<glm::mat4> localTransforms(MAX_BONES);
+    std::vector<glm::mat4> globalTransforms(MAX_BONES);
+
+    anim.calculateLocalTransforms(renderTime, localTransforms.data(), numAnimChannels);
+    uint32_t bcVal = boneChannelMapping[0];
+    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+    globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
+    for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
+    {
+      bcVal = boneChannelMapping[boneIndex];
+      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+      globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
+    }
+    for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
+      positionData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+
+    positionUbo->set(positionData);
+
+#if defined(VIEWER_MEASURE_TIME)
+    auto prepareBuffersEnd = pumex::HPClock::now();
+    prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
+#endif
+
   }
+
+
+
+  void draw(std::shared_ptr<pumex::Surface> surface)
+  {
+    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
+    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
+    VkDevice                        vkDevice = deviceSh->device;
+
+    uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
+    const RenderData&              rData = renderData[renderIndex];
+
+    uint32_t renderWidth = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
+
+    pumex::Camera camera = cameraUbo->get();
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    cameraUbo->set(camera);
+
+    cameraUbo->validate(deviceSh);
+
+    positionUbo->validate(deviceSh);
+
+    myCmdBuffer[vkDevice]->setActiveIndex(surface->getImageIndex());
+    myCmdBuffer[vkDevice]->cmdBegin();
+
+    std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
+    myCmdBuffer[vkDevice]->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+    myCmdBuffer[vkDevice]->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+    myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+
+    myCmdBuffer[vkDevice]->cmdBindPipeline(pipeline);
+    myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, descriptorSet);
+    assetBuffer.cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
+    assetBuffer.cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, modelTypeID, 0, 50.0f);
+    assetBuffer.cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, testFigureTypeID, 0, 50.0f);
+
+    myCmdBuffer[vkDevice]->cmdBindPipeline(boxPipeline);
+    myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, boxDescriptorSet);
+    boxAssetBuffer.cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
+    boxAssetBuffer.cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, boxTypeID, 0, 50.0f);
+
+    myCmdBuffer[vkDevice]->cmdEndRenderPass();
+    myCmdBuffer[vkDevice]->cmdEnd();
+    myCmdBuffer[vkDevice]->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
+  }
+
+  void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
+  {
+  }
+
   std::shared_ptr<pumex::Viewer> viewer;
   std::string modelName;
   uint32_t    modelTypeID;
   uint32_t    boxTypeID;
   uint32_t    testFigureTypeID;
+
+  UpdateData                                           updateData;
+  std::array<RenderData, 3>                            renderData;
+
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
   std::shared_ptr<pumex::UniformBuffer<PositionData>> positionUbo;
 
@@ -160,185 +449,9 @@ struct ApplicationData
   std::shared_ptr<pumex::DescriptorPool>      descriptorPool;
   std::shared_ptr<pumex::DescriptorSet>       descriptorSet;
   std::shared_ptr<pumex::DescriptorSet>       boxDescriptorSet;
-};
 
-class ViewerThread : public pumex::SurfaceThread
-{
-public:
-  ViewerThread( std::shared_ptr<ApplicationData> applicationData )
-    : pumex::SurfaceThread(), appData(applicationData)
-  {
-  }
+  std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
-  void setup(std::shared_ptr<pumex::Surface> s) override
-  {
-    SurfaceThread::setup(s);
-
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Device>  deviceSh = surfaceSh->device.lock();
-    VkDevice                        vkDevice = deviceSh->device;
-
-    myCmdBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, surfaceSh->commandPool);
-    myCmdBuffer->validate(deviceSh);
-
-    appData->cameraUbo->validate(deviceSh);
-    appData->positionUbo->validate(deviceSh);
-
-    // loading models
-    appData->assetBuffer.validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
-    appData->boxAssetBuffer.validate(deviceSh, true, surfaceSh->commandPool, surfaceSh->presentationQueue);
-    appData->descriptorSetLayout->validate(deviceSh);
-    appData->descriptorPool->validate(deviceSh);
-    appData->pipelineLayout->validate(deviceSh);
-    appData->pipelineCache->validate(deviceSh);
-    appData->pipeline->validate(deviceSh);
-    appData->boxPipeline->validate(deviceSh);
-
-    // preparing descriptor sets
-    appData->descriptorSet->validate(deviceSh);
-    appData->boxDescriptorSet->validate(deviceSh);
-
-    cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
-    cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    cameraDistance              = 1.0f;
-    leftMouseKeyPressed         = false;
-    rightMouseKeyPressed        = false;
-  }
-
-  void cleanup() override
-  {
-    SurfaceThread::cleanup();
-  }
-  ~ViewerThread()
-  {
-    cleanup();
-  }
-  void draw()
-  {
-    std::shared_ptr<pumex::Surface> surfaceSh = surface.lock();
-    std::shared_ptr<pumex::Viewer>  viewerSh  = surfaceSh->viewer.lock();
-    std::shared_ptr<pumex::Device>  deviceSh  = surfaceSh->device.lock();
-    std::shared_ptr<pumex::Window>  windowSh  = surfaceSh->window.lock();
-    VkDevice                        vkDevice  = deviceSh->device;
-
-    double timeSinceStartInSeconds = std::chrono::duration<double, std::ratio<1,1>>(timeSinceStart).count();
-    double lastFrameInSeconds      = std::chrono::duration<double, std::ratio<1,1>>(timeSinceLastFrame).count();
-
-    appData->update(timeSinceStartInSeconds);
-
-    // camera update
-    std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
-    glm::vec2 mouseMove = lastMousePos;
-    for (const auto& m : mouseEvents)
-    {
-      switch (m.type)
-      {
-      case pumex::MouseEvent::KEY_PRESSED:
-        if (m.button == pumex::MouseEvent::LEFT)
-          leftMouseKeyPressed = true;
-        if (m.button == pumex::MouseEvent::RIGHT)
-          rightMouseKeyPressed = true;
-        mouseMove.x = m.x;
-        mouseMove.y = m.y;
-        lastMousePos = mouseMove;
-        break;
-      case pumex::MouseEvent::KEY_RELEASED:
-        if (m.button == pumex::MouseEvent::LEFT)
-          leftMouseKeyPressed = false;
-        if (m.button == pumex::MouseEvent::RIGHT)
-          rightMouseKeyPressed = false;
-        break;
-      case pumex::MouseEvent::MOVE:
-        if (leftMouseKeyPressed || rightMouseKeyPressed)
-        {
-          mouseMove.x = m.x;
-          mouseMove.y = m.y;
-        }
-        break;
-      }
-    }
-    if (leftMouseKeyPressed)
-    {
-      cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - lastMousePos.x);
-      cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - lastMousePos.y);
-      while (cameraGeographicCoordinates.x < -180.0f)
-        cameraGeographicCoordinates.x += 360.0f;
-      while (cameraGeographicCoordinates.x>180.0f)
-        cameraGeographicCoordinates.x -= 360.0f;
-      cameraGeographicCoordinates.y = glm::clamp(cameraGeographicCoordinates.y, -90.0f, 90.0f);
-      lastMousePos = mouseMove;
-    }
-    if (rightMouseKeyPressed)
-    {
-      cameraDistance += 10.0f*(lastMousePos.y - mouseMove.y);
-      if (cameraDistance<0.1f)
-        cameraDistance = 0.1f;
-      lastMousePos = mouseMove;
-    }
-
-    glm::vec3 forward = glm::vec3(cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
-    glm::vec3 right = glm::vec3(cos((cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (windowSh->isKeyPressed('W'))
-      cameraPosition -= forward;
-    if (windowSh->isKeyPressed('S'))
-      cameraPosition += forward;
-    if (windowSh->isKeyPressed('A'))
-      cameraPosition -= right;
-    if (windowSh->isKeyPressed('D'))
-      cameraPosition += right;
-
-    glm::vec3 eye
-      (
-      cameraDistance * cos(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      cameraDistance * sin(cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      cameraDistance * sin(cameraGeographicCoordinates.y * 3.1415f / 180.0f)
-      );
-    glm::mat4 viewMatrix = glm::lookAt(glm::vec3(eye) + cameraPosition, cameraPosition, glm::vec3(0, 0, 1));
-
-    uint32_t renderWidth = surfaceSh->swapChainSize.width;
-    uint32_t renderHeight = surfaceSh->swapChainSize.height;
-
-    pumex::Camera camera = appData->cameraUbo->get();
-    camera.setViewMatrix(viewMatrix);
-    camera.setObserverPosition(eye);
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    appData->cameraUbo->set(camera);
-
-    appData->cameraUbo->validate(deviceSh);
-    appData->positionUbo->validate(deviceSh);
-
-    myCmdBuffer->cmdBegin(deviceSh);
-
-    std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    myCmdBuffer->cmdBeginRenderPass(deviceSh, appData->defaultRenderPass, surfaceSh->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    myCmdBuffer->cmdSetViewport(deviceSh, 0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    myCmdBuffer->cmdSetScissor(deviceSh, 0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-    myCmdBuffer->cmdBindPipeline(deviceSh, appData->pipeline);
-    myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_GRAPHICS, appData->pipelineLayout, 0, appData->descriptorSet);
-    appData->assetBuffer.cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
-    appData->assetBuffer.cmdDrawObject(deviceSh, myCmdBuffer, 1, appData->modelTypeID, 0, 50.0f);
-    appData->assetBuffer.cmdDrawObject(deviceSh, myCmdBuffer, 1, appData->testFigureTypeID, 0, 50.0f);
-
-    myCmdBuffer->cmdBindPipeline(deviceSh, appData->boxPipeline);
-    myCmdBuffer->cmdBindDescriptorSets(deviceSh, VK_PIPELINE_BIND_POINT_GRAPHICS, appData->pipelineLayout, 0, appData->boxDescriptorSet);
-    appData->boxAssetBuffer.cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer, 1, 0);
-    appData->boxAssetBuffer.cmdDrawObject(deviceSh, myCmdBuffer, 1, appData->boxTypeID, 0, 50.0f);
-
-    myCmdBuffer->cmdEndRenderPass(deviceSh);
-    myCmdBuffer->cmdEnd(deviceSh);
-    myCmdBuffer->queueSubmit(deviceSh, surfaceSh->presentationQueue, { surfaceSh->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surfaceSh->renderCompleteSemaphore }, VK_NULL_HANDLE);
-  }
-
-  std::shared_ptr<ApplicationData>      appData;
-  std::shared_ptr<pumex::CommandBuffer> myCmdBuffer;
-
-  glm::vec3 cameraPosition;
-  glm::vec2 cameraGeographicCoordinates;
-  float     cameraDistance;
-  glm::vec2 lastMousePos;
-  bool      leftMouseKeyPressed;
-  bool      rightMouseKeyPressed;
 };
 
 int main( int argc, char * argv[] )
@@ -353,11 +466,16 @@ int main( int argc, char * argv[] )
   std::string windowName = "Pumex viewer : ";
   windowName += argv[1];
   std::string appName = "pumex viewer";
-	
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", true, { { "VK_LAYER_LUNARG_standard_validation" } } };
-  std::shared_ptr<pumex::Viewer> viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+
+  const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", true, requestDebugLayers, 60 };
+  viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+
+  std::shared_ptr<pumex::Viewer> viewer;
   try
   {
+    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+
     std::vector<pumex::QueueTraits> requestQueues = { pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT , 0, { 0.75f } } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
@@ -390,12 +508,40 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
     surfaceTraits.setDefaultRenderPass(renderPass);
 
-    std::shared_ptr<ApplicationData> applicationData = std::make_shared<ApplicationData>(argv[1], viewer);
+    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(viewer, argv[1]);
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup();
 
-    std::shared_ptr<pumex::SurfaceThread> thread0 = std::make_shared<ViewerThread>(applicationData);
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits, thread0);
+    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
+    applicationData->surfaceSetup(surface);
+
+    tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
+    {
+      applicationData->processInput(surface);
+      applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
+    });
+
+    tbb::flow::make_edge(viewer->startUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+
+    // Making the render graph.
+    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
+    // Consider make_edge() in render graph :
+    // viewer->startRenderGraph should point to all root nodes.
+    // All leaf nodes should point to viewer->endRenderGraph.
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(); applicationData->prepareModelForRendering(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
+
+    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
+    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
+    tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
+    tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
+    tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
+    tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
+
 
     viewer->run();
   }
