@@ -410,7 +410,7 @@ struct CrowdApplicationData
 
     };
     simpleRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(simpleRenderLayoutBindings);
-    simpleRenderDescriptorPool = std::make_shared<pumex::DescriptorPool>(1, simpleRenderLayoutBindings);
+    simpleRenderDescriptorPool = std::make_shared<pumex::DescriptorPool>(1*3, simpleRenderLayoutBindings);
     // building pipeline layout
     simpleRenderPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     simpleRenderPipelineLayout->descriptorSetLayouts.push_back(simpleRenderDescriptorSetLayout);
@@ -430,7 +430,7 @@ struct CrowdApplicationData
     };
     simpleRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    simpleRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(simpleRenderDescriptorSetLayout, simpleRenderDescriptorPool);
+    simpleRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(simpleRenderDescriptorSetLayout, simpleRenderDescriptorPool, 3);
     simpleRenderDescriptorSet->setSource(0, cameraUbo);
     simpleRenderDescriptorSet->setSource(1, positionSbo);
     simpleRenderDescriptorSet->setSource(2, instanceSbo);
@@ -451,7 +451,7 @@ struct CrowdApplicationData
       { 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
-    instancedRenderDescriptorPool = std::make_shared<pumex::DescriptorPool>(1, instancedRenderLayoutBindings);
+    instancedRenderDescriptorPool = std::make_shared<pumex::DescriptorPool>(3, instancedRenderLayoutBindings);
     // building pipeline layout
     instancedRenderPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
@@ -471,7 +471,7 @@ struct CrowdApplicationData
     };
     instancedRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
+    instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
     instancedRenderDescriptorSet->setSource(0, cameraUbo);
     instancedRenderDescriptorSet->setSource(1, positionSbo);
     instancedRenderDescriptorSet->setSource(2, instanceSbo);
@@ -492,14 +492,14 @@ struct CrowdApplicationData
       { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
     };
     filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(1, filterLayoutBindings);
+    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(1*3, filterLayoutBindings);
     // building pipeline layout
     filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
     filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_filter_instances.comp.spv")), "main" };
 
-    filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
+    filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
     filterDescriptorSet->setSource(0, skeletalAssetBuffer->getTypeBufferDescriptorSetSource(1));
     filterDescriptorSet->setSource(1, skeletalAssetBuffer->getLODBufferDescriptorSetSource(1));
     filterDescriptorSet->setSource(2, cameraUbo);
@@ -569,7 +569,7 @@ struct CrowdApplicationData
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);
     resultsSbo->set(results);
     resultsSbo2->set(results);
-    offValuesSbo->set(std::vector<uint32_t>(1)); // FIXME
+//    offValuesSbo->set(std::vector<uint32_t>(1)); // FIXME
 
   }
 
@@ -600,14 +600,7 @@ struct CrowdApplicationData
     filterPipeline->validate(deviceSh);
 
     timeStampQueryPool->validate(deviceSh);
-
-    // preparing descriptor sets
-    cameraUbo->validate(deviceSh);
-    positionSbo->validate(deviceSh);
-    instanceSbo->validate(deviceSh);
-    resultsSbo->validate(deviceSh);
     resultsSbo2->validate(deviceSh);
-    offValuesSbo->validate(deviceSh);
   }
 
 
@@ -970,8 +963,11 @@ struct CrowdApplicationData
     resultsSbo->validate(deviceSh);
     offValuesSbo->validate(deviceSh);
 
+    simpleRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
     simpleRenderDescriptorSet->validate(deviceSh);
+    instancedRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
     instancedRenderDescriptorSet->validate(deviceSh);
+    filterDescriptorSet->setActiveIndex(surface->getImageIndex());
     filterDescriptorSet->validate(deviceSh);
 
 #if defined(CROWD_MEASURE_TIME)
