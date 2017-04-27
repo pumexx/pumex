@@ -973,9 +973,10 @@ struct CrowdApplicationData
 #if defined(CROWD_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
-    myCmdBuffer[vkDevice]->setActiveIndex(surface->getImageIndex());
-    myCmdBuffer[vkDevice]->cmdBegin();
-    timeStampQueryPool->reset(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4, 4);
+    auto currentCmdBuffer = myCmdBuffer[vkDevice];
+    currentCmdBuffer->setActiveIndex(surface->getImageIndex());
+    currentCmdBuffer->cmdBegin();
+    timeStampQueryPool->reset(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4, 4);
 
     pumex::DescriptorSetValue resultsBuffer = resultsSbo->getDescriptorSetValue(vkDevice);
     pumex::DescriptorSetValue resultsBuffer2 = resultsSbo2->getDescriptorSetValue(vkDevice);
@@ -984,49 +985,49 @@ struct CrowdApplicationData
     if (rData.renderMethod == 1)
     {
 #if defined(CROWD_MEASURE_TIME)
-      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+      timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
       // Add memory barrier to ensure that the indirect commands have been consumed before the compute shader updates them
       pumex::PipelineBarrier beforeBufferBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
-      myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarrier);
+      currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarrier);
 
-      myCmdBuffer[vkDevice]->cmdBindPipeline(filterPipeline);
-      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, filterDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(filterPipeline);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, filterDescriptorSet);
       uint32_t instanceCount = rData.people.size() + rData.clothes.size();
-      myCmdBuffer[vkDevice]->cmdDispatch(instanceCount / 16 + ((instanceCount % 16>0) ? 1 : 0), 1, 1);
+      currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16>0) ? 1 : 0), 1, 1);
 
       pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
-      myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
+      currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
 
       VkBufferCopy copyRegion{};
       copyRegion.srcOffset = resultsBuffer.bufferInfo.offset;
       copyRegion.size = resultsBuffer.bufferInfo.range;
       copyRegion.dstOffset = resultsBuffer2.bufferInfo.offset;
-      myCmdBuffer[vkDevice]->cmdCopyBuffer(resultsBuffer.bufferInfo.buffer, resultsBuffer2.bufferInfo.buffer, copyRegion);
+      currentCmdBuffer->cmdCopyBuffer(resultsBuffer.bufferInfo.buffer, resultsBuffer2.bufferInfo.buffer, copyRegion);
 
       pumex::PipelineBarrier afterCopyBufferBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer2.bufferInfo);
-      myCmdBuffer[vkDevice]->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarrier);
+      currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarrier);
 
 #if defined(CROWD_MEASURE_TIME)
-      timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+      timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
     }
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    myCmdBuffer[vkDevice]->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    myCmdBuffer[vkDevice]->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+    currentCmdBuffer->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(CROWD_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
     switch (rData.renderMethod)
     {
     case 0: // simple rendering: no compute culling, no instancing
     {
-      //myCmdBuffer[vkDevice]->cmdBindPipeline(simpleRenderPipeline);
-      //myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, simpleRenderPipelineLayout, 0, simpleRenderDescriptorSet);
-      //skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
+      //currentCmdBuffer->cmdBindPipeline(simpleRenderPipeline);
+      //currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, simpleRenderPipelineLayout, 0, simpleRenderDescriptorSet);
+      //skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
       //// Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
       ////      glm::vec4 cameraPos = frameData.camera.getViewMatrixInverse() * glm::vec4(0,0,0,1);
       //glm::vec4 cameraPos = frameData[readIdx].camera.getObserverPosition();
@@ -1034,32 +1035,32 @@ struct CrowdApplicationData
       //{
       //  glm::vec4 objectPos = frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex].position[3];
       //  float distanceToCamera = glm::length(cameraPos - objectPos);
-      //  skeletalAssetBuffer->cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, frameData[readIdx].instanceData[i].typeID, i, distanceToCamera);
+      //  skeletalAssetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, frameData[readIdx].instanceData[i].typeID, i, distanceToCamera);
       //}
       break;
     }
     case 1: // compute culling and instanced rendering
     {
-      myCmdBuffer[vkDevice]->cmdBindPipeline(instancedRenderPipeline);
-      myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
-      skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
+      currentCmdBuffer->cmdBindPipeline(instancedRenderPipeline);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
+      skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
-        myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
         for (uint32_t i = 0; i < drawCount; ++i)
-          myCmdBuffer[vkDevice]->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+          currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
       }
       break;
     }
     }
 #if defined(CROWD_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer[vkDevice], surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
-    myCmdBuffer[vkDevice]->cmdEndRenderPass();
-    myCmdBuffer[vkDevice]->cmdEnd();
-    myCmdBuffer[vkDevice]->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
+    currentCmdBuffer->cmdEndRenderPass();
+    currentCmdBuffer->cmdEnd();
+    currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
 #if defined(CROWD_MEASURE_TIME)
     auto drawEnd = pumex::HPClock::now();
     drawDuration = pumex::inSeconds(drawEnd - drawStart);

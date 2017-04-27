@@ -398,28 +398,29 @@ struct ViewerApplicationData
 
     positionUbo->validate(deviceSh);
 
-    myCmdBuffer[vkDevice]->setActiveIndex(surface->getImageIndex());
-    myCmdBuffer[vkDevice]->cmdBegin();
+    auto currentCmdBuffer = myCmdBuffer[vkDevice];
+    currentCmdBuffer->setActiveIndex(surface->getImageIndex());
+    currentCmdBuffer->cmdBegin();
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    myCmdBuffer[vkDevice]->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    myCmdBuffer[vkDevice]->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    myCmdBuffer[vkDevice]->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+    currentCmdBuffer->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
-    myCmdBuffer[vkDevice]->cmdBindPipeline(pipeline);
-    myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, descriptorSet);
-    assetBuffer.cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
-    assetBuffer.cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, modelTypeID, 0, 50.0f);
-    assetBuffer.cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, testFigureTypeID, 0, 50.0f);
+    currentCmdBuffer->cmdBindPipeline(pipeline);
+    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, descriptorSet);
+    assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
+    assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
+    assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
 
-    myCmdBuffer[vkDevice]->cmdBindPipeline(boxPipeline);
-    myCmdBuffer[vkDevice]->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, boxDescriptorSet);
-    boxAssetBuffer.cmdBindVertexIndexBuffer(deviceSh, myCmdBuffer[vkDevice], 1, 0);
-    boxAssetBuffer.cmdDrawObject(deviceSh, myCmdBuffer[vkDevice], 1, boxTypeID, 0, 50.0f);
+    currentCmdBuffer->cmdBindPipeline(boxPipeline);
+    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, boxDescriptorSet);
+    boxAssetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
+    boxAssetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
 
-    myCmdBuffer[vkDevice]->cmdEndRenderPass();
-    myCmdBuffer[vkDevice]->cmdEnd();
-    myCmdBuffer[vkDevice]->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
+    currentCmdBuffer->cmdEndRenderPass();
+    currentCmdBuffer->cmdEnd();
+    currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
   }
 
   void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
