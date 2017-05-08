@@ -13,6 +13,8 @@
 namespace pumex
 {
 
+const glm::mat4 mat4unity = glm::mat4();
+
 class Device;
 
 // Class representing a tree of bones to animate the asset

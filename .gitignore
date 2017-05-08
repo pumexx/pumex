@@ -9,7 +9,9 @@
 *.lib
 *.pdb
 *.dll
+*.ilk
 *.exe
+*.pc
 
 # CMake files
 **/CMakeFiles/**
@@ -24,6 +26,7 @@ external/glm/
 external/gli/
 external/assimp/
 external/tbb/
+stamp/
 
 #others
 *.tlog

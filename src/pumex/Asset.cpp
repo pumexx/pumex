@@ -289,11 +289,11 @@ float Animation::Channel::endTime() const
 
 glm::mat4 Animation::Channel::calculateTransform(float time, Channel::State before, Channel::State after) const
 {
-  glm::vec3 vScale       = scale.size()<=1    ? glm::vec3(1,1,1) : mix(scale.data(), scale.size(), calculateAnimationTime(time, scaleTimeBegin, scaleTimeEnd,  before, after));
-  glm::quat qRotation    = rotation.size()<=1 ? glm::quat()      : slerp(rotation.data(), rotation.size(), calculateAnimationTime(time, rotationTimeBegin, rotationTimeEnd, before, after) );
-  glm::vec3 vTranslation = position.size()<=1 ? glm::vec3(0,0,0) : mix(position.data(), position.size(), calculateAnimationTime(time, positionTimeBegin, positionTimeEnd, before, after));
+  glm::vec3 vScale       = scale.empty()    ? glm::vec3(1,1,1) : mix(scale.data(), scale.size(), calculateAnimationTime(time, scaleTimeBegin, scaleTimeEnd,  before, after));
+  glm::quat qRotation    = rotation.empty() ? glm::quat()      : slerp(rotation.data(), rotation.size(), calculateAnimationTime(time, rotationTimeBegin, rotationTimeEnd, before, after) );
+  glm::vec3 vTranslation = position.empty() ? glm::vec3(0,0,0) : mix(position.data(), position.size(), calculateAnimationTime(time, positionTimeBegin, positionTimeEnd, before, after));
 
-  return glm::scale(glm::translate(glm::mat4(), vTranslation) * glm::mat4_cast(qRotation), vScale);
+  return glm::scale(glm::translate(mat4unity, vTranslation) * glm::mat4_cast(qRotation), vScale);
 }
 
 void Animation::calculateLocalTransforms(float time, glm::mat4* data, uint32_t size) const

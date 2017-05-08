@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.7.0 FATAL_ERROR)
 
 project( Pumex )
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
+    string( TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG )
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/bin)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/bin)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/lib)
+endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
+
 include_directories(include)
 
 find_package(VULKAN REQUIRED)
@@ -13,7 +23,7 @@ set(GLM_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/glm")
 ExternalProject_Add( glm-external
   PREFIX "${GLM_BUILD_DIR}"
   BINARY_DIR "${GLM_BUILD_DIR}/build"
-  STAMP_DIR "${GLM_BUILD_DIR}/stamp"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/glm"
   GIT_REPOSITORY "https://github.com/g-truc/glm.git"
   GIT_TAG "0.9.8"
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/glm"
@@ -31,7 +41,7 @@ set(GLI_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/gli")
 ExternalProject_Add( gli-external
   PREFIX "${GLI_BUILD_DIR}"
   BINARY_DIR "${GLI_BUILD_DIR}/build"
-  STAMP_DIR "${GLI_BUILD_DIR}/stamp"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/gli"
   GIT_REPOSITORY "https://github.com/g-truc/gli.git"
   GIT_TAG "0.8.2"
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/gli"
@@ -50,19 +60,13 @@ set(ASSIMP_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/assimp")
 ExternalProject_Add( assimp-external
   PREFIX "${ASSIMP_BUILD_DIR}"
   BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
-  STAMP_DIR "${ASSIMP_BUILD_DIR}/stamp"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/assimp"
   GIT_REPOSITORY "https://github.com/assimp/assimp.git"
   GIT_TAG "v3.3.1"
   SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
   UPDATE_COMMAND ""
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DASSIMP_BUILD_TESTS=off -DCMAKE_DEBUG_POSTFIX=d
   UPDATE_DISCONNECTED 1
-)
-
-ExternalProject_Add_Step( assimp-external assimp-external-copy-binaries
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_BINARY_DIR}/bin" "${CMAKE_CURRENT_BINARY_DIR}"
-  COMMENT "Copying dlls to build folder"
-  DEPENDEES install
 )
 
 if(WIN32)
@@ -85,11 +89,11 @@ set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
 ExternalProject_Add( tbb-external
   PREFIX "${TBB_BUILD_DIR}"
   BINARY_DIR "${TBB_BUILD_DIR}/build"
-  STAMP_DIR "${TBB_BUILD_DIR}/stamp"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/tbb"
   GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
   SOURCE_DIR "${TBB_SOURCE_DIR}"
   UPDATE_COMMAND ""
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DCMAKE_DEBUG_POSTFIX=_debug -DTBB_BUILD_TESTS=OFF
   UPDATE_DISCONNECTED 1
 )
 
@@ -101,10 +105,7 @@ else(WIN32)
 	find_library(TBB_LIBRARIES NAMES tbb PATHS /usr/local/lib/ )
 endif(WIN32)
 
-
-
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
-
 
 # FIXME - android not implemented, linux never tested
 if(WIN32)
@@ -140,22 +141,40 @@ foreach( _file ${PUMEX_SHADERS} )
                       ARGS    -V ${_file} -o ${_file_out} )
 	list (APPEND PUMEX_SHADERS_COMPILED ${_file_out})
 endforeach()
+
+SET(CMAKE_DEBUG_POSTFIX "d")
+SET(CMAKE_RELEASE_POSTFIX "")
+SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
+SET(CMAKE_MINSIZEREL_POSTFIX "s")
+
 add_custom_target (shaders DEPENDS ${PUMEX_SHADERS_COMPILED} SOURCES ${PUMEX_SHADERS})
 
 add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
 target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
 target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
-add_dependencies( pumex glm-external gli-external assimp-external )
+add_dependencies( pumex glm-external gli-external assimp-external tbb-external )
 target_link_libraries( pumex ${WINLIBS} ${TBB_LIBRARIES} ${Vulkan_LIBRARIES} ${ASSIMP_LIBRARIES} )
+
+MACRO(set_executable_postfixes target)
+  set_target_properties(${target} PROPERTIES DEBUG_OUTPUT_NAME "${target}${CMAKE_DEBUG_POSTFIX}")
+  set_target_properties(${target} PROPERTIES RELEASE_OUTPUT_NAME "${target}${CMAKE_RELEASE_POSTFIX}")
+  set_target_properties(${target} PROPERTIES RELWITHDEBINFO_OUTPUT_NAME "${target}${CMAKE_RELWITHDEBINFO_POSTFIX}")
+  set_target_properties(${target} PROPERTIES MINSIZEREL_OUTPUT_NAME "${target}${CMAKE_MINSIZEREL_POSTFIX}")
+ENDMACRO(set_executable_postfixes)
 
 add_executable( pumexgpucull src/pumexgpucull.cpp )
 add_dependencies( pumexgpucull shaders )
 target_link_libraries( pumexgpucull pumex )
+set_executable_postfixes( pumexgpucull )
 
 add_executable( pumexviewer src/pumexviewer.cpp )
 add_dependencies( pumexviewer shaders )
 target_link_libraries( pumexviewer pumex )
+set_executable_postfixes( pumexviewer )
 
 add_executable( pumexcrowd src/pumexcrowd.cpp )
 add_dependencies( pumexcrowd shaders )
 target_link_libraries( pumexcrowd pumex )
+set_executable_postfixes( pumexcrowd )
+
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
