@@ -1,5 +1,6 @@
 #pragma once
 #include <vulkan/vulkan.h>
+#include <pumex/Version.h>
 #include <pumex/utils/Log.h>
 #include <pumex/HPClock.h>
 #include <pumex/Viewer.h>

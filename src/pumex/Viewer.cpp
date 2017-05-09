@@ -45,15 +45,20 @@ Viewer::Viewer(const pumex::ViewerTraits& vt)
     defaultDirectories.push_back(currentDir);
 #if defined(_WIN32)
     defaultDirectories.push_back(currentDir + "\\data");
-    // also register data directory specific for development
-    currentDir = currentDir.substr(0, currentDir.find_last_of("\\"));
-    defaultDirectories.push_back(currentDir + "\\data");
     defaultDirectories.push_back(currentDir + "\\data\\textures");
+    defaultDirectories.push_back(currentDir + "\\..\\data");
+    defaultDirectories.push_back(currentDir + "\\..\\data\\textures");
+    defaultDirectories.push_back(currentDir + "\\..\\..\\data");
+    defaultDirectories.push_back(currentDir + "\\..\\..\\data\\textures");
 #else
     defaultDirectories.push_back(currentDir + "/data");
     currentDir = currentDir.substr(0, currentDir.find_last_of("/"));
     defaultDirectories.push_back(currentDir + "/data");
     defaultDirectories.push_back(currentDir + "/data/textures");
+    defaultDirectories.push_back(currentDir + "../data");
+    defaultDirectories.push_back(currentDir + "../data/textures");
+    defaultDirectories.push_back(currentDir + "../../data");
+    defaultDirectories.push_back(currentDir + "../../data/textures");
 #endif
   }
   // register basic directories - executable directory and data directory

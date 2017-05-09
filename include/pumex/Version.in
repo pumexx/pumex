@@ -1,0 +1,5 @@
+#pragma once
+
+#define Pumex_VERSION_MAJOR @Pumex_VERSION_MAJOR@
+#define Pumex_VERSION_MINOR @Pumex_VERSION_MINOR@
+#define Pumex_VERSION_PATCH @Pumex_VERSION_PATCH@

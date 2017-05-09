@@ -1,7 +1,20 @@
 cmake_minimum_required(VERSION 3.7.0 FATAL_ERROR)
 
 project( Pumex )
+set(Pumex_VERSION_MAJOR 0)
+set(Pumex_VERSION_MINOR 1)
+set(Pumex_VERSION_PATCH 0)
 
+configure_file (
+  "${PROJECT_SOURCE_DIR}/include/pumex/Version.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h"
+  )
+include_directories(include)
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/include )
+
+find_package(VULKAN REQUIRED)
+include_directories(${Vulkan_INCLUDE_DIRS})
+  
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -11,11 +24,6 @@ foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/bin)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/lib)
 endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
-
-include_directories(include)
-
-find_package(VULKAN REQUIRED)
-include_directories(${Vulkan_INCLUDE_DIRS})
 
 include(ExternalProject)
 
@@ -35,7 +43,11 @@ ExternalProject_Add( glm-external
   INSTALL_COMMAND ""
   UPDATE_DISCONNECTED 1
 )
-include_directories(${CMAKE_SOURCE_DIR}/external/glm)
+ExternalProject_Add_Step( glm-external glm-external-copy-includes
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/glm/glm" "${CMAKE_CURRENT_BINARY_DIR}/include/glm"
+  COMMENT "Copying glm headers"
+  DEPENDEES install
+)
 
 set(GLI_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/gli")
 ExternalProject_Add( gli-external
@@ -53,7 +65,11 @@ ExternalProject_Add( gli-external
   INSTALL_COMMAND ""
   UPDATE_DISCONNECTED 1
 )
-include_directories(${CMAKE_SOURCE_DIR}/external/gli)
+ExternalProject_Add_Step( gli-external gli-external-copy-includes
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/gli/gli" "${CMAKE_CURRENT_BINARY_DIR}/include/gli"
+  COMMENT "Copying gli headers"
+  DEPENDEES install
+)
 
 set(ASSIMP_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/assimp)
 set(ASSIMP_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/assimp")
@@ -105,8 +121,6 @@ else(WIN32)
 	find_library(TBB_LIBRARIES NAMES tbb PATHS /usr/local/lib/ )
 endif(WIN32)
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
-
 # FIXME - android not implemented, linux never tested
 if(WIN32)
 #	find_library(ASSIMP_LIBRARIES NAMES assimp libassimp.dll.a PATHS ${CMAKE_SOURCE_DIR}/lib)
@@ -117,11 +131,6 @@ else(WIN32)
 	find_package(Threads REQUIRED)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_XCB_KHR")
 endif(WIN32)
-
-#add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-#add_definitions(-std=c++14)
-#add_definitions(-std=c++0x)
-#add_definitions(-std=gnu++14)
 
 # FIXME - android not implemented
 file(GLOB PUMEX_SOURCE include/pumex/*.h include/pumex/utils/*.h src/pumex/*.cpp src/pumex/utils/*.cpp)
