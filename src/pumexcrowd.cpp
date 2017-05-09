@@ -1073,10 +1073,10 @@ struct CrowdApplicationData
 #if defined(CROWD_MEASURE_TIME)
     std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
 
-    LOG_ERROR << "Process input             : " << 1000.0f * inputDuration << " ms" << std::endl;
-    LOG_ERROR << "Update skeletons          : " << 1000.0f * updateDuration << " ms" << std::endl;
-    LOG_ERROR << "Prepare buffers           : " << 1000.0f * prepareBuffersDuration << " ms" << std::endl;
-    LOG_ERROR << "Fill command line buffers : " << 1000.0f * drawDuration << " ms" << std::endl;
+    LOG_ERROR << "Process input          : " << 1000.0f * inputDuration << " ms" << std::endl;
+    LOG_ERROR << "Update                 : " << 1000.0f * updateDuration << " ms" << std::endl;
+    LOG_ERROR << "Prepare buffers        : " << 1000.0f * prepareBuffersDuration << " ms" << std::endl;
+    LOG_ERROR << "CPU Draw               : " << 1000.0f * drawDuration << " ms" << std::endl;
 
     float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
     std::vector<uint64_t> queryResults;
@@ -1084,8 +1084,8 @@ struct CrowdApplicationData
     if (updateData.renderMethod == 1)
     {
       queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->getImageIndex() + 2) % 3) * 4, 4, 0);
-      LOG_ERROR << "GPU LOD compute shader    : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
-      LOG_ERROR << "GPU draw shader           : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
+      LOG_ERROR << "GPU LOD compute shader : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
+      LOG_ERROR << "GPU draw shader        : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
     }
     else
     {

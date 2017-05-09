@@ -22,10 +22,11 @@
 // - dynamic objects present the possibility to animate object parts of an object ( wheels, propellers ) 
 // - static and dynamic object use different set of rendering parameters : compare StaticInstanceData and DynamicInstanceData structures
 //
-// pumexgpucull demo is a copy of similar demo that I created for OpenSceneGraph engine 3 years ago ( osggpucull example ), so you may
+// pumexgpucull demo is a copy of similar demo that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
 // compare Vulkan and OpenGL performance ( I didn't use compute shaders in OpenGL demo, but performance of rendering is comparable ).
 
-// all time measurments may be turned off 
+// Current measurment methods add 4ms to a single frame ( cout lags )
+// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define GPU_CULL_MEASURE_TIME 1
 
 // struct holding the whole information required to render a single static object
@@ -583,6 +584,11 @@ struct GpuCullApplicationData
 
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
+  double    inputDuration;
+  double    updateDuration;
+  double    prepareBuffersDuration;
+  double    drawDuration;
+
   std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
 
@@ -1068,6 +1074,10 @@ struct GpuCullApplicationData
 
   void update(float timeSinceStart, float updateStep)
   {
+#if defined(GPU_CULL_MEASURE_TIME)
+    auto updateStart = pumex::HPClock::now();
+#endif
+
     // send UpdateData to RenderData
     uint32_t updateIndex = viewer.lock()->getUpdateIndex();
 
@@ -1096,6 +1106,10 @@ struct GpuCullApplicationData
         renderData[updateIndex].dynamicObjectData.push_back(it->second);
 
     }
+#if defined(GPU_CULL_MEASURE_TIME)
+    auto updateEnd = pumex::HPClock::now();
+    updateDuration = pumex::inSeconds(updateEnd - updateStart);
+#endif
   }
   void updateInstance(DynamicObjectData& objectData, float timeSinceStart, float updateStep)
   {
@@ -1314,7 +1328,7 @@ struct GpuCullApplicationData
     timeStampQueryPool->reset(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4, 4);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
     pumex::DescriptorSetValue staticResultsBuffer, staticResultsBuffer2, dynamicResultsBuffer, dynamicResultsBuffer2;
     uint32_t staticDrawCount, dynamicDrawCount;
@@ -1385,7 +1399,7 @@ struct GpuCullApplicationData
     currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarriers);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
@@ -1394,7 +1408,7 @@ struct GpuCullApplicationData
     currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
     if (_showStaticRendering)
     {
@@ -1423,7 +1437,7 @@ struct GpuCullApplicationData
       }
     }
 #if defined(GPU_CULL_MEASURE_TIME)
-    appData->timeStampQueryPool->queryTimeStamp(deviceSh, myCmdBuffer, surfaceSh->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
     currentCmdBuffer->cmdEndRenderPass();
@@ -1432,24 +1446,29 @@ struct GpuCullApplicationData
 
 #if defined(GPU_CULL_MEASURE_TIME)
     auto drawEnd = pumex::HPClock::now();
-    double drawDuration = std::chrono::duration<double, std::milli>(drawEnd - drawStart).count();
-    LOG_ERROR << "Frame time                : " << 1000.0 * lastFrameInSeconds << " ms ( FPS = " << 1.0 / lastFrameInSeconds << " )" << std::endl;
-    LOG_ERROR << "Update duration           : " << updateDuration << " ms" << std::endl;
-    LOG_ERROR << "Fill cmdBuffer duration   : " << drawDuration << " ms" << std::endl;
-
-    float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
-    std::vector<uint64_t> queryResults;
-    // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-    queryResults = appData->timeStampQueryPool->getResults(deviceSh, ((surfaceSh->getImageIndex() + 2) % 3) * 4, 4, 0);
-    LOG_ERROR << "GPU compute duration      : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
-    LOG_ERROR << "GPU draw duration         : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
-    LOG_ERROR << std::endl;
-
+    drawDuration = pumex::inSeconds(drawEnd - drawStart);
 #endif
   }
 
   void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
   {
+#if defined(GPU_CULL_MEASURE_TIME)
+    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
+
+    LOG_ERROR << "Process input          : " << 1000.0f * inputDuration << " ms" << std::endl;
+    LOG_ERROR << "Update                 : " << 1000.0f * updateDuration << " ms" << std::endl;
+    LOG_ERROR << "Prepare buffers        : " << 1000.0f * prepareBuffersDuration << " ms" << std::endl;
+    LOG_ERROR << "CPU Draw               : " << 1000.0f * drawDuration << " ms" << std::endl;
+
+    float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
+    std::vector<uint64_t> queryResults;
+    // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
+    queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->getImageIndex() + 2) % 3) * 4, 4, 0);
+    LOG_ERROR << "GPU LOD compute shader : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
+    LOG_ERROR << "GPU draw shader        : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
+    LOG_ERROR << std::endl;
+#endif
+
   }
 };
 
@@ -1540,11 +1559,18 @@ int main(int argc, char * argv[])
     // All leaf nodes should point to viewer->endRenderGraph.
     tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg)
     {
+#if defined(GPU_CULL_MEASURE_TIME)
+      auto prepareBuffersStart = pumex::HPClock::now();
+#endif
       applicationData->prepareCameraForRendering();
       if (applicationData->_showStaticRendering)
         applicationData->prepareStaticBuffersForRendering();
       if (applicationData->_showDynamicRendering)
         applicationData->prepareDynamicBuffersForRendering();
+#if defined(GPU_CULL_MEASURE_TIME)
+      auto prepareBuffersEnd = pumex::HPClock::now();
+      applicationData->prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
+#endif
     });
     tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
