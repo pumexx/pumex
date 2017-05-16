@@ -83,11 +83,22 @@ VkDescriptorType DescriptorSetLayout::getDescriptorType(uint32_t binding) const
 {
   for (const auto& b : bindings)
   {
-    if (binding >= b.binding && binding < b.binding+b.bindingCount)
+    if (binding == b.binding)
       return b.descriptorType;
   }
   return VK_DESCRIPTOR_TYPE_MAX_ENUM;
 }
+
+uint32_t DescriptorSetLayout::getDescriptorBindingCount(uint32_t binding) const
+{
+  for (const auto& b : bindings)
+  {
+    if (binding == b.binding)
+      return b.bindingCount;
+  }
+  return 0;
+}
+
 
 DescriptorPool::DescriptorPool(uint32_t ps, const std::vector<pumex::DescriptorSetLayoutBinding>& b)
   : poolSize(ps), bindings(b)
@@ -113,7 +124,7 @@ void DescriptorPool::validate(std::shared_ptr<pumex::Device> device)
   {
     VkDescriptorPoolSize descriptorPoolSize{};
     descriptorPoolSize.type = b.descriptorType;
-    descriptorPoolSize.descriptorCount = b.bindingCount * poolSize; // specification is not very specific here
+    descriptorPoolSize.descriptorCount = b.bindingCount * poolSize;
     poolSizes.push_back(descriptorPoolSize);
   }
   VkDescriptorPoolCreateInfo descriptorPoolCI{};
@@ -210,30 +221,48 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
     VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->first, &descriptorSetAinfo, &pddit->second.descriptorSet[activeIndex]), "Cannot allocate descriptor sets");
   }
 
-  std::map<uint32_t, DescriptorSetValue> values;
+  std::map<uint32_t, std::vector<DescriptorSetValue>> values;
+  uint32_t dsvSize = 0;
   for (const auto& s : sources)
   {
-      DescriptorSetValue value = s.second->getDescriptorSetValue(pddit->first);
-      values.insert({ s.first, value });
+    std::vector<DescriptorSetValue> value;
+    s.second->getDescriptorSetValues(pddit->first,value);
+    dsvSize += layout->getDescriptorBindingCount(s.first); //value.size();
+    values.insert({ s.first, value });
   }
   std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+  std::vector<VkDescriptorBufferInfo> bufferInfos(dsvSize);
+  std::vector<VkDescriptorImageInfo>  imageInfos(dsvSize);
+  uint32_t bufferInfosCurrentSize = 0;
+  uint32_t imageInfosCurrentSize  = 0;
   for (const auto& v : values)
   {
-    VkWriteDescriptorSet writeDescriptorSet = {};
+    if (v.second.empty())
+      continue;
+    VkWriteDescriptorSet writeDescriptorSet{};
       writeDescriptorSet.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       writeDescriptorSet.dstSet          = pddit->second.descriptorSet[activeIndex];
       writeDescriptorSet.descriptorType  = layout->getDescriptorType(v.first);
       writeDescriptorSet.dstBinding      = v.first;
-      switch (v.second.vType)
+      writeDescriptorSet.descriptorCount = layout->getDescriptorBindingCount(v.first);// v.second.size();
+      switch (v.second[0].vType)
       {
       case DescriptorSetValue::Buffer:
-        writeDescriptorSet.pBufferInfo = &v.second.bufferInfo; break;
+        writeDescriptorSet.pBufferInfo = &bufferInfos[bufferInfosCurrentSize];
+        for (const auto& dsv : v.second)
+          bufferInfos[bufferInfosCurrentSize++] = dsv.bufferInfo;
+        break;
       case DescriptorSetValue::Image:
-        writeDescriptorSet.pImageInfo  = &v.second.imageInfo;  break;
+        writeDescriptorSet.pImageInfo = &imageInfos[imageInfosCurrentSize];
+        for (const auto& dsv : v.second)
+          imageInfos[imageInfosCurrentSize++] = dsv.imageInfo;
+        for(uint32_t i=v.second.size(); i<layout->getDescriptorBindingCount(v.first); ++i)
+          imageInfos[imageInfosCurrentSize++] = v.second[0].imageInfo;
+
+        break;
       default:
         continue;
       }
-      writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
   vkUpdateDescriptorSets(pddit->first, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);

@@ -77,6 +77,8 @@ namespace pumex
     inline pumex::HPClock::time_point getUpdateTime() const;          // get the time point of the update
     inline pumex::HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
 
+    inline void addDefaultDirectory(const std::string& directory);
+
   protected:
     void setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
     void cleanupDebugging();
@@ -117,6 +119,7 @@ namespace pumex
   pumex::HPClock::duration   Viewer::getUpdateDuration() const       { return (pumex::HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
   pumex::HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
   pumex::HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
+  void                       Viewer::addDefaultDirectory(const std::string& directory) { defaultDirectories.push_back(directory); }
   void                       Viewer::doNothing() const               {}
 
   uint32_t   Viewer::getNextUpdateSlot() const

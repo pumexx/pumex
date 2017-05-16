@@ -24,11 +24,11 @@ public:
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   ~UniformBuffer();
 
-  inline void            set( const T& data );
-  inline T               get() const;
-  DescriptorSetValue     getDescriptorSetValue(VkDevice device) const override;
-  void                   setDirty();
-  void                   validate(std::shared_ptr<pumex::Device> device);
+  inline void set( const T& data );
+  inline T    get() const;
+  void        getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
+  void        setDirty();
+  void        validate(std::shared_ptr<pumex::Device> device);
 
 private:
   struct PerDeviceData
@@ -73,12 +73,12 @@ T UniformBuffer<T>::get() const
 }
 
 template <typename T>
-DescriptorSetValue UniformBuffer<T>::getDescriptorSetValue(VkDevice device) const
+void UniformBuffer<T>::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
 {
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "UniformBuffer<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  return DescriptorSetValue(pddit->second.uboBuffer, 0, sizeof(T));
+  values.push_back( DescriptorSetValue(pddit->second.uboBuffer, 0, sizeof(T)) );
 }
 
 template <typename T>

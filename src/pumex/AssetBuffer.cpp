@@ -390,7 +390,7 @@ AssetBufferDescriptorSetSource::AssetBufferDescriptorSetSource(AssetBuffer* o, u
 {
 }
 
-DescriptorSetValue AssetBufferDescriptorSetSource::getDescriptorSetValue(VkDevice device) const
+void AssetBufferDescriptorSetSource::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr,"AssetBufferDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   auto pddit = owner->perDeviceData.find(device);
@@ -400,13 +400,12 @@ DescriptorSetValue AssetBufferDescriptorSetSource::getDescriptorSetValue(VkDevic
   switch (bufferType)
   {
     case AssetBufferDescriptorSetSource::TypeBuffer :
-      return DescriptorSetValue(vibit->second.typeBuffer, 0, vibit->second.assetTypes.size() * sizeof(AssetTypeDefinition) );
+      values.push_back( DescriptorSetValue(vibit->second.typeBuffer, 0, vibit->second.assetTypes.size() * sizeof(AssetTypeDefinition)) );
     case AssetBufferDescriptorSetSource::LodBuffer:
-      return DescriptorSetValue(vibit->second.lodBuffer, 0, vibit->second.assetLods.size() * sizeof(AssetLodDefinition));
+      values.push_back( DescriptorSetValue(vibit->second.lodBuffer, 0, vibit->second.assetLods.size() * sizeof(AssetLodDefinition)) );
     case AssetBufferDescriptorSetSource::GeometryBuffer:
-      return DescriptorSetValue(vibit->second.geomBuffer, 0, vibit->second.assetGeometries.size() * sizeof(AssetGeometryDefinition));
+      values.push_back( DescriptorSetValue(vibit->second.geomBuffer, 0, vibit->second.assetGeometries.size() * sizeof(AssetGeometryDefinition)) );
   }
-  return DescriptorSetValue();
 }
 
 

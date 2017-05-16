@@ -171,11 +171,6 @@ MACRO(set_executable_postfixes target)
   set_target_properties(${target} PROPERTIES MINSIZEREL_OUTPUT_NAME "${target}${CMAKE_MINSIZEREL_POSTFIX}")
 ENDMACRO(set_executable_postfixes)
 
-add_executable( pumexgpucull src/pumexgpucull.cpp )
-add_dependencies( pumexgpucull shaders )
-target_link_libraries( pumexgpucull pumex )
-set_executable_postfixes( pumexgpucull )
-
 add_executable( pumexviewer src/pumexviewer.cpp )
 add_dependencies( pumexviewer shaders )
 target_link_libraries( pumexviewer pumex )
@@ -185,5 +180,15 @@ add_executable( pumexcrowd src/pumexcrowd.cpp )
 add_dependencies( pumexcrowd shaders )
 target_link_libraries( pumexcrowd pumex )
 set_executable_postfixes( pumexcrowd )
+
+add_executable( pumexgpucull src/pumexgpucull.cpp )
+add_dependencies( pumexgpucull shaders )
+target_link_libraries( pumexgpucull pumex )
+set_executable_postfixes( pumexgpucull )
+
+add_executable( pumexdeferred src/pumexdeferred.cpp )
+add_dependencies( pumexdeferred shaders )
+target_link_libraries( pumexdeferred pumex )
+set_executable_postfixes( pumexdeferred )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)

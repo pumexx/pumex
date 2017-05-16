@@ -28,7 +28,7 @@ namespace pumex
 
     inline void                    set(const std::vector<T>& data);
     inline const std::vector<T>&   get() const;
-    DescriptorSetValue     getDescriptorSetValue(VkDevice device) const override;
+    void                           getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
     void                           setDirty();
     void                           validate(std::shared_ptr<pumex::Device> device);
 
@@ -89,12 +89,12 @@ namespace pumex
   }
 
   template <typename T>
-  DescriptorSetValue StorageBuffer<T>::getDescriptorSetValue(VkDevice device) const
+  void StorageBuffer<T>::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
   {
     auto pddit = perDeviceData.find(device);
     CHECK_LOG_THROW(pddit == perDeviceData.end(), "StorageBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
-    return DescriptorSetValue(pddit->second.storageBuffer, 0, sizeof(T) * storageData.size());
+    values.push_back( DescriptorSetValue(pddit->second.storageBuffer, 0, sizeof(T) * storageData.size()) );
   }
 
   template <typename T>

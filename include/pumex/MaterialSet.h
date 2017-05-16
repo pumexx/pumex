@@ -18,7 +18,8 @@ namespace pumex
 // struct that helps to put textures in appropriate places in Vulkan
 struct TextureSemantic
 {
-  enum Type { Diffuse, Specular, Ambient, Emissive, Height, Normals, Shininess, Opacity, Displacement, LightMap, Reflection };
+  // you must modify shaders if the number of types defined below has changed. Shaders may use TextureSemanticCount
+  enum Type { Diffuse, Specular, Ambient, Emissive, Height, Normals, Shininess, Opacity, Displacement, LightMap, Reflection, TextureSemanticCount };
 
   TextureSemantic(const Type& t, uint32_t i)
     : type{ t }, index{ i }
@@ -50,6 +51,7 @@ class MaterialSetDescriptorSetSource;
 class TextureRegistry
 {
 public:
+  virtual void refreshStructures() = 0;
   virtual void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) = 0;
   virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
 };
@@ -144,7 +146,7 @@ private:
   std::vector<MaterialTypeDefinition>          typeDefinitions;
   std::vector<MaterialVariantDefinition>       variantDefinitions;
   std::vector<T>                               materialDefinitions;
-  std::map<VkDevice, PerDeviceData>            perDeviceData;
+  std::unordered_map<VkDevice, PerDeviceData>  perDeviceData;
 
 
   std::shared_ptr<MaterialSetDescriptorSetSource<T>> typeBufferDescriptorSetSource;
@@ -160,25 +162,29 @@ class MaterialSetDescriptorSetSource : public DescriptorSetSource
 public:
   enum BufferType{ TypeBuffer, MaterialVariantBuffer, MaterialBuffer };
   MaterialSetDescriptorSetSource(MaterialSet<T>* owner, BufferType bufferType);
-  DescriptorSetValue getDescriptorSetValue(VkDevice device) const override;
+  void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
 private:
   MaterialSet<T>* owner;
   BufferType      bufferType;
 };
 
-class TextureRegistryArray : public TextureRegistry
+class TextureRegistryTextureArray : public TextureRegistry
 {
 public:
-  void setTargetTexture(uint32_t index, std::shared_ptr<pumex::Texture> texture)
+  void setTargetTexture(uint32_t slotIndex, std::shared_ptr<pumex::Texture> texture)
   {
-    textures[index] = texture;
+    textures[slotIndex] = texture;
   }
-  std::shared_ptr<pumex::Texture> getTargetTexture(uint32_t index)
+  std::shared_ptr<pumex::Texture> getTargetTexture(uint32_t slotIndex)
   {
-    auto it = textures.find(index);
+    auto it = textures.find(slotIndex);
     if (it == textures.end())
       return std::shared_ptr<pumex::Texture>();
-    return textures[index];
+    return textures[slotIndex];
+  }
+
+  void refreshStructures() override
+  {
   }
 
   void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) override
@@ -195,12 +201,119 @@ public:
     it->second->setLayer(layerIndex, tex);
   }
 
-  std::map<uint32_t, std::shared_ptr<Texture>> textures;
+  std::map<uint32_t, std::shared_ptr<pumex::Texture>> textures;
 };
+
+class TextureRegistryArrayOfTextures;
+
+class TRAOTDescriptorSetSource : public DescriptorSetSource
+{
+public:
+  TRAOTDescriptorSetSource(TextureRegistryArrayOfTextures* o);
+  void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
+private:
+  TextureRegistryArrayOfTextures* owner;
+};
+
+class TextureRegistryArrayOfTextures : public TextureRegistry
+{
+public:
+  TextureRegistryArrayOfTextures()
+  {
+    textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>();
+  }
+  
+  void setTargetTextureTraits(uint32_t slotIndex, const pumex::TextureTraits& textureTrait)
+  {
+    textureTraits[slotIndex] = textureTrait;
+    textures[slotIndex]      = std::vector<std::shared_ptr<pumex::Texture>>();
+  }
+
+  std::shared_ptr<TRAOTDescriptorSetSource> getTextureSamplerDescriptorSetSource()
+  {
+    if (textureSamplerDescriptorSetSource.get() == nullptr)
+      textureSamplerDescriptorSetSource = std::make_shared<TRAOTDescriptorSetSource>(this);
+    return textureSamplerDescriptorSetSource;
+  }
+
+  void refreshStructures() override
+  {
+    std::vector<uint32_t> tso(TextureSemantic::Type::TextureSemanticCount);
+    std::fill(tso.begin(), tso.end(), 0);
+    uint32_t textureSum = 0;
+    for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
+    {
+      auto it = textures.find(i);
+      if (it == textures.end())
+        continue;
+
+      tso[i]     = textureSum;
+      textureSum += textures[i].size();
+    }
+    textureSamplersQuantity = textureSum;
+    textureSamplerOffsets->set(tso);
+  }
+
+  void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) override
+  {
+    for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
+    {
+      auto it = textures.find(i);
+      if (it == textures.end())
+        continue;
+      for (auto tx : it->second)
+        tx->validate(device, commandPool, queue);
+    }
+    textureSamplerOffsets->validate(device);
+
+    if (textureSamplerDescriptorSetSource.get() != nullptr)
+      textureSamplerDescriptorSetSource->notifyDescriptorSets();
+  }
+
+  void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
+  {
+    auto it = textures.find(slotIndex);
+    if (it == textures.end())
+      return;// FIXME : CHECK_LOG_THROW ?
+    if (layerIndex >= it->second.size())
+      it->second.resize(layerIndex+1);
+    it->second[layerIndex] = std::make_shared<pumex::Texture>(tex, textureTraits[slotIndex]);
+  }
+
+  std::shared_ptr<StorageBuffer<uint32_t>>                         textureSamplerOffsets;
+  friend class TRAOTDescriptorSetSource;
+protected:
+  std::map<uint32_t, std::vector<std::shared_ptr<pumex::Texture>>> textures;
+  std::map<uint32_t, pumex::TextureTraits>                         textureTraits;
+  uint32_t                                                         textureSamplersQuantity = 0;
+  std::shared_ptr<TRAOTDescriptorSetSource>                        textureSamplerDescriptorSetSource;
+
+};
+
+TRAOTDescriptorSetSource::TRAOTDescriptorSetSource(TextureRegistryArrayOfTextures* o)
+  : owner{ o }
+{
+}
+void TRAOTDescriptorSetSource::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+{
+  CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
+  values.reserve(values.size() + owner->textureSamplersQuantity);
+  for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
+  {
+    auto it = owner->textures.find(i);
+    if (it == owner->textures.end())
+      continue;
+    for (auto tx : it->second)
+      tx->getDescriptorSetValues(device, values);
+  }
+}
 
 class TextureRegistryNull : public TextureRegistry
 {
 public:
+  void refreshStructures() override
+  {
+  }
   void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) override
   {
   }
@@ -425,6 +538,7 @@ void MaterialSet<T>::refreshMaterialStructures()
     }
     typeDefinitions[t].variantSize = variantDefinitions.size() - typeDefinitions[t].variantFirst;
   }
+  textureRegistry->refreshStructures();
   setDirty();
 }
 
@@ -580,7 +694,7 @@ MaterialSetDescriptorSetSource<T>::MaterialSetDescriptorSetSource(MaterialSet<T>
 }
 
 template <typename T>
-DescriptorSetValue MaterialSetDescriptorSetSource<T>::getDescriptorSetValue(VkDevice device) const
+void MaterialSetDescriptorSetSource<T>::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   auto pddit = owner->perDeviceData.find(device);
@@ -588,13 +702,12 @@ DescriptorSetValue MaterialSetDescriptorSetSource<T>::getDescriptorSetValue(VkDe
   switch (bufferType)
   {
   case MaterialSetDescriptorSetSource<T>::TypeBuffer:
-    return DescriptorSetValue(pddit->second.typeBuffer, 0, owner->typeDefinitions.size() * sizeof(MaterialTypeDefinition));
+    values.push_back( DescriptorSetValue(pddit->second.typeBuffer, 0, owner->typeDefinitions.size() * sizeof(MaterialTypeDefinition)) );
   case MaterialSetDescriptorSetSource<T>::MaterialVariantBuffer:
-    return DescriptorSetValue(pddit->second.variantBuffer, 0, owner->variantDefinitions.size() * sizeof(MaterialVariantDefinition));
+    values.push_back( DescriptorSetValue(pddit->second.variantBuffer, 0, owner->variantDefinitions.size() * sizeof(MaterialVariantDefinition)) );
   case MaterialSetDescriptorSetSource<T>::MaterialBuffer:
-    return DescriptorSetValue(pddit->second.materialBuffer, 0, owner->materialDefinitions.size() * sizeof(T));
+    values.push_back( DescriptorSetValue(pddit->second.materialBuffer, 0, owner->materialDefinitions.size() * sizeof(T)) );
   }
-  return DescriptorSetValue();
 }
 
 }

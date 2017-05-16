@@ -158,7 +158,7 @@ struct CrowdApplicationData
   std::uniform_int_distribution<uint32_t>              randomAnimation;
 
   std::shared_ptr<pumex::AssetBuffer>                  skeletalAssetBuffer;
-  std::shared_ptr<pumex::TextureRegistryArray>         textureRegistryArray;
+  std::shared_ptr<pumex::TextureRegistryTextureArray>  textureRegistry;
   std::shared_ptr<pumex::MaterialSet<MaterialData>>    materialSet;
 
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
@@ -255,10 +255,10 @@ struct CrowdApplicationData
     skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>();
     skeletalAssetBuffer->registerVertexSemantic(1, vertexSemantic);
 
-    textureRegistryArray = std::make_shared<pumex::TextureRegistryArray>();
-    textureRegistryArray->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits()));
+    textureRegistry = std::make_shared<pumex::TextureRegistryTextureArray>();
+    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits()));
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 } };
-    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistryArray, textureSemantic);
+    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, textureSemantic);
 
     std::vector<std::pair<std::string,bool>> skeletalNames
     {
@@ -437,7 +437,7 @@ struct CrowdApplicationData
     simpleRenderDescriptorSet->setSource(3, materialSet->getTypeBufferDescriptorSetSource());
     simpleRenderDescriptorSet->setSource(4, materialSet->getMaterialVariantBufferDescriptorSetSource());
     simpleRenderDescriptorSet->setSource(5, materialSet->getMaterialDefinitionBufferDescriptorSetSource());
-    simpleRenderDescriptorSet->setSource(6, textureRegistryArray->getTargetTexture(0));
+    simpleRenderDescriptorSet->setSource(6, textureRegistry->getTargetTexture(0));
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
     {
@@ -479,7 +479,7 @@ struct CrowdApplicationData
     instancedRenderDescriptorSet->setSource(4, materialSet->getTypeBufferDescriptorSetSource());
     instancedRenderDescriptorSet->setSource(5, materialSet->getMaterialVariantBufferDescriptorSetSource());
     instancedRenderDescriptorSet->setSource(6, materialSet->getMaterialDefinitionBufferDescriptorSetSource());
-    instancedRenderDescriptorSet->setSource(7, textureRegistryArray->getTargetTexture(0));
+    instancedRenderDescriptorSet->setSource(7, textureRegistry->getTargetTexture(0));
 
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
     {
@@ -978,8 +978,9 @@ struct CrowdApplicationData
     currentCmdBuffer->cmdBegin();
     timeStampQueryPool->reset(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4, 4);
 
-    pumex::DescriptorSetValue resultsBuffer = resultsSbo->getDescriptorSetValue(vkDevice);
-    pumex::DescriptorSetValue resultsBuffer2 = resultsSbo2->getDescriptorSetValue(vkDevice);
+    std::vector<pumex::DescriptorSetValue> resultsBuffer, resultsBuffer2;
+    resultsSbo->getDescriptorSetValues(vkDevice, resultsBuffer);
+    resultsSbo2->getDescriptorSetValues(vkDevice, resultsBuffer2);
     uint32_t drawCount = resultsSbo->get().size();
 
     if (rData.renderMethod == 1)
@@ -988,7 +989,7 @@ struct CrowdApplicationData
       timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
       // Add memory barrier to ensure that the indirect commands have been consumed before the compute shader updates them
-      pumex::PipelineBarrier beforeBufferBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
+      pumex::PipelineBarrier beforeBufferBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer[0].bufferInfo);
       currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarrier);
 
       currentCmdBuffer->cmdBindPipeline(filterPipeline);
@@ -996,16 +997,16 @@ struct CrowdApplicationData
       uint32_t instanceCount = rData.people.size() + rData.clothes.size();
       currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16>0) ? 1 : 0), 1, 1);
 
-      pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer.bufferInfo);
+      pumex::PipelineBarrier afterBufferBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer[0].bufferInfo);
       currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterBufferBarrier);
 
       VkBufferCopy copyRegion{};
-      copyRegion.srcOffset = resultsBuffer.bufferInfo.offset;
-      copyRegion.size = resultsBuffer.bufferInfo.range;
-      copyRegion.dstOffset = resultsBuffer2.bufferInfo.offset;
-      currentCmdBuffer->cmdCopyBuffer(resultsBuffer.bufferInfo.buffer, resultsBuffer2.bufferInfo.buffer, copyRegion);
+      copyRegion.srcOffset = resultsBuffer[0].bufferInfo.offset;
+      copyRegion.size      = resultsBuffer[0].bufferInfo.range;
+      copyRegion.dstOffset = resultsBuffer2[0].bufferInfo.offset;
+      currentCmdBuffer->cmdCopyBuffer(resultsBuffer[0].bufferInfo.buffer, resultsBuffer2[0].bufferInfo.buffer, copyRegion);
 
-      pumex::PipelineBarrier afterCopyBufferBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer2.bufferInfo);
+      pumex::PipelineBarrier afterCopyBufferBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer2[0].bufferInfo);
       currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarrier);
 
 #if defined(CROWD_MEASURE_TIME)
@@ -1045,11 +1046,11 @@ struct CrowdApplicationData
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
       skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
-        currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2[0].bufferInfo.buffer, resultsBuffer2[0].bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
         for (uint32_t i = 0; i < drawCount; ++i)
-          currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2.bufferInfo.buffer, resultsBuffer2.bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+          currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2[0].bufferInfo.buffer, resultsBuffer2[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
       }
       break;
     }

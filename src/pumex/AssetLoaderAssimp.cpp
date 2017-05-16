@@ -243,9 +243,9 @@ pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animatio
                 requiredHasBoneWeight = true;
             }
             if (!requiredHasBoneIndex)
-              thisSemantic.push_back(VertexSemantic(VertexSemantic::BoneIndex, 4));
+              thisSemantic.push_back(VertexSemantic(VertexSemantic::BoneIndex, 1));
             if (!requiredHasBoneWeight)
-              thisSemantic.push_back(VertexSemantic(VertexSemantic::BoneWeight, 4));
+              thisSemantic.push_back(VertexSemantic(VertexSemantic::BoneWeight, 1));
           }
           geometry.semantic = thisSemantic;
 

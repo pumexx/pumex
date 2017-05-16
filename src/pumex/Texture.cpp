@@ -39,13 +39,22 @@ void Texture::setDirty()
     pdd.second.dirty = true;
 }
 
-VkImage Texture::getHandle(VkDevice device) const
+VkImage Texture::getHandleImage(VkDevice device) const
 {
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.image;
 }
+
+VkSampler Texture::getHandleSampler(VkDevice device) const
+{
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.sampler;
+}
+
 
 VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)
 {
@@ -448,12 +457,12 @@ void pumex::setImageLayout( VkCommandBuffer cmdbuffer, VkImage image, VkImageAsp
   setImageLayout(cmdbuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
 
-DescriptorSetValue Texture::getDescriptorSetValue(VkDevice device) const
+void Texture::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
 {
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Texture::getDescriptorSetValue : texture was not validated");
 
-  return DescriptorSetValue(pddit->second.sampler, pddit->second.imageView, pddit->second.imageLayout);
+  values.push_back( DescriptorSetValue(pddit->second.sampler, pddit->second.imageView, pddit->second.imageLayout) );
 }
 
 void Texture::setLayer(uint32_t layer, const gli::texture& tex)

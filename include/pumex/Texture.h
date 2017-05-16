@@ -47,10 +47,11 @@ public:
 
   ~Texture();
 
-  void    setDirty();
-  VkImage getHandle(VkDevice device) const;
-  void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue);
-  DescriptorSetValue getDescriptorSetValue(VkDevice device) const override;
+  void      setDirty();
+  VkImage   getHandleImage(VkDevice device) const;
+  VkSampler getHandleSampler(VkDevice device) const;
+  void      validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue);
+  void      getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
 
   void setLayer(uint32_t layer, const gli::texture& tex);
 

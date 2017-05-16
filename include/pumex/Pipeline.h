@@ -19,7 +19,7 @@ struct PUMEX_EXPORT DescriptorSetLayoutBinding
   DescriptorSetLayoutBinding(uint32_t binding, uint32_t bindingCount, VkDescriptorType descriptorType, VkShaderStageFlags stageFlags);
   uint32_t            binding        = 0;
   uint32_t            bindingCount   = 1;
-  VkDescriptorType    descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  VkDescriptorType    descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // VK_DESCRIPTOR_TYPE_SAMPLER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
   VkShaderStageFlags  stageFlags     = VK_SHADER_STAGE_ALL_GRAPHICS; // VK_SHADER_STAGE_VERTEX_BIT, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, VK_SHADER_STAGE_GEOMETRY_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_COMPUTE_BIT, VK_SHADER_STAGE_ALL_GRAPHICS
 };
 
@@ -35,6 +35,7 @@ public:
   void                  validate(std::shared_ptr<pumex::Device> device);
   VkDescriptorSetLayout getHandle(VkDevice device) const;
   VkDescriptorType      getDescriptorType(uint32_t binding) const;
+  uint32_t              getDescriptorBindingCount(uint32_t binding) const;
 
   std::vector<pumex::DescriptorSetLayoutBinding> bindings;
 protected:
@@ -89,7 +90,7 @@ public:
   virtual ~DescriptorSetSource();
   void addDescriptorSet(DescriptorSet* descriptorSet);
   void removeDescriptorSet(DescriptorSet* descriptorSet);
-  virtual DescriptorSetValue getDescriptorSetValue(VkDevice device) const = 0;
+  virtual void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const = 0;
   void notifyDescriptorSets();
 protected:
   std::set<DescriptorSet*> descriptorSets;
