@@ -703,10 +703,13 @@ void MaterialSetDescriptorSetSource<T>::getDescriptorSetValues(VkDevice device, 
   {
   case MaterialSetDescriptorSetSource<T>::TypeBuffer:
     values.push_back( DescriptorSetValue(pddit->second.typeBuffer, 0, owner->typeDefinitions.size() * sizeof(MaterialTypeDefinition)) );
+    break;
   case MaterialSetDescriptorSetSource<T>::MaterialVariantBuffer:
     values.push_back( DescriptorSetValue(pddit->second.variantBuffer, 0, owner->variantDefinitions.size() * sizeof(MaterialVariantDefinition)) );
+    break;
   case MaterialSetDescriptorSetSource<T>::MaterialBuffer:
     values.push_back( DescriptorSetValue(pddit->second.materialBuffer, 0, owner->materialDefinitions.size() * sizeof(T)) );
+    break;
   }
 }
 

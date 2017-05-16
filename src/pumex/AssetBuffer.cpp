@@ -401,10 +401,13 @@ void AssetBufferDescriptorSetSource::getDescriptorSetValues(VkDevice device, std
   {
     case AssetBufferDescriptorSetSource::TypeBuffer :
       values.push_back( DescriptorSetValue(vibit->second.typeBuffer, 0, vibit->second.assetTypes.size() * sizeof(AssetTypeDefinition)) );
+      break;
     case AssetBufferDescriptorSetSource::LodBuffer:
       values.push_back( DescriptorSetValue(vibit->second.lodBuffer, 0, vibit->second.assetLods.size() * sizeof(AssetLodDefinition)) );
+      break;
     case AssetBufferDescriptorSetSource::GeometryBuffer:
       values.push_back( DescriptorSetValue(vibit->second.geomBuffer, 0, vibit->second.assetGeometries.size() * sizeof(AssetGeometryDefinition)) );
+      break;
   }
 }
 
