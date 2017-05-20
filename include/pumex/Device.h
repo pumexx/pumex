@@ -27,6 +27,7 @@ namespace pumex
   class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>
   {
   public:
+    Device()                         = delete;
     explicit Device(std::shared_ptr<pumex::Viewer> const& viewer, std::shared_ptr<pumex::PhysicalDevice> const& physical, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
     Device(const Device&)            = delete;
     Device& operator=(const Device&) = delete;

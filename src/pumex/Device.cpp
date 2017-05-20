@@ -211,7 +211,7 @@ void Device::setObjectTag(uint64_t object, VkDebugReportObjectTypeEXT objectType
   // Check for valid function pointer (may not be present if not running in a debugging application)
   if (pfnDebugMarkerSetObjectTag != VK_NULL_HANDLE)
   {
-    VkDebugMarkerObjectTagInfoEXT tagInfo = {};
+    VkDebugMarkerObjectTagInfoEXT tagInfo{};
       tagInfo.sType      = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_TAG_INFO_EXT;
       tagInfo.objectType = objectType;
       tagInfo.object     = object;
@@ -227,7 +227,7 @@ void Device::beginMarkerRegion(VkCommandBuffer cmdbuffer, const std::string& mar
   // Check for valid function pointer (may not be present if not running in a debugging application)
   if (pfnCmdDebugMarkerBegin != VK_NULL_HANDLE)
   {
-    VkDebugMarkerMarkerInfoEXT markerInfo = {};
+    VkDebugMarkerMarkerInfoEXT markerInfo{};
     markerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
     memcpy(markerInfo.color, &color[0], sizeof(float) * 4);
     markerInfo.pMarkerName = markerName.c_str();

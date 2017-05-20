@@ -12,8 +12,12 @@ class Device;
 
 struct PUMEX_EXPORT AttachmentDefinition
 {
-  AttachmentDefinition(VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags = 0x0);
+  enum Type { SwapChain, Depth, Color };
+  AttachmentDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
+  Type                         type;
   VkFormat                     format;
+  VkImageUsageFlags            usage;
+  VkImageAspectFlags           aspectMask;
   VkSampleCountFlagBits        samples;
   VkAttachmentLoadOp           loadOp;
   VkAttachmentStoreOp          storeOp;
@@ -69,6 +73,7 @@ struct PUMEX_EXPORT SubpassDependencyDefinition
 class PUMEX_EXPORT RenderPass
 {
 public:
+  RenderPass()                             = delete;
   explicit RenderPass(const std::vector<AttachmentDefinition>& attachments, const std::vector<SubpassDefinition>& subpasses, const std::vector<SubpassDependencyDefinition>& dependencies = std::vector<SubpassDependencyDefinition>());
   RenderPass(const RenderPass&)            = delete;
   RenderPass& operator=(const RenderPass&) = delete;

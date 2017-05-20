@@ -27,6 +27,7 @@ struct PUMEX_EXPORT DescriptorSetLayoutBinding
 class PUMEX_EXPORT DescriptorSetLayout
 {
 public:
+  DescriptorSetLayout()                                      = delete;
   explicit DescriptorSetLayout(const std::vector<pumex::DescriptorSetLayoutBinding>& bindings);
   DescriptorSetLayout(const DescriptorSetLayout&)            = delete;
   DescriptorSetLayout& operator=(const DescriptorSetLayout&) = delete;
@@ -200,6 +201,7 @@ struct PUMEX_EXPORT BlendAttachmentDefinition
 class PUMEX_EXPORT ShaderModule
 {
 public:
+  ShaderModule()                               = delete;
   explicit ShaderModule( const std::string& fileName );
   ShaderModule(const ShaderModule&)            = delete;
   ShaderModule& operator=(const ShaderModule&) = delete;
@@ -231,6 +233,7 @@ struct PUMEX_EXPORT ShaderStageDefinition
 class PUMEX_EXPORT GraphicsPipeline
 {
 public:
+  GraphicsPipeline()                                   = delete;
   explicit GraphicsPipeline(std::shared_ptr<pumex::PipelineCache> pipelineCache, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, std::shared_ptr<RenderPass> renderPass, uint32_t subpass);
   GraphicsPipeline(const GraphicsPipeline&)            = delete;
   GraphicsPipeline& operator=(const GraphicsPipeline&) = delete;
@@ -313,6 +316,7 @@ protected:
 class PUMEX_EXPORT ComputePipeline
 {
 public:
+  ComputePipeline()                                  = delete;
   explicit ComputePipeline(std::shared_ptr<pumex::PipelineCache> pipelineCache, std::shared_ptr<pumex::PipelineLayout> pipelineLayout);
   ComputePipeline(const ComputePipeline&)            = delete;
   ComputePipeline& operator=(const ComputePipeline&) = delete;

@@ -66,6 +66,7 @@ template <typename T>
 class MaterialSet
 {
 public:
+  MaterialSet()                              = delete;
   explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<TextureRegistry> textureRegistry, const std::vector<pumex::TextureSemantic>& textureSemantic);
   MaterialSet(const MaterialSet&)            = delete;
   MaterialSet& operator=(const MaterialSet&) = delete;

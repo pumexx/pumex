@@ -5,11 +5,132 @@
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
-using namespace pumex;
+namespace pumex
+{
 
-Texture::Texture()
+ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, bool lt, uint32_t m, uint32_t l, VkSampleCountFlagBits s, VkImageLayout il, 
+  VkImageAspectFlags am, VkMemoryPropertyFlags mp, VkImageCreateFlags ic, VkImageType it, VkSharingMode sm, VkImageViewType vt, const gli::swizzles& sw)
+  : usage{ u }, linearTiling{ lt }, format{ f }, extent{ e }, mipLevels{ m }, arrayLayers{ l }, samples{ s }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }, viewType{ vt }, swizzles{ sw }, aspectMask{ am }, memoryProperty{ mp }
 {
 }
+
+TextureTraits::TextureTraits(VkImageUsageFlags u, bool lt, VkFilter maf, VkFilter mif, VkSamplerMipmapMode mm,  VkSamplerAddressMode au, VkSamplerAddressMode av, VkSamplerAddressMode aw, float mlb, VkBool32 ae,
+  float maa, VkBool32 ce, VkCompareOp co, VkBorderColor bc, VkBool32 uc)
+  : usage{ u }, linearTiling{ lt }, magFilter{ maf }, minFilter{ mif }, mipmapMode{ mm }, addressModeU{ au }, addressModeV{ av }, addressModeW{ aw }, mipLodBias{ mlb }, anisotropyEnable{ ae }, maxAnisotropy{ maa }, compareEnable{ ce }, compareOp{ co }, borderColor{ bc }, unnormalizedCoordinates{ uc }
+{
+}
+
+Image::Image(std::shared_ptr<Device> d, const ImageTraits& it)
+  : imageTraits{ it }, device(d->device), ownsImage{ true }
+{
+  VkImageCreateInfo imageCI{};
+    imageCI.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCI.flags         = imageTraits.imageCreate;
+    imageCI.imageType     = imageTraits.imageType;
+    imageCI.format        = imageTraits.format;
+    imageCI.extent        = imageTraits.extent;
+    imageCI.mipLevels     = imageTraits.mipLevels;
+    imageCI.arrayLayers   = imageTraits.arrayLayers;
+    imageCI.samples       = imageTraits.samples;
+    imageCI.tiling        = imageTraits.linearTiling ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
+    imageCI.usage         = imageTraits.usage;
+    imageCI.sharingMode   = imageTraits.sharingMode;
+//    imageCI.queueFamilyIndexCount;
+//    imageCI.pQueueFamilyIndices;
+    imageCI.initialLayout = imageTraits.initialLayout;
+  VK_CHECK_LOG_THROW(vkCreateImage(device, &imageCI, nullptr, &image), "failed vkCreateImage");
+
+  imageLayout = imageTraits.initialLayout;
+
+  vkGetImageMemoryRequirements(device, image, &memReqs);
+  VkMemoryAllocateInfo mem_alloc{};
+    mem_alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    mem_alloc.pNext           = nullptr;
+    mem_alloc.allocationSize  = memReqs.size;
+    mem_alloc.memoryTypeIndex = d->physical.lock()->getMemoryType(memReqs.memoryTypeBits, imageTraits.memoryProperty);
+  VK_CHECK_LOG_THROW(vkAllocateMemory(device, &mem_alloc, nullptr, &deviceMemory), "failed vkAllocateMemory " << mem_alloc.allocationSize << " " << mem_alloc.memoryTypeIndex);
+  VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, deviceMemory, 0), "failed vkBindImageMemory");
+
+  VkImageViewCreateInfo imageViewCI{};
+    imageViewCI.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCI.flags      = 0;
+    imageViewCI.image      = image;
+    imageViewCI.viewType   = imageTraits.viewType;
+    imageViewCI.format     = imageTraits.format;
+    imageViewCI.components = vulkanComponentMappingFromGliComponentMapping(imageTraits.swizzles);
+    imageViewCI.subresourceRange.aspectMask     = imageTraits.aspectMask;
+    imageViewCI.subresourceRange.baseMipLevel   = 0;
+    imageViewCI.subresourceRange.levelCount     = imageTraits.mipLevels;
+    imageViewCI.subresourceRange.baseArrayLayer = 0;
+    imageViewCI.subresourceRange.layerCount     = imageTraits.arrayLayers;
+  VK_CHECK_LOG_THROW(vkCreateImageView(device, &imageViewCI, nullptr, &imageView), "failed vkCreateImageView");
+}
+
+Image::Image(std::shared_ptr<Device> d, VkImage i, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
+  : device(d->device), image{ i }, ownsImage{ false }
+{
+  // gather all what we know about delivered image
+  imageTraits.format      = format;
+  imageTraits.mipLevels   = mipLevels;
+  imageTraits.arrayLayers = arrayLayers;
+  imageTraits.aspectMask  = aspectMask;
+  imageTraits.viewType    = viewType;
+  imageTraits.swizzles    = swizzles;
+  imageLayout             = VK_IMAGE_LAYOUT_UNDEFINED;
+  vkGetImageMemoryRequirements(device, image, &memReqs);
+
+  VkImageViewCreateInfo imageViewCI{};
+    imageViewCI.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCI.flags      = 0;
+    imageViewCI.image      = image;
+    imageViewCI.viewType   = viewType;
+    imageViewCI.format     = format;
+    imageViewCI.components = vulkanComponentMappingFromGliComponentMapping(swizzles);
+    imageViewCI.subresourceRange.aspectMask     = aspectMask;
+    imageViewCI.subresourceRange.baseMipLevel   = 0;
+    imageViewCI.subresourceRange.levelCount     = mipLevels;
+    imageViewCI.subresourceRange.baseArrayLayer = 0;
+    imageViewCI.subresourceRange.layerCount     = arrayLayers;
+  VK_CHECK_LOG_THROW(vkCreateImageView(device, &imageViewCI, nullptr, &imageView), "failed vkCreateImageView");
+}
+
+
+Image::~Image()
+{
+  if (imageView != VK_NULL_HANDLE)
+    vkDestroyImageView(device, imageView, nullptr);
+  if (ownsImage)
+  {
+    if (image != VK_NULL_HANDLE)
+      vkDestroyImage(device, image, nullptr);
+    if (deviceMemory != VK_NULL_HANDLE)
+      vkFreeMemory(device, deviceMemory, nullptr);
+  }
+}
+
+void Image::getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceLayout& subResLayout) const
+{
+  vkGetImageSubresourceLayout(device, image, &subRes, &subResLayout);
+}
+
+void* Image::mapMemory(size_t offset, size_t range, VkMemoryMapFlags flags)
+{
+  void* data;
+  VK_CHECK_LOG_THROW(vkMapMemory(device, deviceMemory, offset, range, flags, &data), "Cannot map memory to image");
+  return data;
+}
+
+void Image::unmapMemory()
+{
+  vkUnmapMemory(device, deviceMemory);
+}
+
+void Image::setImageLayout(VkImageLayout newLayout)
+{
+  imageLayout = newLayout;
+}
+
+
 
 Texture::Texture(const gli::texture& tex, const TextureTraits& tr)
   : traits{ tr }
@@ -22,14 +143,8 @@ Texture::~Texture()
 {
   for (auto& pdd : perDeviceData)
   {
-    if (pdd.second.imageView != VK_NULL_HANDLE)
-      vkDestroyImageView(pdd.first, pdd.second.imageView, nullptr);
     if (pdd.second.sampler != VK_NULL_HANDLE)
       vkDestroySampler(pdd.first, pdd.second.sampler, nullptr);
-    if (pdd.second.image != VK_NULL_HANDLE)
-      vkDestroyImage(pdd.first, pdd.second.image, nullptr);
-    if (pdd.second.deviceMemory != VK_NULL_HANDLE)
-      vkFreeMemory(pdd.first, pdd.second.deviceMemory, nullptr);
   }
 }
 
@@ -39,12 +154,12 @@ void Texture::setDirty()
     pdd.second.dirty = true;
 }
 
-VkImage Texture::getHandleImage(VkDevice device) const
+Image* Texture::getHandleImage(VkDevice device) const
 {
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
-  return pddit->second.image;
+  return pddit->second.image.get();
 }
 
 VkSampler Texture::getHandleSampler(VkDevice device) const
@@ -56,71 +171,8 @@ VkSampler Texture::getHandleSampler(VkDevice device) const
 }
 
 
-VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)
-{
-  // Formats are almost identical. Looks like someone implemented GLI and Vulkan at the same time
-  return (VkFormat)format;
-}
 
-VkImageViewType vulkanViewTypeFromGliTarget(gli::texture::target_type target)
-{
-  
-  switch (target)
-  {
-  case gli::texture::target_type::TARGET_1D:
-    return VK_IMAGE_VIEW_TYPE_1D;
-  case gli::texture::target_type::TARGET_1D_ARRAY:
-    return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-  case gli::texture::target_type::TARGET_2D:
-    return VK_IMAGE_VIEW_TYPE_2D;
-  case gli::texture::target_type::TARGET_2D_ARRAY:
-    return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-  case gli::texture::target_type::TARGET_3D:
-    return VK_IMAGE_VIEW_TYPE_3D;
-  case gli::texture::target_type::TARGET_RECT:
-    return VK_IMAGE_VIEW_TYPE_2D;
-  case gli::texture::target_type::TARGET_RECT_ARRAY:
-    return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-  case gli::texture::target_type::TARGET_CUBE:
-    return VK_IMAGE_VIEW_TYPE_CUBE;
-  case gli::texture::target_type::TARGET_CUBE_ARRAY:
-    return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
-  }
-  return VK_IMAGE_VIEW_TYPE_2D;
-}
-
-VkComponentSwizzle vulkanSwizzlesFromGliSwizzles(const gli::swizzle& s)
-{
-  // VK_COMPONENT_SWIZZLE_IDENTITY is not represented in GLI
-  switch (s)
-  {
-  case gli::swizzle::SWIZZLE_RED:
-    return VK_COMPONENT_SWIZZLE_R;
-  case gli::swizzle::SWIZZLE_GREEN:
-    return VK_COMPONENT_SWIZZLE_G;
-  case gli::swizzle::SWIZZLE_BLUE:
-    return VK_COMPONENT_SWIZZLE_B;
-  case gli::swizzle::SWIZZLE_ALPHA:
-    return VK_COMPONENT_SWIZZLE_A;
-  case gli::swizzle::SWIZZLE_ZERO:
-    return VK_COMPONENT_SWIZZLE_ZERO;
-  case gli::swizzle::SWIZZLE_ONE:
-    return VK_COMPONENT_SWIZZLE_ONE;
-  }
-  return VK_COMPONENT_SWIZZLE_R;
-}
-
-VkComponentMapping vulkanComponentMappingFromGliComponentMapping(const gli::swizzles& swz)
-{
-  VkComponentMapping mapping;
-  mapping.r = vulkanSwizzlesFromGliSwizzles(swz.r);
-  mapping.g = vulkanSwizzlesFromGliSwizzles(swz.g);
-  mapping.b = vulkanSwizzlesFromGliSwizzles(swz.b);
-  mapping.a = vulkanSwizzlesFromGliSwizzles(swz.a);
-  return mapping;
-}
-
-void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue)
+void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -128,9 +180,6 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
   if (!pddit->second.dirty)
     return;
 
-  if (pddit->second.image == VK_NULL_HANDLE)
-  {
-  }
   VkFormat format = vulkanFormatFromGliFormat(texture->format());
 
   VkFormatProperties formatProperties;
@@ -179,53 +228,24 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
     }
 
     auto textureExtents = texture->extent(0);
-    // Create optimal tiled target image
-    VkImageCreateInfo imageCreateInfo{};
-      imageCreateInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-      imageCreateInfo.imageType     = VK_IMAGE_TYPE_2D;
-      imageCreateInfo.format        = format;
-      imageCreateInfo.mipLevels     = texture->levels();
-      imageCreateInfo.arrayLayers   = texture->layers();
-      imageCreateInfo.samples       = VK_SAMPLE_COUNT_1_BIT;
-      imageCreateInfo.tiling        = VK_IMAGE_TILING_OPTIMAL;
-      imageCreateInfo.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-      imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-      imageCreateInfo.extent        = { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 };
-      imageCreateInfo.usage         = traits.imageUsageFlags;
-    // Ensure that the TRANSFER_DST bit is set for staging
-    if (!(imageCreateInfo.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-    {
-      imageCreateInfo.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    }
-    VK_CHECK_LOG_THROW(vkCreateImage(device->device, &imageCreateInfo, nullptr, &pddit->second.image), "Cannot create an image");
-
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device->device, pddit->second.image, &memReqs);
-
-    VkMemoryAllocateInfo memAllocInfo{};
-      memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-      memAllocInfo.allocationSize = memReqs.size;
-      memAllocInfo.memoryTypeIndex = device->physical.lock()->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_LOG_THROW( vkAllocateMemory(device->device, &memAllocInfo, nullptr, &pddit->second.deviceMemory), "Cannot allocate memory for image");
-    VK_CHECK_LOG_THROW(vkBindImageMemory(device->device, pddit->second.image, pddit->second.deviceMemory, 0), "Cannot bind memory to image");
-
-    VkImageSubresourceRange subresourceRange{};
-      subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-      subresourceRange.baseMipLevel   = texture->base_level();
-      subresourceRange.levelCount     = texture->levels();
-      subresourceRange.baseArrayLayer = texture->base_layer();
-      subresourceRange.layerCount     = texture->layers();
+    VkImageUsageFlags usage = traits.usage;
+    if (!(usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+      usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    ImageTraits imageTraits(usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, false, texture->levels(), texture->layers(), 
+      VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE, 
+      vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
+    pddit->second.image = std::make_unique<Image>(device, imageTraits);
 
     // Image barrier for optimal image (target)
     // Optimal image will be used as destination for the copy
-    setImageLayout( cmdBuffer->getHandle(), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+    cmdBuffer->setImageLayout( *(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     // Copy mip levels from staging buffer
-    vkCmdCopyBufferToImage(cmdBuffer->getHandle(), stagingBuffer, pddit->second.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+    cmdBuffer->cmdCopyBufferToImage(stagingBuffer, (*pddit->second.image.get()), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions);
 
     // Change texture image layout to shader read after all mip levels have been copied
-    pddit->second.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    setImageLayout(cmdBuffer->getHandle(), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pddit->second.imageLayout, subresourceRange);
+//    pddit->second.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    cmdBuffer->setImageLayout( *(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     device->endSingleTimeCommands(cmdBuffer, queue);
 
@@ -242,36 +262,10 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
     assert(formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 
     auto textureExtents = texture->extent(0);
-
-    VkImageCreateInfo imageCreateInfo{};
-      imageCreateInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-      imageCreateInfo.imageType     = VK_IMAGE_TYPE_2D;
-      imageCreateInfo.format        = format;
-      imageCreateInfo.extent        = { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 };
-      imageCreateInfo.mipLevels     = 1;
-      imageCreateInfo.arrayLayers   = texture->layers();
-      imageCreateInfo.samples       = VK_SAMPLE_COUNT_1_BIT;
-      imageCreateInfo.tiling        = VK_IMAGE_TILING_LINEAR;
-      imageCreateInfo.usage         = traits.imageUsageFlags;
-      imageCreateInfo.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-      imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    // Load mip map level 0 to linear tiling image
-    VK_CHECK_LOG_THROW( vkCreateImage(device->device, &imageCreateInfo, nullptr, &pddit->second.image), "Cannot create image");
-
-    // Get memory requirements for this image 
-    // like size and alignment
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device->device, pddit->second.image, &memReqs);
-    // Set memory allocation size to required memory size
-    VkMemoryAllocateInfo memAllocInfo{};
-      memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-      memAllocInfo.allocationSize = memReqs.size;
-      memAllocInfo.memoryTypeIndex = device->physical.lock()->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    // Allocate host memory
-    VK_CHECK_LOG_THROW(vkAllocateMemory(device->device, &memAllocInfo, nullptr, &pddit->second.deviceMemory), "Cannot allocate memory for image");
-
-    // Bind allocated image for use
-    VK_CHECK_LOG_THROW( vkBindImageMemory( device->device, pddit->second.image, pddit->second.deviceMemory, 0), "Cannot bind memory to image");
+    ImageTraits imageTraits(traits.usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, true, 1, texture->layers(),
+      VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
+      vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
+    pddit->second.image = std::make_unique<Image>(device, imageTraits);
 
     // Get sub resource layout
     // Mip map count, array layer, etc.
@@ -280,27 +274,17 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
       subRes.mipLevel   = 0;
 
     VkSubresourceLayout subResLayout;
-    void *data;
 
     // Get sub resources layout 
     // Includes row pitch, size offsets, etc.
-    vkGetImageSubresourceLayout(device->device, pddit->second.image, &subRes, &subResLayout);
-
-    // Map image memory
-    VK_CHECK_LOG_THROW( vkMapMemory(device->device, pddit->second.deviceMemory, 0, memReqs.size, 0, &data), "Cannot map memory to image" );
-
-    // Copy image data into memory
-    
+    pddit->second.image->getImageSubresourceLayout(subRes, subResLayout);
+    // Map image memory and copy data into it
+    void* data = pddit->second.image->mapMemory(0, pddit->second.image->getMemoryRequirements().size, 0);
     memcpy(data, texture->data(0, 0, subRes.mipLevel), texture->size(subRes.mipLevel));
-
-    vkUnmapMemory(device->device, pddit->second.deviceMemory);
-
-    // Linear tiled images don't need to be staged
-    // and can be directly used as textures
-    pddit->second.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    pddit->second.image->unmapMemory();
 
     // Setup image memory barrier
-    setImageLayout(cmdBuffer->getHandle(), pddit->second.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, pddit->second.imageLayout);
+    cmdBuffer->setImageLayout(*(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     device->endSingleTimeCommands(cmdBuffer, queue);
   }
@@ -324,137 +308,7 @@ void Texture::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pu
     sampler.borderColor             = traits.borderColor;
     sampler.unnormalizedCoordinates = traits.unnormalizedCoordinates;
   VK_CHECK_LOG_THROW( vkCreateSampler(device->device, &sampler, nullptr, &pddit->second.sampler) , "Cannot create sampler");
-
-  // Create image view containing the whole image
-  VkImageViewCreateInfo view{};
-    view.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view.image                           = pddit->second.image;
-    view.viewType                        = vulkanViewTypeFromGliTarget(texture->target());
-    view.format                          = format;
-    view.components                      = vulkanComponentMappingFromGliComponentMapping(texture->swizzles());
-    view.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-    view.subresourceRange.baseArrayLayer = texture->base_layer();
-    view.subresourceRange.layerCount     = texture->layers();
-    view.subresourceRange.baseMipLevel   = texture->base_level();
-    view.subresourceRange.levelCount     = (useStaging) ? texture->levels() : 1;
-  VK_CHECK_LOG_THROW( vkCreateImageView(device->device, &view, nullptr, &pddit->second.imageView), "Cannot create image view");
-
-  //pddit->second.imageLayout = VK_IMAGE_LAYOUT_GENERAL; // FIXME : imageLayout
-
   pddit->second.dirty = false;
-}
-
-
-void pumex::setImageLayout( VkCommandBuffer cmdbuffer, VkImage image, VkImageAspectFlags aspectMask, 
-  VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange)
-{
-  // Create an image barrier object
-  VkImageMemoryBarrier imageMemoryBarrier{};
-    imageMemoryBarrier.sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    imageMemoryBarrier.oldLayout        = oldImageLayout;
-    imageMemoryBarrier.newLayout        = newImageLayout;
-    imageMemoryBarrier.image            = image;
-    imageMemoryBarrier.subresourceRange = subresourceRange;
-
-  // Source layouts (old)
-  // Source access mask controls actions that have to be finished on the old layout
-  // before it will be transitioned to the new layout
-  switch (oldImageLayout)
-  {
-  case VK_IMAGE_LAYOUT_UNDEFINED:
-    // Image layout is undefined (or does not matter)
-    // Only valid as initial layout
-    // No flags required, listed only for completeness
-    imageMemoryBarrier.srcAccessMask = 0;
-    break;
-  case VK_IMAGE_LAYOUT_PREINITIALIZED:
-    // Image is preinitialized
-    // Only valid as initial layout for linear images, preserves memory contents
-    // Make sure host writes have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-    // Image is a color attachment
-    // Make sure any writes to the color buffer have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-    // Image is a depth/stencil attachment
-    // Make sure any writes to the depth/stencil buffer have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-    // Image is a transfer source 
-    // Make sure any reads from the image have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-    // Image is a transfer destination
-    // Make sure any writes to the image have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-    // Image is read by a shader
-    // Make sure any shader reads from the image have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    break;
-  }
-
-  // Target layouts (new)
-  // Destination access mask controls the dependency for the new image layout
-  switch (newImageLayout)
-  {
-  case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-    // Image will be used as a transfer destination
-    // Make sure any writes to the image have been finished
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-    // Image will be used as a transfer source
-    // Make sure any reads from and writes to the image have been finished
-    imageMemoryBarrier.srcAccessMask = imageMemoryBarrier.srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-    // Image will be used as a color attachment
-    // Make sure any writes to the color buffer have been finished
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-    // Image layout will be used as a depth/stencil attachment
-    // Make sure any writes to depth/stencil buffer have been finished
-    imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    break;
-  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-    // Image will be read in a shader (sampler, input attachment)
-    // Make sure any writes to the image have been finished
-    if (imageMemoryBarrier.srcAccessMask == 0)
-    {
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-    }
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    break;
-  }
-
-  // Put barrier on top
-  VkPipelineStageFlags srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkPipelineStageFlags destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-
-  // Put barrier inside setup command buffer
-  vkCmdPipelineBarrier( cmdbuffer, srcStageFlags, destStageFlags, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-}
-
-// Fixed sub resource on first mip level and layer
-void pumex::setImageLayout( VkCommandBuffer cmdbuffer, VkImage image, VkImageAspectFlags aspectMask,
-  VkImageLayout oldImageLayout, VkImageLayout newImageLayout)
-{
-  VkImageSubresourceRange subresourceRange = {};
-    subresourceRange.aspectMask   = aspectMask;
-    subresourceRange.baseMipLevel = 0;
-    subresourceRange.levelCount   = 1;
-    subresourceRange.layerCount   = 1;
-  setImageLayout(cmdbuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
 
 void Texture::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
@@ -462,7 +316,7 @@ void Texture::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetV
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Texture::getDescriptorSetValue : texture was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.sampler, pddit->second.imageView, pddit->second.imageLayout) );
+  values.push_back( DescriptorSetValue(pddit->second.sampler, pddit->second.image->getImageView(), pddit->second.image->getImageLayout()) );
 }
 
 void Texture::setLayer(uint32_t layer, const gli::texture& tex)
@@ -474,5 +328,72 @@ void Texture::setLayer(uint32_t layer, const gli::texture& tex)
 
   for (uint32_t level = texture->base_level(); level < texture->levels(); ++level)
     memcpy(texture->data(layer, 0, level), tex.data(0, 0, level), tex.size(level));
+
+}
+
+VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)
+{
+  // Formats are almost identical. Looks like someone implemented GLI and Vulkan at the same time
+  return (VkFormat)format;
+}
+
+VkImageViewType vulkanViewTypeFromGliTarget(gli::texture::target_type target)
+{
+
+  switch (target)
+  {
+  case gli::texture::target_type::TARGET_1D:
+    return VK_IMAGE_VIEW_TYPE_1D;
+  case gli::texture::target_type::TARGET_1D_ARRAY:
+    return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+  case gli::texture::target_type::TARGET_2D:
+    return VK_IMAGE_VIEW_TYPE_2D;
+  case gli::texture::target_type::TARGET_2D_ARRAY:
+    return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+  case gli::texture::target_type::TARGET_3D:
+    return VK_IMAGE_VIEW_TYPE_3D;
+  case gli::texture::target_type::TARGET_RECT:
+    return VK_IMAGE_VIEW_TYPE_2D;
+  case gli::texture::target_type::TARGET_RECT_ARRAY:
+    return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+  case gli::texture::target_type::TARGET_CUBE:
+    return VK_IMAGE_VIEW_TYPE_CUBE;
+  case gli::texture::target_type::TARGET_CUBE_ARRAY:
+    return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+  }
+  return VK_IMAGE_VIEW_TYPE_2D;
+}
+
+VkComponentSwizzle vulkanSwizzlesFromGliSwizzles(const gli::swizzle& s)
+{
+  // VK_COMPONENT_SWIZZLE_IDENTITY is not represented in GLI
+  switch (s)
+  {
+  case gli::swizzle::SWIZZLE_RED:
+    return VK_COMPONENT_SWIZZLE_R;
+  case gli::swizzle::SWIZZLE_GREEN:
+    return VK_COMPONENT_SWIZZLE_G;
+  case gli::swizzle::SWIZZLE_BLUE:
+    return VK_COMPONENT_SWIZZLE_B;
+  case gli::swizzle::SWIZZLE_ALPHA:
+    return VK_COMPONENT_SWIZZLE_A;
+  case gli::swizzle::SWIZZLE_ZERO:
+    return VK_COMPONENT_SWIZZLE_ZERO;
+  case gli::swizzle::SWIZZLE_ONE:
+    return VK_COMPONENT_SWIZZLE_ONE;
+  }
+  return VK_COMPONENT_SWIZZLE_IDENTITY;
+}
+
+VkComponentMapping vulkanComponentMappingFromGliComponentMapping(const gli::swizzles& swz)
+{
+  VkComponentMapping mapping;
+  mapping.r = vulkanSwizzlesFromGliSwizzles(swz.r);
+  mapping.g = vulkanSwizzlesFromGliSwizzles(swz.g);
+  mapping.b = vulkanSwizzlesFromGliSwizzles(swz.b);
+  mapping.a = vulkanSwizzlesFromGliSwizzles(swz.a);
+  return mapping;
+}
+
 
 }

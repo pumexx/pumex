@@ -15,6 +15,7 @@ namespace pumex
   class RenderPass;
   class CommandPool;
   class CommandBuffer;
+  class Image;
   
   // struct representing information required to create a Vulkan surface
   struct PUMEX_EXPORT SurfaceTraits
@@ -47,10 +48,11 @@ namespace pumex
   class PUMEX_EXPORT Surface
   {
   public:
+    Surface()                          = delete;
     explicit Surface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, VkSurfaceKHR surface, const pumex::SurfaceTraits& surfaceTraits);
     Surface(const Surface&)            = delete;
     Surface& operator=(const Surface&) = delete;
-    ~Surface();
+    virtual ~Surface();
 
     void cleanup();
     void beginFrame();
@@ -75,10 +77,10 @@ namespace pumex
     uint32_t                            presentationQueueIndex       = UINT32_MAX;
     std::shared_ptr<pumex::CommandPool> commandPool;
 
-    VkExtent2D                      swapChainSize                = VkExtent2D{1,1};
-    uint32_t                        swapChainImageIndex          = 0;
-    std::vector<SwapChainImage>     swapChainImages;
-    SwapChainImage                  depthStencil;
+    VkExtent2D                          swapChainSize                = VkExtent2D{1,1};
+    uint32_t                            swapChainImageIndex          = 0;
+    std::vector<std::unique_ptr<Image>> swapChainImages;
+    std::vector<std::unique_ptr<Image>> frameBufferImages;
 
     VkSemaphore                     imageAvailableSemaphore      = VK_NULL_HANDLE;
     VkSemaphore                     renderCompleteSemaphore      = VK_NULL_HANDLE;
@@ -93,8 +95,6 @@ namespace pumex
 
   protected:
     void createSwapChain();
-    void setupDepthStencil(uint32_t width, uint32_t height, uint32_t depth, VkFormat depthFormat);
-    void cleanupDepthStencil();
   };
 
   uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }

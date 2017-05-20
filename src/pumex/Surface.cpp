@@ -109,9 +109,7 @@ void Surface::cleanup()
   {
     for (auto f : frameBuffers)
       vkDestroyFramebuffer(dev, f, nullptr);
-    cleanupDepthStencil();
-    for (auto s : swapChainImages)
-      vkDestroyImageView(dev, s.view, nullptr);
+    frameBufferImages.clear();
     swapChainImages.clear();
     vkDestroySwapchainKHR(dev, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
@@ -161,144 +159,83 @@ void Surface::createSwapChain()
     swapchainCreateInfo.oldSwapchain          = oldSwapChain;
   VK_CHECK_LOG_THROW( vkCreateSwapchainKHR(vkDevice, &swapchainCreateInfo, nullptr, &swapChain), "Could not create swapchain" );
 
+  // remove old swap chain and all images
   if (oldSwapChain != VK_NULL_HANDLE)
   {
     for (auto f : frameBuffers)
       vkDestroyFramebuffer(vkDevice, f, nullptr);
-    cleanupDepthStencil();
-    for (auto s : swapChainImages)
-      vkDestroyImageView(vkDevice, s.view, nullptr);
+    frameBufferImages.clear();
+    swapChainImages.clear();
     vkDestroySwapchainKHR(vkDevice, oldSwapChain, nullptr);
   }
 
+  // collect new swap chain images
   uint32_t imageCount;
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, nullptr), "Could not get swapchain images");
   std::vector<VkImage> images(imageCount);
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
-
-  // Get the swap chain buffers containing the image and imageview
-  swapChainImages.resize(imageCount);
   for (uint32_t i = 0; i < imageCount; i++)
+    swapChainImages.push_back(std::make_unique<Image>(deviceSh, images[i], surfaceTraits.imageFormat, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_VIEW_TYPE_2D, gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA)));
+
+  // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
+  frameBufferImages.resize(defaultRenderPass->attachments.size());
+  std::vector<VkImageView> attachments;
+  attachments.resize(defaultRenderPass->attachments.size());
+  for (uint32_t i = 0; i < defaultRenderPass->attachments.size(); i++)
   {
-    VkImageViewCreateInfo imageViewCreateInfo = {};
-      imageViewCreateInfo.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-      imageViewCreateInfo.format     = surfaceTraits.imageFormat;
-      imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-      imageViewCreateInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-      imageViewCreateInfo.subresourceRange.baseMipLevel   = 0;
-      imageViewCreateInfo.subresourceRange.levelCount     = 1;
-      imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-      imageViewCreateInfo.subresourceRange.layerCount     = 1;
-      imageViewCreateInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-      imageViewCreateInfo.image = swapChainImages[i].image = images[i];
-      swapChainImages[i].mem = VK_NULL_HANDLE;
-      VK_CHECK_LOG_THROW(vkCreateImageView(vkDevice, &imageViewCreateInfo, nullptr, &swapChainImages[i].view), "Could not create swapchain image view" << i);
+    AttachmentDefinition& definition = defaultRenderPass->attachments[i];
+    if (definition.type == AttachmentDefinition::SwapChain)
+      continue;
+    ImageTraits imageTraits(definition.usage, definition.format, { swapChainSize.width, swapChainSize.height, 1 }, false, 1, 1,
+      definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
+      VK_IMAGE_VIEW_TYPE_2D, gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+    frameBufferImages[i] = std::make_unique<Image>(deviceSh, imageTraits);
+
+    if (definition.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED)
+    {
+      auto commandBuffer = deviceSh->beginSingleTimeCommands(commandPool);
+      commandBuffer->setImageLayout(*(frameBufferImages[i].get()), definition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
+      deviceSh->endSingleTimeCommands(commandBuffer, presentationQueue);
+    }
+    attachments[i] = frameBufferImages[i]->getImageView();
   }
-
-  // FIXME - define depth buffer
-  setupDepthStencil(swapChainSize.width, swapChainSize.height, 1, surfaceTraits.depthFormat);
-
-  VkImageView attachments[2];
-  attachments[1] = depthStencil.view;
-
-  // define frame buffers
-  VkFramebufferCreateInfo frameBufferCreateInfo{};
-    frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    frameBufferCreateInfo.renderPass      = defaultRenderPass->getHandle(vkDevice);
-    frameBufferCreateInfo.attachmentCount = 2;
-    frameBufferCreateInfo.pAttachments    = attachments;
-    frameBufferCreateInfo.width           = swapChainSize.width;
-    frameBufferCreateInfo.height          = swapChainSize.height;
-    frameBufferCreateInfo.layers          = 1;
-
+    
+  // create frame buffer for each swap chain image
   frameBuffers.resize(swapChainImages.size());
   for (uint32_t i = 0; i < frameBuffers.size(); i++)
   {
-    attachments[0] = swapChainImages[i].view;
-    VK_CHECK_LOG_THROW( vkCreateFramebuffer(vkDevice, &frameBufferCreateInfo, nullptr, &frameBuffers[i]), "Could not create swapchain frame buffer" << i);
+    for (uint32_t j = 0; j < defaultRenderPass->attachments.size(); j++)
+      if (defaultRenderPass->attachments[j].type == AttachmentDefinition::SwapChain)
+        attachments[j] = swapChainImages[i]->getImageView();
+
+    // define frame buffers
+    VkFramebufferCreateInfo frameBufferCreateInfo{};
+      frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+      frameBufferCreateInfo.renderPass      = defaultRenderPass->getHandle(vkDevice);
+      frameBufferCreateInfo.attachmentCount = attachments.size();
+      frameBufferCreateInfo.pAttachments    = attachments.data();
+      frameBufferCreateInfo.width           = swapChainSize.width;
+      frameBufferCreateInfo.height          = swapChainSize.height;
+      frameBufferCreateInfo.layers          = 1;
+    VK_CHECK_LOG_THROW(vkCreateFramebuffer(vkDevice, &frameBufferCreateInfo, nullptr, &frameBuffers[i]), "Could not create swapchain frame buffer" << i);
   }
 
-  // define presentation command buffers
+  // define pre- and postpresentation command buffers
   postPresentCmdBuffers.resize(swapChainImages.size());
   prePresentCmdBuffers.resize(swapChainImages.size());
-
-  VkCommandBufferBeginInfo cmdBufInfo{};
-    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
   for (uint32_t i = 0; i < swapChainImages.size(); ++i)
   {
     postPresentCmdBuffers[i]->cmdBegin();
-    PipelineBarrier postPresentBarrier(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i].image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } );
+    PipelineBarrier postPresentBarrier(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } );
     postPresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, postPresentBarrier);
     postPresentCmdBuffers[i]->cmdEnd();
 
     prePresentCmdBuffers[i]->cmdBegin();
-    PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i].image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+    PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
     prePresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
     prePresentCmdBuffers[i]->cmdEnd();
   }
 
-}
-
-void Surface::setupDepthStencil(uint32_t width, uint32_t height, uint32_t depth, VkFormat depthFormat)
-{
-  auto deviceSh     = device.lock();
-  VkDevice vkDevice = deviceSh->device;
-
-  VkImageCreateInfo image = {};
-    image.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image.imageType   = VK_IMAGE_TYPE_2D;
-    image.format      = depthFormat;
-    image.extent      = { width, height, 1 };
-    image.mipLevels   = 1;
-    image.arrayLayers = 1;
-    image.samples     = VK_SAMPLE_COUNT_1_BIT;
-    image.tiling      = VK_IMAGE_TILING_OPTIMAL;
-    image.usage       = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-
-  VkMemoryAllocateInfo mem_alloc = {};
-    mem_alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    mem_alloc.pNext           = nullptr;
-    mem_alloc.allocationSize  = 0;
-    mem_alloc.memoryTypeIndex = 0;
-
-  VkImageViewCreateInfo depthStencilView = {};
-    depthStencilView.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    depthStencilView.pNext    = nullptr;
-    depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    depthStencilView.format   = depthFormat;
-    depthStencilView.flags    = 0;
-    depthStencilView.subresourceRange = {};
-    depthStencilView.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    depthStencilView.subresourceRange.baseMipLevel   = 0;
-    depthStencilView.subresourceRange.levelCount     = 1;
-    depthStencilView.subresourceRange.baseArrayLayer = 0;
-    depthStencilView.subresourceRange.layerCount     = 1;
-  VK_CHECK_LOG_THROW(vkCreateImage(vkDevice, &image, nullptr, &depthStencil.image), "failed vkCreateImage");
-
-  VkMemoryRequirements memReqs;
-  vkGetImageMemoryRequirements(vkDevice, depthStencil.image, &memReqs);
-  mem_alloc.allocationSize  = memReqs.size;
-  mem_alloc.memoryTypeIndex = deviceSh->physical.lock()->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  VK_CHECK_LOG_THROW(vkAllocateMemory(vkDevice, &mem_alloc, nullptr, &depthStencil.mem), "failed vkAllocateMemory" << mem_alloc.allocationSize << " " << mem_alloc.memoryTypeIndex);
-
-  VK_CHECK_LOG_THROW(vkBindImageMemory(vkDevice, depthStencil.image, depthStencil.mem, 0), "failed vkBindImageMemory");
-
-  auto commandBuffer = deviceSh->beginSingleTimeCommands(commandPool);
-  // FIXME - move setImageLayout to pumex::CommandBuffer
-  pumex::setImageLayout(commandBuffer->getHandle(), depthStencil.image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-  deviceSh->endSingleTimeCommands(commandBuffer, presentationQueue);
-  depthStencilView.image = depthStencil.image;
-  VK_CHECK_LOG_THROW(vkCreateImageView(vkDevice, &depthStencilView, nullptr, &depthStencil.view), "failed vkCreateImageView");
-}
-
-void Surface::cleanupDepthStencil()
-{
-  VkDevice dev = device.lock()->device;
-
-  vkDestroyImageView(dev, depthStencil.view, nullptr);
-  vkDestroyImage(dev, depthStencil.image, nullptr);
-  vkFreeMemory(dev, depthStencil.mem, nullptr);
 }
 
 void Surface::beginFrame()

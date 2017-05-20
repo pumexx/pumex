@@ -313,7 +313,7 @@ void Viewer::setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEX
   pfnDestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT"));
   pfnDebugReportMessage         = reinterpret_cast<PFN_vkDebugReportMessageEXT>(vkGetInstanceProcAddr(instance, "vkDebugReportMessageEXT"));
 
-  VkDebugReportCallbackCreateInfoEXT dbgCreateInfo = {};
+  VkDebugReportCallbackCreateInfoEXT dbgCreateInfo{};
     dbgCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
     dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
     dbgCreateInfo.flags = flags;

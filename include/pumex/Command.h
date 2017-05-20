@@ -15,10 +15,12 @@ class ComputePipeline;
 class GraphicsPipeline;
 class PipelineLayout;
 class DescriptorSet;
+class Image;
 
 class PUMEX_EXPORT CommandPool
 {
 public:
+  CommandPool()                              = delete;
   explicit CommandPool(uint32_t queueFamilyIndex);
   CommandPool(const CommandPool&)            = delete;
   CommandPool& operator=(const CommandPool&) = delete;
@@ -53,7 +55,9 @@ public:
 
   void cmdBegin(VkCommandBufferUsageFlags usageFlags = 0) const;
   void cmdEnd() const;
+
   void cmdBeginRenderPass(std::shared_ptr<pumex::RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const;
+  void cmdNextSubPass(VkSubpassContents contents) const;
   void cmdEndRenderPass() const;
 
   void cmdSetViewport(uint32_t firstViewport, const std::vector<VkViewport> viewports) const;
@@ -71,6 +75,13 @@ public:
   void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
   void cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const;
+
+  void cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const;
+
+  void setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const;
+  void setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const;
+
+
 
   // submit queue - no fences and semaphores
   void queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores = {}, const std::vector<VkPipelineStageFlags>& waitStages = {}, const std::vector<VkSemaphore>& signalSemaphores = {}, VkFence fence = VK_NULL_HANDLE) const;

@@ -40,8 +40,9 @@ namespace pumex
   class PUMEX_EXPORT Viewer : public std::enable_shared_from_this<Viewer>
   {
   public:
+    Viewer()                         = delete;
     explicit Viewer(const pumex::ViewerTraits& viewerTraits);
-    Viewer(const Viewer&) = delete;
+    Viewer(const Viewer&)            = delete;
     Viewer& operator=(const Viewer&) = delete;
     ~Viewer();
 

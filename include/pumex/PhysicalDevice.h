@@ -12,6 +12,7 @@ namespace pumex
   class PUMEX_EXPORT PhysicalDevice
   {
   public:
+    PhysicalDevice()                                 = delete;
     explicit PhysicalDevice(VkPhysicalDevice aDevice);
     PhysicalDevice(const PhysicalDevice&)            = delete;
     PhysicalDevice& operator=(const PhysicalDevice&) = delete;

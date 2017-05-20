@@ -4,8 +4,8 @@
 
 using namespace pumex;
 
-AttachmentDefinition::AttachmentDefinition(VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
-  : format{ f }, samples{ s }, loadOp{ lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{fs}
+AttachmentDefinition::AttachmentDefinition(Type tp, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
+  : type{ tp }, format{ f }, usage{ u }, aspectMask{ am }, samples { s }, loadOp{ lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }
 {
 }
 
@@ -118,7 +118,7 @@ void RenderPass::validate(std::shared_ptr<pumex::Device> device)
   for (const auto& dp : dependencies)
     dependencyDescriptors.emplace_back(dp.getDependency());
 
-  VkRenderPassCreateInfo renderPassCI = {};
+  VkRenderPassCreateInfo renderPassCI{};
     renderPassCI.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassCI.attachmentCount = attachmentDescriptions.size();
     renderPassCI.pAttachments    = attachmentDescriptions.data();

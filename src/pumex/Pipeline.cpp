@@ -321,7 +321,7 @@ void PipelineLayout::validate(std::shared_ptr<pumex::Device> device)
     return;
   pddit = perDeviceData.insert( {device->device, PerDeviceData()}).first;
 
-  VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
+  VkPipelineLayoutCreateInfo pipelineLayoutCI{};
     pipelineLayoutCI.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     std::vector<VkDescriptorSetLayout> descriptors;
     for ( auto dsl : descriptorSetLayouts )

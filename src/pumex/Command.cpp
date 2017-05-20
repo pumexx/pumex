@@ -2,6 +2,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/Device.h>
 #include <pumex/Pipeline.h>
+#include <pumex/Texture.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex
@@ -82,19 +83,21 @@ void CommandBuffer::cmdBeginRenderPass(std::shared_ptr<pumex::RenderPass> render
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.renderPass      = renderPass->getHandle(device);
     renderPassBeginInfo.renderArea      = renderArea;
-    renderPassBeginInfo.clearValueCount = clearValues.size();;
+    renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
     renderPassBeginInfo.framebuffer     = frameBuffer;
   vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void CommandBuffer::cmdNextSubPass(VkSubpassContents contents) const
+{
+  vkCmdNextSubpass(commandBuffer[activeIndex], contents);
 }
 
 void CommandBuffer::cmdEndRenderPass() const
 {
   vkCmdEndRenderPass(commandBuffer[activeIndex]);
 }
-
-
-
 
 void CommandBuffer::cmdSetViewport(uint32_t firstViewport, const std::vector<VkViewport> viewports) const
 {
@@ -197,6 +200,111 @@ void CommandBuffer::cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset,
 void CommandBuffer::cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const
 {
   vkCmdDispatch(commandBuffer[activeIndex], x, y, z);
+}
+
+void CommandBuffer::cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const
+{
+  vkCmdCopyBufferToImage(commandBuffer[activeIndex], srcBuffer, image.getImage(), dstImageLayout, regions.size(), regions.data());
+}
+
+
+void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const
+{
+  // Source access mask controls actions that have to be finished on the old layout
+  // before it will be transitioned to the new layout
+  VkAccessFlags srcAccessMask, dstAccessMask;
+  switch (oldImageLayout)
+  {
+  case VK_IMAGE_LAYOUT_UNDEFINED:
+    // Image layout is undefined (or does not matter)
+    // Only valid as initial layout
+    // No flags required, listed only for completeness
+    srcAccessMask = 0;
+    break;
+  case VK_IMAGE_LAYOUT_PREINITIALIZED:
+    // Image is preinitialized
+    // Only valid as initial layout for linear images, preserves memory contents
+    // Make sure host writes have been finished
+    srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+    // Image is a color attachment
+    // Make sure any writes to the color buffer have been finished
+    srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+    // Image is a depth/stencil attachment
+    // Make sure any writes to the depth/stencil buffer have been finished
+    srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+    // Image is a transfer source 
+    // Make sure any reads from the image have been finished
+    srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+    // Image is a transfer destination
+    // Make sure any writes to the image have been finished
+    srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+    // Image is read by a shader
+    // Make sure any shader reads from the image have been finished
+    srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    break;
+  }
+
+  // Target layouts (new)
+  // Destination access mask controls the dependency for the new image layout
+  switch (newImageLayout)
+  {
+  case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+    // Image will be used as a transfer destination
+    // Make sure any writes to the image have been finished
+    dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+    // Image will be used as a transfer source
+    // Make sure any reads from and writes to the image have been finished
+    srcAccessMask = srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
+    dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+    // Image will be used as a color attachment
+    // Make sure any writes to the color buffer have been finished
+    srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+    // Image layout will be used as a depth/stencil attachment
+    // Make sure any writes to depth/stencil buffer have been finished
+    dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    break;
+  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+    // Image will be read in a shader (sampler, input attachment)
+    // Make sure any writes to the image have been finished
+    if (srcAccessMask == 0)
+      srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    break;
+  }
+
+  // Put barrier on top
+  VkPipelineStageFlagBits srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkPipelineStageFlagBits destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkDependencyFlags dependencyFlags = 0;
+  cmdPipelineBarrier(srcStageFlags, destStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, oldImageLayout, newImageLayout, 0, 0, image.getImage(), subresourceRange));
+  image.setImageLayout(newImageLayout);
+}
+
+void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const
+{
+  VkImageSubresourceRange subresourceRange{};
+    subresourceRange.aspectMask   = aspectMask;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount   = image.getImageTraits().mipLevels;
+    subresourceRange.layerCount   = image.getImageTraits().arrayLayers;
+  setImageLayout(image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
 
 

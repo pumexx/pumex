@@ -15,6 +15,7 @@ class CommandBuffer;
 class PUMEX_EXPORT QueryPool
 {
 public:
+  QueryPool()                            = delete;
   explicit QueryPool(VkQueryType queryType, uint32_t poolSize, VkQueryPipelineStatisticFlags pipelineStatistics = 0);
   QueryPool(const QueryPool&)            = delete;
   QueryPool& operator=(const QueryPool&) = delete;

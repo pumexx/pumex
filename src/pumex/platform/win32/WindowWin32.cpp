@@ -118,7 +118,7 @@ WindowWin32::~WindowWin32()
 std::shared_ptr<pumex::Surface> WindowWin32::createSurface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits)
 {
   VkSurfaceKHR vkSurface;
-  VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+  VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
     surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surfaceCreateInfo.hinstance = ::GetModuleHandle(NULL);
     surfaceCreateInfo.hwnd = _hwnd;
