@@ -211,9 +211,9 @@ struct DeferredApplicationData
 
     cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
 
-    input2 = std::make_shared<pumex::InputAttachment>(2);
-    input3 = std::make_shared<pumex::InputAttachment>(3);
-    input4 = std::make_shared<pumex::InputAttachment>(4);
+    input2 = std::make_shared<pumex::InputAttachment>(nullptr, 2);
+    input3 = std::make_shared<pumex::InputAttachment>(nullptr, 3);
+    input4 = std::make_shared<pumex::InputAttachment>(nullptr, 4);
 
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);

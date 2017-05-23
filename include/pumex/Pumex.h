@@ -11,6 +11,7 @@
 #include <pumex/Texture.h>
 #include <pumex/Pipeline.h>
 #include <pumex/RenderPass.h>
+#include <pumex/FrameBuffer.h>
 #include <pumex/Command.h>
 #include <pumex/Query.h>
 #include <pumex/UniformBuffer.h>

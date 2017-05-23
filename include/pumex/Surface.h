@@ -6,7 +6,6 @@
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/Device.h>
-#include <pumex/Pipeline.h>
 #include <pumex/utils/ActionQueue.h>
 
 namespace pumex
@@ -15,6 +14,7 @@ namespace pumex
 class Viewer;
 class Window;
 class RenderPass;
+class FrameBuffer;
 class CommandPool;
 class CommandBuffer;
 class Image;
@@ -39,7 +39,7 @@ struct PUMEX_EXPORT SurfaceTraits
 };
 
 // class representing a Vulkan surface
-class PUMEX_EXPORT Surface
+class PUMEX_EXPORT Surface : public std::enable_shared_from_this<Surface>
 {
 public:
   Surface()                          = delete;
@@ -54,7 +54,7 @@ public:
   void resizeSurface(uint32_t newWidth, uint32_t newHeight);
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
-  inline VkFramebuffer getCurrentFrameBuffer() const;
+  VkFramebuffer getCurrentFrameBuffer();
     
   std::weak_ptr<pumex::Viewer>    viewer;
   std::weak_ptr<pumex::Window>    window;
@@ -74,7 +74,8 @@ public:
   VkExtent2D                          swapChainSize                = VkExtent2D{1,1};
   uint32_t                            swapChainImageIndex          = 0;
   std::vector<std::unique_ptr<Image>> swapChainImages;
-  std::vector<std::unique_ptr<Image>> frameBufferImages;
+
+  std::unique_ptr<FrameBuffer>        frameBuffer;
 
   VkSemaphore                     imageAvailableSemaphore      = VK_NULL_HANDLE;
   VkSemaphore                     renderCompleteSemaphore      = VK_NULL_HANDLE;
@@ -82,7 +83,6 @@ public:
   std::shared_ptr<pumex::RenderPass> defaultRenderPass;
 protected:
   VkSwapchainKHR                  swapChain                    = VK_NULL_HANDLE;
-  std::vector<VkFramebuffer>      frameBuffers;
   std::vector<VkFence>            waitFences;
   std::vector<std::shared_ptr<pumex::CommandBuffer>> postPresentCmdBuffers;
   std::vector<std::shared_ptr<pumex::CommandBuffer>> prePresentCmdBuffers;
@@ -91,32 +91,9 @@ protected:
   void createSwapChain();
 };
 
-class PUMEX_EXPORT InputAttachment : public DescriptorSetSource
-{
-public:
-  InputAttachment(uint32_t frameBufferIndex);
-
-  void validate(std::shared_ptr<Surface> surface);
-  void getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const override;
-protected:
-  uint32_t frameBufferIndex;
-
-  struct PerSurfaceData
-  {
-    PerSurfaceData(std::shared_ptr<Surface> s)
-      : surface{ s }
-    {
-    }
-    std::weak_ptr<Surface> surface;
-    bool                   dirty    = true;
-  };
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-};
-
 uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }
 uint32_t Surface::getImageIndex() const { return swapChainImageIndex; }
 
-VkFramebuffer Surface::getCurrentFrameBuffer() const { return frameBuffers[swapChainImageIndex]; }
 
 }
 

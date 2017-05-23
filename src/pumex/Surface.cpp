@@ -4,6 +4,7 @@
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
+#include <pumex/FrameBuffer.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Texture.h>
 #include <vulkan/vulkan.h>
@@ -79,6 +80,8 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
   defaultRenderPass = surfaceTraits.defaultRenderPass;
   defaultRenderPass->validate(deviceSh);
 
+  frameBuffer = std::make_unique<FrameBuffer>(defaultRenderPass);
+
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
   {
@@ -92,9 +95,6 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
   waitFences.resize(surfaceTraits.imageCount);
   for (auto& fence : waitFences)
     VK_CHECK_LOG_THROW(vkCreateFence(vkDevice, &fenceCreateInfo, nullptr, &fence), "Could not create a surface wait fence");
-
-  // create swapchain
-  resizeSurface(window.lock()->width, window.lock()->height);
 }
 
 Surface::~Surface()
@@ -107,9 +107,7 @@ void Surface::cleanup()
   VkDevice dev = device.lock()->device;
   if (swapChain != VK_NULL_HANDLE)
   {
-    for (auto f : frameBuffers)
-      vkDestroyFramebuffer(dev, f, nullptr);
-    frameBufferImages.clear();
+    frameBuffer->reset(shared_from_this());
     swapChainImages.clear();
     vkDestroySwapchainKHR(dev, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
@@ -162,9 +160,7 @@ void Surface::createSwapChain()
   // remove old swap chain and all images
   if (oldSwapChain != VK_NULL_HANDLE)
   {
-    for (auto f : frameBuffers)
-      vkDestroyFramebuffer(vkDevice, f, nullptr);
-    frameBufferImages.clear();
+    frameBuffer->reset(shared_from_this());
     swapChainImages.clear();
     vkDestroySwapchainKHR(vkDevice, oldSwapChain, nullptr);
   }
@@ -177,48 +173,7 @@ void Surface::createSwapChain()
   for (uint32_t i = 0; i < imageCount; i++)
     swapChainImages.push_back(std::make_unique<Image>(deviceSh, images[i], surfaceTraits.imageFormat, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_VIEW_TYPE_2D, gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA)));
 
-  // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
-  frameBufferImages.resize(defaultRenderPass->attachments.size());
-  std::vector<VkImageView> attachments;
-  attachments.resize(defaultRenderPass->attachments.size());
-  for (uint32_t i = 0; i < defaultRenderPass->attachments.size(); i++)
-  {
-    AttachmentDefinition& definition = defaultRenderPass->attachments[i];
-    if (definition.type == AttachmentDefinition::SwapChain)
-      continue;
-    ImageTraits imageTraits(definition.usage, definition.format, { swapChainSize.width, swapChainSize.height, 1 }, false, 1, 1,
-      definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
-      VK_IMAGE_VIEW_TYPE_2D, gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
-    frameBufferImages[i] = std::make_unique<Image>(deviceSh, imageTraits);
-
-    if (definition.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED)
-    {
-      auto commandBuffer = deviceSh->beginSingleTimeCommands(commandPool);
-      commandBuffer->setImageLayout(*(frameBufferImages[i].get()), definition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
-      deviceSh->endSingleTimeCommands(commandBuffer, presentationQueue);
-    }
-    attachments[i] = frameBufferImages[i]->getImageView();
-  }
-    
-  // create frame buffer for each swap chain image
-  frameBuffers.resize(swapChainImages.size());
-  for (uint32_t i = 0; i < frameBuffers.size(); i++)
-  {
-    for (uint32_t j = 0; j < defaultRenderPass->attachments.size(); j++)
-      if (defaultRenderPass->attachments[j].type == AttachmentDefinition::SwapChain)
-        attachments[j] = swapChainImages[i]->getImageView();
-
-    // define frame buffers
-    VkFramebufferCreateInfo frameBufferCreateInfo{};
-      frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-      frameBufferCreateInfo.renderPass      = defaultRenderPass->getHandle(vkDevice);
-      frameBufferCreateInfo.attachmentCount = attachments.size();
-      frameBufferCreateInfo.pAttachments    = attachments.data();
-      frameBufferCreateInfo.width           = swapChainSize.width;
-      frameBufferCreateInfo.height          = swapChainSize.height;
-      frameBufferCreateInfo.layers          = 1;
-    VK_CHECK_LOG_THROW(vkCreateFramebuffer(vkDevice, &frameBufferCreateInfo, nullptr, &frameBuffers[i]), "Could not create swapchain frame buffer" << i);
-  }
+  frameBuffer->validate(shared_from_this(), swapChainImages);
 
   // define pre- and postpresentation command buffers
   postPresentCmdBuffers.resize(swapChainImages.size());
@@ -266,7 +221,6 @@ void Surface::endFrame()
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
   VK_CHECK_LOG_THROW(vkQueuePresentKHR(presentationQueue, &presentInfo), "failed vkQueuePresentKHR");
-//  VK_CHECK_LOG_THROW(vkQueueWaitIdle(presentationQueue), "failed vkQueueWaitIdle")
 }
 
 void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
@@ -275,30 +229,11 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
   createSwapChain();
 }
 
-InputAttachment::InputAttachment(uint32_t fbi)
-  : frameBufferIndex{ fbi }
-{
+VkFramebuffer Surface::getCurrentFrameBuffer() 
+{ 
+  return frameBuffer->getFrameBuffer(shared_from_this(), swapChainImageIndex); 
 }
 
-void InputAttachment::validate(std::shared_ptr<Surface> surface)
-{
-  auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == perSurfaceData.end())
-    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface) }).first;
-  if (!pddit->second.dirty)
-    return;
-  pddit->second.dirty = false;
-}
 
-void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const
-{
-  auto pddit = perSurfaceData.find(surface);
-  if (pddit == perSurfaceData.end())
-    return;
-  std::shared_ptr<Surface> s = pddit->second.surface.lock();
-  values.push_back(DescriptorSetValue(VK_NULL_HANDLE, s->frameBufferImages[frameBufferIndex]->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-//  values.push_back(DescriptorSetValue(VK_NULL_HANDLE, s->frameBufferImages[frameBufferIndex]->getImageView(), s->frameBufferImages[frameBufferIndex]->getImageLayout()));
-  
-}
 
 
