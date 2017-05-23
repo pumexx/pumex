@@ -130,14 +130,11 @@ void Image::setImageLayout(VkImageLayout newLayout)
   imageLayout = newLayout;
 }
 
-
-
 Texture::Texture(const gli::texture& tex, const TextureTraits& tr)
   : traits{ tr }
 {
   texture = std::make_shared<gli::texture>(tex);
 }
-
 
 Texture::~Texture()
 {

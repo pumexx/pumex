@@ -275,3 +275,30 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
   createSwapChain();
 }
 
+InputAttachment::InputAttachment(uint32_t fbi)
+  : frameBufferIndex{ fbi }
+{
+}
+
+void InputAttachment::validate(std::shared_ptr<Surface> surface)
+{
+  auto pddit = perSurfaceData.find(surface->surface);
+  if (pddit == perSurfaceData.end())
+    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface) }).first;
+  if (!pddit->second.dirty)
+    return;
+  pddit->second.dirty = false;
+}
+
+void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const
+{
+  auto pddit = perSurfaceData.find(surface);
+  if (pddit == perSurfaceData.end())
+    return;
+  std::shared_ptr<Surface> s = pddit->second.surface.lock();
+  values.push_back(DescriptorSetValue(VK_NULL_HANDLE, s->frameBufferImages[frameBufferIndex]->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+//  values.push_back(DescriptorSetValue(VK_NULL_HANDLE, s->frameBufferImages[frameBufferIndex]->getImageView(), s->frameBufferImages[frameBufferIndex]->getImageLayout()));
+  
+}
+
+

@@ -964,11 +964,11 @@ struct CrowdApplicationData
     offValuesSbo->validate(deviceSh);
 
     simpleRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
-    simpleRenderDescriptorSet->validate(deviceSh);
+    simpleRenderDescriptorSet->validate(surface);
     instancedRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
-    instancedRenderDescriptorSet->validate(deviceSh);
+    instancedRenderDescriptorSet->validate(surface);
     filterDescriptorSet->setActiveIndex(surface->getImageIndex());
-    filterDescriptorSet->validate(deviceSh);
+    filterDescriptorSet->validate(surface);
 
 #if defined(CROWD_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
@@ -993,7 +993,7 @@ struct CrowdApplicationData
       currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, beforeBufferBarrier);
 
       currentCmdBuffer->cmdBindPipeline(filterPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, filterDescriptorSet);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surface->surface, filterPipelineLayout, 0, filterDescriptorSet);
       uint32_t instanceCount = rData.people.size() + rData.clothes.size();
       currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16>0) ? 1 : 0), 1, 1);
 
@@ -1043,7 +1043,7 @@ struct CrowdApplicationData
     case 1: // compute culling and instanced rendering
     {
       currentCmdBuffer->cmdBindPipeline(instancedRenderPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
       skeletalAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer2[0].bufferInfo.buffer, resultsBuffer2[0].bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));

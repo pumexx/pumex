@@ -1301,9 +1301,9 @@ struct GpuCullApplicationData
       staticOffValuesSbo->validate(deviceSh);
 
       staticRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
-      staticRenderDescriptorSet->validate(deviceSh);
+      staticRenderDescriptorSet->validate(surface);
       staticFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
-      staticFilterDescriptorSet->validate(deviceSh);
+      staticFilterDescriptorSet->validate(surface);
     }
 
     if (_showDynamicRendering)
@@ -1313,9 +1313,9 @@ struct GpuCullApplicationData
       dynamicOffValuesSbo->validate(deviceSh);
 
       dynamicRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
-      dynamicRenderDescriptorSet->validate(deviceSh);
+      dynamicRenderDescriptorSet->validate(surface);
       dynamicFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
-      dynamicFilterDescriptorSet->validate(deviceSh);
+      dynamicFilterDescriptorSet->validate(surface);
     }
 #if defined(GPU_CULL_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
@@ -1355,13 +1355,13 @@ struct GpuCullApplicationData
     if (_showStaticRendering)
     {
       currentCmdBuffer->cmdBindPipeline(staticFilterPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, staticFilterDescriptorSet);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surface->surface, filterPipelineLayout, 0, staticFilterDescriptorSet);
       currentCmdBuffer->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16>0) ? 1 : 0), 1, 1);
     }
     if (_showDynamicRendering)
     {
       currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, filterPipelineLayout, 0, dynamicFilterDescriptorSet);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surface->surface, filterPipelineLayout, 0, dynamicFilterDescriptorSet);
       currentCmdBuffer->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16>0) ? 1 : 0), 1, 1);
     }
 
@@ -1413,7 +1413,7 @@ struct GpuCullApplicationData
     if (_showStaticRendering)
     {
       currentCmdBuffer->cmdBindPipeline(staticRenderPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, staticRenderDescriptorSet);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, staticRenderDescriptorSet);
       staticAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer2[0].bufferInfo.buffer, staticResultsBuffer2[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
@@ -1426,7 +1426,7 @@ struct GpuCullApplicationData
     if (_showDynamicRendering)
     {
       currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, instancedRenderPipelineLayout, 0, dynamicRenderDescriptorSet);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, dynamicRenderDescriptorSet);
       dynamicAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
       if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer2[0].bufferInfo.buffer, dynamicResultsBuffer2[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));

@@ -9,6 +9,7 @@ namespace pumex
 {
 
 class Device;
+class Surface;
 class RenderPass;
 
 // A set of classes implementing different Vulkan pipeline elements
@@ -91,7 +92,12 @@ public:
   virtual ~DescriptorSetSource();
   void addDescriptorSet(DescriptorSet* descriptorSet);
   void removeDescriptorSet(DescriptorSet* descriptorSet);
-  virtual void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const = 0;
+  virtual void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+  {
+  }
+  virtual void getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const
+  {
+  }
   void notifyDescriptorSets();
 protected:
   std::set<DescriptorSet*> descriptorSets;
@@ -108,8 +114,8 @@ public:
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
-  void            validate(std::shared_ptr<pumex::Device> device);
-  VkDescriptorSet getHandle(VkDevice device) const;
+  void            validate(std::shared_ptr<pumex::Surface> surface);
+  VkDescriptorSet getHandle(VkSurfaceKHR surface) const;
   void            setDirty();
   void            setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source);
   void            resetSource(uint32_t binding);
@@ -118,17 +124,19 @@ public:
   std::shared_ptr<pumex::DescriptorPool>                pool;
   std::unordered_map<uint32_t,std::shared_ptr<DescriptorSetSource>> sources; // descriptor set owns the buffers, images and whatnot
 protected:
-  struct PerDeviceData
+  struct PerSurfaceData
   {
-    PerDeviceData(uint32_t ac)
+    PerSurfaceData(uint32_t ac, VkDevice d)
+      : device{ d }
     {
       descriptorSet.resize(ac,VK_NULL_HANDLE);
       dirty.resize(ac,true);
     }
     std::vector<VkDescriptorSet> descriptorSet;
     std::vector<bool>            dirty;
+    VkDevice                     device;
   };
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
   uint32_t                       activeCount;
   uint32_t                       activeIndex = 0;
 };

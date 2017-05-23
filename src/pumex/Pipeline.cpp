@@ -2,6 +2,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Device.h>
+#include <pumex/Surface.h>
 #include <fstream>
 
 using namespace pumex;
@@ -197,28 +198,28 @@ DescriptorSet::~DescriptorSet()
     s.second->removeDescriptorSet(this);
   sources.clear();
 
-  for (auto& pddit : perDeviceData)
-    vkFreeDescriptorSets(pddit.first, pool->getHandle(pddit.first), activeCount, pddit.second.descriptorSet.data());
+  for (auto& pddit : perSurfaceData)
+    vkFreeDescriptorSets(pddit.second.device, pool->getHandle(pddit.second.device), activeCount, pddit.second.descriptorSet.data());
 }
 
 
-void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
+void DescriptorSet::validate(std::shared_ptr<pumex::Surface> surface)
 {
-  auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
+  auto pddit = perSurfaceData.find(surface->surface);
+  if (pddit == perSurfaceData.end())
+    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount,surface->device.lock()->device) }).first;
   if (!pddit->second.dirty[activeIndex])
     return;
   if (pddit->second.descriptorSet[activeIndex] == VK_NULL_HANDLE)
   {
-    VkDescriptorSetLayout layoutHandle = layout->getHandle(device->device);
+    VkDescriptorSetLayout layoutHandle = layout->getHandle(pddit->second.device);
 
     VkDescriptorSetAllocateInfo descriptorSetAinfo{};
       descriptorSetAinfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-      descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->first);
+      descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->second.device);
       descriptorSetAinfo.descriptorSetCount = 1;
       descriptorSetAinfo.pSetLayouts        = &layoutHandle;
-    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->first, &descriptorSetAinfo, &pddit->second.descriptorSet[activeIndex]), "Cannot allocate descriptor sets");
+    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.descriptorSet[activeIndex]), "Cannot allocate descriptor sets");
   }
 
   std::map<uint32_t, std::vector<DescriptorSetValue>> values;
@@ -226,8 +227,11 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
   for (const auto& s : sources)
   {
     std::vector<DescriptorSetValue> value;
-    s.second->getDescriptorSetValues(pddit->first,value);
-    dsvSize += layout->getDescriptorBindingCount(s.first); //value.size();
+    // get descriptor set values based on device
+    s.second->getDescriptorSetValues(pddit->second.device,value);
+    // get descriptor set values based on surface ( input attachments )
+    s.second->getDescriptorSetValues(pddit->first, value);
+    dsvSize += layout->getDescriptorBindingCount(s.first);
     values.insert({ s.first, value });
   }
   std::vector<VkWriteDescriptorSet> writeDescriptorSets;
@@ -244,7 +248,7 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
       writeDescriptorSet.dstSet          = pddit->second.descriptorSet[activeIndex];
       writeDescriptorSet.descriptorType  = layout->getDescriptorType(v.first);
       writeDescriptorSet.dstBinding      = v.first;
-      writeDescriptorSet.descriptorCount = layout->getDescriptorBindingCount(v.first);// v.second.size();
+      writeDescriptorSet.descriptorCount = layout->getDescriptorBindingCount(v.first);
       switch (v.second[0].vType)
       {
       case DescriptorSetValue::Buffer:
@@ -265,21 +269,21 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Device> device)
       }
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
-  vkUpdateDescriptorSets(pddit->first, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+  vkUpdateDescriptorSets(pddit->second.device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
   pddit->second.dirty[activeIndex] = false;
 }
 
-VkDescriptorSet DescriptorSet::getHandle(VkDevice device) const
+VkDescriptorSet DescriptorSet::getHandle(VkSurfaceKHR surface) const
 {
-  auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  auto pddit = perSurfaceData.find(surface);
+  if (pddit == perSurfaceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.descriptorSet[activeIndex];
 }
 
 void DescriptorSet::setDirty()
 {
-  for (auto& pdd : perDeviceData)
+  for (auto& pdd : perSurfaceData)
     for(auto& d : pdd.second.dirty)
       d = true;
 }

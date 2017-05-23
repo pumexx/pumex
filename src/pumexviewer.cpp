@@ -191,8 +191,8 @@ struct ViewerApplicationData
     boxPipeline->validate(deviceSh);
 
     // preparing descriptor sets
-    descriptorSet->validate(deviceSh);
-    boxDescriptorSet->validate(deviceSh);
+    descriptorSet->validate(surface);
+    boxDescriptorSet->validate(surface);
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -406,13 +406,13 @@ struct ViewerApplicationData
     currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
     currentCmdBuffer->cmdBindPipeline(pipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, descriptorSet);
+    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, descriptorSet);
     assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
     assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
     assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
 
     currentCmdBuffer->cmdBindPipeline(boxPipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, boxDescriptorSet);
+    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, boxDescriptorSet);
     boxAssetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
     boxAssetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
 

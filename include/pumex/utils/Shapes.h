@@ -4,8 +4,6 @@
 
 namespace pumex
 {
-
-
 // collection of methods that create basic geometries
 PUMEX_EXPORT void addBox(Geometry& geometry, float halfX, float halfY, float halfZ);
 PUMEX_EXPORT void addBox(Geometry& geometry, glm::vec3 min, glm::vec3 max);

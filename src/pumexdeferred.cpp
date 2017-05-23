@@ -116,7 +116,7 @@ struct DeferredApplicationData
     square.name = "square";
     square.semantic = requiredSemantic;
     square.materialIndex = 0;
-    pumex::addQuad(square, glm::vec3(-1.0f, -1.0f, 0.0f), glm::vec3(2.0f, 0.0, 0.0), glm::vec3(0.0, 2.0f, 0.0));
+    pumex::addQuad(square, glm::vec3(1.0f, -1.0f, 0.0f), glm::vec3(-2.0f, 0.0, 0.0), glm::vec3(0.0, 2.0f, 0.0));
     squareAsset->geometries.push_back(square);
     pumex::Material groundMaterial;
     groundMaterial.properties["$clr.ambient"] = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);;
@@ -175,7 +175,9 @@ struct DeferredApplicationData
 /**********/
     std::vector<pumex::DescriptorSetLayoutBinding> compositeLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
+      { 0, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     compositeDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(compositeLayoutBindings);
 
@@ -191,6 +193,9 @@ struct DeferredApplicationData
       { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("deferred_composite.vert.spv")), "main" },
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("deferred_composite.frag.spv")), "main" }
     };
+    compositePipeline->depthTestEnable  = VK_FALSE;
+    compositePipeline->depthWriteEnable = VK_FALSE;
+
     compositePipeline->vertexInput =
     {
       { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
@@ -205,6 +210,11 @@ struct DeferredApplicationData
 /***********/
 
     cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
+
+    input2 = std::make_shared<pumex::InputAttachment>(2);
+    input3 = std::make_shared<pumex::InputAttachment>(3);
+    input4 = std::make_shared<pumex::InputAttachment>(4);
+
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
@@ -223,7 +233,9 @@ struct DeferredApplicationData
     gbufferDescriptorSet->setSource(6, textureRegistry->getTextureSamplerDescriptorSetSource());
 
     compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
-    compositeDescriptorSet->setSource(0, cameraUbo);
+    compositeDescriptorSet->setSource(0, input2);
+    compositeDescriptorSet->setSource(1, input3);
+    compositeDescriptorSet->setSource(2, input4);
 
     updateData.cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -241,6 +253,9 @@ struct DeferredApplicationData
 
     cameraUbo->validate(deviceSh);
     positionUbo->validate(deviceSh);
+    input2->validate(surface);
+    input3->validate(surface);
+    input4->validate(surface);
 
     // loading models
     assetBuffer.validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
@@ -438,8 +453,6 @@ struct DeferredApplicationData
 
   }
 
-
-
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
     std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
@@ -460,10 +473,10 @@ struct DeferredApplicationData
     positionUbo->validate(deviceSh);
     // preparing descriptor sets
     gbufferDescriptorSet->setActiveIndex(surface->getImageIndex());
-    gbufferDescriptorSet->validate(deviceSh);
+    gbufferDescriptorSet->validate(surface);
 
     compositeDescriptorSet->setActiveIndex(surface->getImageIndex());
-    compositeDescriptorSet->validate(deviceSh);
+    compositeDescriptorSet->validate(surface);
 
     auto currentCmdBuffer = myCmdBuffer[vkDevice];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
@@ -483,14 +496,14 @@ struct DeferredApplicationData
     currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
     currentCmdBuffer->cmdBindPipeline(gbufferPipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, gbufferPipelineLayout, 0, gbufferDescriptorSet);
+    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, gbufferPipelineLayout, 0, gbufferDescriptorSet);
     assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
     assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 5000.0f);
 
     currentCmdBuffer->cmdNextSubPass(VK_SUBPASS_CONTENTS_INLINE);
 
     currentCmdBuffer->cmdBindPipeline(compositePipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipelineLayout, 0, compositeDescriptorSet);
+    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, compositePipelineLayout, 0, compositeDescriptorSet);
     assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
     assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, squareTypeID, 0, 5000.0f);
 
@@ -514,6 +527,9 @@ struct DeferredApplicationData
 
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
   std::shared_ptr<pumex::UniformBuffer<PositionData>> positionUbo;
+  std::shared_ptr<pumex::InputAttachment>             input2;
+  std::shared_ptr<pumex::InputAttachment>             input3;
+  std::shared_ptr<pumex::InputAttachment>             input4;
 
   pumex::AssetBuffer                                      assetBuffer;
   std::shared_ptr<pumex::TextureRegistryArrayOfTextures>  textureRegistry;
@@ -558,7 +574,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, false, "Deferred rendering" };
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, false, "Deferred rendering" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
@@ -566,12 +582,12 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments = 
     {
-      { pumex::AttachmentDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                                                    VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0 },
-      { pumex::AttachmentDefinition::Depth,     VK_FORMAT_D24_UNORM_S8_UINT,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,                          VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_UNDEFINED,       0 },
-      { pumex::AttachmentDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 },
-      { pumex::AttachmentDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 },
-      { pumex::AttachmentDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 },
-      { pumex::AttachmentDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 }
+      { pumex::AttachmentDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0 },
+      { pumex::AttachmentDefinition::Depth,     VK_FORMAT_D24_UNORM_S8_UINT,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_UNDEFINED,       0 },
+      { pumex::AttachmentDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 },
+      { pumex::AttachmentDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 },
+      { pumex::AttachmentDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 },
+      { pumex::AttachmentDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,       0 }
     };
     std::vector<pumex::SubpassDefinition> renderPassSubpasses = 
     {
@@ -596,7 +612,9 @@ int main( int argc, char * argv[] )
     };
     std::vector<pumex::SubpassDependencyDefinition> renderPassDependencies = 
     {
-      { 0, 1, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_DEPENDENCY_BY_REGION_BIT }
+      { VK_SUBPASS_EXTERNAL, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_DEPENDENCY_BY_REGION_BIT },
+      { 0, 1,                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_DEPENDENCY_BY_REGION_BIT },
+      { 0, VK_SUBPASS_EXTERNAL, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_DEPENDENCY_BY_REGION_BIT }
     };
 
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
