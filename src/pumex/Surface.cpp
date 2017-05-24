@@ -11,14 +11,19 @@
 
 using namespace pumex;
 
-SurfaceTraits::SurfaceTraits(uint32_t ic, VkFormat ifo, VkColorSpaceKHR ics, uint32_t ial, VkFormat df, VkPresentModeKHR  spm, VkSurfaceTransformFlagBitsKHR pt, VkCompositeAlphaFlagBitsKHR ca)
-  : imageCount{ ic }, imageFormat{ ifo }, imageColorSpace{ ics }, imageArrayLayers{ ial }, depthFormat{ df }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }, presentationQueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0, { 0.5f } }
+SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkPresentModeKHR  spm, VkSurfaceTransformFlagBitsKHR pt, VkCompositeAlphaFlagBitsKHR ca)
+  : imageCount{ ic }, imageColorSpace{ ics }, imageArrayLayers{ ial }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }, presentationQueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0, { 0.5f } }
 {
 }
 
-void SurfaceTraits::setDefaultRenderPass(std::shared_ptr<pumex::RenderPass> renderPass)
+void SurfaceTraits::setDefaultRenderPass(std::shared_ptr<pumex::RenderPass> rp)
 {
-  defaultRenderPass = renderPass;
+  defaultRenderPass = rp;
+}
+
+void SurfaceTraits::setFrameBufferImages(std::shared_ptr<pumex::FrameBufferImages> fbi)
+{
+  frameBufferImages = fbi;
 }
 
 void SurfaceTraits::definePresentationQueue(const pumex::QueueTraits& queueTraits)
@@ -74,13 +79,13 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
   // Ensures that the image is not presented until all commands have been sumbitted and executed
   VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &renderCompleteSemaphore), "Could not create render complete semaphore");
 
-  // FIXME - do some checking maybe ?
-
   // define default render pass
   defaultRenderPass = surfaceTraits.defaultRenderPass;
+  frameBufferImages = surfaceTraits.frameBufferImages;
+
   defaultRenderPass->validate(deviceSh);
 
-  frameBuffer = std::make_unique<FrameBuffer>(defaultRenderPass);
+  frameBuffer = std::make_unique<FrameBuffer>(defaultRenderPass, frameBufferImages);
 
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
@@ -108,6 +113,7 @@ void Surface::cleanup()
   if (swapChain != VK_NULL_HANDLE)
   {
     frameBuffer->reset(shared_from_this());
+    frameBufferImages->reset(shared_from_this());
     swapChainImages.clear();
     vkDestroySwapchainKHR(dev, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
@@ -138,15 +144,17 @@ void Surface::createSwapChain()
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   VkSwapchainKHR oldSwapChain = swapChain;
 
+  FrameBufferImageDefinition swapChainDefinition = frameBufferImages->getSwapChainDefinition();
+
   VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCreateInfo.surface               = surface;
     swapchainCreateInfo.minImageCount         = surfaceTraits.imageCount;
-    swapchainCreateInfo.imageFormat           = surfaceTraits.imageFormat;
+    swapchainCreateInfo.imageFormat           = swapChainDefinition.format;
     swapchainCreateInfo.imageColorSpace       = surfaceTraits.imageColorSpace;
     swapchainCreateInfo.imageExtent           = swapChainSize;
     swapchainCreateInfo.imageArrayLayers      = surfaceTraits.imageArrayLayers;
-    swapchainCreateInfo.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageUsage            = swapChainDefinition.usage;
     swapchainCreateInfo.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
     swapchainCreateInfo.queueFamilyIndexCount = 0;
     swapchainCreateInfo.pQueueFamilyIndices   = nullptr;
@@ -161,6 +169,7 @@ void Surface::createSwapChain()
   if (oldSwapChain != VK_NULL_HANDLE)
   {
     frameBuffer->reset(shared_from_this());
+    frameBufferImages->reset(shared_from_this());
     swapChainImages.clear();
     vkDestroySwapchainKHR(vkDevice, oldSwapChain, nullptr);
   }
@@ -171,8 +180,9 @@ void Surface::createSwapChain()
   std::vector<VkImage> images(imageCount);
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
   for (uint32_t i = 0; i < imageCount; i++)
-    swapChainImages.push_back(std::make_unique<Image>(deviceSh, images[i], surfaceTraits.imageFormat, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_VIEW_TYPE_2D, gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA)));
+    swapChainImages.push_back(std::make_unique<Image>(deviceSh, images[i], swapChainDefinition.format, 1, 1, swapChainDefinition.aspectMask, VK_IMAGE_VIEW_TYPE_2D, swapChainDefinition.swizzles));
 
+  frameBufferImages->validate(shared_from_this());
   frameBuffer->validate(shared_from_this(), swapChainImages);
 
   // define pre- and postpresentation command buffers

@@ -15,6 +15,7 @@ class Viewer;
 class Window;
 class RenderPass;
 class FrameBuffer;
+class FrameBufferImages;
 class CommandPool;
 class CommandBuffer;
 class Image;
@@ -22,20 +23,21 @@ class Image;
 // struct representing information required to create a Vulkan surface
 struct PUMEX_EXPORT SurfaceTraits
 {
-  explicit SurfaceTraits(uint32_t imageCount, VkFormat imageFormat, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkFormat depthFormat, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
+  explicit SurfaceTraits(uint32_t imageCount, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
   void setDefaultRenderPass(std::shared_ptr<pumex::RenderPass> renderPass);
+  void setFrameBufferImages(std::shared_ptr<pumex::FrameBufferImages> frameBufferImages);
   void definePresentationQueue( const pumex::QueueTraits& queueTraits );
 
   uint32_t                           imageCount;
-  VkFormat                           imageFormat;
   VkColorSpaceKHR                    imageColorSpace;
   uint32_t                           imageArrayLayers; // always 1 ( until VR )
-  VkFormat                           depthFormat;
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
   pumex::QueueTraits                 presentationQueueTraits;
-  std::shared_ptr<pumex::RenderPass> defaultRenderPass;
+
+  std::shared_ptr<pumex::RenderPass>        defaultRenderPass;
+  std::shared_ptr<pumex::FrameBufferImages> frameBufferImages;
 };
 
 // class representing a Vulkan surface
@@ -80,7 +82,9 @@ public:
   VkSemaphore                     imageAvailableSemaphore      = VK_NULL_HANDLE;
   VkSemaphore                     renderCompleteSemaphore      = VK_NULL_HANDLE;
   pumex::ActionQueue              actions;
-  std::shared_ptr<pumex::RenderPass> defaultRenderPass;
+
+  std::shared_ptr<pumex::RenderPass>        defaultRenderPass;
+  std::shared_ptr<pumex::FrameBufferImages> frameBufferImages;
 protected:
   VkSwapchainKHR                  swapChain                    = VK_NULL_HANDLE;
   std::vector<VkFence>            waitFences;

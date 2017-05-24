@@ -12,12 +12,9 @@ class Device;
 
 struct PUMEX_EXPORT AttachmentDefinition
 {
-  enum Type { SwapChain, Depth, Color };
-  AttachmentDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
-  Type                         type;
+  AttachmentDefinition(uint32_t imageDefinitionIndex, VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
+  uint32_t                     imageDefinitionIndex;
   VkFormat                     format;
-  VkImageUsageFlags            usage;
-  VkImageAspectFlags           aspectMask;
   VkSampleCountFlagBits        samples;
   VkAttachmentLoadOp           loadOp;
   VkAttachmentStoreOp          storeOp;
