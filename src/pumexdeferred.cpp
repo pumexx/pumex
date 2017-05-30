@@ -54,6 +54,21 @@ struct MaterialData
   }
 };
 
+struct LightPointData
+{
+  LightPointData()
+  {
+  }
+
+  LightPointData(const glm::vec3& pos, const glm::vec3& col, const glm::vec3& att)
+    : position{ pos.x, pos.y, pos.z, 0.0f }, color{ col.x, col.y, col.z, 1.0f }, attenuation{ att.x, att.y, att.z, 1.0f }
+  {
+  }
+  glm::vec4 position;
+  glm::vec4 color;
+  glm::vec4 attenuation;
+};
+
 struct UpdateData
 {
   UpdateData()
@@ -92,7 +107,7 @@ struct DeferredApplicationData
   }
   void setup()
   {
-    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneIndex, 1 },{ pumex::VertexSemantic::BoneWeight, 1 } };
+    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::Tangent, 3 }, { pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneIndex, 1 },{ pumex::VertexSemantic::BoneWeight, 1 } };
     assetBuffer.registerVertexSemantic(1, requiredSemantic);
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 }, { pumex::TextureSemantic::Normals, 2 } };
     textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>();
@@ -102,6 +117,7 @@ struct DeferredApplicationData
     materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewer, textureRegistry, textureSemantic);
 
     pumex::AssetLoaderAssimp loader;
+    loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace);
     std::shared_ptr<pumex::Asset> asset(loader.load(modelName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelName);
 
@@ -175,9 +191,11 @@ struct DeferredApplicationData
 /**********/
     std::vector<pumex::DescriptorSetLayoutBinding> compositeLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     compositeDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(compositeLayoutBindings);
 
@@ -211,6 +229,14 @@ struct DeferredApplicationData
 
     cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
 
+    lightsSbo = std::make_shared<pumex::StorageBuffer<LightPointData>>();
+    std::vector<LightPointData> lights;
+    lights.push_back( LightPointData(glm::vec3(-61.78, -14.34, 14.39), glm::vec3(1.0, 1.0, 1.0), glm::vec3(1.0, 0.0, 0.0005)) );
+    lights.push_back( LightPointData(glm::vec3(-61.78, 22.02, 14.39),  glm::vec3(0.9, 0.1, 0.1), glm::vec3(1.0, 0.0, 0.0005)) );
+    lights.push_back( LightPointData(glm::vec3(48.83, 22.02, 14.39),   glm::vec3(0.1, 0.9, 0.1), glm::vec3(1.0, 0.0, 0.0005)) );
+    lights.push_back( LightPointData(glm::vec3(48.83, -14.34, 14.39),  glm::vec3(0.1, 0.1, 0.9), glm::vec3(1.0, 0.0, 0.0005)) );
+    lightsSbo->set(lights);
+
     input2 = std::make_shared<pumex::InputAttachment>(nullptr, 2);
     input3 = std::make_shared<pumex::InputAttachment>(nullptr, 3);
     input4 = std::make_shared<pumex::InputAttachment>(nullptr, 4);
@@ -233,9 +259,11 @@ struct DeferredApplicationData
     gbufferDescriptorSet->setSource(6, textureRegistry->getTextureSamplerDescriptorSetSource());
 
     compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
-    compositeDescriptorSet->setSource(0, input2);
-    compositeDescriptorSet->setSource(1, input3);
-    compositeDescriptorSet->setSource(2, input4);
+    compositeDescriptorSet->setSource(0, cameraUbo);
+    compositeDescriptorSet->setSource(1, lightsSbo);
+    compositeDescriptorSet->setSource(2, input2);
+    compositeDescriptorSet->setSource(3, input3);
+    compositeDescriptorSet->setSource(4, input4);
 
     updateData.cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -253,6 +281,7 @@ struct DeferredApplicationData
 
     cameraUbo->validate(deviceSh);
     positionUbo->validate(deviceSh);
+    lightsSbo->validate(deviceSh);
     input2->validate(surface);
     input3->validate(surface);
     input4->validate(surface);
@@ -272,6 +301,7 @@ struct DeferredApplicationData
     compositeDescriptorPool->validate(deviceSh);
     compositePipelineLayout->validate(deviceSh);
     compositePipeline->validate(deviceSh);
+
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -484,12 +514,12 @@ struct DeferredApplicationData
 
     std::vector<VkClearValue> clearValues = 
     { 
-      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), 
-      pumex::makeDepthStencilClearValue(1.0f, 0),
-      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), 
-      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), 
-      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), 
-      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)) 
+      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // target image
+      pumex::makeDepthStencilClearValue(1.0f, 0),                    // depth buffer image
+      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), // position in world coordinates
+      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), // normals in world coordiantes
+      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // albedo and specular
+      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f))  // lighting pass image
     };
     currentCmdBuffer->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
     currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
@@ -550,6 +580,8 @@ struct DeferredApplicationData
   std::shared_ptr<pumex::DescriptorPool>                  compositeDescriptorPool;
   std::shared_ptr<pumex::DescriptorSet>                   compositeDescriptorSet;
 
+  std::shared_ptr<pumex::StorageBuffer<LightPointData>>   lightsSbo;
+
 
   std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
@@ -561,7 +593,7 @@ int main( int argc, char * argv[] )
   LOG_INFO << "Deferred rendering" << std::endl;
 
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", true, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", false, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -579,10 +611,15 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {
+      // output image
       { pumex::FrameBufferImageDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
+      // depth
       { pumex::FrameBufferImageDefinition::Depth,     VK_FORMAT_D24_UNORM_S8_UINT,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, SAMPLE_COUNT },
+      // GBuffer : position in world coordinates ( not good for big worlds, btw )
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
+      // GBuffer : normals in world coordinates
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
+      // GBuffer : albedo and specular power ( on alpha channel )
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT }
     };
@@ -595,12 +632,12 @@ int main( int argc, char * argv[] )
       { 2, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 3, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 4, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
-      { 5, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
+      { 5, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
     };
 
     std::vector<pumex::SubpassDefinition> renderPassSubpasses = 
     {
-      {
+      { // gbuffers subpass
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         {},
         { { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },{ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }, { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
@@ -609,7 +646,7 @@ int main( int argc, char * argv[] )
         {},
         0
       },
-      {
+      { // lighting subpass
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         { { 2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },{ 3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },{ 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } },
         { { 5, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },

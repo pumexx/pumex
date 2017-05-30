@@ -15,6 +15,9 @@ class PUMEX_EXPORT AssetLoaderAssimp : public AssetLoader
 public:
   explicit AssetLoaderAssimp();
   pumex::Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<pumex::VertexSemantic>& requiredSemantic = std::vector<pumex::VertexSemantic>()) override;
+
+  inline unsigned int getImportFlags() const;
+  inline void setImportFlags(unsigned int flags);
 protected:
   Assimp::Importer Importer;
   unsigned int     importFlags = aiProcess_Triangulate | aiProcess_SortByPType | aiProcess_JoinIdenticalVertices; //  aiPostProcessSteps
@@ -22,5 +25,7 @@ protected:
 
 };
 
+unsigned int AssetLoaderAssimp::getImportFlags() const     { return importFlags; }
+void AssetLoaderAssimp::setImportFlags(unsigned int flags) { importFlags = flags; }
 
 }
