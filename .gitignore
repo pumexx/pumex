@@ -16,7 +16,6 @@
 # CMake files
 **/CMakeFiles/**
 CMakeCache.txt
-*.cmake
 
 # SPIR-V files
 *.spv

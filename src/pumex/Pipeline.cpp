@@ -284,7 +284,7 @@ VkDescriptorSet DescriptorSet::getHandle(VkSurfaceKHR surface) const
 void DescriptorSet::setDirty()
 {
   for (auto& pdd : perSurfaceData)
-    for(auto& d : pdd.second.dirty)
+    for(auto&& d : pdd.second.dirty)
       d = true;
 }
 

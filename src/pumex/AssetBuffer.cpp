@@ -1,4 +1,5 @@
 #include <pumex/AssetBuffer.h>
+#include <cstring>
 #include <set>
 #include <pumex/Device.h>
 #include <pumex/Command.h>
@@ -204,22 +205,22 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
 
       // types go to first buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[0].memoryOffset, stagingBuffers[0].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, assetTypes.data(), stagingBuffers[0].size);
+      std::memcpy(mapAddress, assetTypes.data(), stagingBuffers[0].size);
       vkUnmapMemory(pddit->first, stagingMemory);
 
       // lods go to second buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[1].memoryOffset, stagingBuffers[1].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, assetLods.data(), stagingBuffers[1].size);
+      std::memcpy(mapAddress, assetLods.data(), stagingBuffers[1].size);
       vkUnmapMemory(pddit->first, stagingMemory);
 
       // geometry definitions go to third buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[2].memoryOffset, stagingBuffers[2].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, assetGeometries.data(), stagingBuffers[2].size);
+      std::memcpy(mapAddress, assetGeometries.data(), stagingBuffers[2].size);
       vkUnmapMemory(pddit->first, stagingMemory);
 
       // vertices go to fourth buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[3].memoryOffset, stagingBuffers[3].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, vertexBuffer.data(), stagingBuffers[3].size);
+      std::memcpy(mapAddress, vertexBuffer.data(), stagingBuffers[3].size);
       vkUnmapMemory(pddit->first, stagingMemory);
 
       // and indices go to last fifth buffer
@@ -230,7 +231,7 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
         const auto& igd = gd.second[geometryOrder[i]];
         const auto& indices = assets[igd.assetIndex]->geometries[igd.geometryIndex].indices;
         size_t dataToCopy = indices.size() * sizeof(uint32_t);
-        memcpy(mapAddress + copyOffset, indices.data(), dataToCopy);
+        std::memcpy(mapAddress + copyOffset, indices.data(), dataToCopy);
         copyOffset += dataToCopy;
       }
       vkUnmapMemory(pddit->first, stagingMemory);
@@ -287,22 +288,22 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
       uint8_t* mapAddress;
       // types go to first buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, vibit->second.bufferMemory, targetBuffers[0].memoryOffset, targetBuffers[0].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, assetTypes.data(), targetBuffers[0].size);
+      std::memcpy(mapAddress, assetTypes.data(), targetBuffers[0].size);
       vkUnmapMemory(pddit->first, vibit->second.bufferMemory);
 
       // lods go to second buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, vibit->second.bufferMemory, targetBuffers[1].memoryOffset, targetBuffers[1].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, assetLods.data(), targetBuffers[1].size);
+      std::memcpy(mapAddress, assetLods.data(), targetBuffers[1].size);
       vkUnmapMemory(pddit->first, vibit->second.bufferMemory);
 
       // geometry definitions go to third buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, vibit->second.bufferMemory, targetBuffers[2].memoryOffset, targetBuffers[2].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, assetGeometries.data(), targetBuffers[2].size);
+      std::memcpy(mapAddress, assetGeometries.data(), targetBuffers[2].size);
       vkUnmapMemory(pddit->first, vibit->second.bufferMemory);
 
       // vertices go to fourth buffer
       VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, vibit->second.bufferMemory, targetBuffers[3].memoryOffset, targetBuffers[3].size, 0, (void**)&mapAddress), "Cannot map memory");
-      memcpy(mapAddress, vertexBuffer.data(), targetBuffers[3].size);
+      std::memcpy(mapAddress, vertexBuffer.data(), targetBuffers[3].size);
       vkUnmapMemory(pddit->first, vibit->second.bufferMemory);
 
       // and indices go to last fifth buffer
@@ -313,7 +314,7 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
         const auto& igd = gd.second[geometryOrder[i]];
         const auto& indices = assets[igd.assetIndex]->geometries[igd.geometryIndex].indices;
         size_t dataToCopy = indices.size() * sizeof(uint32_t);
-        memcpy(mapAddress + copyOffset, indices.data(), dataToCopy);
+        std::memcpy(mapAddress + copyOffset, indices.data(), dataToCopy);
         copyOffset += dataToCopy;
       }
       vkUnmapMemory(pddit->first, vibit->second.bufferMemory);

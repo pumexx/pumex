@@ -6,11 +6,11 @@
 
 namespace pumex
 {
-	
+
 #if defined(_WIN32)
-  #define HPClock HPClockWin32
+  using HPClock = HPClockWin32;
 #else  
-  #define HPClock std::chrono::high_resolution_clock
+  using HPClock = std::chrono::high_resolution_clock;
 #endif
 
 inline double inSeconds(const pumex::HPClock::duration& duration)

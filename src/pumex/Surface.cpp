@@ -60,7 +60,8 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
   // get the main queue
   presentationQueue = deviceSh->getQueue(surfaceTraits.presentationQueueTraits, true);
   CHECK_LOG_THROW( presentationQueue == VK_NULL_HANDLE, "Cannot get the presentation queue for this surface" );
-  CHECK_LOG_THROW( (!deviceSh->getQueueIndices(presentationQueue, std::tie(presentationQueueFamilyIndex, presentationQueueIndex))), "Could not get data for (device, surface, familyIndex, index)" );
+  auto pp = std::tie(presentationQueueFamilyIndex, presentationQueueIndex);
+  CHECK_LOG_THROW( (!deviceSh->getQueueIndices(presentationQueue, pp)), "Could not get data for (device, surface, familyIndex, index)" );
   CHECK_LOG_THROW(supportsPresent[presentationQueueFamilyIndex] == VK_FALSE, "Support not present for(device,surface,familyIndex) : " << presentationQueueFamilyIndex);
 
   // create command pool

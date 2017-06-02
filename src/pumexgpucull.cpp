@@ -1048,8 +1048,8 @@ struct GpuCullApplicationData
     }
 
     float camSpeed = 1.0f;
-    if (windowSh->isKeyPressed(VK_LSHIFT))
-      camSpeed = 5.0f;
+//    if (windowSh->isKeyPressed(VK_LSHIFT))
+//      camSpeed = 5.0f;
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
     glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
     if (windowSh->isKeyPressed('W'))

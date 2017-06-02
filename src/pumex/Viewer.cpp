@@ -82,7 +82,7 @@ Viewer::Viewer(const pumex::ViewerTraits& vt)
   std::string exeDir = strExePath;
   if(!exeDir.empty())
   {
-    exeDir = appDir.substr(0, appDir.find_last_of("/"));
+    exeDir = exeDir.substr(0, exeDir.find_last_of("/"));
     defaultDirectories.push_back(exeDir);
     defaultDirectories.push_back(exeDir+"/data");
     defaultDirectories.push_back(exeDir+"/data/textures");
@@ -299,7 +299,7 @@ std::string Viewer::getFullFilePath(const std::string& shortFileName) const
 #if defined(_WIN32)
     std::string fullFilePath( d + "\\" + shortFileName );
 #else
-    std::string fullDirectory(d + "/" + shortFileName);
+    std::string fullFilePath(d + "/" + shortFileName);
 #endif
     if (stat(fullFilePath.c_str(), &buf) == 0)
       return fullFilePath;

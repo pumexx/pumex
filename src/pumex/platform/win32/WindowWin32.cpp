@@ -119,16 +119,16 @@ std::shared_ptr<pumex::Surface> WindowWin32::createSurface(std::shared_ptr<pumex
 {
   VkSurfaceKHR vkSurface;
   VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
-    surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surfaceCreateInfo.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surfaceCreateInfo.hinstance = ::GetModuleHandle(NULL);
-    surfaceCreateInfo.hwnd = _hwnd;
+    surfaceCreateInfo.hwnd      = _hwnd;
   VK_CHECK_LOG_THROW(vkCreateWin32SurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
 
   std::shared_ptr<pumex::Surface> result = std::make_shared<pumex::Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
   // create swapchain
   result->resizeSurface(width, height);
 
-  viewer = v;
+  viewer  = v;
   surface = result;
   swapChainResizable = true;
   return result;

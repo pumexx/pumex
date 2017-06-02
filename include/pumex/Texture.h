@@ -134,7 +134,7 @@ private:
     }
 
     bool                   dirty        = true;
-    std::unique_ptr<Image> image;
+    std::shared_ptr<Image> image;
     VkSampler              sampler      = VK_NULL_HANDLE;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;

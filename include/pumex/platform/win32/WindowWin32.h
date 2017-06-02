@@ -18,7 +18,7 @@ public:
   WindowWin32& operator=(const WindowWin32&) = delete;
   virtual ~WindowWin32();
 
-  static void registerWindow(HWND hwnd, pumex::WindowWin32* window);
+  static void registerWindow(HWND hwnd, WindowWin32* window);
   static void unregisterWindow(HWND hwnd);
   static WindowWin32* getWindow(HWND hwnd);
 

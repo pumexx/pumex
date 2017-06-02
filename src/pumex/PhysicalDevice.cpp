@@ -1,4 +1,5 @@
 #include <pumex/PhysicalDevice.h>
+#include <cstring>
 #include <pumex/Device.h>
 #include <pumex/utils/Log.h>
 
@@ -101,7 +102,7 @@ uint32_t PhysicalDevice::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags 
 bool PhysicalDevice::hasExtension(const char* extensionName)
 {
   for (auto e : extensions)
-    if (!strcmp(extensionName, e.extensionName))
+    if (!std::strcmp(extensionName, e.extensionName))
       return true;
   return false;
 }

@@ -155,7 +155,7 @@ Image* Texture::getHandleImage(VkDevice device) const
 {
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
-    return VK_NULL_HANDLE;
+    return nullptr;
   return pddit->second.image.get();
 }
 
@@ -231,7 +231,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     ImageTraits imageTraits(usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, false, texture->levels(), texture->layers(), 
       VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE, 
       vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
-    pddit->second.image = std::make_unique<Image>(device, imageTraits);
+    pddit->second.image = std::make_shared<Image>(device, imageTraits);
 
     // Image barrier for optimal image (target)
     // Optimal image will be used as destination for the copy
@@ -262,7 +262,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     ImageTraits imageTraits(traits.usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, true, 1, texture->layers(),
       VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
-    pddit->second.image = std::make_unique<Image>(device, imageTraits);
+    pddit->second.image = std::make_shared<Image>(device, imageTraits);
 
     // Get sub resource layout
     // Mip map count, array layer, etc.

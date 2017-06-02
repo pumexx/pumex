@@ -1,5 +1,6 @@
 #include <pumex/utils/Buffer.h>
 #include <algorithm>
+#include <cstring>
 #include <pumex/Device.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/utils/Log.h>
@@ -28,7 +29,7 @@ VkDeviceSize createBuffer(std::shared_ptr<pumex::Device> device, VkBufferUsageFl
   {
     void *mapAddress;
     VK_CHECK_LOG_THROW(vkMapMemory(device->device, *memory, 0, size, 0, &mapAddress), "Cannot map memory");
-    memcpy(mapAddress, data, size);
+    std::memcpy(mapAddress, data, size);
     vkUnmapMemory(device->device, *memory);
   }
   VK_CHECK_LOG_THROW(vkBindBufferMemory(device->device, *buffer, *memory, 0), "Cannot bind memory to buffer");
@@ -88,7 +89,7 @@ VkDeviceSize createBuffers(std::shared_ptr<pumex::Device> device, std::vector<NB
     {
       void *mapAddress;
       VK_CHECK_LOG_THROW(vkMapMemory(device->device, *memory, buffer.memoryOffset, buffer.size, 0, &mapAddress), "Cannot map memory");
-      memcpy(mapAddress, buffer.data, buffer.size);
+      std::memcpy(mapAddress, buffer.data, buffer.size);
       vkUnmapMemory(device->device, *memory);
     }
     VK_CHECK_LOG_THROW(vkBindBufferMemory(device->device, buffer.buffer, *memory, buffer.memoryOffset), "Cannot bind memory to buffer");
