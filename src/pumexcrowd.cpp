@@ -570,6 +570,10 @@ struct CrowdApplicationData
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
     updateData.xKeyPressed                 = false;
+    updateData.wKeyPressed                 = false;
+    updateData.sKeyPressed                 = false;
+    updateData.aKeyPressed                 = false;
+    updateData.dKeyPressed                 = false;
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);

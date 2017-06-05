@@ -37,7 +37,7 @@ struct InputEvent
 {
   enum Type { INPUT_UNDEFINED, MOUSE_MOVE, MOUSE_KEY_PRESSED, MOUSE_KEY_RELEASED, MOUSE_KEY_DOUBLE_PRESSED, KEYBOARD_KEY_PRESSED, KEYBOARD_KEY_RELEASED };
   enum MouseButton { BUTTON_UNDEFINED, LEFT, MIDDLE, RIGHT };
-  enum Key { KEY_UNDEFINED, ESCAPE, SPACE, TAB, N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13 };
+  enum Key { KEY_UNDEFINED, ESCAPE, SPACE, TAB, N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12 };
   // mouse events
   InputEvent(pumex::HPClock::time_point t, Type mt, MouseButton b, float mx, float my )
     : time{ t }, type{ mt }, mouseButton{ b }, x{ mx }, y{ my }
@@ -114,10 +114,6 @@ public:
   uint32_t newWidth  = 1;
   uint32_t newHeight = 1;
 
-  // temporary solution for keyboard input ( Windows dependent, need to be reconsidered )
-//  void setKeyState(const std::array<uint8_t, 256>& newKeyState);
-//  bool isKeyPressed(uint8_t key) const;
-
   void pushInputEvent( const InputEvent& event );
   std::vector<InputEvent> getInputEvents();
 protected:
@@ -126,8 +122,6 @@ protected:
 
   mutable std::mutex inputMutex;
   std::vector<InputEvent> inputEvents;
-//  std::array<uint8_t, 256> keyState;
-
 };
 
 }

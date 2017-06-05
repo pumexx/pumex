@@ -28,20 +28,6 @@ std::shared_ptr<Window> Window::createWindow(const WindowTraits& windowTraits)
 
 }
 
-//void Window::setKeyState(const std::array<uint8_t, 256>& newKeyState)
-//{
-//  std::lock_guard<std::mutex> lock(inputMutex);
-//  keyState = newKeyState;
-//}
-
-
-//bool Window::isKeyPressed(uint8_t key) const 
-//{ 
-//  std::lock_guard<std::mutex> lock(inputMutex);
-//  return (keyState[key] & 0x80) != 0x00;
-//}
-
-
 void Window::pushInputEvent(const InputEvent& event)
 {
   std::lock_guard<std::mutex> lock(inputMutex);

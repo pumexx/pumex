@@ -665,6 +665,10 @@ struct GpuCullApplicationData
     updateData.cameraDistance              = 1.0f;
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
+    updateData.wKeyPressed                 = false;
+    updateData.sKeyPressed                 = false;
+    updateData.aKeyPressed                 = false;
+    updateData.dKeyPressed                 = false;
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4*3);
   }

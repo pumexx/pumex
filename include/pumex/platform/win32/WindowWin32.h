@@ -30,7 +30,7 @@ public:
 
   void normalizeMouseCoordinates( float& x, float& y);
   
-  InputEvent::Key win32KeyCodeToPumex(xcb_keycode_t keycode) const;
+  InputEvent::Key win32KeyCodeToPumex(WPARAM keycode) const;
   
 protected:
   HWND _hwnd              = nullptr;
@@ -44,7 +44,7 @@ protected:
   
   static std::unordered_map<HWND, WindowWin32*> registeredWindows;
 
-  std::set<InputEvent::Button> pressedMouseButtons;
+  std::set<InputEvent::MouseButton> pressedMouseButtons;
 };
 
 }

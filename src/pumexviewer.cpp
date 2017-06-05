@@ -167,11 +167,15 @@ struct ViewerApplicationData
     boxDescriptorSet->setSource(0, cameraUbo);
     boxDescriptorSet->setSource(1, positionUbo);
 
-    updateData.cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    updateData.cameraDistance = 1.0f;
-    updateData.leftMouseKeyPressed = false;
-    updateData.rightMouseKeyPressed = false;
+    updateData.cameraDistance              = 1.0f;
+    updateData.leftMouseKeyPressed         = false;
+    updateData.rightMouseKeyPressed        = false;
+    updateData.wKeyPressed                 = false;
+    updateData.sKeyPressed                 = false;
+    updateData.aKeyPressed                 = false;
+    updateData.dKeyPressed                 = false;
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
