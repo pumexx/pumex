@@ -142,6 +142,8 @@ void Surface::createSwapChain()
   VkDevice vkDevice = deviceSh->device;
   VkPhysicalDevice phDev = deviceSh->physical.lock()->physicalDevice;
 
+  vkDeviceWaitIdle(vkDevice);
+  
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   VkSwapchainKHR oldSwapChain = swapChain;
 

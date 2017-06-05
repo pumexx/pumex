@@ -74,13 +74,19 @@ struct UpdateData
   UpdateData()
   {
   }
-  glm::vec3                                cameraPosition;
-  glm::vec2                                cameraGeographicCoordinates;
-  float                                    cameraDistance;
+  glm::vec3 cameraPosition;
+  glm::vec2 cameraGeographicCoordinates;
+  float     cameraDistance;
 
-  glm::vec2                                lastMousePos;
-  bool                                     leftMouseKeyPressed;
-  bool                                     rightMouseKeyPressed;
+  glm::vec2 lastMousePos;
+  bool      leftMouseKeyPressed;
+  bool      rightMouseKeyPressed;
+  
+  bool      wKeyPressed;
+  bool      sKeyPressed;
+  bool      aKeyPressed;
+  bool      dKeyPressed;
+  
 };
 
 struct RenderData
@@ -270,6 +276,10 @@ struct DeferredApplicationData
     updateData.cameraDistance = 1.0f;
     updateData.leftMouseKeyPressed = false;
     updateData.rightMouseKeyPressed = false;
+    updateData.wKeyPressed = false;
+    updateData.sKeyPressed = false;
+    updateData.aKeyPressed = false;
+    updateData.dKeyPressed = false;
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
@@ -311,32 +321,50 @@ struct DeferredApplicationData
 #endif
     std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
 
-    std::vector<pumex::MouseEvent> mouseEvents = windowSh->getMouseEvents();
+    std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
     for (const auto& m : mouseEvents)
     {
       switch (m.type)
       {
-      case pumex::MouseEvent::KEY_PRESSED:
-        if (m.button == pumex::MouseEvent::LEFT)
+      case pumex::InputEvent::MOUSE_KEY_PRESSED:
+        if (m.mouseButton == pumex::InputEvent::LEFT)
           updateData.leftMouseKeyPressed = true;
-        if (m.button == pumex::MouseEvent::RIGHT)
+        if (m.mouseButton == pumex::InputEvent::RIGHT)
           updateData.rightMouseKeyPressed = true;
         mouseMove.x = m.x;
         mouseMove.y = m.y;
         updateData.lastMousePos = mouseMove;
         break;
-      case pumex::MouseEvent::KEY_RELEASED:
-        if (m.button == pumex::MouseEvent::LEFT)
+      case pumex::InputEvent::MOUSE_KEY_RELEASED:
+        if (m.mouseButton == pumex::InputEvent::LEFT)
           updateData.leftMouseKeyPressed = false;
-        if (m.button == pumex::MouseEvent::RIGHT)
+        if (m.mouseButton == pumex::InputEvent::RIGHT)
           updateData.rightMouseKeyPressed = false;
         break;
-      case pumex::MouseEvent::MOVE:
+      case pumex::InputEvent::MOUSE_MOVE:
         if (updateData.leftMouseKeyPressed || updateData.rightMouseKeyPressed)
         {
           mouseMove.x = m.x;
           mouseMove.y = m.y;
+        }
+        break;
+      case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
+        switch(m.key)
+        {
+        case pumex::InputEvent::W: updateData.wKeyPressed = true; break;
+        case pumex::InputEvent::S: updateData.sKeyPressed = true; break;
+        case pumex::InputEvent::A: updateData.aKeyPressed = true; break;
+        case pumex::InputEvent::D: updateData.dKeyPressed = true; break;
+        }
+        break;
+      case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
+        switch(m.key)
+        {
+        case pumex::InputEvent::W: updateData.wKeyPressed = false; break;
+        case pumex::InputEvent::S: updateData.sKeyPressed = false; break;
+        case pumex::InputEvent::A: updateData.aKeyPressed = false; break;
+        case pumex::InputEvent::D: updateData.dKeyPressed = false; break;
         }
         break;
       }
@@ -369,13 +397,13 @@ struct DeferredApplicationData
 
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
     glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (windowSh->isKeyPressed('W'))
+    if (updateData.wKeyPressed)
       updateData.cameraPosition -= forward;
-    if (windowSh->isKeyPressed('S'))
+    if (updateData.sKeyPressed)
       updateData.cameraPosition += forward;
-    if (windowSh->isKeyPressed('A'))
+    if (updateData.aKeyPressed)
       updateData.cameraPosition -= right;
-    if (windowSh->isKeyPressed('D'))
+    if (updateData.dKeyPressed)
       updateData.cameraPosition += right;
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;

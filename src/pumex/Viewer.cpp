@@ -9,7 +9,8 @@
   #include <pumex/platform/win32/WindowWin32.h>
   #include <direct.h>
   #define getcwd _getcwd
-#else
+#elif defined(__linux__)
+  #include <pumex/platform/linux/WindowXcb.h>
   #include <unistd.h>
 #endif
 #include <sys/stat.h>
@@ -223,6 +224,8 @@ void Viewer::run()
     bool continueRun = true;
 #if defined(_WIN32)
     continueRun = WindowWin32::checkWindowMessages();
+#elif defined (__linux__)
+    continueRun = WindowXcb::checkWindowMessages();
 #endif
 
     if (continueRun)

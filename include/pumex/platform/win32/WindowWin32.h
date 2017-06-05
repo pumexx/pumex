@@ -23,18 +23,28 @@ public:
   static WindowWin32* getWindow(HWND hwnd);
 
   std::shared_ptr<pumex::Surface> createSurface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits) override;
+  
   static bool checkWindowMessages();
 
   LRESULT handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam);
 
   void normalizeMouseCoordinates( float& x, float& y);
+  
+  InputEvent::Key win32KeyCodeToPumex(xcb_keycode_t keycode) const;
+  
 protected:
   HWND _hwnd              = nullptr;
   bool swapChainResizable = false;
   bool sizeMaximized      = false;
+  
+  static std::unordered_map<WPARAM, InputEvent::Key> win32Keycodes;
+  
+  static void fillWin32Keycodes();
+  
+  
   static std::unordered_map<HWND, WindowWin32*> registeredWindows;
 
-  std::set<MouseEvent::Button> pressedMouseButtons;
+  std::set<InputEvent::Button> pressedMouseButtons;
 };
 
 }

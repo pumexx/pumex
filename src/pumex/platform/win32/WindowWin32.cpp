@@ -6,6 +6,7 @@
 
 using namespace pumex;
 
+std::unordered_map<uint32_t, InputEvent::Key> WindowWin32::win32Keycodes;
 std::unordered_map<HWND, WindowWin32*> WindowWin32::registeredWindows;
 
 LRESULT CALLBACK WindowWin32Proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -21,6 +22,9 @@ const std::string windowClassName = "Pumex_Window_class_for_Win32";
 
 WindowWin32::WindowWin32(const WindowTraits& windowTraits)
 {
+  if(win32Keycodes.empty())
+    fillWin32Keycodes();
+  
   for (uint32_t i = 0; i<256; ++i)
     keyState[i] = 0x0;
 
@@ -150,6 +154,7 @@ bool WindowWin32::checkWindowMessages()
 
 LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
 {
+  auto timeNow = pumex::HPClock::now();
   switch (msg)
   {
   case WM_CLOSE:
@@ -166,7 +171,7 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
     float mx = GET_X_LPARAM(lParam);
     float my = GET_Y_LPARAM(lParam);
     normalizeMouseCoordinates(mx,my);
-    pushMouseEvent(MouseEvent(MouseEvent::MOVE, MouseEvent::NONE, mx, my, pumex::HPClock::now()));
+    pushInputEvent( InputEvent(timeNow, InputEvent::MOUSE_MOVE, InputEvent::NONE, mx, my) );
   }
   break;
   case WM_LBUTTONDOWN:
@@ -175,26 +180,26 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
   {
     ::SetCapture(_hwnd);
 
-    MouseEvent::Button button;
-    if (msg == WM_LBUTTONDOWN)      button = MouseEvent::LEFT;
-    else if (msg == WM_MBUTTONDOWN) button = MouseEvent::MIDDLE;
-    else                            button = MouseEvent::RIGHT;
+    InputEvent::MouseButton button = InputEvent::NONE;
+    if (msg == WM_LBUTTONDOWN)      button = InputEvent::LEFT;
+    else if (msg == WM_MBUTTONDOWN) button = InputEvent::MIDDLE;
+    else                            button = InputEvent::RIGHT;
     pressedMouseButtons.insert(button);
 
     float mx = GET_X_LPARAM(lParam);
     float my = GET_Y_LPARAM(lParam);
     normalizeMouseCoordinates(mx, my);
-    pushMouseEvent(MouseEvent(MouseEvent::KEY_PRESSED, button, mx, my, pumex::HPClock::now()));
+    pushInputEvent( InputEvent(timeNow, InputEvent::MOUSE_KEY_PRESSED, button, mx, my) );
   }
   break;
   case WM_LBUTTONUP:
   case WM_MBUTTONUP:
   case WM_RBUTTONUP:
   {
-    MouseEvent::Button button;
-    if (msg == WM_LBUTTONUP)      button = MouseEvent::LEFT;
-    else if (msg == WM_MBUTTONUP) button = MouseEvent::MIDDLE;
-    else                          button = MouseEvent::RIGHT;
+    InputEvent::MouseButton button = InputEvent::NONE;
+    if (msg == WM_LBUTTONUP)      button = InputEvent::LEFT;
+    else if (msg == WM_MBUTTONUP) button = InputEvent::MIDDLE;
+    else                          button = InputEvent::RIGHT;
 
     pressedMouseButtons.erase(button);
     if (pressedMouseButtons.empty())
@@ -203,7 +208,7 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
     float mx = GET_X_LPARAM(lParam);
     float my = GET_Y_LPARAM(lParam);
     normalizeMouseCoordinates(mx, my);
-    pushMouseEvent(MouseEvent(MouseEvent::KEY_RELEASED, button, mx, my, pumex::HPClock::now()));
+    pushInputEvent( InputEvent(timeNow, InputEvent::MOUSE_KEY_RELEASED, button, mx, my) );
   }
   break;
   case WM_LBUTTONDBLCLK:
@@ -212,17 +217,17 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
   {
     ::SetCapture(_hwnd);
 
-    MouseEvent::Button button;
-    if (msg == WM_LBUTTONDBLCLK)      button = MouseEvent::LEFT;
-    else if (msg == WM_MBUTTONDBLCLK) button = MouseEvent::MIDDLE;
-    else                              button = MouseEvent::RIGHT;
+    InputEvent::MouseButton button;
+    if (msg == WM_LBUTTONDBLCLK)      button = InputEvent::LEFT;
+    else if (msg == WM_MBUTTONDBLCLK) button = InputEvent::MIDDLE;
+    else                              button = InputEvent::RIGHT;
 
     pressedMouseButtons.insert(button);
 
     float mx = GET_X_LPARAM(lParam);
     float my = GET_Y_LPARAM(lParam);
     normalizeMouseCoordinates(mx, my);
-    pushMouseEvent(MouseEvent(MouseEvent::KEY_DOUBLE_PRESSED, button, mx, my, pumex::HPClock::now()));
+    pushInputEvent( InputEvent(timeNow, InputEvent::MOUSE_KEY_DOUBLE_PRESSED, button, mx, my));
   }
   break;
   case WM_MOUSEWHEEL:
@@ -240,14 +245,14 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
       {
         sizeMaximized = true;
         surfaceSh->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surfaceSh, newWidth, newHeight));
-        width = newWidth;
+        width  = newWidth;
         height = newHeight;
       }
       else if ( sizeMaximized && wParam == SIZE_RESTORED)
       { 
         sizeMaximized = false;
         surfaceSh->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surfaceSh, newWidth, newHeight));
-        width = newWidth;
+        width  = newWidth;
         height = newHeight;
       }
     }
@@ -259,7 +264,7 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
     {
       auto surf = surface.lock();
       surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, newWidth, newHeight));
-      width = newWidth;
+      width  = newWidth;
       height = newHeight;
     }
     break;
@@ -268,20 +273,26 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
   case WM_SYSKEYDOWN:
   {
     // temporary solution
-    std::array<uint8_t, 256> newKeyState;
-    ::GetKeyboardState(newKeyState.data());
-    setKeyState(newKeyState);
+//    std::array<uint8_t, 256> newKeyState;
+//    ::GetKeyboardState(newKeyState.data());
+//    setKeyState(newKeyState);
+    InputEvent::Key key = win32KeyCodeToPumex(wParam);
+    pushInputEvent( InputEvent( timeNow, InputEvent::KEYBOARD_KEY_PRESSED, key ) );
+    break;
   }
-  break;
   case WM_KEYUP:
   case WM_SYSKEYUP:
   {
     // temporary solution
-    std::array<uint8_t, 256> newKeyState;
-    ::GetKeyboardState(newKeyState.data());
-    setKeyState(newKeyState);
+//    std::array<uint8_t, 256> newKeyState;
+//    ::GetKeyboardState(newKeyState.data());
+//    setKeyState(newKeyState);
+    InputEvent::Key key = win32KeyCodeToPumex(wParam);
+    pushInputEvent( InputEvent( timeNow, InputEvent::KEYBOARD_KEY_RELEASED, key ) );
+    break;
   }
-  break;
+  default:
+    break;
   }
   return ::DefWindowProc(_hwnd, msg, wParam, lParam);
 }
@@ -313,4 +324,70 @@ WindowWin32* WindowWin32::getWindow(HWND hwnd)
   if (it == registeredWindows.end())
     return nullptr;
   return it->second;
+}
+
+InputEvent::Key WindowWin32::win32KeyCodeToPumex(WPARAM keycode) const
+{
+  auto it = win32Keycodes.find(keycode);
+  if(it != win32Keycodes.end() )
+    return it->second;
+//  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
+  return InputEvent::KEY_UNDEFINED;
+}
+
+void WindowWin32::fillWin32Keycodes()
+{
+/*
+
+  // importatnt keys
+  xcbKeycodes.insert({0x9, InputEvent::ESCAPE});
+  xcbKeycodes.insert({0x41, InputEvent::SPACE});
+  xcbKeycodes.insert({0x17, InputEvent::TAB});
+  
+  uint32_t i=0;
+  
+  // keys F1-F10
+  typedef EnumIterator<InputEvent::Key, InputEvent::Key::F1, InputEvent::Key::F10> FunKeyIterator;
+  i=0x43;
+  for(InputEvent::Key f : FunKeyIterator())
+    xcbKeycodes.insert({i++, f});
+  
+  // numbers
+  typedef EnumIterator<InputEvent::Key, InputEvent::Key::N1, InputEvent::Key::N9> NumKeyIterator;
+  i=0xa;
+  for(InputEvent::Key f : NumKeyIterator())
+    xcbKeycodes.insert({i++, f});
+  xcbKeycodes.insert({0x13, InputEvent::N0});
+
+  // letters
+  xcbKeycodes.insert({0x26, InputEvent::A});
+  xcbKeycodes.insert({0x38, InputEvent::B});
+  xcbKeycodes.insert({0x36, InputEvent::C});
+  xcbKeycodes.insert({0x28, InputEvent::D});
+  xcbKeycodes.insert({0x1a, InputEvent::E});
+  xcbKeycodes.insert({0x29, InputEvent::F});
+  xcbKeycodes.insert({0x2a, InputEvent::G});
+  xcbKeycodes.insert({0x2b, InputEvent::H});
+  xcbKeycodes.insert({0x1f, InputEvent::I});
+  xcbKeycodes.insert({0x2c, InputEvent::J});
+  xcbKeycodes.insert({0x2d, InputEvent::K});
+  xcbKeycodes.insert({0x2e, InputEvent::L});
+  xcbKeycodes.insert({0x3a, InputEvent::M});
+  xcbKeycodes.insert({0x39, InputEvent::N});
+  xcbKeycodes.insert({0x20, InputEvent::O});
+  xcbKeycodes.insert({0x21, InputEvent::P});
+  xcbKeycodes.insert({0x18, InputEvent::Q});
+  xcbKeycodes.insert({0x1b, InputEvent::R});
+  xcbKeycodes.insert({0x27, InputEvent::S});
+  xcbKeycodes.insert({0x1c, InputEvent::T});
+  xcbKeycodes.insert({0x1e, InputEvent::U});
+  xcbKeycodes.insert({0x37, InputEvent::V});
+  xcbKeycodes.insert({0x19, InputEvent::W});
+  xcbKeycodes.insert({0x35, InputEvent::X});
+  xcbKeycodes.insert({0x1d, InputEvent::Y});
+  xcbKeycodes.insert({0x34, InputEvent::Z});
+
+
+*/  
+  
 }
