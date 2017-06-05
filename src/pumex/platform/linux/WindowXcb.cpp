@@ -34,13 +34,16 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   uint32_t eventMask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
   uint32_t valueList[] = { screen->black_pixel, XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE };
   
-  xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, windowTraits.x, windowTraits.y, windowTraits.w, windowTraits.h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+  if (windowTraits.fullscreen)
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+  else
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, windowTraits.x, windowTraits.y, windowTraits.w, windowTraits.h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
   xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, windowTraits.windowName.size(),   windowTraits.windowName.c_str());  
   
   xcb_intern_atom_cookie_t wmDeleteCookie    = xcb_intern_atom(connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
   xcb_intern_atom_cookie_t wmProtocolsCookie = xcb_intern_atom(connection, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
-  xcb_intern_atom_reply_t *wmDeleteReply     = xcb_intern_atom_reply(connection, wmDeleteCookie, NULL);
-  xcb_intern_atom_reply_t *wmProtocolsReply  = xcb_intern_atom_reply(connection, wmProtocolsCookie, NULL);
+  xcb_intern_atom_reply_t* wmDeleteReply     = xcb_intern_atom_reply(connection, wmDeleteCookie, NULL);
+  xcb_intern_atom_reply_t* wmProtocolsReply  = xcb_intern_atom_reply(connection, wmProtocolsCookie, NULL);
   wmDeleteWin = wmDeleteReply->atom;
   wmProtocols = wmProtocolsReply->atom;
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, wmProtocolsReply->atom, 4, 32, 1, &wmDeleteReply->atom);
@@ -61,7 +64,20 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
     width  = newWidth  = windowTraits.w;
     height = newHeight = windowTraits.h;
   }
-  free(reply);  
+  free(reply);
+  
+  if (windowTraits.fullscreen)
+  {
+    xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
+    xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);
+    
+    xcb_intern_atom_cookie_t cookieFs  = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN");
+    xcb_intern_atom_reply_t* atomFs = xcb_intern_atom_reply(connection, cookieFs, NULL);
+    
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, atomWms->atom, XCB_ATOM_ATOM, 32, 1, &(atomFs->atom));
+    free(atomFs);
+    free(atomWms);
+  }
   
   xcb_map_window(connection, window); 
 }
@@ -142,7 +158,9 @@ bool WindowXcb::checkWindowMessages()
         float mx = motionNotify->event_x;
         float my = motionNotify->event_y;
         window->normalizeMouseCoordinates(mx,my);
-        window->pushInputEvent( InputEvent( timeNow, InputEvent::MOUSE_MOVE, InputEvent::BUTTON_UNDEFINED, mx, my ) );
+        window->lastMouseX = mx;
+        window->lastMouseY = my;
+        window->pushInputEvent( InputEvent( timeNow, InputEvent::MOUSE_MOVE, InputEvent::BUTTON_UNDEFINED, window->lastMouseX, window->lastMouseY ) );
       }
       break;
     }
@@ -153,10 +171,11 @@ bool WindowXcb::checkWindowMessages()
       if(window!=nullptr)
       {
         InputEvent::MouseButton button = InputEvent::BUTTON_UNDEFINED;
-        if (buttonPress->detail == XCB_BUTTON_MASK_1)       button = InputEvent::LEFT;
-        else if (buttonPress->detail == XCB_BUTTON_MASK_2)  button = InputEvent::MIDDLE;
-        else if (buttonPress->detail == XCB_BUTTON_MASK_3)  button = InputEvent::RIGHT;
-        window->pushInputEvent( InputEvent( timeNow, InputEvent::MOUSE_KEY_PRESSED, button, 0.0f, 0.0f ) );
+        if (buttonPress->detail == XCB_BUTTON_INDEX_1)       button = InputEvent::LEFT;
+        else if (buttonPress->detail == XCB_BUTTON_INDEX_2)  button = InputEvent::MIDDLE;
+        else if (buttonPress->detail == XCB_BUTTON_INDEX_3)  button = InputEvent::RIGHT;
+//        else LOG_ERROR << "Unknown mouse button : 0x" << std::hex << (uint32_t)buttonPress->detail << std::endl;
+        window->pushInputEvent( InputEvent( timeNow, InputEvent::MOUSE_KEY_PRESSED, button, window->lastMouseX, window->lastMouseY ) );
       }
       break;
     }
@@ -167,10 +186,11 @@ bool WindowXcb::checkWindowMessages()
       if(window!=nullptr)
       {
         InputEvent::MouseButton button = InputEvent::BUTTON_UNDEFINED;
-        if (buttonPress->detail == XCB_BUTTON_MASK_1)       button = InputEvent::LEFT;
-        else if (buttonPress->detail == XCB_BUTTON_MASK_2)  button = InputEvent::MIDDLE;
-        else if (buttonPress->detail == XCB_BUTTON_MASK_3)  button = InputEvent::RIGHT;
-        window->pushInputEvent( InputEvent( timeNow, InputEvent::MOUSE_KEY_RELEASED, button, 0.0f, 0.0f ) );
+        if (buttonPress->detail == XCB_BUTTON_INDEX_1)       button = InputEvent::LEFT;
+        else if (buttonPress->detail == XCB_BUTTON_INDEX_2)  button = InputEvent::MIDDLE;
+        else if (buttonPress->detail == XCB_BUTTON_INDEX_3)  button = InputEvent::RIGHT;
+//        else LOG_ERROR << "Unknown mouse button : 0x" << std::hex << (uint32_t)buttonPress->detail << std::endl;
+        window->pushInputEvent( InputEvent( timeNow, InputEvent::MOUSE_KEY_RELEASED, button, window->lastMouseX, window->lastMouseY ) );
       }
       break;
     }
@@ -212,6 +232,9 @@ bool WindowXcb::checkWindowMessages()
     }
     case XCB_CONFIGURE_NOTIFY:
     {
+      // FIXME : currently Linux calls this event many times during single mouse resize and
+      // such situation generates A LOT of memory reallocations.
+      // On Windows this problem is solved using WM_EXITSIZEMOVE.
       const xcb_configure_notify_event_t* cfgEvent = (const xcb_configure_notify_event_t *)event;
       WindowXcb* window = WindowXcb::getWindow(cfgEvent->window);
       if(window!=nullptr)
@@ -236,9 +259,9 @@ bool WindowXcb::checkWindowMessages()
 
 void WindowXcb::normalizeMouseCoordinates(float& x, float& y) const
 {
-  // FIXME
-  x = (x - 0) / (width - 0);
-  y = (y - 0) / (height - 0);
+  // x and y are defined in windows coordinates as oposed to Windows OS
+  x = x / width;
+  y = y / height;
 }
 
 InputEvent::Key WindowXcb::xcbKeyCodeToPumex(xcb_keycode_t keycode) const
@@ -252,7 +275,7 @@ InputEvent::Key WindowXcb::xcbKeyCodeToPumex(xcb_keycode_t keycode) const
 
 void WindowXcb::fillXcbKeycodes()
 {
-  // importatnt keys
+  // important keys
   xcbKeycodes.insert({0x9, InputEvent::ESCAPE});
   xcbKeycodes.insert({0x41, InputEvent::SPACE});
   xcbKeycodes.insert({0x17, InputEvent::TAB});

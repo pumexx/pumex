@@ -27,6 +27,8 @@ public:
   InputEvent::Key xcbKeyCodeToPumex(xcb_keycode_t keycode) const;
 
   bool swapChainResizable = false;
+  float lastMouseX = 0.0f;
+  float lastMouseY = 0.0f;
 protected:
   xcb_screen_t* screen      = nullptr;
   xcb_window_t  window      = 0;
