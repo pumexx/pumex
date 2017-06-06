@@ -29,6 +29,8 @@ public:
   bool swapChainResizable = false;
   float lastMouseX = 0.0f;
   float lastMouseY = 0.0f;
+  bool  resizeCalled = false;
+  pumex::HPClock::time_point lastResizeTimePoint;
 protected:
   xcb_screen_t* screen      = nullptr;
   xcb_window_t  window      = 0;

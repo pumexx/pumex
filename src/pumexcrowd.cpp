@@ -579,8 +579,6 @@ struct CrowdApplicationData
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);
     resultsSbo->set(results);
     resultsSbo2->set(results);
-//    offValuesSbo->set(std::vector<uint32_t>(1)); // FIXME
-
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)

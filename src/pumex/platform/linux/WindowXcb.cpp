@@ -218,33 +218,25 @@ bool WindowXcb::checkWindowMessages()
     }
     case XCB_DESTROY_NOTIFY:
     {
-      xcb_client_message_event_t* clientMessage = (xcb_client_message_event_t *)event;
-      WindowXcb* window = WindowXcb::getWindow(clientMessage->window);
+      xcb_destroy_notify_event_t* destroyNotify = (xcb_destroy_notify_event_t*)event;
+      WindowXcb* window = WindowXcb::getWindow(destroyNotify->window);
       if(window!=nullptr)
       {
-        if (clientMessage->data.data32[0] == window->wmDeleteWin)
-        {
-          window->viewer.lock()->setTerminate();
-          return false;
-        }
+        window->viewer.lock()->setTerminate();
+        return false;
       }
       break;
     }
     case XCB_CONFIGURE_NOTIFY:
     {
-      // FIXME : currently Linux calls this event many times during single mouse resize and
-      // such situation generates A LOT of memory reallocations.
-      // On Windows this problem is solved using WM_EXITSIZEMOVE.
       const xcb_configure_notify_event_t* cfgEvent = (const xcb_configure_notify_event_t *)event;
       WindowXcb* window = WindowXcb::getWindow(cfgEvent->window);
       if(window!=nullptr)
       {
-        window->newWidth  = cfgEvent->width;
-        window->newHeight = cfgEvent->height;
-        auto surf = window->surface.lock();
-        surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, window->newWidth, window->newHeight));
-        window->width = window->newWidth;
-        window->height = window->newHeight;
+        window->resizeCalled        = true;
+        window->lastResizeTimePoint = timeNow;
+        window->newWidth            = cfgEvent->width;
+        window->newHeight           = cfgEvent->height;
       }
       break;
     }
@@ -253,6 +245,23 @@ bool WindowXcb::checkWindowMessages()
     }
     free(event);
   }
+  // check for a delayed window resize
+  for( auto it : WindowXcb::registeredWindows )
+  {
+    if( !it.second->resizeCalled )
+      continue;
+    // if last resize was called less than 1 second ago, then wait a little more
+    if( inSeconds( timeNow - it.second->lastResizeTimePoint ) < 1.0 )
+      continue;
+
+    it.second->resizeCalled        = false;    
+    it.second->lastResizeTimePoint = timeNow;
+    auto surf                      = it.second->surface.lock();
+    surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, it.second->newWidth, it.second->newHeight));
+    it.second->width               = it.second->newWidth;
+    it.second->height              = it.second->newHeight;
+  }
+  
   return true;
   
 }

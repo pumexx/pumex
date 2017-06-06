@@ -950,7 +950,6 @@ struct GpuCullApplicationData
     dynamicRenderDescriptorSet->setSource(4, dynamicMaterialSet->getMaterialVariantBufferDescriptorSetSource());
     dynamicRenderDescriptorSet->setSource(5, dynamicMaterialSet->getMaterialDefinitionBufferDescriptorSetSource());
 
-    // FIXME : need to relocate
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     dynamicAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1, results, dynamicResultsGeomToType);
     dynamicResultsSbo->set(results);
