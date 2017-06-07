@@ -88,7 +88,6 @@ public:
 protected:
   VkSwapchainKHR                  swapChain                    = VK_NULL_HANDLE;
   std::vector<VkFence>            waitFences;
-  std::vector<std::shared_ptr<pumex::CommandBuffer>> postPresentCmdBuffers;
   std::vector<std::shared_ptr<pumex::CommandBuffer>> prePresentCmdBuffers;
 
 protected:

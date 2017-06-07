@@ -69,6 +69,7 @@ Device::Device(std::shared_ptr<pumex::Viewer> const& v, std::shared_ptr<pumex::P
     deviceCreateInfo.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(deviceQueues.size());
     deviceCreateInfo.pQueueCreateInfos    = deviceQueues.data();
+    deviceCreateInfo.pEnabledFeatures     = &physicalDevice->features;
 
   std::vector<const char*> deviceExtensions;
   // Enable the debug marker extension if it is present (likely meaning a debugging tool is present)

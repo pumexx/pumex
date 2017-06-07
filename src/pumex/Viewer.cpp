@@ -317,9 +317,9 @@ void Viewer::setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEX
   pfnDebugReportMessage         = reinterpret_cast<PFN_vkDebugReportMessageEXT>(vkGetInstanceProcAddr(instance, "vkDebugReportMessageEXT"));
 
   VkDebugReportCallbackCreateInfoEXT dbgCreateInfo{};
-    dbgCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
+    dbgCreateInfo.sType       = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
     dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
-    dbgCreateInfo.flags = flags;
+    dbgCreateInfo.flags       = flags;
   VK_CHECK_LOG_THROW( pfnCreateDebugReportCallback(instance, &dbgCreateInfo, nullptr, (callBack != nullptr) ? &callBack : &msgCallback), "Cannot create debug report callback");
 }
 

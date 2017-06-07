@@ -1241,5 +1241,5 @@ int main(void)
 }
 
 // Small hint : print spir-v in human readable format
-// glslangvalidator -H instanced_animation.vert -o instanced_animation.vert.spv >>instanced_animation.vert.txt
-// glslangvalidator -H instanced_animation.frag -o instanced_animation.frag.spv >>instanced_animation.frag.txt
+// glslangValidator -H instanced_animation.vert -o instanced_animation.vert.spv >>instanced_animation.vert.txt
+// glslangValidator -H instanced_animation.frag -o instanced_animation.frag.spv >>instanced_animation.frag.txt

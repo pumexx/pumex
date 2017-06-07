@@ -90,10 +90,7 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
 
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
-  {
     prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh,commandPool));
-    postPresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh,commandPool));
-  }
 
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -123,7 +120,6 @@ void Surface::cleanup()
   {
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
-    postPresentCmdBuffers.clear();
     prePresentCmdBuffers.clear();
     defaultRenderPass = nullptr;
     vkDestroySemaphore(dev, renderCompleteSemaphore, nullptr);
@@ -188,18 +184,13 @@ void Surface::createSwapChain()
   frameBufferImages->validate(shared_from_this());
   frameBuffer->validate(shared_from_this(), swapChainImages);
 
-  // define pre- and postpresentation command buffers
-  postPresentCmdBuffers.resize(swapChainImages.size());
+  // define prepresentation command buffers
   prePresentCmdBuffers.resize(swapChainImages.size());
   for (uint32_t i = 0; i < swapChainImages.size(); ++i)
   {
-    postPresentCmdBuffers[i]->cmdBegin();
-    PipelineBarrier postPresentBarrier(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } );
-    postPresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, postPresentBarrier);
-    postPresentCmdBuffers[i]->cmdEnd();
-
+    // dummy image barrier
     prePresentCmdBuffers[i]->cmdBegin();
-    PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+    PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
     prePresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
     prePresentCmdBuffers[i]->cmdEnd();
   }
@@ -215,7 +206,6 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex), "failed vkAcquireNextImageKHR" );
   VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
-  postPresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue);
 }
 
 void Surface::endFrame()
