@@ -528,6 +528,8 @@ struct GpuCullApplicationData
 
   std::default_random_engine                           randomEngine;
 
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
+
   std::shared_ptr<pumex::AssetBuffer>                  staticAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> staticMaterialSet;
 
@@ -616,12 +618,14 @@ struct GpuCullApplicationData
     _minArea = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
     _maxArea = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
 
+    // alocate 32 MB for uniform and storage buffers
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     vertexSemantic      = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
     textureSemantic     = {};
     textureRegistryNull = std::make_shared<pumex::TextureRegistryNull>();
 
-    cameraUbo           = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
+    cameraUbo           = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
     pipelineCache       = std::make_shared<pumex::PipelineCache>();
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
@@ -682,7 +686,7 @@ struct GpuCullApplicationData
 
     staticAssetBuffer = std::make_shared<pumex::AssetBuffer>();
     staticAssetBuffer->registerVertexSemantic(1, vertexSemantic);
-    staticMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, textureSemantic);
+    staticMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, buffersAllocator, textureSemantic);
 
     std::shared_ptr<pumex::Asset> groundAsset(createGround(_staticAreaSize, glm::vec4(0.0f, 0.7f, 0.0f, 1.0f)));
     pumex::BoundingBox groundBbox = pumex::calculateBoundingBox(*groundAsset, 1);
@@ -762,10 +766,10 @@ struct GpuCullApplicationData
       }
     }
 
-    staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>();
-    staticResultsSbo    = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    staticResultsSbo2   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>((VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
-    staticOffValuesSbo  = std::make_shared<pumex::StorageBuffer<uint32_t>>();
+    staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>(buffersAllocator,3);
+    staticResultsSbo    = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    staticResultsSbo2   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, (VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
+    staticOffValuesSbo  = std::make_shared<pumex::StorageBuffer<uint32_t>>(buffersAllocator,3);
 
 
     staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
@@ -818,7 +822,7 @@ struct GpuCullApplicationData
 
     dynamicAssetBuffer = std::make_shared<pumex::AssetBuffer>();
     dynamicAssetBuffer->registerVertexSemantic(1, vertexSemantic);
-    dynamicMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, textureSemantic);
+    dynamicMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, buffersAllocator, textureSemantic);
 
     std::shared_ptr<pumex::Asset> blimpLod0 ( createBlimp(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)) );
     std::shared_ptr<pumex::Asset> blimpLod1 ( createBlimp(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)) );
@@ -910,10 +914,10 @@ struct GpuCullApplicationData
       }
     }
 
-    dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>();
-    dynamicResultsSbo   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    dynamicResultsSbo2  = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>((VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
-    dynamicOffValuesSbo = std::make_shared<pumex::StorageBuffer<uint32_t>>();
+    dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>(buffersAllocator,3);
+    dynamicResultsSbo   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    dynamicResultsSbo2  = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, (VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
+    dynamicOffValuesSbo = std::make_shared<pumex::StorageBuffer<uint32_t>>(buffersAllocator,3);
 
     dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
     dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_dynamic_filter_instances.comp.spv")), "main" };
@@ -1323,8 +1327,10 @@ struct GpuCullApplicationData
 
     if (_showStaticRendering)
     {
+      staticInstanceSbo->setActiveIndex(surface->getImageIndex());
       staticInstanceSbo->validate(deviceSh);
       staticResultsSbo->validate(deviceSh);
+      staticOffValuesSbo->setActiveIndex(surface->getImageIndex());
       staticOffValuesSbo->validate(deviceSh);
 
       staticRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
@@ -1335,8 +1341,10 @@ struct GpuCullApplicationData
 
     if (_showDynamicRendering)
     {
+      dynamicInstanceSbo->setActiveIndex(surface->getImageIndex());
       dynamicInstanceSbo->validate(deviceSh);
       dynamicResultsSbo->validate(deviceSh);
+      dynamicOffValuesSbo->setActiveIndex(surface->getImageIndex());
       dynamicOffValuesSbo->validate(deviceSh);
 
       dynamicRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
@@ -1364,15 +1372,15 @@ struct GpuCullApplicationData
     std::vector<pumex::PipelineBarrier> beforeBufferBarriers;
     if (_showStaticRendering)
     {
-      staticResultsSbo->getDescriptorSetValues(vkDevice, staticResultsBuffer);
-      staticResultsSbo2->getDescriptorSetValues(vkDevice, staticResultsBuffer2);
+      staticResultsSbo->getDescriptorSetValues(vkDevice, surface->getImageIndex(), staticResultsBuffer);
+      staticResultsSbo2->getDescriptorSetValues(vkDevice, surface->getImageIndex(),  staticResultsBuffer2);
       staticDrawCount      = staticResultsSbo->get().size();
       beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer[0].bufferInfo));
     }
     if (_showDynamicRendering)
     {
-      dynamicResultsSbo->getDescriptorSetValues(vkDevice, dynamicResultsBuffer);
-      dynamicResultsSbo2->getDescriptorSetValues(vkDevice, dynamicResultsBuffer2);
+      dynamicResultsSbo->getDescriptorSetValues(vkDevice, surface->getImageIndex(),  dynamicResultsBuffer);
+      dynamicResultsSbo2->getDescriptorSetValues(vkDevice, surface->getImageIndex(),  dynamicResultsBuffer2);
       dynamicDrawCount      = dynamicResultsSbo->get().size();
       beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer[0].bufferInfo));
     }

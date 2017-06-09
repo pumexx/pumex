@@ -8,6 +8,7 @@
 #include <pumex/Device.h>
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
+#include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Texture.h>
 #include <pumex/Pipeline.h>
 #include <pumex/RenderPass.h>

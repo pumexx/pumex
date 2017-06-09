@@ -10,6 +10,7 @@
 #include <pumex/Asset.h>
 #include <pumex/Device.h>
 #include <pumex/Viewer.h>
+#include <pumex/utils/Buffer.h>
 #include <gli/load.hpp>
 
 namespace pumex
@@ -67,7 +68,7 @@ class MaterialSet
 {
 public:
   MaterialSet()                              = delete;
-  explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<TextureRegistry> textureRegistry, const std::vector<pumex::TextureSemantic>& textureSemantic);
+  explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<TextureRegistry> textureRegistry, std::weak_ptr<DeviceMemoryAllocator> allocator, const std::vector<pumex::TextureSemantic>& textureSemantic);
   MaterialSet(const MaterialSet&)            = delete;
   MaterialSet& operator=(const MaterialSet&) = delete;
   virtual ~MaterialSet();
@@ -137,8 +138,9 @@ private:
   };
 
   std::weak_ptr<Viewer>                        viewer;
-  std::vector<TextureSemantic>                 semantics;
   std::shared_ptr<TextureRegistry>             textureRegistry;
+  std::weak_ptr<DeviceMemoryAllocator>         allocator;
+  std::vector<TextureSemantic>                 semantics;
   std::map<uint32_t, std::vector<std::string>> textureNames;
 
   std::vector< InternalMaterialDefinition >    iMaterialDefinitions;
@@ -163,7 +165,7 @@ class MaterialSetDescriptorSetSource : public DescriptorSetSource
 public:
   enum BufferType{ TypeBuffer, MaterialVariantBuffer, MaterialBuffer };
   MaterialSetDescriptorSetSource(MaterialSet<T>* owner, BufferType bufferType);
-  void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
+  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 private:
   MaterialSet<T>* owner;
   BufferType      bufferType;
@@ -211,7 +213,7 @@ class TRAOTDescriptorSetSource : public DescriptorSetSource
 {
 public:
   TRAOTDescriptorSetSource(TextureRegistryArrayOfTextures* o);
-  void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
+  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 private:
   TextureRegistryArrayOfTextures* owner;
 };
@@ -219,9 +221,9 @@ private:
 class TextureRegistryArrayOfTextures : public TextureRegistry
 {
 public:
-  TextureRegistryArrayOfTextures()
+  TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator)
   {
-    textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>();
+    textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>(allocator);
   }
   
   void setTargetTextureTraits(uint32_t slotIndex, const pumex::TextureTraits& textureTrait)
@@ -295,7 +297,7 @@ TRAOTDescriptorSetSource::TRAOTDescriptorSetSource(TextureRegistryArrayOfTexture
   : owner{ o }
 {
 }
-void TRAOTDescriptorSetSource::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+void TRAOTDescriptorSetSource::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   values.reserve(values.size() + owner->textureSamplersQuantity);
@@ -305,7 +307,7 @@ void TRAOTDescriptorSetSource::getDescriptorSetValues(VkDevice device, std::vect
     if (it == owner->textures.end())
       continue;
     for (auto tx : it->second)
-      tx->getDescriptorSetValues(device, values);
+      tx->getDescriptorSetValues(device, index, values);
   }
 }
 
@@ -325,8 +327,8 @@ public:
 
 
 template <typename T>
-MaterialSet<T>::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<TextureRegistry> tr, const std::vector<pumex::TextureSemantic>& ts)
-  : viewer{ v }, textureRegistry{ tr }, semantics(ts)
+MaterialSet<T>::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<TextureRegistry> tr, std::weak_ptr<DeviceMemoryAllocator> a, const std::vector<pumex::TextureSemantic>& ts)
+  : viewer{ v }, textureRegistry{ tr }, allocator{ a }, semantics(ts)
 {
   for (const auto& s : semantics)
     textureNames[s.index] = std::vector<std::string>();
@@ -695,7 +697,7 @@ MaterialSetDescriptorSetSource<T>::MaterialSetDescriptorSetSource(MaterialSet<T>
 }
 
 template <typename T>
-void MaterialSetDescriptorSetSource<T>::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+void MaterialSetDescriptorSetSource<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   auto pddit = owner->perDeviceData.find(device);

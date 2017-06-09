@@ -308,7 +308,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
   pddit->second.dirty = false;
 }
 
-void Texture::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+void Texture::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Texture::getDescriptorSetValue : texture was not validated");

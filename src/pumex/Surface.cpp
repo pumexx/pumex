@@ -211,7 +211,7 @@ void Surface::beginFrame()
 void Surface::endFrame()
 {
   auto deviceSh = device.lock();
-  // Submit pre present image barrier to transform the image from color attachment to present(khr) for presenting to the swap chain
+  // Submit pre present dummy image barrier so that we are able to signal a fence
   prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue, {}, {}, {}, waitFences[swapChainImageIndex]);
 
   // FIXME - isn't a place for synchronizing many windows at once ?

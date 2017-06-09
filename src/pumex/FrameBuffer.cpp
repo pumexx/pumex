@@ -190,7 +190,7 @@ void InputAttachment::validate(std::shared_ptr<Surface> surface)
   pddit->second.dirty = false;
 }
 
-void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const
+void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   auto pddit = perSurfaceData.find(surface);
   if (pddit == perSurfaceData.end())

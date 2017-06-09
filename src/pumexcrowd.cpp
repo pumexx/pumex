@@ -167,6 +167,7 @@ struct CrowdApplicationData
   std::shared_ptr<pumex::TextureRegistryTextureArray>  textureRegistry;
   std::shared_ptr<pumex::MaterialSet<MaterialData>>    materialSet;
 
+  std::shared_ptr<pumex::DeviceMemoryAllocator>                             buffersAllocator;
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
   std::shared_ptr<pumex::StorageBuffer<PositionData>>                       positionSbo;
   std::shared_ptr<pumex::StorageBuffer<InstanceData>>                       instanceSbo;
@@ -261,10 +262,13 @@ struct CrowdApplicationData
     skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>();
     skeletalAssetBuffer->registerVertexSemantic(1, vertexSemantic);
 
+    // alocate 12 MB for uniform and storage buffers
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
     textureRegistry = std::make_shared<pumex::TextureRegistryTextureArray>();
     textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits()));
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 } };
-    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, textureSemantic);
+    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, buffersAllocator, textureSemantic);
 
     std::vector<std::pair<std::string,bool>> skeletalNames
     {
@@ -395,12 +399,12 @@ struct CrowdApplicationData
     for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
       materialVariantCount[i] = materialSet->getMaterialVariantCount(i);
 
-    cameraUbo    = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
-    positionSbo  = std::make_shared<pumex::StorageBuffer<PositionData>>();
-    instanceSbo  = std::make_shared<pumex::StorageBuffer<InstanceData>>();
-    resultsSbo   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    resultsSbo2  = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>((VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
-    offValuesSbo = std::make_shared<pumex::StorageBuffer<uint32_t>>();
+    cameraUbo    = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
+    positionSbo  = std::make_shared<pumex::StorageBuffer<PositionData>>(buffersAllocator, 3);
+    instanceSbo  = std::make_shared<pumex::StorageBuffer<InstanceData>>(buffersAllocator, 3);
+    resultsSbo   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    resultsSbo2  = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, (VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
+    offValuesSbo = std::make_shared<pumex::StorageBuffer<uint32_t>>(buffersAllocator, 3);
 
     pipelineCache = std::make_shared<pumex::PipelineCache>();
 
@@ -984,9 +988,12 @@ struct CrowdApplicationData
     cameraUbo->set(camera);
 
     cameraUbo->validate(deviceSh);
+    positionSbo->setActiveIndex(surface->getImageIndex());
     positionSbo->validate(deviceSh);
+    instanceSbo->setActiveIndex(surface->getImageIndex());
     instanceSbo->validate(deviceSh);
     resultsSbo->validate(deviceSh);
+    offValuesSbo->setActiveIndex(surface->getImageIndex());
     offValuesSbo->validate(deviceSh);
 
     simpleRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
@@ -1005,8 +1012,8 @@ struct CrowdApplicationData
     timeStampQueryPool->reset(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4, 4);
 
     std::vector<pumex::DescriptorSetValue> resultsBuffer, resultsBuffer2;
-    resultsSbo->getDescriptorSetValues(vkDevice, resultsBuffer);
-    resultsSbo2->getDescriptorSetValues(vkDevice, resultsBuffer2);
+    resultsSbo->getDescriptorSetValues(vkDevice, 0, resultsBuffer);
+    resultsSbo2->getDescriptorSetValues(vkDevice, 0, resultsBuffer2);
     uint32_t drawCount = resultsSbo->get().size();
 
     if (rData.renderMethod == 1)

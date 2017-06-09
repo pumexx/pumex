@@ -218,7 +218,7 @@ class PUMEX_EXPORT AssetBufferDescriptorSetSource : public DescriptorSetSource
 public:
   enum BufferType{ TypeBuffer, LodBuffer, GeometryBuffer };
   AssetBufferDescriptorSetSource(AssetBuffer* owner, uint32_t renderMask, BufferType bufferType);
-  void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
+  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 private:
   AssetBuffer* owner;
   uint32_t     renderMask;

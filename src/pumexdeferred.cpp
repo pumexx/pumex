@@ -116,11 +116,15 @@ struct DeferredApplicationData
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::Tangent, 3 }, { pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneIndex, 1 },{ pumex::VertexSemantic::BoneWeight, 1 } };
     assetBuffer.registerVertexSemantic(1, requiredSemantic);
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 }, { pumex::TextureSemantic::Normals, 2 } };
-    textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>();
+
+    // alocate 0.5 MB for uniform and storage buffers
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 512 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
+    textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator);
     textureRegistry->setTargetTextureTraits(0, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(1, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(2, pumex::TextureTraits());
-    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewer, textureRegistry, textureSemantic);
+    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewer, textureRegistry, buffersAllocator, textureSemantic);
 
     pumex::AssetLoaderAssimp loader;
     loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace);
@@ -194,7 +198,6 @@ struct DeferredApplicationData
     gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
     gbufferPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-/**********/
     std::vector<pumex::DescriptorSetLayoutBinding> compositeLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   VK_SHADER_STAGE_FRAGMENT_BIT },
@@ -231,11 +234,9 @@ struct DeferredApplicationData
     compositePipeline->rasterizationSamples = SAMPLE_COUNT;
     compositePipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-/***********/
+    cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
 
-    cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
-
-    lightsSbo = std::make_shared<pumex::StorageBuffer<LightPointData>>();
+    lightsSbo = std::make_shared<pumex::StorageBuffer<LightPointData>>(buffersAllocator);
     std::vector<LightPointData> lights;
     lights.push_back( LightPointData(glm::vec3(-61.78, -14.34, 14.39), glm::vec3(1.0, 1.0, 1.0), glm::vec3(1.0, 0.0, 0.0005)) );
     lights.push_back( LightPointData(glm::vec3(-61.78, 22.02, 14.39),  glm::vec3(0.9, 0.1, 0.1), glm::vec3(1.0, 0.0, 0.0005)) );
@@ -253,7 +254,7 @@ struct DeferredApplicationData
     std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
     modelData.typeID = modelTypeID;
 
-    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData);
+    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData, buffersAllocator);
 
     gbufferDescriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
     gbufferDescriptorSet->setSource(0, cameraUbo);
@@ -583,11 +584,12 @@ struct DeferredApplicationData
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
 
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>> positionUbo;
-  std::shared_ptr<pumex::InputAttachment>             input2;
-  std::shared_ptr<pumex::InputAttachment>             input3;
-  std::shared_ptr<pumex::InputAttachment>             input4;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
+  std::shared_ptr<pumex::InputAttachment>              input2;
+  std::shared_ptr<pumex::InputAttachment>              input3;
+  std::shared_ptr<pumex::InputAttachment>              input4;
 
   pumex::AssetBuffer                                      assetBuffer;
   std::shared_ptr<pumex::TextureRegistryArrayOfTextures>  textureRegistry;

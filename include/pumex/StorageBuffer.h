@@ -4,14 +4,11 @@
 #include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
-#include <pumex/utils/Buffer.h>
+#include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Device.h>
 #include <pumex/Pipeline.h>
 
 // Simple storage buffer for handling a vector of C++ structs
-// One serious drawback : each storage buffer allocates its own GPU memory.
-// Keep this in mind if you plan to use many such buffers
-// Things to consider in the future : circular buffers, common buffer allocation, 
 
 namespace pumex
 {
@@ -20,52 +17,68 @@ template <typename T>
 class StorageBuffer : public DescriptorSetSource
 {
 public:
-  explicit StorageBuffer(VkBufferUsageFlagBits additionalFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  explicit StorageBuffer(const T& data, VkBufferUsageFlagBits additionalFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  explicit StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0 );
+  explicit StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   StorageBuffer(const StorageBuffer&)            = delete;
   StorageBuffer& operator=(const StorageBuffer&) = delete;
   ~StorageBuffer();
 
   inline void                    set(const std::vector<T>& data);
   inline const std::vector<T>&   get() const;
-  void                           getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const override;
+  void                           getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
   void                           setDirty();
   void                           validate(std::shared_ptr<pumex::Device> device);
+
+  inline void setActiveIndex(uint32_t index);
+  inline uint32_t getActiveIndex() const;
 
 private:
   struct PerDeviceData
   {
-    PerDeviceData()
+    PerDeviceData(uint32_t ac)
     {
+      dirty.resize(ac, true);
+      storageBuffer.resize(ac, VK_NULL_HANDLE);
+      memoryBlock.resize(ac, DeviceMemoryBlock());
     }
 
-    bool                   dirty         = true;
-    VkDeviceSize           memorySize    = 0;
-    VkBuffer               storageBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory         storageMemory = VK_NULL_HANDLE;
+    std::vector<bool>               dirty;
+    std::vector<VkBuffer>           storageBuffer;
+    std::vector<DeviceMemoryBlock>  memoryBlock;
   };
-  std::vector<T> storageData;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
-  VkBufferUsageFlagBits additionalFlags;
+  std::vector<T>                              storageData;
+  std::weak_ptr<DeviceMemoryAllocator>        allocator;
+  VkBufferUsageFlagBits                       additionalFlags;
+  uint32_t                                    activeCount;
+  uint32_t                                    activeIndex = 0;
+
 };
 
 template <typename T>
-StorageBuffer<T>::StorageBuffer(VkBufferUsageFlagBits af)
-  : additionalFlags{ af }
+StorageBuffer<T>::StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
+  : allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
 template <typename T>
-StorageBuffer<T>::StorageBuffer(const T& data, VkBufferUsageFlagBits af)
-  : storageData(data), additionalFlags{af}
+StorageBuffer<T>::StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
+  : storageData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
 template <typename T>
 StorageBuffer<T>::~StorageBuffer()
 {
+  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perDeviceData)
-    destroyBuffer(pdd.first, pdd.second.storageBuffer, pdd.second.storageMemory);
+  {
+    for (uint32_t i = 0; i < activeCount; ++i)
+    {
+      vkDestroyBuffer(pdd.first, pdd.second.storageBuffer[i], nullptr);
+      alloc->deallocate(pdd.first, pdd.second.memoryBlock[i]);
+    }
+  }
 }
 
 
@@ -89,19 +102,20 @@ const std::vector<T>& StorageBuffer<T>::get() const
 }
 
 template <typename T>
-void StorageBuffer<T>::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+void StorageBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "StorageBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.storageBuffer, 0, sizeof(T) * storageData.size()) );
+  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[index % activeCount], 0, sizeof(T) * storageData.size()));
 }
 
 template <typename T>
 void StorageBuffer<T>::setDirty()
 {
   for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
+    for(uint32_t i=0; i<activeCount; ++i)
+      pdd.second.dirty[i] = true;
 }
 
 template <typename T>
@@ -109,31 +123,47 @@ void StorageBuffer<T>::validate(std::shared_ptr<pumex::Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+    pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
+  if (!pddit->second.dirty[activeIndex])
     return;
-  if (pddit->second.storageBuffer != VK_NULL_HANDLE  && pddit->second.memorySize < sizeof(T)*storageData.size())
+  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
+  if (pddit->second.storageBuffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].size < sizeof(T)*storageData.size())
   {
-    destroyBuffer(pddit->first, pddit->second.storageBuffer, pddit->second.storageMemory);
-    pddit->second.memorySize    = 0;
-    pddit->second.storageBuffer = VK_NULL_HANDLE;
-    pddit->second.storageMemory = VK_NULL_HANDLE;
+    vkDestroyBuffer(pddit->first, pddit->second.storageBuffer[activeIndex], nullptr);
+    alloc->deallocate(pddit->first, pddit->second.memoryBlock[activeIndex]);
+    pddit->second.storageBuffer[activeIndex] = VK_NULL_HANDLE;
+    pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
   }
 
-  if (pddit->second.storageBuffer == VK_NULL_HANDLE)
+  if (pddit->second.storageBuffer[activeIndex] == VK_NULL_HANDLE)
   {
-    pddit->second.memorySize = createBuffer(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | additionalFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sizeof(T)*storageData.size(), &pddit->second.storageBuffer, &pddit->second.storageMemory);
-    CHECK_LOG_THROW(pddit->second.memorySize == 0, "Cannot create SBO");
+    VkBufferCreateInfo bufferCreateInfo{};
+      bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+      bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | additionalFlags;
+      bufferCreateInfo.size  = std::max<VkDeviceSize>(1, sizeof(T)*storageData.size());
+    VK_CHECK_LOG_THROW(vkCreateBuffer(device->device, &bufferCreateInfo, nullptr, &pddit->second.storageBuffer[activeIndex]), "Cannot create buffer");
+    VkMemoryRequirements memReqs;
+    vkGetBufferMemoryRequirements(device->device, pddit->second.storageBuffer[activeIndex], &memReqs);
+    pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].size == 0, "Cannot create SBO");
+    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].memoryOffset), "Cannot bind memory to buffer");
+
     notifyDescriptorSets();
   }
   if (storageData.size() > 0)
   {
     uint8_t *pData;
-    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, 0, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
+    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].memoryOffset, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
     memcpy(pData, storageData.data(), sizeof(T)*storageData.size());
-    vkUnmapMemory(device->device, pddit->second.storageMemory);
+    vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
   }
-  pddit->second.dirty = false;
+  pddit->second.dirty[activeIndex] = false;
 }
+
+template <typename T>
+void StorageBuffer<T>::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }
+template <typename T>
+uint32_t StorageBuffer<T>::getActiveIndex() const { return activeIndex; }
+
 
 }

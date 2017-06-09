@@ -96,7 +96,7 @@ public:
   InputAttachment(std::shared_ptr<FrameBuffer> frameBuffer, uint32_t frameBufferIndex);
 
   void validate(std::shared_ptr<Surface> surface);
-  void getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const override;
+  void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 protected:
   std::shared_ptr<FrameBuffer> frameBuffer;
   uint32_t frameBufferIndex;

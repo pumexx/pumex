@@ -391,7 +391,7 @@ AssetBufferDescriptorSetSource::AssetBufferDescriptorSetSource(AssetBuffer* o, u
 {
 }
 
-void AssetBufferDescriptorSetSource::getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+void AssetBufferDescriptorSetSource::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr,"AssetBufferDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   auto pddit = owner->perDeviceData.find(device);

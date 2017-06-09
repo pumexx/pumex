@@ -152,14 +152,17 @@ struct ViewerApplicationData
     };
     boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>();
+    // alocate 0.5 MB for uniform and storage buffers
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 512 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
+    cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
 
     // is this the fastest way to calculate all global transformations for a model ?
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
     std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
 
-    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData);
+    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData, buffersAllocator);
     descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
     descriptorSet->setSource(0, cameraUbo);
     descriptorSet->setSource(1, positionUbo);
@@ -460,8 +463,9 @@ struct ViewerApplicationData
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
 
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>> positionUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
 
   pumex::AssetBuffer                          assetBuffer;
   pumex::AssetBuffer                          boxAssetBuffer;

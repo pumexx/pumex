@@ -228,9 +228,9 @@ void DescriptorSet::validate(std::shared_ptr<pumex::Surface> surface)
   {
     std::vector<DescriptorSetValue> value;
     // get descriptor set values based on device
-    s.second->getDescriptorSetValues(pddit->second.device,value);
+    s.second->getDescriptorSetValues(pddit->second.device,activeIndex, value);
     // get descriptor set values based on surface ( input attachments )
-    s.second->getDescriptorSetValues(pddit->first, value);
+    s.second->getDescriptorSetValues(pddit->first, activeIndex, value);
     dsvSize += layout->getDescriptorBindingCount(s.first);
     values.insert({ s.first, value });
   }

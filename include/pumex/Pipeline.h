@@ -92,10 +92,10 @@ public:
   virtual ~DescriptorSetSource();
   void addDescriptorSet(DescriptorSet* descriptorSet);
   void removeDescriptorSet(DescriptorSet* descriptorSet);
-  virtual void getDescriptorSetValues(VkDevice device, std::vector<DescriptorSetValue>& values) const
+  virtual void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
   {
   }
-  virtual void getDescriptorSetValues(VkSurfaceKHR surface, std::vector<DescriptorSetValue>& values) const
+  virtual void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
   {
   }
   void notifyDescriptorSets();
