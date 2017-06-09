@@ -47,7 +47,6 @@ Image::Image(std::shared_ptr<Device> d, const ImageTraits& it, std::weak_ptr<Dev
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   memoryBlock = alloc->allocate(d, memReqs);
   CHECK_LOG_THROW(memoryBlock.alignedSize == 0, "Cannot allocate memory for Image");
-  LOG_ERROR << "Allocated data offset : " << memoryBlock.alignedOffset << " size : " << memReqs.size<< " memory size : " << alloc->getMemorySize() << std::endl;
   VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, memoryBlock.memory, memoryBlock.alignedOffset), "failed vkBindImageMemory");
   
   //VkMemoryAllocateInfo mem_alloc{};
