@@ -45,9 +45,6 @@ struct MaterialVariantDefinition
   uint32_t materialSize;
 };
 
-template <typename T>
-class MaterialSetDescriptorSetSource;
-
 // abstract virtual class that is used by MaterialSet to deal with the textures ( check its derivative classes to see how it works )
 class TextureRegistry
 {
@@ -85,13 +82,11 @@ public:
   void refreshMaterialStructures();
 
   void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue);
-  void setDirty();
 
-  inline std::shared_ptr<MaterialSetDescriptorSetSource<T>> getTypeBufferDescriptorSetSource();
-  inline std::shared_ptr<MaterialSetDescriptorSetSource<T>> getMaterialVariantBufferDescriptorSetSource();
-  inline std::shared_ptr<MaterialSetDescriptorSetSource<T>> getMaterialDefinitionBufferDescriptorSetSource();
+  std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
+  std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
+  std::shared_ptr<StorageBuffer<T>>                         materialDefinitionSbo;
 
-  friend class MaterialSetDescriptorSetSource<T>;
 private:
 
   struct InternalMaterialDefinition
@@ -108,35 +103,6 @@ private:
     T        materialDefinition;
   };
 
-  struct PerDeviceData
-  {
-    PerDeviceData()
-    {
-    }
-
-    void deleteBuffers(VkDevice device)
-    {
-      if (typeBuffer != VK_NULL_HANDLE)
-        vkDestroyBuffer(device, typeBuffer, nullptr);
-      if (variantBuffer != VK_NULL_HANDLE)
-        vkDestroyBuffer(device, variantBuffer, nullptr);
-      if (materialBuffer != VK_NULL_HANDLE)
-        vkDestroyBuffer(device, materialBuffer, nullptr);
-      if (bufferMemory != VK_NULL_HANDLE)
-        vkFreeMemory(device, bufferMemory, nullptr);
-      typeBuffer     = VK_NULL_HANDLE;
-      variantBuffer  = VK_NULL_HANDLE;
-      materialBuffer = VK_NULL_HANDLE;
-      bufferMemory   = VK_NULL_HANDLE;
-    }
-
-    VkBuffer       typeBuffer     = VK_NULL_HANDLE;
-    VkBuffer       variantBuffer  = VK_NULL_HANDLE;
-    VkBuffer       materialBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory bufferMemory   = VK_NULL_HANDLE;
-    bool           buffersDirty   = true;
-  };
-
   std::weak_ptr<Viewer>                        viewer;
   std::shared_ptr<TextureRegistry>             textureRegistry;
   std::weak_ptr<DeviceMemoryAllocator>         allocator;
@@ -149,12 +115,6 @@ private:
   std::vector<MaterialTypeDefinition>          typeDefinitions;
   std::vector<MaterialVariantDefinition>       variantDefinitions;
   std::vector<T>                               materialDefinitions;
-  std::unordered_map<VkDevice, PerDeviceData>  perDeviceData;
-
-
-  std::shared_ptr<MaterialSetDescriptorSetSource<T>> typeBufferDescriptorSetSource;
-  std::shared_ptr<MaterialSetDescriptorSetSource<T>> materialVariantBufferDescriptorSetSource;
-  std::shared_ptr<MaterialSetDescriptorSetSource<T>> materialDefinitionBufferDescriptorSetSource;
 
 };
 
@@ -330,6 +290,10 @@ template <typename T>
 MaterialSet<T>::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<TextureRegistry> tr, std::weak_ptr<DeviceMemoryAllocator> a, const std::vector<pumex::TextureSemantic>& ts)
   : viewer{ v }, textureRegistry{ tr }, allocator{ a }, semantics(ts)
 {
+  typeDefinitionSbo     = std::make_shared<StorageBuffer<MaterialTypeDefinition>>(a);
+  materialVariantSbo    = std::make_shared<StorageBuffer<MaterialVariantDefinition>>(a);
+  materialDefinitionSbo = std::make_shared<StorageBuffer<T>>(a);
+
   for (const auto& s : semantics)
     textureNames[s.index] = std::vector<std::string>();
 }
@@ -338,8 +302,8 @@ MaterialSet<T>::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<TextureRe
 template <typename T>
 MaterialSet<T>::~MaterialSet()
 {
-  for (auto& pdd : perDeviceData)
-      pdd.second.deleteBuffers(pdd.first);
+//  for (auto& pdd : perDeviceData)
+//      pdd.second.deleteBuffers(pdd.first);
 }
 
 template <typename T>
@@ -541,179 +505,21 @@ void MaterialSet<T>::refreshMaterialStructures()
     }
     typeDefinitions[t].variantSize = variantDefinitions.size() - typeDefinitions[t].variantFirst;
   }
+  typeDefinitionSbo->set(typeDefinitions);
+  materialVariantSbo->set(variantDefinitions);
+  materialDefinitionSbo->set(materialDefinitions);
+
   textureRegistry->refreshStructures();
-  setDirty();
 }
 
 template <typename T>
 void MaterialSet<T>::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue)
 {
+  typeDefinitionSbo->validate(device);
+  materialVariantSbo->validate(device);
+  materialDefinitionSbo->validate(device);
+
   textureRegistry->validate(device, commandPool, queue);
-
-  auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
-  if (!pddit->second.buffersDirty)
-    return;
-
-  // send all vertex and index data to GPU memory, use staging buffers if requested
-  bool useStaging = true;
-  if (useStaging)
-  {
-    // Create staging buffers
-    VkDeviceMemory stagingMemory;
-    std::vector<NBufferMemory> stagingBuffers =
-    {
-      { VK_BUFFER_USAGE_TRANSFER_SRC_BIT, typeDefinitions.size() * sizeof(MaterialTypeDefinition), nullptr },
-      { VK_BUFFER_USAGE_TRANSFER_SRC_BIT, variantDefinitions.size() * sizeof(MaterialVariantDefinition), nullptr },
-      { VK_BUFFER_USAGE_TRANSFER_SRC_BIT, materialDefinitions.size() * sizeof(T), nullptr }
-    };
-    createBuffers(device, stagingBuffers, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &stagingMemory);
-
-    // and copy data ( meta, vertices and indices ) from each mesh into buffers
-    uint8_t* mapAddress;
-
-    // types go to first buffer
-    VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[0].memoryOffset, stagingBuffers[0].size, 0, (void**)&mapAddress), "Cannot map memory");
-    memcpy(mapAddress, typeDefinitions.data(), stagingBuffers[0].size);
-    vkUnmapMemory(pddit->first, stagingMemory);
-
-    // material variants go to second buffer
-    VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[1].memoryOffset, stagingBuffers[1].size, 0, (void**)&mapAddress), "Cannot map memory");
-    memcpy(mapAddress, variantDefinitions.data(), stagingBuffers[1].size);
-    vkUnmapMemory(pddit->first, stagingMemory);
-
-    // material definitions go to third buffer
-    VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, stagingMemory, stagingBuffers[2].memoryOffset, stagingBuffers[2].size, 0, (void**)&mapAddress), "Cannot map memory");
-    memcpy(mapAddress, materialDefinitions.data(), stagingBuffers[2].size);
-    vkUnmapMemory(pddit->first, stagingMemory);
-
-    // Create device local buffers
-    std::vector<NBufferMemory> targetBuffers =
-    {
-      { VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, typeDefinitions.size() * sizeof(MaterialTypeDefinition), nullptr },
-      { VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, variantDefinitions.size() * sizeof(MaterialVariantDefinition), nullptr },
-      { VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, materialDefinitions.size() * sizeof(T), nullptr }
-    };
-
-    createBuffers(device, targetBuffers, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &pddit->second.bufferMemory);
-    pddit->second.typeBuffer     = targetBuffers[0].buffer;
-    pddit->second.variantBuffer  = targetBuffers[1].buffer;
-    pddit->second.materialBuffer = targetBuffers[2].buffer;
-
-    // Copy staging buffers to target buffers
-    auto staggingCommandBuffer = device->beginSingleTimeCommands(commandPool);
-
-    VkBufferCopy copyRegion{};
-    for (uint32_t i = 0; i<3; ++i)
-    {
-      copyRegion.size = stagingBuffers[i].size;
-      staggingCommandBuffer->cmdCopyBuffer(stagingBuffers[i].buffer, targetBuffers[i].buffer, copyRegion);
-    }
-    device->endSingleTimeCommands(staggingCommandBuffer, queue);
-    destroyBuffers(device, stagingBuffers, stagingMemory);
-  }
-  else
-  {
-    // create target buffers
-    std::vector<NBufferMemory> targetBuffers =
-    {
-      { VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, typeDefinitions.size() * sizeof(MaterialTypeDefinition), nullptr },
-      { VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, variantDefinitions.size() * sizeof(MaterialVariantDefinition), nullptr },
-      { VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, materialDefinitions.size() * sizeof(T), nullptr }
-    };
-
-    createBuffers(device, targetBuffers, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &pddit->second.bufferMemory);
-    pddit->second.typeBuffer = targetBuffers[0].buffer;
-    pddit->second.variantBuffer = targetBuffers[1].buffer;
-    pddit->second.materialBuffer = targetBuffers[2].buffer;
-
-    // types go to first buffer
-    uint8_t* mapAddress;
-    // types go to first buffer
-    VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, pddit->second.bufferMemory, targetBuffers[0].memoryOffset, targetBuffers[0].size, 0, (void**)&mapAddress), "Cannot map memory");
-    memcpy(mapAddress, typeDefinitions.data(), targetBuffers[0].size);
-    vkUnmapMemory(pddit->first, pddit->second.bufferMemory);
-
-    // material variants go to second buffer
-    VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, pddit->second.bufferMemory, targetBuffers[1].memoryOffset, targetBuffers[1].size, 0, (void**)&mapAddress), "Cannot map memory");
-    memcpy(mapAddress, variantDefinitions.data(), targetBuffers[1].size);
-    vkUnmapMemory(pddit->first, pddit->second.bufferMemory);
-
-    // material definitions go to third buffer
-    VK_CHECK_LOG_THROW(vkMapMemory(pddit->first, pddit->second.bufferMemory, targetBuffers[2].memoryOffset, targetBuffers[2].size, 0, (void**)&mapAddress), "Cannot map memory");
-    memcpy(mapAddress, materialDefinitions.data(), targetBuffers[2].size);
-    vkUnmapMemory(pddit->first, pddit->second.bufferMemory);
-  }
-
-  if (typeBufferDescriptorSetSource.get() != nullptr)
-    typeBufferDescriptorSetSource->notifyDescriptorSets();
-
-  if (materialVariantBufferDescriptorSetSource.get() != nullptr) 
-    materialVariantBufferDescriptorSetSource->notifyDescriptorSets();
-
-  if (materialDefinitionBufferDescriptorSetSource.get() != nullptr) 
-    materialDefinitionBufferDescriptorSetSource->notifyDescriptorSets();
-
-  pddit->second.buffersDirty = false;
-}
-
-
-template <typename T>
-void MaterialSet<T>::setDirty()
-{
-  for (auto& pdd : perDeviceData)
-    pdd.second.buffersDirty = true;
-}
-
-template <typename T>
-std::shared_ptr<MaterialSetDescriptorSetSource<T>> MaterialSet<T>::getTypeBufferDescriptorSetSource()
-{
-  if (typeBufferDescriptorSetSource.get() == nullptr )
-    typeBufferDescriptorSetSource = std::make_shared<MaterialSetDescriptorSetSource<T>>(this, MaterialSetDescriptorSetSource<T>::TypeBuffer);
-  return typeBufferDescriptorSetSource;
-}
-
-template <typename T>
-std::shared_ptr<MaterialSetDescriptorSetSource<T>> MaterialSet<T>::getMaterialVariantBufferDescriptorSetSource()
-{
-  if (materialVariantBufferDescriptorSetSource.get() == nullptr)
-    materialVariantBufferDescriptorSetSource = std::make_shared<MaterialSetDescriptorSetSource<T>>(this, MaterialSetDescriptorSetSource<T>::MaterialVariantBuffer);
-  return materialVariantBufferDescriptorSetSource;
-}
-
-template <typename T>
-std::shared_ptr<MaterialSetDescriptorSetSource<T>> MaterialSet<T>::getMaterialDefinitionBufferDescriptorSetSource()
-{
-  if (materialDefinitionBufferDescriptorSetSource.get() == nullptr)
-    materialDefinitionBufferDescriptorSetSource = std::make_shared<MaterialSetDescriptorSetSource<T>>(this, MaterialSetDescriptorSetSource<T>::MaterialBuffer);
-  return materialDefinitionBufferDescriptorSetSource;
-}
-
-template <typename T>
-MaterialSetDescriptorSetSource<T>::MaterialSetDescriptorSetSource(MaterialSet<T>* o, BufferType bt)
-  : owner{ o }, bufferType{ bt }
-{
-}
-
-template <typename T>
-void MaterialSetDescriptorSetSource<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
-{
-  CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
-  auto pddit = owner->perDeviceData.find(device);
-  CHECK_LOG_THROW(pddit == owner->perDeviceData.end(), "MaterialSetDescriptorSetSource::getDescriptorSetValue() : MaterialSet not validated for device " << device);
-  switch (bufferType)
-  {
-  case MaterialSetDescriptorSetSource<T>::TypeBuffer:
-    values.push_back( DescriptorSetValue(pddit->second.typeBuffer, 0, owner->typeDefinitions.size() * sizeof(MaterialTypeDefinition)) );
-    break;
-  case MaterialSetDescriptorSetSource<T>::MaterialVariantBuffer:
-    values.push_back( DescriptorSetValue(pddit->second.variantBuffer, 0, owner->variantDefinitions.size() * sizeof(MaterialVariantDefinition)) );
-    break;
-  case MaterialSetDescriptorSetSource<T>::MaterialBuffer:
-    values.push_back( DescriptorSetValue(pddit->second.materialBuffer, 0, owner->materialDefinitions.size() * sizeof(T)) );
-    break;
-  }
 }
 
 }

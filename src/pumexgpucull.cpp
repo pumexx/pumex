@@ -803,9 +803,9 @@ struct GpuCullApplicationData
     staticRenderDescriptorSet->setSource(0, cameraUbo);
     staticRenderDescriptorSet->setSource(1, staticInstanceSbo);
     staticRenderDescriptorSet->setSource(2, staticOffValuesSbo);
-    staticRenderDescriptorSet->setSource(3, staticMaterialSet->getTypeBufferDescriptorSetSource());
-    staticRenderDescriptorSet->setSource(4, staticMaterialSet->getMaterialVariantBufferDescriptorSetSource());
-    staticRenderDescriptorSet->setSource(5, staticMaterialSet->getMaterialDefinitionBufferDescriptorSetSource());
+    staticRenderDescriptorSet->setSource(3, staticMaterialSet->typeDefinitionSbo);
+    staticRenderDescriptorSet->setSource(4, staticMaterialSet->materialVariantSbo);
+    staticRenderDescriptorSet->setSource(5, staticMaterialSet->materialDefinitionSbo);
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     staticAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1, results, staticResultsGeomToType);
@@ -950,9 +950,9 @@ struct GpuCullApplicationData
     dynamicRenderDescriptorSet->setSource(0, cameraUbo);
     dynamicRenderDescriptorSet->setSource(1, dynamicInstanceSbo);
     dynamicRenderDescriptorSet->setSource(2, dynamicOffValuesSbo);
-    dynamicRenderDescriptorSet->setSource(3, dynamicMaterialSet->getTypeBufferDescriptorSetSource());
-    dynamicRenderDescriptorSet->setSource(4, dynamicMaterialSet->getMaterialVariantBufferDescriptorSetSource());
-    dynamicRenderDescriptorSet->setSource(5, dynamicMaterialSet->getMaterialDefinitionBufferDescriptorSetSource());
+    dynamicRenderDescriptorSet->setSource(3, dynamicMaterialSet->typeDefinitionSbo);
+    dynamicRenderDescriptorSet->setSource(4, dynamicMaterialSet->materialVariantSbo);
+    dynamicRenderDescriptorSet->setSource(5, dynamicMaterialSet->materialDefinitionSbo);
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     dynamicAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1, results, dynamicResultsGeomToType);

@@ -163,11 +163,11 @@ struct CrowdApplicationData
   std::uniform_real_distribution<float>                randomRotation;
   std::uniform_int_distribution<uint32_t>              randomAnimation;
 
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
   std::shared_ptr<pumex::AssetBuffer>                  skeletalAssetBuffer;
   std::shared_ptr<pumex::TextureRegistryTextureArray>  textureRegistry;
   std::shared_ptr<pumex::MaterialSet<MaterialData>>    materialSet;
 
-  std::shared_ptr<pumex::DeviceMemoryAllocator>                             buffersAllocator;
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
   std::shared_ptr<pumex::StorageBuffer<PositionData>>                       positionSbo;
   std::shared_ptr<pumex::StorageBuffer<InstanceData>>                       instanceSbo;
@@ -444,9 +444,9 @@ struct CrowdApplicationData
     simpleRenderDescriptorSet->setSource(0, cameraUbo);
     simpleRenderDescriptorSet->setSource(1, positionSbo);
     simpleRenderDescriptorSet->setSource(2, instanceSbo);
-    simpleRenderDescriptorSet->setSource(3, materialSet->getTypeBufferDescriptorSetSource());
-    simpleRenderDescriptorSet->setSource(4, materialSet->getMaterialVariantBufferDescriptorSetSource());
-    simpleRenderDescriptorSet->setSource(5, materialSet->getMaterialDefinitionBufferDescriptorSetSource());
+    simpleRenderDescriptorSet->setSource(3, materialSet->typeDefinitionSbo);
+    simpleRenderDescriptorSet->setSource(4, materialSet->materialVariantSbo);
+    simpleRenderDescriptorSet->setSource(5, materialSet->materialDefinitionSbo);
     simpleRenderDescriptorSet->setSource(6, textureRegistry->getTargetTexture(0));
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
@@ -486,9 +486,9 @@ struct CrowdApplicationData
     instancedRenderDescriptorSet->setSource(1, positionSbo);
     instancedRenderDescriptorSet->setSource(2, instanceSbo);
     instancedRenderDescriptorSet->setSource(3, offValuesSbo);
-    instancedRenderDescriptorSet->setSource(4, materialSet->getTypeBufferDescriptorSetSource());
-    instancedRenderDescriptorSet->setSource(5, materialSet->getMaterialVariantBufferDescriptorSetSource());
-    instancedRenderDescriptorSet->setSource(6, materialSet->getMaterialDefinitionBufferDescriptorSetSource());
+    instancedRenderDescriptorSet->setSource(4, materialSet->typeDefinitionSbo);
+    instancedRenderDescriptorSet->setSource(5, materialSet->materialVariantSbo);
+    instancedRenderDescriptorSet->setSource(6, materialSet->materialDefinitionSbo);
     instancedRenderDescriptorSet->setSource(7, textureRegistry->getTargetTexture(0));
 
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =

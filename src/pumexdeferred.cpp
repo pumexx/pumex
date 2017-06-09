@@ -259,9 +259,9 @@ struct DeferredApplicationData
     gbufferDescriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
     gbufferDescriptorSet->setSource(0, cameraUbo);
     gbufferDescriptorSet->setSource(1, positionUbo);
-    gbufferDescriptorSet->setSource(2, materialSet->getTypeBufferDescriptorSetSource());
-    gbufferDescriptorSet->setSource(3, materialSet->getMaterialVariantBufferDescriptorSetSource());
-    gbufferDescriptorSet->setSource(4, materialSet->getMaterialDefinitionBufferDescriptorSetSource());
+    gbufferDescriptorSet->setSource(2, materialSet->typeDefinitionSbo);
+    gbufferDescriptorSet->setSource(3, materialSet->materialVariantSbo);
+    gbufferDescriptorSet->setSource(4, materialSet->materialDefinitionSbo);
     gbufferDescriptorSet->setSource(5, textureRegistry->textureSamplerOffsets);
     gbufferDescriptorSet->setSource(6, textureRegistry->getTextureSamplerDescriptorSetSource());
 
