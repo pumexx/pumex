@@ -181,7 +181,8 @@ private:
 class TextureRegistryArrayOfTextures : public TextureRegistry
 {
 public:
-  TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator)
+  TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc)
+    : textureAllocator{ textureAlloc }
   {
     textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>(allocator);
   }
@@ -240,12 +241,13 @@ public:
       return;// FIXME : CHECK_LOG_THROW ?
     if (layerIndex >= it->second.size())
       it->second.resize(layerIndex+1);
-    it->second[layerIndex] = std::make_shared<Texture>(tex, textureTraits[slotIndex]);
+    it->second[layerIndex] = std::make_shared<Texture>(tex, textureTraits[slotIndex], textureAllocator);
   }
 
   std::shared_ptr<StorageBuffer<uint32_t>>                         textureSamplerOffsets;
   friend class TRAOTDescriptorSetSource;
 protected:
+  std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Texture>>> textures;
   std::map<uint32_t, TextureTraits>                         textureTraits;
   uint32_t                                                  textureSamplersQuantity = 0;

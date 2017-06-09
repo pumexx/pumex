@@ -13,11 +13,13 @@ class Device;
 struct PUMEX_EXPORT DeviceMemoryBlock
 {
   DeviceMemoryBlock();
-  DeviceMemoryBlock(VkDeviceMemory memory, VkDeviceSize memoryOffset, VkDeviceSize size);
+  DeviceMemoryBlock(VkDeviceMemory memory, VkDeviceSize realOffset, VkDeviceSize alignedOffset, VkDeviceSize realSize, VkDeviceSize alignedSize);
 
   VkDeviceMemory memory;
-  VkDeviceSize   memoryOffset;
-  VkDeviceSize   size;
+  VkDeviceSize   realOffset;
+  VkDeviceSize   alignedOffset;
+  VkDeviceSize   realSize;
+  VkDeviceSize   alignedSize;
 };
 
 struct FreeBlock
@@ -48,6 +50,8 @@ public:
   DeviceMemoryBlock allocate(std::shared_ptr<Device> device, VkMemoryRequirements memoryRequirements);
   void deallocate(VkDevice device, const DeviceMemoryBlock& block);
 
+  inline VkDeviceSize getMemorySize() const;
+
 protected:
   VkMemoryPropertyFlags propertyFlags;
   VkDeviceSize          size;
@@ -64,6 +68,9 @@ protected:
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
+
+VkDeviceSize DeviceMemoryAllocator::getMemorySize() const { return size; }
+
 
 
 class PUMEX_EXPORT FirstFitAllocationStrategy : public AllocationStrategy

@@ -164,6 +164,7 @@ struct CrowdApplicationData
   std::uniform_int_distribution<uint32_t>              randomAnimation;
 
   std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        texturesAllocator;
   std::shared_ptr<pumex::AssetBuffer>                  skeletalAssetBuffer;
   std::shared_ptr<pumex::TextureRegistryTextureArray>  textureRegistry;
   std::shared_ptr<pumex::MaterialSet<MaterialData>>    materialSet;
@@ -263,10 +264,12 @@ struct CrowdApplicationData
     skeletalAssetBuffer->registerVertexSemantic(1, vertexSemantic);
 
     // alocate 12 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
+    buffersAllocator  = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate memory for 24 compressed textures
+    texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 67239936, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    
     textureRegistry = std::make_shared<pumex::TextureRegistryTextureArray>();
-    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits()));
+    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits(), texturesAllocator));
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 } };
     materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, buffersAllocator, textureSemantic);
 
@@ -1159,7 +1162,9 @@ int main(void)
       { pumex::FrameBufferImageDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM,    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
       { pumex::FrameBufferImageDefinition::Depth,     VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_SAMPLE_COUNT_1_BIT }
     };
-    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions);
+    // allocate 16 MB for frame buffers ( actually only depth buffer will be allocated )
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, frameBufferAllocator);
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments =
     {

@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <gli/texture.hpp>
 #include <pumex/Pipeline.h>
+#include <pumex/DeviceMemoryAllocator.h>
 
 namespace pumex
 {
@@ -68,7 +69,7 @@ class PUMEX_EXPORT Image
 public:
   Image()                            = delete;
   // user creates VkImage and assigns memory to it
-  explicit Image(std::shared_ptr<Device> device, const ImageTraits& imageTraits ); 
+  explicit Image(std::shared_ptr<Device> device, const ImageTraits& imageTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
   // user delivers VkImage, Image does not own it, just creates VkImageView
   explicit Image(std::shared_ptr<Device> device, VkImage image, VkFormat format, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA) );
   Image(const Image&)                = delete;
@@ -78,7 +79,7 @@ public:
   inline VkImage            getImage() const;
   inline VkImageView        getImageView() const;
   inline VkImageLayout      getImageLayout() const;
-  inline VkMemoryRequirements getMemoryRequirements() const;
+  inline VkDeviceSize       getMemorySize() const;
   inline const ImageTraits& getImageTraits() const;
 
   void  getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceLayout& subResLayout) const;
@@ -89,14 +90,16 @@ public:
 
 
 protected:
-  ImageTraits          imageTraits;
-  VkDevice             device       = VK_NULL_HANDLE;
-  VkImage              image        = VK_NULL_HANDLE;
-  VkDeviceMemory       deviceMemory = VK_NULL_HANDLE;
-  VkImageView          imageView    = VK_NULL_HANDLE;
-  VkImageLayout        imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkMemoryRequirements memReqs;
-  bool                 ownsImage    = true;
+  ImageTraits                          imageTraits;
+  VkDevice                             device       = VK_NULL_HANDLE;
+  std::weak_ptr<DeviceMemoryAllocator> allocator;
+  VkImage                              image        = VK_NULL_HANDLE;
+  DeviceMemoryBlock                    memoryBlock;
+  //VkDeviceMemory                       deviceMemory = VK_NULL_HANDLE;
+  VkImageView                          imageView    = VK_NULL_HANDLE;
+  VkImageLayout                        imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+  //VkMemoryRequirements                 memReqs;
+  bool                                 ownsImage    = true;
 
 };
 
@@ -107,7 +110,7 @@ class PUMEX_EXPORT Texture : public DescriptorSetSource
 {
 public:
   explicit Texture()                 = delete;
-  explicit Texture(const gli::texture& texture, const TextureTraits& traits);
+  explicit Texture(const gli::texture& texture, const TextureTraits& traits, std::weak_ptr<DeviceMemoryAllocator> allocator);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
 
@@ -121,8 +124,9 @@ public:
 
   void setLayer(uint32_t layer, const gli::texture& tex);
 
-  std::shared_ptr<gli::texture> texture;
-  TextureTraits                 traits;
+  std::shared_ptr<gli::texture>        texture;
+  TextureTraits                        traits;
+  std::weak_ptr<DeviceMemoryAllocator> allocator;
 private:
 //  VkCommandPool commandPool     = VK_NULL_HANDLE;
 //  VkQueue       queue           = VK_NULL_HANDLE;
@@ -148,11 +152,11 @@ public:
 };
 
 // inlines 
-VkImage              Image::getImage() const              { return image; }
-VkImageView          Image::getImageView() const          { return imageView; }
-VkImageLayout        Image::getImageLayout() const        { return imageLayout; }
-VkMemoryRequirements Image::getMemoryRequirements() const { return memReqs; }
-const ImageTraits&   Image::getImageTraits() const        { return imageTraits; }
+VkImage              Image::getImage() const       { return image; }
+VkImageView          Image::getImageView() const   { return imageView; }
+VkImageLayout        Image::getImageLayout() const { return imageLayout; }
+VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }
+const ImageTraits&   Image::getImageTraits() const { return imageTraits; }
 
 
 // helper functions

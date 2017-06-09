@@ -12,8 +12,8 @@ FrameBufferImageDefinition::FrameBufferImageDefinition(Type t, VkFormat f, VkIma
 {
 }
 
-FrameBufferImages::FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid)
-  : imageDefinitions(fbid)
+FrameBufferImages::FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::weak_ptr<DeviceMemoryAllocator> a)
+  : imageDefinitions(fbid), allocator{ a }
 {
 }
 
@@ -42,7 +42,7 @@ void FrameBufferImages::validate(std::shared_ptr<Surface> surface)
     ImageTraits imageTraits(definition.usage, definition.format, { surface->swapChainSize.width, surface->swapChainSize.height, 1 }, false, 1, 1,
       definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
-    pddit->second.frameBufferImages[i] = std::make_unique<Image>(deviceSh, imageTraits);
+    pddit->second.frameBufferImages[i] = std::make_unique<Image>(deviceSh, imageTraits, allocator);
   }
 }
 

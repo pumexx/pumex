@@ -20,8 +20,8 @@ TextureTraits::TextureTraits(VkImageUsageFlags u, bool lt, VkFilter maf, VkFilte
 {
 }
 
-Image::Image(std::shared_ptr<Device> d, const ImageTraits& it)
-  : imageTraits{ it }, device(d->device), ownsImage{ true }
+Image::Image(std::shared_ptr<Device> d, const ImageTraits& it, std::weak_ptr<DeviceMemoryAllocator> a)
+  : imageTraits{ it }, device(d->device), allocator{ a }, ownsImage{ true }
 {
   VkImageCreateInfo imageCI{};
     imageCI.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -41,15 +41,22 @@ Image::Image(std::shared_ptr<Device> d, const ImageTraits& it)
   VK_CHECK_LOG_THROW(vkCreateImage(device, &imageCI, nullptr, &image), "failed vkCreateImage");
 
   imageLayout = imageTraits.initialLayout;
-
+  VkMemoryRequirements memReqs;
   vkGetImageMemoryRequirements(device, image, &memReqs);
-  VkMemoryAllocateInfo mem_alloc{};
-    mem_alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    mem_alloc.pNext           = nullptr;
-    mem_alloc.allocationSize  = memReqs.size;
-    mem_alloc.memoryTypeIndex = d->physical.lock()->getMemoryType(memReqs.memoryTypeBits, imageTraits.memoryProperty);
-  VK_CHECK_LOG_THROW(vkAllocateMemory(device, &mem_alloc, nullptr, &deviceMemory), "failed vkAllocateMemory " << mem_alloc.allocationSize << " " << mem_alloc.memoryTypeIndex);
-  VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, deviceMemory, 0), "failed vkBindImageMemory");
+
+  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
+  memoryBlock = alloc->allocate(d, memReqs);
+  CHECK_LOG_THROW(memoryBlock.alignedSize == 0, "Cannot allocate memory for Image");
+  LOG_ERROR << "Allocated data offset : " << memoryBlock.alignedOffset << " size : " << memReqs.size<< " memory size : " << alloc->getMemorySize() << std::endl;
+  VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, memoryBlock.memory, memoryBlock.alignedOffset), "failed vkBindImageMemory");
+  
+  //VkMemoryAllocateInfo mem_alloc{};
+  //  mem_alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  //  mem_alloc.pNext           = nullptr;
+  //  mem_alloc.allocationSize  = memReqs.size;
+  //  mem_alloc.memoryTypeIndex = d->physical.lock()->getMemoryType(memReqs.memoryTypeBits, imageTraits.memoryProperty);
+  //VK_CHECK_LOG_THROW(vkAllocateMemory(device, &mem_alloc, nullptr, &deviceMemory), "failed vkAllocateMemory " << mem_alloc.allocationSize << " " << mem_alloc.memoryTypeIndex);
+  //VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, deviceMemory, 0), "failed vkBindImageMemory");
 
   VkImageViewCreateInfo imageViewCI{};
     imageViewCI.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -67,7 +74,7 @@ Image::Image(std::shared_ptr<Device> d, const ImageTraits& it)
 }
 
 Image::Image(std::shared_ptr<Device> d, VkImage i, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
-  : device(d->device), image{ i }, ownsImage{ false }
+  : device(d->device), image{ i }, ownsImage {  false }
 {
   // gather all what we know about delivered image
   imageTraits.format      = format;
@@ -77,7 +84,7 @@ Image::Image(std::shared_ptr<Device> d, VkImage i, VkFormat format, uint32_t mip
   imageTraits.viewType    = viewType;
   imageTraits.swizzles    = swizzles;
   imageLayout             = VK_IMAGE_LAYOUT_UNDEFINED;
-  vkGetImageMemoryRequirements(device, image, &memReqs);
+//  vkGetImageMemoryRequirements(device, image, &memReqs);
 
   VkImageViewCreateInfo imageViewCI{};
     imageViewCI.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -103,8 +110,10 @@ Image::~Image()
   {
     if (image != VK_NULL_HANDLE)
       vkDestroyImage(device, image, nullptr);
-    if (deviceMemory != VK_NULL_HANDLE)
-      vkFreeMemory(device, deviceMemory, nullptr);
+    if(!allocator.expired())
+      allocator.lock()->deallocate(device, memoryBlock);
+//    if (deviceMemory != VK_NULL_HANDLE)
+//      vkFreeMemory(device, deviceMemory, nullptr);
   }
 }
 
@@ -116,13 +125,13 @@ void Image::getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceL
 void* Image::mapMemory(size_t offset, size_t range, VkMemoryMapFlags flags)
 {
   void* data;
-  VK_CHECK_LOG_THROW(vkMapMemory(device, deviceMemory, offset, range, flags, &data), "Cannot map memory to image");
+  VK_CHECK_LOG_THROW(vkMapMemory(device, memoryBlock.memory, memoryBlock.alignedSize + offset, range, flags, &data), "Cannot map memory to image");
   return data;
 }
 
 void Image::unmapMemory()
 {
-  vkUnmapMemory(device, deviceMemory);
+  vkUnmapMemory(device, memoryBlock.memory);
 }
 
 void Image::setImageLayout(VkImageLayout newLayout)
@@ -130,8 +139,8 @@ void Image::setImageLayout(VkImageLayout newLayout)
   imageLayout = newLayout;
 }
 
-Texture::Texture(const gli::texture& tex, const TextureTraits& tr)
-  : traits{ tr }
+Texture::Texture(const gli::texture& tex, const TextureTraits& tr, std::weak_ptr<DeviceMemoryAllocator> a)
+  : traits{ tr }, allocator{ a }
 {
   texture = std::make_shared<gli::texture>(tex);
 }
@@ -166,8 +175,6 @@ VkSampler Texture::getHandleSampler(VkDevice device) const
     return VK_NULL_HANDLE;
   return pddit->second.sampler;
 }
-
-
 
 void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
@@ -231,7 +238,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     ImageTraits imageTraits(usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, false, texture->levels(), texture->layers(), 
       VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE, 
       vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
-    pddit->second.image = std::make_shared<Image>(device, imageTraits);
+    pddit->second.image = std::make_shared<Image>(device, imageTraits, allocator);
 
     // Image barrier for optimal image (target)
     // Optimal image will be used as destination for the copy
@@ -241,7 +248,6 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     cmdBuffer->cmdCopyBufferToImage(stagingBuffer, (*pddit->second.image.get()), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions);
 
     // Change texture image layout to shader read after all mip levels have been copied
-//    pddit->second.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     cmdBuffer->setImageLayout( *(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     device->endSingleTimeCommands(cmdBuffer, queue);
@@ -262,7 +268,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     ImageTraits imageTraits(traits.usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, true, 1, texture->layers(),
       VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
-    pddit->second.image = std::make_shared<Image>(device, imageTraits);
+    pddit->second.image = std::make_shared<Image>(device, imageTraits, allocator);
 
     // Get sub resource layout
     // Mip map count, array layer, etc.
@@ -276,7 +282,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     // Includes row pitch, size offsets, etc.
     pddit->second.image->getImageSubresourceLayout(subRes, subResLayout);
     // Map image memory and copy data into it
-    void* data = pddit->second.image->mapMemory(0, pddit->second.image->getMemoryRequirements().size, 0);
+    void* data = pddit->second.image->mapMemory(0, pddit->second.image->getMemorySize(), 0);
     memcpy(data, texture->data(0, 0, subRes.mipLevel), texture->size(subRes.mipLevel));
     pddit->second.image->unmapMemory();
 

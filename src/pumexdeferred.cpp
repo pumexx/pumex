@@ -119,8 +119,10 @@ struct DeferredApplicationData
 
     // alocate 0.5 MB for uniform and storage buffers
     buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 512 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 80 MB memory for textures
+    texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
-    textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator);
+    textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
     textureRegistry->setTargetTextureTraits(0, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(1, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(2, pumex::TextureTraits());
@@ -585,6 +587,7 @@ struct DeferredApplicationData
   std::array<RenderData, 3>                            renderData;
 
   std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        texturesAllocator;
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
   std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
   std::shared_ptr<pumex::InputAttachment>              input2;
@@ -654,7 +657,9 @@ int main( int argc, char * argv[] )
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT }
     };
-    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions);
+    // allocate 256 MB for frame buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, frameBufferAllocator);
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments =
     {

@@ -6,13 +6,13 @@
 using namespace pumex;
 
 DeviceMemoryBlock::DeviceMemoryBlock()
-  : memory{ VK_NULL_HANDLE }, memoryOffset{ 0 }, size{ 0 }
+  : memory{ VK_NULL_HANDLE }, realOffset{ 0 }, alignedOffset{ 0 }, realSize{ 0 }, alignedSize{ 0 }
 {
 }
 
 
-DeviceMemoryBlock::DeviceMemoryBlock(VkDeviceMemory m, VkDeviceSize o, VkDeviceSize s)
-  : memory{ m }, memoryOffset{ o }, size{ s }
+DeviceMemoryBlock::DeviceMemoryBlock(VkDeviceMemory m, VkDeviceSize ro, VkDeviceSize ao, VkDeviceSize rs, VkDeviceSize as)
+  : memory{ m }, realOffset{ ro }, alignedOffset{ ao }, realSize{ rs }, alignedSize{ as }
 {
 
 }
@@ -71,17 +71,19 @@ FirstFitAllocationStrategy::FirstFitAllocationStrategy()
 DeviceMemoryBlock FirstFitAllocationStrategy::allocate(VkDeviceMemory storageMemory, std::list<FreeBlock>& freeBlocks, VkMemoryRequirements memoryRequirements)
 {
   auto it = freeBlocks.begin();
+  VkDeviceSize additionalSize;
   for (; it != freeBlocks.end(); ++it)
   {
-    if (it->size >= memoryRequirements.size)
+    VkDeviceSize modd = it->offset % memoryRequirements.alignment;
+    additionalSize = (modd == 0) ? 0 : memoryRequirements.alignment - modd;
+    if (it->size >= memoryRequirements.size + additionalSize)
       break;
   }
-  CHECK_LOG_THROW(it == freeBlocks.end(), "no more memory in FirstFitAllocationStrategy");
+  CHECK_LOG_THROW(it == freeBlocks.end(), "memory allocation failed in FirstFitAllocationStrategy");
 
-  // FIXME - ALIGNMENT !!!
-  DeviceMemoryBlock block(storageMemory, it->offset, memoryRequirements.size);
-  it->offset += memoryRequirements.size;
-  it->size   -= memoryRequirements.size;
+  DeviceMemoryBlock block(storageMemory, it->offset, it->offset + additionalSize, memoryRequirements.size, memoryRequirements.size + additionalSize);
+  it->offset += memoryRequirements.size + additionalSize;
+  it->size   -= memoryRequirements.size + additionalSize;
   if (it->size == 0)
     freeBlocks.erase(it);
   return block;
@@ -89,7 +91,7 @@ DeviceMemoryBlock FirstFitAllocationStrategy::allocate(VkDeviceMemory storageMem
 
 void FirstFitAllocationStrategy::deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block)
 {
-  FreeBlock fBlock(block.memoryOffset, block.size);
+  FreeBlock fBlock(block.realOffset, block.realSize);
   if (freeBlocks.empty())
   {
     freeBlocks.push_back(fBlock);

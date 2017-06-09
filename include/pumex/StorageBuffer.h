@@ -127,7 +127,7 @@ void StorageBuffer<T>::validate(std::shared_ptr<Device> device)
   if (!pddit->second.dirty[activeIndex])
     return;
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  if (pddit->second.storageBuffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].size < sizeof(T)*storageData.size())
+  if (pddit->second.storageBuffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < sizeof(T)*storageData.size())
   {
     vkDestroyBuffer(pddit->first, pddit->second.storageBuffer[activeIndex], nullptr);
     alloc->deallocate(pddit->first, pddit->second.memoryBlock[activeIndex]);
@@ -145,15 +145,15 @@ void StorageBuffer<T>::validate(std::shared_ptr<Device> device)
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(device->device, pddit->second.storageBuffer[activeIndex], &memReqs);
     pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].size == 0, "Cannot create SBO");
-    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].memoryOffset), "Cannot bind memory to buffer");
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
+    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset), "Cannot bind memory to buffer");
 
     notifyDescriptorSets();
   }
   if (storageData.size() > 0)
   {
     uint8_t *pData;
-    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].memoryOffset, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
+    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
     memcpy(pData, storageData.data(), sizeof(T)*storageData.size());
     vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
   }

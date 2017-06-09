@@ -131,13 +131,13 @@ void UniformBuffer<T>::validate(std::shared_ptr<Device> device)
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(device->device, pddit->second.uboBuffer[activeIndex], &memReqs);
     pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].size == 0, "Cannot create UBO");
-    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].memoryOffset), "Cannot bind memory to buffer");
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
+    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset), "Cannot bind memory to buffer");
 
     notifyDescriptorSets();
   }
   uint8_t *pData;
-  VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].memoryOffset, sizeof(T), 0, (void **)&pData), "Cannot map memory");
+  VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, sizeof(T), 0, (void **)&pData), "Cannot map memory");
   memcpy(pData, &uboData, sizeof(T));
   vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
 
