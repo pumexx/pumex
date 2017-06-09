@@ -623,7 +623,8 @@ int main( int argc, char * argv[] )
   LOG_INFO << "Deferred rendering" << std::endl;
 
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", true, requestDebugLayers, 60 };
+  // FIXME : validation layers are turned off, because VkLayer_core_validation.dll causes exception when window is resized
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", false, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;

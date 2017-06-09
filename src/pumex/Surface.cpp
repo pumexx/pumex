@@ -16,22 +16,22 @@ SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkP
 {
 }
 
-void SurfaceTraits::setDefaultRenderPass(std::shared_ptr<pumex::RenderPass> rp)
+void SurfaceTraits::setDefaultRenderPass(std::shared_ptr<RenderPass> rp)
 {
   defaultRenderPass = rp;
 }
 
-void SurfaceTraits::setFrameBufferImages(std::shared_ptr<pumex::FrameBufferImages> fbi)
+void SurfaceTraits::setFrameBufferImages(std::shared_ptr<FrameBufferImages> fbi)
 {
   frameBufferImages = fbi;
 }
 
-void SurfaceTraits::definePresentationQueue(const pumex::QueueTraits& queueTraits)
+void SurfaceTraits::definePresentationQueue(const QueueTraits& queueTraits)
 {
   presentationQueueTraits = queueTraits;
 }
 
-Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window> w, std::shared_ptr<pumex::Device> d, VkSurfaceKHR s, const pumex::SurfaceTraits& st)
+Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
   : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st)
 {
   auto deviceSh = device.lock();
@@ -65,7 +65,7 @@ Surface::Surface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Window
   CHECK_LOG_THROW(supportsPresent[presentationQueueFamilyIndex] == VK_FALSE, "Support not present for(device,surface,familyIndex) : " << presentationQueueFamilyIndex);
 
   // create command pool
-  commandPool = std::make_shared<pumex::CommandPool>(presentationQueueFamilyIndex);
+  commandPool = std::make_shared<CommandPool>(presentationQueueFamilyIndex);
   commandPool->validate(deviceSh);
 
   // Create synchronization objects

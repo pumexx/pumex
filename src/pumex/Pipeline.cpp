@@ -13,7 +13,7 @@ DescriptorSetLayoutBinding::DescriptorSetLayoutBinding(uint32_t b, uint32_t bc, 
 }
 
 
-VertexInputDefinition::VertexInputDefinition(uint32_t b, VkVertexInputRate ir, const std::vector<pumex::VertexSemantic>& s)
+VertexInputDefinition::VertexInputDefinition(uint32_t b, VkVertexInputRate ir, const std::vector<VertexSemantic>& s)
   : binding{ b }, inputRate{ ir }, semantic(s)
 {
 }
@@ -35,7 +35,7 @@ ShaderStageDefinition::ShaderStageDefinition(VkShaderStageFlagBits s, std::share
 }
 
 
-DescriptorSetLayout::DescriptorSetLayout(const std::vector<pumex::DescriptorSetLayoutBinding>& b)
+DescriptorSetLayout::DescriptorSetLayout(const std::vector<DescriptorSetLayoutBinding>& b)
   : bindings(b)
 {
 }
@@ -47,7 +47,7 @@ DescriptorSetLayout::~DescriptorSetLayout()
 }
 
 
-void DescriptorSetLayout::validate(std::shared_ptr<pumex::Device> device)
+void DescriptorSetLayout::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -101,7 +101,7 @@ uint32_t DescriptorSetLayout::getDescriptorBindingCount(uint32_t binding) const
 }
 
 
-DescriptorPool::DescriptorPool(uint32_t ps, const std::vector<pumex::DescriptorSetLayoutBinding>& b)
+DescriptorPool::DescriptorPool(uint32_t ps, const std::vector<DescriptorSetLayoutBinding>& b)
   : poolSize(ps), bindings(b)
 {
 }
@@ -113,7 +113,7 @@ DescriptorPool::~DescriptorPool()
 }
 
 
-void DescriptorPool::validate(std::shared_ptr<pumex::Device> device)
+void DescriptorPool::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -187,7 +187,7 @@ void DescriptorSetSource::notifyDescriptorSets()
 }
 
 
-DescriptorSet::DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> l, std::shared_ptr<pumex::DescriptorPool> p, uint32_t ac)
+DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared_ptr<DescriptorPool> p, uint32_t ac)
   : layout{ l }, pool{ p }, activeCount{ ac }
 {
 }
@@ -203,7 +203,7 @@ DescriptorSet::~DescriptorSet()
 }
 
 
-void DescriptorSet::validate(std::shared_ptr<pumex::Surface> surface)
+void DescriptorSet::validate(std::shared_ptr<Surface> surface)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
@@ -318,7 +318,7 @@ PipelineLayout::~PipelineLayout()
 }
 
 
-void PipelineLayout::validate(std::shared_ptr<pumex::Device> device)
+void PipelineLayout::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -357,7 +357,7 @@ PipelineCache::~PipelineCache()
 }
 
 
-void PipelineCache::validate(std::shared_ptr<pumex::Device> device)
+void PipelineCache::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -397,7 +397,7 @@ ShaderModule::~ShaderModule()
 }
 
 
-void ShaderModule::validate(std::shared_ptr<pumex::Device> device)
+void ShaderModule::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -419,7 +419,7 @@ VkShaderModule ShaderModule::getHandle(VkDevice device) const
   return pddit->second.shaderModule;
 }
 
-GraphicsPipeline::GraphicsPipeline(std::shared_ptr<pumex::PipelineCache> pc, std::shared_ptr<pumex::PipelineLayout> pl, std::shared_ptr<RenderPass> rp, uint32_t s)
+GraphicsPipeline::GraphicsPipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl, std::shared_ptr<RenderPass> rp, uint32_t s)
   : pipelineCache{ pc }, pipelineLayout{ pl }, renderPass{ rp }, subpass{s}
 {
   front.failOp      = VK_STENCIL_OP_KEEP;
@@ -447,7 +447,7 @@ GraphicsPipeline::~GraphicsPipeline()
 }
 
 
-void GraphicsPipeline::validate(std::shared_ptr<pumex::Device> device)
+void GraphicsPipeline::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -642,7 +642,7 @@ void GraphicsPipeline::setDirty()
     pdd.second.dirty = true;
 }
 
-ComputePipeline::ComputePipeline(std::shared_ptr<pumex::PipelineCache> pc, std::shared_ptr<pumex::PipelineLayout> pl)
+ComputePipeline::ComputePipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl)
   : pipelineCache{ pc }, pipelineLayout{ pl }
 {
 }
@@ -654,7 +654,7 @@ ComputePipeline::~ComputePipeline()
 }
 
 
-void ComputePipeline::validate(std::shared_ptr<pumex::Device> device)
+void ComputePipeline::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

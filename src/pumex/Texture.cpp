@@ -247,7 +247,7 @@ void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPo
     device->endSingleTimeCommands(cmdBuffer, queue);
 
     // Clean up staging resources
-    pumex::destroyBuffer(device, stagingBuffer, stagingMemory);
+    destroyBuffer(device, stagingBuffer, stagingMemory);
   }
   else
   {

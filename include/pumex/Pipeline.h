@@ -29,17 +29,17 @@ class PUMEX_EXPORT DescriptorSetLayout
 {
 public:
   DescriptorSetLayout()                                      = delete;
-  explicit DescriptorSetLayout(const std::vector<pumex::DescriptorSetLayoutBinding>& bindings);
+  explicit DescriptorSetLayout(const std::vector<DescriptorSetLayoutBinding>& bindings);
   DescriptorSetLayout(const DescriptorSetLayout&)            = delete;
   DescriptorSetLayout& operator=(const DescriptorSetLayout&) = delete;
   virtual ~DescriptorSetLayout();
 
-  void                  validate(std::shared_ptr<pumex::Device> device);
+  void                  validate(std::shared_ptr<Device> device);
   VkDescriptorSetLayout getHandle(VkDevice device) const;
   VkDescriptorType      getDescriptorType(uint32_t binding) const;
   uint32_t              getDescriptorBindingCount(uint32_t binding) const;
 
-  std::vector<pumex::DescriptorSetLayoutBinding> bindings;
+  std::vector<DescriptorSetLayoutBinding> bindings;
 protected:
   struct PerDeviceData
   {
@@ -51,16 +51,16 @@ protected:
 class PUMEX_EXPORT DescriptorPool
 {
 public:
-  explicit DescriptorPool(uint32_t poolSize, const std::vector<pumex::DescriptorSetLayoutBinding>& bindings);
+  explicit DescriptorPool(uint32_t poolSize, const std::vector<DescriptorSetLayoutBinding>& bindings);
   DescriptorPool(const DescriptorPool&)            = delete;
   DescriptorPool& operator=(const DescriptorPool&) = delete;
   virtual ~DescriptorPool();
 
-  void             validate(std::shared_ptr<pumex::Device> device);
+  void             validate(std::shared_ptr<Device> device);
   VkDescriptorPool getHandle(VkDevice device) const;
 
   uint32_t poolSize;
-  std::vector<pumex::DescriptorSetLayoutBinding> bindings;
+  std::vector<DescriptorSetLayoutBinding> bindings;
 protected:
   struct PerDeviceData
   {
@@ -106,7 +106,7 @@ protected:
 class PUMEX_EXPORT DescriptorSet
 {
 public:
-  explicit DescriptorSet(std::shared_ptr<pumex::DescriptorSetLayout> layout, std::shared_ptr<pumex::DescriptorPool> pool, uint32_t activeCount = 1);
+  explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout, std::shared_ptr<DescriptorPool> pool, uint32_t activeCount = 1);
   DescriptorSet(const DescriptorSet&) = delete;
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   virtual ~DescriptorSet();
@@ -114,14 +114,14 @@ public:
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
-  void            validate(std::shared_ptr<pumex::Surface> surface);
+  void            validate(std::shared_ptr<Surface> surface);
   VkDescriptorSet getHandle(VkSurfaceKHR surface) const;
   void            setDirty();
   void            setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source);
   void            resetSource(uint32_t binding);
 
-  std::shared_ptr<pumex::DescriptorSetLayout>           layout;
-  std::shared_ptr<pumex::DescriptorPool>                pool;
+  std::shared_ptr<DescriptorSetLayout>                              layout;
+  std::shared_ptr<DescriptorPool>                                   pool;
   std::unordered_map<uint32_t,std::shared_ptr<DescriptorSetSource>> sources; // descriptor set owns the buffers, images and whatnot
 protected:
   struct PerSurfaceData
@@ -151,10 +151,10 @@ public:
   PipelineLayout(const PipelineLayout&)            = delete;
   PipelineLayout& operator=(const PipelineLayout&) = delete;
   virtual ~PipelineLayout();
-  void             validate(std::shared_ptr<pumex::Device> device);
+  void             validate(std::shared_ptr<Device> device);
   VkPipelineLayout getHandle(VkDevice device) const;
 
-  std::vector<std::shared_ptr<pumex::DescriptorSetLayout>> descriptorSetLayouts;
+  std::vector<std::shared_ptr<DescriptorSetLayout>> descriptorSetLayouts;
 protected:
   struct PerDeviceData
   {
@@ -172,7 +172,7 @@ public:
   PipelineCache& operator=(const PipelineCache&) = delete;
   virtual ~PipelineCache();
 
-  void            validate(std::shared_ptr<pumex::Device> device);
+  void            validate(std::shared_ptr<Device> device);
   VkPipelineCache getHandle(VkDevice device) const;
 
 protected:
@@ -187,10 +187,10 @@ protected:
 // pipeline creation
 struct PUMEX_EXPORT VertexInputDefinition
 {
-  VertexInputDefinition(uint32_t binding, VkVertexInputRate inputRate, const std::vector<pumex::VertexSemantic>& semantic);
-  uint32_t                           binding   = 0;
-  VkVertexInputRate                  inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-  std::vector<pumex::VertexSemantic> semantic;
+  VertexInputDefinition(uint32_t binding, VkVertexInputRate inputRate, const std::vector<VertexSemantic>& semantic);
+  uint32_t                    binding   = 0;
+  VkVertexInputRate           inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  std::vector<VertexSemantic> semantic;
 };
 
 struct PUMEX_EXPORT BlendAttachmentDefinition
@@ -215,7 +215,7 @@ public:
   ShaderModule& operator=(const ShaderModule&) = delete;
   virtual ~ShaderModule();
 
-  void           validate(std::shared_ptr<pumex::Device> device);
+  void           validate(std::shared_ptr<Device> device);
   VkShaderModule getHandle(VkDevice device) const;
 
   std::string fileName;
@@ -242,7 +242,7 @@ class PUMEX_EXPORT GraphicsPipeline
 {
 public:
   GraphicsPipeline()                                   = delete;
-  explicit GraphicsPipeline(std::shared_ptr<pumex::PipelineCache> pipelineCache, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, std::shared_ptr<RenderPass> renderPass, uint32_t subpass);
+  explicit GraphicsPipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout, std::shared_ptr<RenderPass> renderPass, uint32_t subpass);
   GraphicsPipeline(const GraphicsPipeline&)            = delete;
   GraphicsPipeline& operator=(const GraphicsPipeline&) = delete;
   virtual ~GraphicsPipeline();
@@ -251,12 +251,12 @@ public:
   inline bool hasShaderStage(VkShaderStageFlagBits stage) const;
   // FIXME : add a bunch of handy functions defining different pipeline aspects
 
-  void       validate(std::shared_ptr<pumex::Device> device);
+  void       validate(std::shared_ptr<Device> device);
   VkPipeline getHandle(VkDevice device) const;
   void       setDirty();
 
   // vertex input state
-  std::vector<pumex::VertexInputDefinition> vertexInput;
+  std::vector<VertexInputDefinition> vertexInput;
 
   // assembly state
   VkPrimitiveTopology                        topology                = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -307,9 +307,9 @@ public:
   // shaderstages
   std::vector<ShaderStageDefinition>       shaderStages;
 protected:
-  std::shared_ptr<pumex::PipelineCache>    pipelineCache;
-  std::shared_ptr<pumex::PipelineLayout>   pipelineLayout;
-  std::shared_ptr<pumex::RenderPass>       renderPass;
+  std::shared_ptr<PipelineCache>           pipelineCache;
+  std::shared_ptr<PipelineLayout>          pipelineLayout;
+  std::shared_ptr<RenderPass>              renderPass;
   uint32_t                                 subpass;
 
   struct PerDeviceData
@@ -325,20 +325,20 @@ class PUMEX_EXPORT ComputePipeline
 {
 public:
   ComputePipeline()                                  = delete;
-  explicit ComputePipeline(std::shared_ptr<pumex::PipelineCache> pipelineCache, std::shared_ptr<pumex::PipelineLayout> pipelineLayout);
+  explicit ComputePipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout);
   ComputePipeline(const ComputePipeline&)            = delete;
   ComputePipeline& operator=(const ComputePipeline&) = delete;
   virtual ~ComputePipeline();
 
-  void       validate(std::shared_ptr<pumex::Device> device);
+  void       validate(std::shared_ptr<Device> device);
   VkPipeline getHandle(VkDevice device) const;
   void       setDirty();
 
   // shader stage
-  ShaderStageDefinition                    shaderStage;
+  ShaderStageDefinition             shaderStage;
 protected:
-  std::shared_ptr<pumex::PipelineCache>    pipelineCache;
-  std::shared_ptr<pumex::PipelineLayout>   pipelineLayout;
+  std::shared_ptr<PipelineCache>    pipelineCache;
+  std::shared_ptr<PipelineLayout>   pipelineLayout;
 
   struct PerDeviceData
   {

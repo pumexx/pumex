@@ -59,12 +59,12 @@ struct PUMEX_EXPORT VertexSemantic
   VkFormat getVertexFormat() const;
 };
 
-inline PUMEX_EXPORT bool operator==(const pumex::VertexSemantic& lhs, const pumex::VertexSemantic& rhs)
+inline PUMEX_EXPORT bool operator==(const VertexSemantic& lhs, const VertexSemantic& rhs)
 {
   return (lhs.type == rhs.type) && (lhs.size == rhs.size);
 }
 
-PUMEX_EXPORT uint32_t calcVertexSize(const std::vector<pumex::VertexSemantic>& layout);
+PUMEX_EXPORT uint32_t calcVertexSize(const std::vector<VertexSemantic>& layout);
 PUMEX_EXPORT uint32_t calcPrimitiveSize(VkPrimitiveTopology topology);
 
 // helper class to deal with vertices having different vertex semantics
@@ -201,7 +201,7 @@ struct PUMEX_EXPORT Animation
 class PUMEX_EXPORT Asset
 {
 public:
-  pumex::Skeleton                  skeleton;
+  Skeleton                         skeleton;
   std::vector<Geometry>            geometries;
   std::vector<Material>            materials;
   std::vector<Animation>           animations;
@@ -212,7 +212,7 @@ public:
 class PUMEX_EXPORT AssetLoader
 {
 public:
-  virtual Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<pumex::VertexSemantic>& requiredSemantic = std::vector<pumex::VertexSemantic>()) = 0;
+  virtual Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
 };
 
 uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_t channel) const

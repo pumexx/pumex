@@ -24,9 +24,9 @@ class Image;
 struct PUMEX_EXPORT SurfaceTraits
 {
   explicit SurfaceTraits(uint32_t imageCount, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
-  void setDefaultRenderPass(std::shared_ptr<pumex::RenderPass> renderPass);
-  void setFrameBufferImages(std::shared_ptr<pumex::FrameBufferImages> frameBufferImages);
-  void definePresentationQueue( const pumex::QueueTraits& queueTraits );
+  void setDefaultRenderPass(std::shared_ptr<RenderPass> renderPass);
+  void setFrameBufferImages(std::shared_ptr<FrameBufferImages> frameBufferImages);
+  void definePresentationQueue( const QueueTraits& queueTraits );
 
   uint32_t                           imageCount;
   VkColorSpaceKHR                    imageColorSpace;
@@ -34,10 +34,10 @@ struct PUMEX_EXPORT SurfaceTraits
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
-  pumex::QueueTraits                 presentationQueueTraits;
+  QueueTraits                        presentationQueueTraits;
 
-  std::shared_ptr<pumex::RenderPass>        defaultRenderPass;
-  std::shared_ptr<pumex::FrameBufferImages> frameBufferImages;
+  std::shared_ptr<RenderPass>        defaultRenderPass;
+  std::shared_ptr<FrameBufferImages> frameBufferImages;
 };
 
 // class representing a Vulkan surface
@@ -45,7 +45,7 @@ class PUMEX_EXPORT Surface : public std::enable_shared_from_this<Surface>
 {
 public:
   Surface()                          = delete;
-  explicit Surface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, VkSurfaceKHR surface, const pumex::SurfaceTraits& surfaceTraits);
+  explicit Surface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Window> window, std::shared_ptr<Device> device, VkSurfaceKHR surface, const SurfaceTraits& surfaceTraits);
   Surface(const Surface&)            = delete;
   Surface& operator=(const Surface&) = delete;
   virtual ~Surface();
@@ -58,20 +58,21 @@ public:
   inline uint32_t getImageIndex() const;
   VkFramebuffer getCurrentFrameBuffer();
     
-  std::weak_ptr<pumex::Viewer>    viewer;
-  std::weak_ptr<pumex::Window>    window;
-  std::weak_ptr<pumex::Device>    device;
-  VkSurfaceKHR                    surface                      = VK_NULL_HANDLE;
-  pumex::SurfaceTraits            surfaceTraits;
-  VkSurfaceCapabilitiesKHR        surfaceCapabilities;
-  std::vector<VkPresentModeKHR>   presentModes;
-  std::vector<VkSurfaceFormatKHR> surfaceFormats;
-  std::vector<VkBool32>           supportsPresent;
+  std::weak_ptr<Viewer>               viewer;
+  std::weak_ptr<Window>               window;
+  std::weak_ptr<Device>               device;
+
+  VkSurfaceKHR                        surface                      = VK_NULL_HANDLE;
+  SurfaceTraits                       surfaceTraits;
+  VkSurfaceCapabilitiesKHR            surfaceCapabilities;
+  std::vector<VkPresentModeKHR>       presentModes;
+  std::vector<VkSurfaceFormatKHR>     surfaceFormats;
+  std::vector<VkBool32>               supportsPresent;
 
   VkQueue                             presentationQueue            = VK_NULL_HANDLE;
   uint32_t                            presentationQueueFamilyIndex = UINT32_MAX;
   uint32_t                            presentationQueueIndex       = UINT32_MAX;
-  std::shared_ptr<pumex::CommandPool> commandPool;
+  std::shared_ptr<CommandPool>        commandPool;
 
   VkExtent2D                          swapChainSize                = VkExtent2D{1,1};
   uint32_t                            swapChainImageIndex          = 0;
@@ -79,16 +80,16 @@ public:
 
   std::unique_ptr<FrameBuffer>        frameBuffer;
 
-  VkSemaphore                     imageAvailableSemaphore      = VK_NULL_HANDLE;
-  VkSemaphore                     renderCompleteSemaphore      = VK_NULL_HANDLE;
-  pumex::ActionQueue              actions;
+  VkSemaphore                         imageAvailableSemaphore      = VK_NULL_HANDLE;
+  VkSemaphore                         renderCompleteSemaphore      = VK_NULL_HANDLE;
+  ActionQueue                         actions;
 
-  std::shared_ptr<pumex::RenderPass>        defaultRenderPass;
-  std::shared_ptr<pumex::FrameBufferImages> frameBufferImages;
+  std::shared_ptr<RenderPass>         defaultRenderPass;
+  std::shared_ptr<FrameBufferImages>  frameBufferImages;
 protected:
-  VkSwapchainKHR                  swapChain                    = VK_NULL_HANDLE;
-  std::vector<VkFence>            waitFences;
-  std::vector<std::shared_ptr<pumex::CommandBuffer>> prePresentCmdBuffers;
+  VkSwapchainKHR                      swapChain                    = VK_NULL_HANDLE;
+  std::vector<VkFence>                waitFences;
+  std::vector<std::shared_ptr<CommandBuffer>> prePresentCmdBuffers;
 
 protected:
   void createSwapChain();

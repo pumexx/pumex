@@ -21,13 +21,13 @@ public:
   QueryPool& operator=(const QueryPool&) = delete;
   virtual ~QueryPool();
 
-  void validate(std::shared_ptr<pumex::Device> device);
+  void validate(std::shared_ptr<Device> device);
 
-  void reset(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t firstQuery = 0, uint32_t queryCount = 0);
-  void beginQuery(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags = 0);
-  void endQuery(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query);
-  void queryTimeStamp(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
-  std::vector<uint64_t> getResults(std::shared_ptr<pumex::Device> device, uint32_t firstQuery = 0, uint32_t queryCount = 0, VkQueryResultFlags resultFlags = 0);
+  void reset(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery = 0, uint32_t queryCount = 0);
+  void beginQuery(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags = 0);
+  void endQuery(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query);
+  void queryTimeStamp(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
+  std::vector<uint64_t> getResults(std::shared_ptr<Device> device, uint32_t firstQuery = 0, uint32_t queryCount = 0, VkQueryResultFlags resultFlags = 0);
 
   VkQueryType                   queryType;
   uint32_t                      poolSize;

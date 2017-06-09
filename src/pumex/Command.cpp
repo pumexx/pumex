@@ -20,7 +20,7 @@ CommandPool::~CommandPool()
 }
 
 
-void CommandPool::validate(std::shared_ptr<pumex::Device> device)
+void CommandPool::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -77,7 +77,7 @@ void CommandBuffer::cmdEnd() const
   VK_CHECK_LOG_THROW(vkEndCommandBuffer(commandBuffer[activeIndex]), "failed vkEndCommandBuffer");
 }
 
-void CommandBuffer::cmdBeginRenderPass(std::shared_ptr<pumex::RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const
+void CommandBuffer::cmdBeginRenderPass(std::shared_ptr<RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const
 {
   VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -161,17 +161,17 @@ void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const 
   vkCmdCopyBuffer(commandBuffer[activeIndex], srcBuffer, dstBuffer, 1, &bufferCopy);
 }
 
-void CommandBuffer::cmdBindPipeline(std::shared_ptr<pumex::ComputePipeline> pipeline) const
+void CommandBuffer::cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline) const
 {
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindPipeline(std::shared_ptr<pumex::GraphicsPipeline> pipeline) const
+void CommandBuffer::cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline) const
 {
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<pumex::DescriptorSet>> descriptorSets) const
+void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets) const
 {
   std::vector<VkDescriptorSet> descSets;
   for (const auto& d : descriptorSets)
@@ -180,7 +180,7 @@ void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfa
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, descSets.size(), descSets.data(), 0, nullptr);
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<pumex::DescriptorSet> descriptorSet) const
+void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet) const
 {
   VkDescriptorSet descSet = descriptorSet->getHandle(surface);
   // TODO : dynamic offset counts

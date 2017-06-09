@@ -76,7 +76,7 @@ public:
   RenderPass& operator=(const RenderPass&) = delete;
   ~RenderPass();
 
-  void         validate(std::shared_ptr<pumex::Device> device);
+  void         validate(std::shared_ptr<Device> device);
   VkRenderPass getHandle(VkDevice device) const;
 
   std::vector<AttachmentDefinition>        attachments;

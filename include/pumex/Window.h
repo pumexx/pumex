@@ -39,22 +39,22 @@ struct InputEvent
   enum MouseButton { BUTTON_UNDEFINED, LEFT, MIDDLE, RIGHT };
   enum Key { KEY_UNDEFINED, ESCAPE, SPACE, TAB, N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12 };
   // mouse events
-  InputEvent(pumex::HPClock::time_point t, Type mt, MouseButton b, float mx, float my )
+  InputEvent(HPClock::time_point t, Type mt, MouseButton b, float mx, float my )
     : time{ t }, type{ mt }, mouseButton{ b }, x{ mx }, y{ my }
   {
   }
   // keyboard events
-  InputEvent(pumex::HPClock::time_point t, Type mt, Key k )
+  InputEvent(HPClock::time_point t, Type mt, Key k )
     : time{ t }, type{ mt }, key{ k }
   {
   }
   
-  pumex::HPClock::time_point time;
-  Type                       type        = INPUT_UNDEFINED;
-  MouseButton                mouseButton = BUTTON_UNDEFINED;
-  float                      x           = 0.0f;
-  float                      y           = 0.0f;
-  Key                        key         = KEY_UNDEFINED;
+  HPClock::time_point time;
+  Type                type        = INPUT_UNDEFINED;
+  MouseButton         mouseButton = BUTTON_UNDEFINED;
+  float               x           = 0.0f;
+  float               y           = 0.0f;
+  Key                 key         = KEY_UNDEFINED;
 };
 
 // Found this piece on https://stackoverflow.com/questions/261963/how-can-i-iterate-over-an-enum
@@ -108,7 +108,7 @@ public:
 
   static std::shared_ptr<Window> createWindow(const WindowTraits& windowTraits);
 
-  virtual std::shared_ptr<pumex::Surface> createSurface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits) = 0;
+  virtual std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) = 0;
   uint32_t width     = 1;
   uint32_t height    = 1;
   uint32_t newWidth  = 1;
@@ -117,8 +117,8 @@ public:
   void pushInputEvent( const InputEvent& event );
   std::vector<InputEvent> getInputEvents();
 protected:
-  std::weak_ptr<pumex::Viewer>  viewer;
-  std::weak_ptr<pumex::Surface> surface;
+  std::weak_ptr<Viewer>  viewer;
+  std::weak_ptr<Surface> surface;
 
   mutable std::mutex inputMutex;
   std::vector<InputEvent> inputEvents;

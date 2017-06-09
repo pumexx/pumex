@@ -29,7 +29,7 @@ class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>
 {
 public:
   Device()                         = delete;
-  explicit Device(std::shared_ptr<pumex::Viewer> const& viewer, std::shared_ptr<pumex::PhysicalDevice> const& physical, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
+  explicit Device(std::shared_ptr<Viewer> const& viewer, std::shared_ptr<PhysicalDevice> const& physical, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
   Device(const Device&)            = delete;
   Device& operator=(const Device&) = delete;
   ~Device();
@@ -37,10 +37,10 @@ public:
   inline bool isValid();
   void cleanup();
 
-  std::shared_ptr<pumex::CommandBuffer> beginSingleTimeCommands(std::shared_ptr<pumex::CommandPool> commandPool);
-  void endSingleTimeCommands(std::shared_ptr<pumex::CommandBuffer> commandBuffer, VkQueue queue);
+  std::shared_ptr<CommandBuffer> beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool);
+  void endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue);
 
-  VkQueue getQueue(const pumex::QueueTraits& queueTraits, bool reserve = false);
+  VkQueue getQueue(const QueueTraits& queueTraits, bool reserve = false);
   void releaseQueue(VkQueue queue);
   bool getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result);
 
@@ -67,21 +67,21 @@ public:
   void setFenceName(VkFence fence, const std::string& name);
   void setEventName(VkEvent _event, const std::string& name);
 
-	std::weak_ptr<pumex::Viewer>         viewer;
-	std::weak_ptr<pumex::PhysicalDevice> physical;
-  VkDevice                             device             = VK_NULL_HANDLE;
-  bool                                 enableDebugMarkers = false;
+	std::weak_ptr<Viewer>         viewer;
+	std::weak_ptr<PhysicalDevice> physical;
+  VkDevice                        device             = VK_NULL_HANDLE;
+  bool                            enableDebugMarkers = false;
 protected:
   struct Queue
   {
-    Queue(const pumex::QueueTraits& queueTraits, uint32_t familyIndex, uint32_t index, VkQueue queue);
-    bool isEqual(const pumex::QueueTraits& queueTraits);
+    Queue(const QueueTraits& queueTraits, uint32_t familyIndex, uint32_t index, VkQueue queue);
+    bool isEqual(const QueueTraits& queueTraits);
 
-    pumex::QueueTraits traits;
-    uint32_t           familyIndex = UINT32_MAX;
-    uint32_t           index       = UINT32_MAX;
-    VkQueue            queue       = VK_NULL_HANDLE;
-    bool               available   = true;
+    QueueTraits traits;
+    uint32_t    familyIndex = UINT32_MAX;
+    uint32_t    index       = UINT32_MAX;
+    VkQueue     queue       = VK_NULL_HANDLE;
+    bool        available   = true;
   };
 
   std::vector<Queue> queues;

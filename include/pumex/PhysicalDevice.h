@@ -19,7 +19,7 @@ public:
   PhysicalDevice& operator=(const PhysicalDevice&) = delete;
   virtual ~PhysicalDevice();
 
-  std::vector<uint32_t> matchingFamilyIndices(const pumex::QueueTraits& queueDescription);
+  std::vector<uint32_t> matchingFamilyIndices(const QueueTraits& queueDescription);
   uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr);
   bool hasExtension(const char* extensionName);
 

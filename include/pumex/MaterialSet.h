@@ -50,7 +50,7 @@ class TextureRegistry
 {
 public:
   virtual void refreshStructures() = 0;
-  virtual void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) = 0;
+  virtual void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) = 0;
   virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
 };
 
@@ -65,7 +65,7 @@ class MaterialSet
 {
 public:
   MaterialSet()                              = delete;
-  explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<TextureRegistry> textureRegistry, std::weak_ptr<DeviceMemoryAllocator> allocator, const std::vector<pumex::TextureSemantic>& textureSemantic);
+  explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<TextureRegistry> textureRegistry, std::weak_ptr<DeviceMemoryAllocator> allocator, const std::vector<TextureSemantic>& textureSemantic);
   MaterialSet(const MaterialSet&)            = delete;
   MaterialSet& operator=(const MaterialSet&) = delete;
   virtual ~MaterialSet();
@@ -81,7 +81,7 @@ public:
   void setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
   void refreshMaterialStructures();
 
-  void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue);
+  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
 
   std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
   std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
@@ -134,15 +134,15 @@ private:
 class TextureRegistryTextureArray : public TextureRegistry
 {
 public:
-  void setTargetTexture(uint32_t slotIndex, std::shared_ptr<pumex::Texture> texture)
+  void setTargetTexture(uint32_t slotIndex, std::shared_ptr<Texture> texture)
   {
     textures[slotIndex] = texture;
   }
-  std::shared_ptr<pumex::Texture> getTargetTexture(uint32_t slotIndex)
+  std::shared_ptr<Texture> getTargetTexture(uint32_t slotIndex)
   {
     auto it = textures.find(slotIndex);
     if (it == textures.end())
-      return std::shared_ptr<pumex::Texture>();
+      return std::shared_ptr<Texture>();
     return textures[slotIndex];
   }
 
@@ -150,7 +150,7 @@ public:
   {
   }
 
-  void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) override
+  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
   {
     for (auto t : textures)
       t.second->validate(device, commandPool, queue);
@@ -164,7 +164,7 @@ public:
     it->second->setLayer(layerIndex, tex);
   }
 
-  std::map<uint32_t, std::shared_ptr<pumex::Texture>> textures;
+  std::map<uint32_t, std::shared_ptr<Texture>> textures;
 };
 
 class TextureRegistryArrayOfTextures;
@@ -186,10 +186,10 @@ public:
     textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>(allocator);
   }
   
-  void setTargetTextureTraits(uint32_t slotIndex, const pumex::TextureTraits& textureTrait)
+  void setTargetTextureTraits(uint32_t slotIndex, const TextureTraits& textureTrait)
   {
     textureTraits[slotIndex] = textureTrait;
-    textures[slotIndex]      = std::vector<std::shared_ptr<pumex::Texture>>();
+    textures[slotIndex]      = std::vector<std::shared_ptr<Texture>>();
   }
 
   std::shared_ptr<TRAOTDescriptorSetSource> getTextureSamplerDescriptorSetSource()
@@ -217,7 +217,7 @@ public:
     textureSamplerOffsets->set(tso);
   }
 
-  void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) override
+  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
   {
     for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
     {
@@ -240,16 +240,16 @@ public:
       return;// FIXME : CHECK_LOG_THROW ?
     if (layerIndex >= it->second.size())
       it->second.resize(layerIndex+1);
-    it->second[layerIndex] = std::make_shared<pumex::Texture>(tex, textureTraits[slotIndex]);
+    it->second[layerIndex] = std::make_shared<Texture>(tex, textureTraits[slotIndex]);
   }
 
   std::shared_ptr<StorageBuffer<uint32_t>>                         textureSamplerOffsets;
   friend class TRAOTDescriptorSetSource;
 protected:
-  std::map<uint32_t, std::vector<std::shared_ptr<pumex::Texture>>> textures;
-  std::map<uint32_t, pumex::TextureTraits>                         textureTraits;
-  uint32_t                                                         textureSamplersQuantity = 0;
-  std::shared_ptr<TRAOTDescriptorSetSource>                        textureSamplerDescriptorSetSource;
+  std::map<uint32_t, std::vector<std::shared_ptr<Texture>>> textures;
+  std::map<uint32_t, TextureTraits>                         textureTraits;
+  uint32_t                                                  textureSamplersQuantity = 0;
+  std::shared_ptr<TRAOTDescriptorSetSource>                 textureSamplerDescriptorSetSource;
 
 };
 
@@ -277,7 +277,7 @@ public:
   void refreshStructures() override
   {
   }
-  void validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue) override
+  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
   {
   }
   void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
@@ -287,7 +287,7 @@ public:
 
 
 template <typename T>
-MaterialSet<T>::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<TextureRegistry> tr, std::weak_ptr<DeviceMemoryAllocator> a, const std::vector<pumex::TextureSemantic>& ts)
+MaterialSet<T>::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<TextureRegistry> tr, std::weak_ptr<DeviceMemoryAllocator> a, const std::vector<TextureSemantic>& ts)
   : viewer{ v }, textureRegistry{ tr }, allocator{ a }, semantics(ts)
 {
   typeDefinitionSbo     = std::make_shared<StorageBuffer<MaterialTypeDefinition>>(a);
@@ -513,7 +513,7 @@ void MaterialSet<T>::refreshMaterialStructures()
 }
 
 template <typename T>
-void MaterialSet<T>::validate(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue)
+void MaterialSet<T>::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   typeDefinitionSbo->validate(device);
   materialVariantSbo->validate(device);

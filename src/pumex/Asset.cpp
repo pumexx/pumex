@@ -492,8 +492,8 @@ void mergeAsset(Asset& parentAsset, uint32_t parentBone, Asset& childAsset)
   // copy bones
   for (uint32_t i = 0; i < childAsset.skeleton.boneNames.size(); ++i)
   {
-    pumex::Skeleton::Bone bone = childAsset.skeleton.bones[i];
-    std::string boneName       = childAsset.skeleton.boneNames[i];
+    Skeleton::Bone bone  = childAsset.skeleton.bones[i];
+    std::string boneName = childAsset.skeleton.boneNames[i];
     if (bone.parentIndex == UINT32_MAX)
       bone.parentIndex = parentBone;
     else

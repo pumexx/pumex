@@ -14,7 +14,7 @@ class PUMEX_EXPORT AssetLoaderAssimp : public AssetLoader
 {
 public:
   explicit AssetLoaderAssimp();
-  pumex::Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<pumex::VertexSemantic>& requiredSemantic = std::vector<pumex::VertexSemantic>()) override;
+  Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) override;
 
   inline unsigned int getImportFlags() const;
   inline void setImportFlags(unsigned int flags);

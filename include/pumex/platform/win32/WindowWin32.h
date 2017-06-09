@@ -22,7 +22,7 @@ public:
   static void unregisterWindow(HWND hwnd);
   static WindowWin32* getWindow(HWND hwnd);
 
-  std::shared_ptr<pumex::Surface> createSurface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits) override;
+  std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
   
   static bool checkWindowMessages();
 

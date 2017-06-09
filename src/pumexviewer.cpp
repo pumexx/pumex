@@ -68,8 +68,14 @@ struct ViewerApplicationData
   {
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
     std::vector<pumex::VertexSemantic> boxSemantic = requiredSemantic;//{ { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 } };
-    assetBuffer.registerVertexSemantic(1, requiredSemantic);
-    boxAssetBuffer.registerVertexSemantic(1, boxSemantic);
+
+    // alocate 0.5 MB for uniform and storage buffers
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 512 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
+    assetBuffer = std::make_shared<pumex::AssetBuffer>();
+    assetBuffer->registerVertexSemantic(1, requiredSemantic);
+    boxAssetBuffer = std::make_shared<pumex::AssetBuffer>();
+    boxAssetBuffer->registerVertexSemantic(1, boxSemantic);
     pumex::AssetLoaderAssimp loader;
     std::shared_ptr<pumex::Asset> asset(loader.load(modelName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelName);
@@ -94,14 +100,14 @@ struct ViewerApplicationData
 
     pumex::BoundingBox testFigureBbox = pumex::calculateBoundingBox(*testAsset,1);
 
-    modelTypeID = assetBuffer.registerType("object", pumex::AssetTypeDefinition(bbox));
-    assetBuffer.registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
+    modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
+    assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
 
-    boxTypeID = boxAssetBuffer.registerType("objectBox", pumex::AssetTypeDefinition(bbox));
-    boxAssetBuffer.registerObjectLOD(boxTypeID, boxAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
+    boxTypeID = boxAssetBuffer->registerType("objectBox", pumex::AssetTypeDefinition(bbox));
+    boxAssetBuffer->registerObjectLOD(boxTypeID, boxAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
 
-    testFigureTypeID = assetBuffer.registerType("testFigure", pumex::AssetTypeDefinition(testFigureBbox));
-    assetBuffer.registerObjectLOD(testFigureTypeID, testAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
+    testFigureTypeID = assetBuffer->registerType("testFigure", pumex::AssetTypeDefinition(testFigureBbox));
+    assetBuffer->registerObjectLOD(testFigureTypeID, testAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
 
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
     {
@@ -152,9 +158,6 @@ struct ViewerApplicationData
     };
     boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    // alocate 0.5 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 512 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
     cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
 
     // is this the fastest way to calculate all global transformations for a model ?
@@ -192,8 +195,8 @@ struct ViewerApplicationData
     positionUbo->validate(deviceSh);
 
     // loading models
-    assetBuffer.validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
-    boxAssetBuffer.validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+    assetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
+    boxAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
     descriptorSetLayout->validate(deviceSh);
     descriptorPool->validate(deviceSh);
     pipelineLayout->validate(deviceSh);
@@ -353,7 +356,7 @@ struct ViewerApplicationData
     auto prepareBuffersStart = pumex::HPClock::now();
 #endif
 
-    std::shared_ptr<pumex::Asset> assetX = assetBuffer.getAsset(modelTypeID, 0);
+    std::shared_ptr<pumex::Asset> assetX = assetBuffer->getAsset(modelTypeID, 0);
     if (assetX->animations.empty())
       return;
 
@@ -436,14 +439,14 @@ struct ViewerApplicationData
 
     currentCmdBuffer->cmdBindPipeline(pipeline);
     currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, descriptorSet);
-    assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-    assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
-    assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
+    assetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
+    assetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
+    assetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
 
     currentCmdBuffer->cmdBindPipeline(boxPipeline);
     currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, boxDescriptorSet);
-    boxAssetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-    boxAssetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
+    boxAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
+    boxAssetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
 
     currentCmdBuffer->cmdEndRenderPass();
     currentCmdBuffer->cmdEnd();
@@ -467,8 +470,8 @@ struct ViewerApplicationData
   std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
   std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
 
-  pumex::AssetBuffer                          assetBuffer;
-  pumex::AssetBuffer                          boxAssetBuffer;
+  std::shared_ptr<pumex::AssetBuffer>         assetBuffer;
+  std::shared_ptr<pumex::AssetBuffer>         boxAssetBuffer;
   std::shared_ptr<pumex::RenderPass>          defaultRenderPass;
   std::shared_ptr<pumex::DescriptorSetLayout> descriptorSetLayout;
   std::shared_ptr<pumex::PipelineLayout>      pipelineLayout;

@@ -2,7 +2,7 @@
 
 using namespace pumex;
 
-void ThreadJoiner::addThread(pumex::Thread* th)
+void ThreadJoiner::addThread(Thread* th)
 {
   threads.push_back( th );
   std::thread t([th]{ th->run();}); // awful lambda...

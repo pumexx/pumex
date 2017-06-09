@@ -24,14 +24,14 @@ ViewerTraits::ViewerTraits(const std::string& aName, bool uv, const std::vector<
 
 const uint32_t MAX_PATH_LENGTH = 256;
 
-Viewer::Viewer(const pumex::ViewerTraits& vt)
+Viewer::Viewer(const ViewerTraits& vt)
   : viewerTraits{ vt }, 
   startUpdateGraph { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   endUpdateGraph   { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   startRenderGraph { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   endRenderGraph   { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } }
 {
-  viewerStartTime     = pumex::HPClock::now();
+  viewerStartTime     = HPClock::now();
   for(uint32_t i=0; i<3;++i)
     updateStartTimes[i] = viewerStartTime;
   renderStartTime     = viewerStartTime;
@@ -167,17 +167,17 @@ void Viewer::run()
       {
         std::lock_guard<std::mutex> lck(updateMutex);
         renderIndex      = getNextRenderSlot();
-        renderStartTime  = pumex::HPClock::now();
+        renderStartTime  = HPClock::now();
         updateConditionVariable.notify_one();
       }
       //switch (renderIndex)
       //{
       //case 0:
-      //  LOG_INFO << "R:+  " << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //  LOG_INFO << "R:+  " << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //case 1:
-      //  LOG_INFO << "R: + " << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //  LOG_INFO << "R: + " << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //case 2:
-      //  LOG_INFO << "R:  +" << pumex::inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //  LOG_INFO << "R:  +" << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //}
       bool continueRun = true;
       try
@@ -194,7 +194,7 @@ void Viewer::run()
         continueRun = false;
       }
 
-      auto renderEndTime = pumex::HPClock::now();
+      auto renderEndTime = HPClock::now();
       lastRenderDuration = renderEndTime - renderStartTime;
       if (!continueRun)
         break;
@@ -208,7 +208,7 @@ void Viewer::run()
       updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTimes[updateIndex]; });
       auto prevUpdateIndex = updateIndex;
       updateIndex = getNextUpdateSlot();
-      updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + pumex::HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
+      updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
     }
     //switch (updateIndex)
     //{
@@ -219,7 +219,7 @@ void Viewer::run()
     //case 2:
     //  LOG_INFO << "U:  *" << std::endl; break;
     //}
-    auto realUpdateStartTime = pumex::HPClock::now();
+    auto realUpdateStartTime = HPClock::now();
 
     bool continueRun = true;
 #if defined(_WIN32)
@@ -241,7 +241,7 @@ void Viewer::run()
       }
     }
 
-    auto realUpdateEndTime = pumex::HPClock::now();
+    auto realUpdateEndTime = HPClock::now();
     lastUpdateDuration = realUpdateEndTime - realUpdateStartTime;
     if (!continueRun)
       break;
@@ -277,19 +277,19 @@ void Viewer::setTerminate()
 }
 
 
-std::shared_ptr<pumex::Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
+std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
 {
   CHECK_LOG_THROW(physicalDeviceIndex >= physicalDevices.size(), "Could not create device. Index is too high : " << physicalDeviceIndex);
   CHECK_LOG_THROW(requestedQueues.empty(), "Could not create device with no queues");
 
-  std::shared_ptr<pumex::Device> device = std::make_shared<pumex::Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedQueues, requestedExtensions);
+  std::shared_ptr<Device> device = std::make_shared<Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedQueues, requestedExtensions);
   devices.push_back(device);
   return device;
 }
 
-std::shared_ptr<pumex::Surface> Viewer::addSurface(std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const pumex::SurfaceTraits& surfaceTraits)
 {
-  std::shared_ptr<pumex::Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
+  std::shared_ptr<Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
   surfaces.push_back(surface);
   return surface;
 }

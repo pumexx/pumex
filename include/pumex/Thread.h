@@ -24,13 +24,13 @@ public:
 class PUMEX_EXPORT ThreadJoiner
 {
 public:
-  std::vector<pumex::Thread*> threads;
+  std::vector<Thread*> threads;
 
   explicit ThreadJoiner()
   {
   }
 
-  void addThread(pumex::Thread* thread);
+  void addThread(Thread* thread);
   ~ThreadJoiner();
 };
 }

@@ -24,7 +24,7 @@ AssetBuffer::~AssetBuffer()
       vib.second.deleteBuffers(pdd.first);
 }
 
-void AssetBuffer::registerVertexSemantic(uint32_t renderMask, const std::vector<pumex::VertexSemantic>& semantic)
+void AssetBuffer::registerVertexSemantic(uint32_t renderMask, const std::vector<VertexSemantic>& semantic)
 {
   semantics[renderMask] = semantic;
 }
@@ -41,7 +41,7 @@ uint32_t AssetBuffer::registerType(const std::string& typeName, const AssetTypeD
   return typeID;
 }
 
-uint32_t AssetBuffer::registerObjectLOD(uint32_t typeID, std::shared_ptr<pumex::Asset> asset, const AssetLodDefinition& ldef)
+uint32_t AssetBuffer::registerObjectLOD(uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef)
 {
   if (typeID == 0 || typeNames.size()<typeID)
     return UINT32_MAX;
@@ -103,7 +103,7 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
   return std::shared_ptr<Asset>();
 }
 
-void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStaging, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue)
+void AssetBuffer::validate(std::shared_ptr<Device> device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -128,12 +128,12 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
     // Sort geometries according to typeID and lodID
     std::sort(gd.second.begin(), gd.second.end(), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs){ if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
 
-    VkDeviceSize                       verticesSoFar    = 0;
-    VkDeviceSize                       indicesSoFar     = 0;
-    VkDeviceSize                       indexBufferSize  = 0;
-    std::vector<float>                 vertexBuffer; // vertices converted to required semantic;
-    std::vector<uint32_t>              geometryOrder;
-    std::vector<pumex::VertexSemantic> requiredSemantic;
+    VkDeviceSize                verticesSoFar    = 0;
+    VkDeviceSize                indicesSoFar     = 0;
+    VkDeviceSize                indexBufferSize  = 0;
+    std::vector<float>          vertexBuffer; // vertices converted to required semantic;
+    std::vector<uint32_t>       geometryOrder;
+    std::vector<VertexSemantic> requiredSemantic;
     auto sid = semantics.find(gd.first); // get required semantic
     if (sid != semantics.end())
       requiredSemantic = sid->second;
@@ -167,7 +167,7 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
             verticesSoFar   += assets[it->assetIndex]->geometries[it->geometryIndex].getVertexCount();
             indicesSoFar    += indexCount;
             indexBufferSize += assets[it->assetIndex]->geometries[it->geometryIndex].getIndexSize();
-            pumex::copyAndConvertVertices(vertexBuffer, requiredSemantic, assets[it->assetIndex]->geometries[it->geometryIndex].vertices, assets[it->assetIndex]->geometries[it->geometryIndex].semantic);
+            copyAndConvertVertices(vertexBuffer, requiredSemantic, assets[it->assetIndex]->geometries[it->geometryIndex].vertices, assets[it->assetIndex]->geometries[it->geometryIndex].semantic);
 
             geometryOrder.push_back(std::distance(gd.second.begin(), it));
           }
@@ -331,7 +331,7 @@ void AssetBuffer::validate(std::shared_ptr<pumex::Device> device, bool useStagin
   pddit->second.buffersDirty = false;
 }
 
-void AssetBuffer::cmdBindVertexIndexBuffer(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
+void AssetBuffer::cmdBindVertexIndexBuffer(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -352,7 +352,7 @@ void AssetBuffer::cmdBindVertexIndexBuffer(std::shared_ptr<pumex::Device> device
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void AssetBuffer::cmdDrawObject(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
+void AssetBuffer::cmdDrawObject(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

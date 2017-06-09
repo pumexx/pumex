@@ -111,19 +111,19 @@ public:
   AssetBuffer& operator=(const AssetBuffer&) = delete;
   virtual ~AssetBuffer();
 
-  void     registerVertexSemantic( uint32_t renderMask, const std::vector<pumex::VertexSemantic>& semantic);
+  void     registerVertexSemantic( uint32_t renderMask, const std::vector<VertexSemantic>& semantic);
   uint32_t registerType(const std::string& typeName, const AssetTypeDefinition& tdef);
-  uint32_t registerObjectLOD( uint32_t typeID, std::shared_ptr<pumex::Asset> asset, const AssetLodDefinition& ldef );
+  uint32_t registerObjectLOD( uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef );
   uint32_t getTypeID(const std::string& typeName) const;
   std::string getTypeName( uint32_t typeID ) const;
   uint32_t getLodID(uint32_t typeID, float distance) const;
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t getNumTypesID() const;
   
-  void validate(std::shared_ptr<pumex::Device> device, bool useStaging, std::shared_ptr<pumex::CommandPool> commandPool, VkQueue queue = VK_NULL_HANDLE);
+  void validate(std::shared_ptr<Device> device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue = VK_NULL_HANDLE);
 
-  void cmdBindVertexIndexBuffer(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
-  void cmdDrawObject(std::shared_ptr<pumex::Device> device, std::shared_ptr<pumex::CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+  void cmdBindVertexIndexBuffer(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
+  void cmdDrawObject(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
 
   inline std::shared_ptr<AssetBufferDescriptorSetSource> getTypeBufferDescriptorSetSource(uint32_t renderMask);
   inline std::shared_ptr<AssetBufferDescriptorSetSource> getLODBufferDescriptorSetSource(uint32_t renderMask);
@@ -196,15 +196,15 @@ private:
     std::map<uint32_t, VertexIndexMetaBuffers> vertexIndexBuffers;
     bool                                       buffersDirty = true;
   };
-  std::map<uint32_t,std::vector<pumex::VertexSemantic>> semantics;
-  std::vector<std::string>                              typeNames;
-  std::map<std::string, uint32_t>                       invTypeNames;
-  std::vector<AssetTypeDefinition>                      typeDefinitions;
-  std::vector<std::vector<AssetLodDefinition>>          lodDefinitions;
-  std::vector<InternalGeometryDefinition>               geometryDefinitions;
-  std::vector<std::shared_ptr<Asset>>                   assets; // asset buffer owns assets
-  std::map<AssetKey, std::shared_ptr<Asset>>            assetMapping; 
-  std::map<VkDevice, PerDeviceData> perDeviceData;
+  std::map<uint32_t,std::vector<VertexSemantic>> semantics;
+  std::vector<std::string>                       typeNames;
+  std::map<std::string, uint32_t>                invTypeNames;
+  std::vector<AssetTypeDefinition>               typeDefinitions;
+  std::vector<std::vector<AssetLodDefinition>>   lodDefinitions;
+  std::vector<InternalGeometryDefinition>        geometryDefinitions;
+  std::vector<std::shared_ptr<Asset>>            assets; // asset buffer owns assets
+  std::map<AssetKey, std::shared_ptr<Asset>>     assetMapping; 
+  std::map<VkDevice, PerDeviceData>              perDeviceData;
 
   std::map<uint32_t, std::shared_ptr<AssetBufferDescriptorSetSource>> typeBufferDescriptorSetValue;
   std::map<uint32_t, std::shared_ptr<AssetBufferDescriptorSetSource>> lodBufferDescriptorSetValue;

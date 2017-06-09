@@ -96,7 +96,7 @@ RenderPass::~RenderPass()
     vkDestroyRenderPass(pddit.first, pddit.second.renderPass, nullptr);
 }
 
-void RenderPass::validate(std::shared_ptr<pumex::Device> device)
+void RenderPass::validate(std::shared_ptr<Device> device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

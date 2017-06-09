@@ -21,16 +21,16 @@ glm::mat4 toMat4( const aiMatrix4x4& matrix )
     );
 }
 
-pumex::Animation::Channel::State toChannelState(aiAnimBehaviour behaviour)
+Animation::Channel::State toChannelState(aiAnimBehaviour behaviour)
 {
   switch (behaviour)
   {
-  case aiAnimBehaviour_DEFAULT:  return pumex::Animation::Channel::REPEAT;
-  case aiAnimBehaviour_CONSTANT: return pumex::Animation::Channel::CLAMP;
-  case aiAnimBehaviour_LINEAR:   return pumex::Animation::Channel::CLAMP;
-  case aiAnimBehaviour_REPEAT:   return pumex::Animation::Channel::REPEAT;
+  case aiAnimBehaviour_DEFAULT:  return Animation::Channel::REPEAT;
+  case aiAnimBehaviour_CONSTANT: return Animation::Channel::CLAMP;
+  case aiAnimBehaviour_LINEAR:   return Animation::Channel::CLAMP;
+  case aiAnimBehaviour_REPEAT:   return Animation::Channel::REPEAT;
   }
-  return pumex::Animation::Channel::CLAMP;
+  return Animation::Channel::CLAMP;
 }
 
 void getMaterialPropertyColor(Material& mat, aiMaterial* aiMat, const char* key, unsigned int type, unsigned int index)
@@ -54,15 +54,15 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
     mat.properties.insert({ std::string(key), glm::vec4(value, 0.0f, 0.0f, 0.0f) });
 }
 
-pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<pumex::VertexSemantic>& requiredSemantic)
+pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
   const aiScene* scene = Importer.ReadFile(fileName.c_str(), importFlags);
   if ( scene == nullptr )
     return nullptr;
 
   //creating asset
-  pumex::Asset* asset                = new pumex::Asset;
-  asset->fileName                    = fileName;
+  Asset* asset                = new pumex::Asset;
+  asset->fileName             = fileName;
   asset->skeleton.invGlobalTransform = glm::inverse( toMat4( scene->mRootNode->mTransformation ) );
   if (!animationOnly)
   {
@@ -188,8 +188,8 @@ pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animatio
 
         for (uint32_t i = 0; i < node->mNumMeshes; ++i)
         {
-          aiMesh* mesh           = scene->mMeshes[node->mMeshes[i]];
-          pumex::Geometry geometry;
+          aiMesh*  mesh           = scene->mMeshes[node->mMeshes[i]];
+          Geometry geometry;
           geometry.name          = mesh->mName.C_Str();
           geometry.materialIndex = mesh->mMaterialIndex;
           switch (mesh->mPrimitiveTypes)
@@ -201,7 +201,7 @@ pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animatio
           }
 
           // calculate proper vertex semantic
-          std::vector<pumex::VertexSemantic> thisSemantic;
+          std::vector<VertexSemantic> thisSemantic;
           if (requiredSemantic.empty())
           {
             thisSemantic.push_back(VertexSemantic(VertexSemantic::Position, 3));
@@ -338,7 +338,7 @@ pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animatio
     std::vector<aiTextureType> texTypes = { aiTextureType_DIFFUSE, aiTextureType_SPECULAR, aiTextureType_AMBIENT, aiTextureType_EMISSIVE, aiTextureType_HEIGHT, aiTextureType_NORMALS, aiTextureType_SHININESS, aiTextureType_OPACITY, aiTextureType_DISPLACEMENT, aiTextureType_LIGHTMAP, aiTextureType_REFLECTION };
     for (uint32_t i = 0; i < scene->mNumMaterials; ++i)
     {
-      pumex::Material material;
+      Material material;
       aiString matName;
       scene->mMaterials[i]->Get(AI_MATKEY_NAME,matName);
       material.name = matName.C_Str();
@@ -372,13 +372,13 @@ pumex::Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animatio
   for (uint32_t i = 0; i < scene->mNumAnimations; ++i)
   {
     aiAnimation* anim = scene->mAnimations[i];
-    pumex::Animation animation;
+    Animation animation;
     animation.name            = anim->mName.C_Str();
     float ticksPerSecond  = anim->mTicksPerSecond;
     for (uint32_t j = 0; j < anim->mNumChannels; ++j)
     {
       aiNodeAnim* nodeAnim = anim->mChannels[j];
-      pumex::Animation::Channel channel;
+      Animation::Channel channel;
       std::string channelName = nodeAnim->mNodeName.C_Str();
 
       //positions

@@ -12,7 +12,7 @@ QueueTraits::QueueTraits(VkQueueFlags h, VkQueueFlags nh, const std::vector<floa
 {
 }
 
-Device::Device(std::shared_ptr<pumex::Viewer> const& v, std::shared_ptr<pumex::PhysicalDevice> const& d, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
+Device::Device(std::shared_ptr<Viewer> const& v, std::shared_ptr<PhysicalDevice> const& d, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
   : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }
 {
   auto physicalDevice = physical.lock();
@@ -22,8 +22,8 @@ Device::Device(std::shared_ptr<pumex::Viewer> const& v, std::shared_ptr<pumex::P
   for (const auto& queueTraits : requestedQueues)
     matchingFamilies.push_back(physicalDevice->matchingFamilyIndices(queueTraits));
 
-  std::vector<std::vector<pumex::QueueTraits>> proposedMatching( physicalDevice->queueFamilyProperties.size() );
-  std::vector<std::vector<float>>              proposedMatchingPriorities(physicalDevice->queueFamilyProperties.size());
+  std::vector<std::vector<QueueTraits>> proposedMatching( physicalDevice->queueFamilyProperties.size() );
+  std::vector<std::vector<float>>       proposedMatchingPriorities(physicalDevice->queueFamilyProperties.size());
 
   // we will start from queues that have lowest number of matching family indices
   for (uint32_t s = 1; s <= physicalDevice->queueFamilyProperties.size(); ++s)
@@ -129,7 +129,7 @@ void Device::cleanup()
   }
 }
 
-VkQueue Device::getQueue(const pumex::QueueTraits& queueTraits, bool reserve)
+VkQueue Device::getQueue(const QueueTraits& queueTraits, bool reserve)
 {
   for (auto& q : queues)
   {
@@ -169,14 +169,14 @@ void Device::releaseQueue(VkQueue queue)
 
 
 
-std::shared_ptr<pumex::CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<pumex::CommandPool> commandPool)
+std::shared_ptr<CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool)
 {
-  std::shared_ptr<pumex::CommandBuffer> commandBuffer = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, shared_from_this(), commandPool);
+  std::shared_ptr<CommandBuffer> commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, shared_from_this(), commandPool);
   commandBuffer->cmdBegin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
   return commandBuffer;
 }
 
-void Device::endSingleTimeCommands(std::shared_ptr<pumex::CommandBuffer> commandBuffer, VkQueue queue)
+void Device::endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue)
 {
   commandBuffer->cmdEnd();
 
@@ -338,11 +338,11 @@ void Device::setEventName(VkEvent _event, const std::string& name)
   setObjectName((uint64_t)_event, VK_DEBUG_REPORT_OBJECT_TYPE_EVENT_EXT, name);
 }
 
-Device::Queue::Queue(const pumex::QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
+Device::Queue::Queue(const QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
   : traits(t), familyIndex(f), index(i), queue(vq), available(true)
 {
 }
-bool Device::Queue::isEqual(const pumex::QueueTraits& queueTraits)
+bool Device::Queue::isEqual(const QueueTraits& queueTraits)
 {
   return (traits.mustHave == queueTraits.mustHave) && (traits.mustNotHave == queueTraits.mustNotHave) && (traits.priority[0] == queueTraits.priority[0]);
 }

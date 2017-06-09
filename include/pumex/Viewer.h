@@ -42,13 +42,13 @@ class PUMEX_EXPORT Viewer : public std::enable_shared_from_this<Viewer>
 {
 public:
   Viewer()                         = delete;
-  explicit Viewer(const pumex::ViewerTraits& viewerTraits);
+  explicit Viewer(const ViewerTraits& viewerTraits);
   Viewer(const Viewer&)            = delete;
   Viewer& operator=(const Viewer&) = delete;
   ~Viewer();
 
-  std::shared_ptr<pumex::Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<pumex::QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
-  std::shared_ptr<pumex::Surface>   addSurface(std::shared_ptr<pumex::Window> window, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits);
+  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
+  std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
   void run();
   void cleanup();
   void setTerminate();
@@ -74,10 +74,10 @@ public:
   inline uint32_t getUpdateIndex() const;
   inline uint32_t getRenderIndex() const;
 
-  inline pumex::HPClock::duration   getUpdateDuration() const;      // time of one update ( = 1 / viewerTraits.updatesPerSecond )
-  inline pumex::HPClock::time_point getApplicationStartTime() const;// get the time point of the application start
-  inline pumex::HPClock::time_point getUpdateTime() const;          // get the time point of the update
-  inline pumex::HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
+  inline HPClock::duration   getUpdateDuration() const;      // time of one update ( = 1 / viewerTraits.updatesPerSecond )
+  inline HPClock::time_point getApplicationStartTime() const;// get the time point of the application start
+  inline HPClock::time_point getUpdateTime() const;          // get the time point of the update
+  inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
 
   inline void addDefaultDirectory(const std::string& directory);
 
@@ -89,40 +89,40 @@ protected:
   inline uint32_t getNextUpdateSlot() const;
   inline void doNothing() const;
 
-  std::vector<std::string>                            defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
-  std::vector<std::shared_ptr<pumex::PhysicalDevice>> physicalDevices;
-  std::vector<std::shared_ptr<pumex::Device>>         devices;
-  std::vector<std::shared_ptr<pumex::Surface>>        surfaces;
+  std::vector<std::string>                     defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
+  std::vector<std::shared_ptr<PhysicalDevice>> physicalDevices;
+  std::vector<std::shared_ptr<Device>>         devices;
+  std::vector<std::shared_ptr<Surface>>        surfaces;
 
-  pumex::HPClock::time_point                          viewerStartTime;
-  pumex::HPClock::time_point                          renderStartTime;
-  pumex::HPClock::time_point                          updateStartTimes[3];
-  pumex::HPClock::duration                            lastRenderDuration;
-  pumex::HPClock::duration                            lastUpdateDuration;
+  HPClock::time_point                          viewerStartTime;
+  HPClock::time_point                          renderStartTime;
+  HPClock::time_point                          updateStartTimes[3];
+  HPClock::duration                            lastRenderDuration;
+  HPClock::duration                            lastUpdateDuration;
 
-  uint32_t                                            renderIndex = 0;
-  uint32_t                                            updateIndex = 1;
+  uint32_t                                     renderIndex = 0;
+  uint32_t                                     updateIndex = 1;
 
-  std::mutex                                          updateMutex;
-  std::condition_variable                             updateConditionVariable;
+  std::mutex                                   updateMutex;
+  std::condition_variable                      updateConditionVariable;
 
-  PFN_vkCreateDebugReportCallbackEXT                  pfnCreateDebugReportCallback = VK_NULL_HANDLE;
-  PFN_vkDestroyDebugReportCallbackEXT                 pfnDestroyDebugReportCallback = VK_NULL_HANDLE;
-  PFN_vkDebugReportMessageEXT                         pfnDebugReportMessage = VK_NULL_HANDLE;
-  VkDebugReportCallbackEXT                            msgCallback;
+  PFN_vkCreateDebugReportCallbackEXT           pfnCreateDebugReportCallback = VK_NULL_HANDLE;
+  PFN_vkDestroyDebugReportCallbackEXT          pfnDestroyDebugReportCallback = VK_NULL_HANDLE;
+  PFN_vkDebugReportMessageEXT                  pfnDebugReportMessage = VK_NULL_HANDLE;
+  VkDebugReportCallbackEXT                     msgCallback;
 
 };
 
-VkInstance                 Viewer::getInstance() const             { return instance; }
-bool                       Viewer::terminating() const             { return viewerTerminate; }
-uint32_t                   Viewer::getUpdateIndex() const          { return updateIndex; }
-uint32_t                   Viewer::getRenderIndex() const          { return renderIndex; }
-pumex::HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStartTime; }
-pumex::HPClock::duration   Viewer::getUpdateDuration() const       { return (pumex::HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
-pumex::HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
-pumex::HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
-void                       Viewer::addDefaultDirectory(const std::string& directory) { defaultDirectories.push_back(directory); }
-void                       Viewer::doNothing() const               {}
+VkInstance          Viewer::getInstance() const             { return instance; }
+bool                Viewer::terminating() const             { return viewerTerminate; }
+uint32_t            Viewer::getUpdateIndex() const          { return updateIndex; }
+uint32_t            Viewer::getRenderIndex() const          { return renderIndex; }
+HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStartTime; }
+HPClock::duration   Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
+HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
+HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
+void                Viewer::addDefaultDirectory(const std::string& directory) { defaultDirectories.push_back(directory); }
+void                Viewer::doNothing() const               {}
 
 uint32_t   Viewer::getNextUpdateSlot() const
 {

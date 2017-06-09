@@ -116,7 +116,7 @@ WindowWin32::~WindowWin32()
 }
 
 
-std::shared_ptr<pumex::Surface> WindowWin32::createSurface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> WindowWin32::createSurface(std::shared_ptr<Viewer> v, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
   VkSurfaceKHR vkSurface;
   VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
@@ -125,7 +125,7 @@ std::shared_ptr<pumex::Surface> WindowWin32::createSurface(std::shared_ptr<pumex
     surfaceCreateInfo.hwnd      = _hwnd;
   VK_CHECK_LOG_THROW(vkCreateWin32SurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
 
-  std::shared_ptr<pumex::Surface> result = std::make_shared<pumex::Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
+  std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
   // create swapchain
   result->resizeSurface(width, height);
 
@@ -151,7 +151,7 @@ bool WindowWin32::checkWindowMessages()
 
 LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
 {
-  auto timeNow = pumex::HPClock::now();
+  auto timeNow = HPClock::now();
   switch (msg)
   {
   case WM_CLOSE:
@@ -241,14 +241,14 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
       if (wParam == SIZE_MAXIMIZED)
       {
         sizeMaximized = true;
-        surfaceSh->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surfaceSh, newWidth, newHeight));
+        surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh, newWidth, newHeight));
         width  = newWidth;
         height = newHeight;
       }
       else if ( sizeMaximized && wParam == SIZE_RESTORED)
       { 
         sizeMaximized = false;
-        surfaceSh->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surfaceSh, newWidth, newHeight));
+        surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh, newWidth, newHeight));
         width  = newWidth;
         height = newHeight;
       }
@@ -260,7 +260,7 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
     if ((swapChainResizable) && ((width != newWidth) || (height != newHeight)))
     {
       auto surf = surface.lock();
-      surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, newWidth, newHeight));
+      surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, newWidth, newHeight));
       width  = newWidth;
       height = newHeight;
     }
@@ -295,7 +295,7 @@ void WindowWin32::normalizeMouseCoordinates(float& x, float& y)
 }
 
 
-void WindowWin32::registerWindow(HWND hwnd, pumex::WindowWin32* window)
+void WindowWin32::registerWindow(HWND hwnd, WindowWin32* window)
 {
   registeredWindows.insert({hwnd,window});
 }

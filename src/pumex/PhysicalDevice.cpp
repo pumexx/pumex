@@ -45,7 +45,7 @@ PhysicalDevice::~PhysicalDevice()
 	
 }
 
-std::vector<uint32_t> PhysicalDevice::matchingFamilyIndices(const pumex::QueueTraits& queueTraits)
+std::vector<uint32_t> PhysicalDevice::matchingFamilyIndices(const QueueTraits& queueTraits)
 {
   std::vector<uint32_t> results;
   for (uint32_t i = 0; i<queueFamilyProperties.size(); ++i)

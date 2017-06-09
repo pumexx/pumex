@@ -26,7 +26,7 @@ public:
   CommandPool& operator=(const CommandPool&) = delete;
   virtual ~CommandPool();
 
-  void          validate(std::shared_ptr<pumex::Device> device);
+  void          validate(std::shared_ptr<Device> device);
   VkCommandPool getHandle(VkDevice device) const;
 
   uint32_t queueFamilyIndex;
@@ -56,7 +56,7 @@ public:
   void cmdBegin(VkCommandBufferUsageFlags usageFlags = 0) const;
   void cmdEnd() const;
 
-  void cmdBeginRenderPass(std::shared_ptr<pumex::RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const;
+  void cmdBeginRenderPass(std::shared_ptr<RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const;
   void cmdNextSubPass(VkSubpassContents contents) const;
   void cmdEndRenderPass() const;
 
@@ -67,10 +67,10 @@ public:
   void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
   void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
   void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
-  void cmdBindPipeline(std::shared_ptr<pumex::ComputePipeline> pipeline) const;
-  void cmdBindPipeline(std::shared_ptr<pumex::GraphicsPipeline> pipeline) const;
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<pumex::DescriptorSet>> descriptorSets) const;
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<pumex::PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<pumex::DescriptorSet> descriptorSet) const;
+  void cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline) const;
+  void cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline) const;
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets) const;
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet) const;
 
   void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
