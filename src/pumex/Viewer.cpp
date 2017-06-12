@@ -38,6 +38,20 @@ Viewer::Viewer(const ViewerTraits& vt)
   lastRenderDuration  = viewerStartTime - renderStartTime;
   lastUpdateDuration  = viewerStartTime - updateStartTimes[0];
 
+  // register basic directories - directories listed in PUMEX_DATA_DIR environment variable, spearated by semicolon
+  const char* dataDirVariable = getenv("PUMEX_DATA_DIR");
+  if (dataDirVariable != nullptr)
+  {
+    const char* currentPos = dataDirVariable;
+    do
+    {
+      const char *begin = currentPos;
+      while (*currentPos != ';' && *currentPos != 0)
+        currentPos++;
+      defaultDirectories.push_back( std::string(begin, currentPos));
+    } while (*currentPos++ != 0);
+  }
+
   // register basic directories - current directory
   char strCurrentPath[MAX_PATH_LENGTH];
   if (getcwd(strCurrentPath, MAX_PATH_LENGTH))
