@@ -1,3 +1,25 @@
+//
+// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files(the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions :
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
 #pragma once
 #include <memory>
 #include <vector>
@@ -112,7 +134,7 @@ protected:
   std::vector<float> valuesReset;
 };
 
-// basic class for holding vertices - subject of vkCmdDraw* commands
+// basic class for storing vertices and indices - subject of vkCmdDraw* commands
 struct PUMEX_EXPORT Geometry
 {
   std::string                 name;
@@ -135,7 +157,8 @@ struct PUMEX_EXPORT Geometry
   void getVertex(uint32_t position, VertexAccumulator& vertexAccumulator);
 };
 
-// class holding properties and texture names of materials
+// class storing properties and texture names of materials
+// For now properties of a material are named after assimp library for convenience
 struct PUMEX_EXPORT Material
 {
   std::string name;
@@ -162,7 +185,7 @@ inline bool operator<(const TimeLine<T>& lhs, const TimeLine<T>& rhs)
   return lhs.time<rhs.time;
 }
 
-// class holding information about Asset animations
+// class storing information about Asset animations
 struct PUMEX_EXPORT Animation
 {
   struct Channel
@@ -196,7 +219,7 @@ struct PUMEX_EXPORT Animation
   std::map<std::string, std::size_t> invChannelNames;
 };
 
-// Main class for holding information about an asset loaded from file ( by assimp or custom created loaders )
+// Main class for storing information about an asset loaded from file ( by assimp or custom created loaders )
 // FIXME : should we add lights in some form here ?
 class PUMEX_EXPORT Asset
 {

@@ -1,3 +1,25 @@
+//
+// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files(the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions :
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
 #pragma once
 #include <unordered_map>
 #include <memory>
@@ -14,6 +36,7 @@ namespace pumex
 class Device;
 class CommandPool;
 
+// struct representing all options required to create or describe VkImage
 struct PUMEX_EXPORT ImageTraits
 {
   explicit ImageTraits() = default;
@@ -39,6 +62,7 @@ struct PUMEX_EXPORT ImageTraits
 
 };
 
+// struct describing VkSampler / combined sampler 
 struct PUMEX_EXPORT TextureTraits
 {
   explicit TextureTraits() = default;
@@ -106,6 +130,7 @@ protected:
 
 // Uses gli::texture to hold texture on CPU
 // Texture may contain usual textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
+// Class stores information about images per device. Additionally it also stores a VkSampler
 class PUMEX_EXPORT Texture : public DescriptorSetSource
 {
 public:
@@ -128,9 +153,6 @@ public:
   TextureTraits                        traits;
   std::weak_ptr<DeviceMemoryAllocator> allocator;
 private:
-//  VkCommandPool commandPool     = VK_NULL_HANDLE;
-//  VkQueue       queue           = VK_NULL_HANDLE;
-
   struct PerDeviceData
   {
     PerDeviceData()
@@ -144,6 +166,7 @@ private:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
+// Texture files are loaded through TextureLoader. Currently only gli library is used to load them
 // This is temporary solution.
 class PUMEX_EXPORT TextureLoader
 {

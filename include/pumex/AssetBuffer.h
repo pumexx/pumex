@@ -1,3 +1,25 @@
+//
+// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files(the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions :
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
 #pragma once
 #include <map>
 #include <algorithm>
@@ -12,6 +34,41 @@ namespace pumex
 class Device;
 class CommandPool;
 class CommandBuffer;
+
+// AssetBuffer is a class that holds all assets in a single place in GPU memory.
+// Each asset may have different set of render aspects ( normal rendering with tangents, transluency, lights, etc ) defined by render mask.
+// Each render aspect may use different shaders with different vertex semantic in its geometries.
+// For each render mask used by AssetBuffer you must register its render semantic using registerVertexSemantic() method.
+// 
+// Asset's render masks are defined per single geometry. It's in user's responsibility to mark each geometry
+// by its specific render mask ( using geometry name, associated materials, textures and whatever the user finds appropriate ).
+// 
+// To register single object you must define an object type by calling to registerType()
+// Then for that type you register Assets as different LODs. Each asset has skeletons, animations, geometries, materials, textures etc.
+// Materials and textures are treated in different class called MaterialSet.
+// Animations are stored and used by CPU
+//
+// To bind AssetBuffer resources to vulkan you may use cmdBindVertexIndexBuffer().
+// Each render aspect ( identified by render mask ) has its own vertex and index buffers, so the user is able to use different shaders to 
+// draw to different subpasses.
+//
+// After vertex/index binding the user is ready to draw objects.
+// To draw a single object it is enough to use cmdDrawObject() method, but AssetBuffer was created with
+// MASSIVE INSTANCED RENDERING in mind - check crowd and pumexgpucull examples on how to achieve this.
+//
+// Every object type in AssetBuffer : 
+//  - is recognized by its ID number.
+//  - has predefined bounding box ( user is responsible for handing this information over to AssetBuffer )
+//  - may have one or more levels of detail ( LODs )
+//
+// Every LOD in AssetBuffer :
+//  - has minimum visible distance and maximum visible distance defined
+//  - has a list of geometries used by that LOD
+//
+// Every geometry in AssetBuffer :
+//  - has render mask
+//  - has pointers to vertex and index buffers
+
 
 struct PUMEX_EXPORT AssetTypeDefinition
 {
@@ -93,16 +150,6 @@ inline bool operator<(const AssetKey& lhs, const AssetKey& rhs)
 // Descriptor sets will use this class to access meta buffers held by AssetBuffer ( this class is a kind of adapter... )
 class AssetBufferDescriptorSetSource;
 
-// AssetBuffer is a class that holds all assets in a single place in memory.
-// Each asset may have different set of render aspects ( normal rendering, transluency, lights, etc ) defined by render mask.
-// Each render aspect may use different shaders with different vertex semantic in its geometries.
-// First you must define an object type by calling to registerType()
-// Then for that type you register Assets as different LODs. Each asset has skeletons, geometries, materials, textures etc.
-// Materials and textures are treated in different class called MaterialSet.
-// To bind AssetBuffer to vulkan you may use bindVertexIndexBuffer().
-// Each render aspect has its own vertex and index buffers, so you are able to use different shaders to draw to different subpasses if you need this.
-// Then you are ready to draw objects ( single object may be drawn using drawObject() method, but AssetBuffer was created with
-// massive instanced rendering in mind - check crowd and pumexgpucull examples on how to achieve this.
 class PUMEX_EXPORT AssetBuffer
 {
 public:

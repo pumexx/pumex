@@ -1,3 +1,25 @@
+//
+// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files(the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions :
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
 #pragma once
 #include <memory>
 #include <vector>
@@ -16,7 +38,8 @@
 namespace pumex
 {
 
-// struct that helps to put textures in appropriate places in Vulkan
+// Assimp does not load textures, but only its names and purpose ( diffuse, normal, etc )
+// TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet
 struct TextureSemantic
 {
   // you must modify shaders if the number of types defined below has changed. Shaders may use TextureSemanticCount
@@ -54,12 +77,13 @@ public:
   virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
 };
 
-// MaterialSet is the class that holds information about materials in a single place both in CPU and in GPU.
-// Material is a template T - you can use whatever structure you want, as long as the struct T is std430 compatible
-// ( because it will be sent to GPU ) and includes following methods :
-// void registerProperties(const pumex::Material& material)
-// void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
-// Check out MaterialData struct in crowd example and in pumexgpucull example
+// MaterialSet is the class that stores information about asset materials in a single place both in CPU and in GPU.
+// Material is a template T - you can use whatever structure you want, as long as the struct T :
+//   - is std430 compatible ( because it will be sent to GPU )
+//   - includes following methods :
+//      void registerProperties(const pumex::Material& material)
+//      void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
+// Check out different MaterialData implementations in examples ( crowd, gpucull and deferred ).
 template <typename T>
 class MaterialSet
 {

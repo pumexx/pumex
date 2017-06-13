@@ -1,3 +1,25 @@
+//
+// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files(the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions :
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
 #pragma once
 
 #include <type_traits>
@@ -18,7 +40,7 @@ class Device;
 class Surface;
 struct SurfaceTraits;
 
-// struct holding all information required to create a window
+// struct storing all information required to create a window
 struct PUMEX_EXPORT WindowTraits
 {
   WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, bool fullscreen, const std::string& windowName);
@@ -32,7 +54,7 @@ struct PUMEX_EXPORT WindowTraits
   std::string windowName;
 };
 
-// Class holding a single mouse input event
+// Class storing a single input event ( mouse or keyboard )
 struct InputEvent
 {
   enum Type { INPUT_UNDEFINED, MOUSE_MOVE, MOUSE_KEY_PRESSED, MOUSE_KEY_RELEASED, MOUSE_KEY_DOUBLE_PRESSED, KEYBOARD_KEY_PRESSED, KEYBOARD_KEY_RELEASED };
@@ -57,7 +79,8 @@ struct InputEvent
   Key                 key         = KEY_UNDEFINED;
 };
 
-// Found this piece on https://stackoverflow.com/questions/261963/how-can-i-iterate-over-an-enum
+// Helper class that enables iterating over modern C++ enums.
+// Found this gem on Stack Overflow : https://stackoverflow.com/questions/261963/how-can-i-iterate-over-an-enum
 // FIXME : this definitely should be moved out of here...
 
 template < typename C, C beginVal, C endVal>
