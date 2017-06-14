@@ -27,6 +27,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+// pumexviewer is a very basic program, that performs textureless rendering of a model provided in a commandline
+
+// Current measurment methods add 4ms to a single frame ( cout lags )
+// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define VIEWER_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 511;
@@ -56,10 +60,10 @@ struct UpdateData
   glm::vec2 lastMousePos;
   bool      leftMouseKeyPressed;
   bool      rightMouseKeyPressed;
-  bool      wKeyPressed;
-  bool      sKeyPressed;
-  bool      aKeyPressed;
-  bool      dKeyPressed;
+  bool      moveForward;
+  bool      moveBackward;
+  bool      moveLeft;
+  bool      moveRight;
 };
 
 struct RenderData
@@ -200,10 +204,10 @@ struct ViewerApplicationData
     updateData.cameraDistance              = 1.0f;
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
-    updateData.wKeyPressed                 = false;
-    updateData.sKeyPressed                 = false;
-    updateData.aKeyPressed                 = false;
-    updateData.dKeyPressed                 = false;
+    updateData.moveForward                 = false;
+    updateData.moveBackward                = false;
+    updateData.moveLeft                    = false;
+    updateData.moveRight                   = false;
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
@@ -269,19 +273,19 @@ struct ViewerApplicationData
       case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = true; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = true; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = true; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = true; break;
+        case pumex::InputEvent::W: updateData.moveForward  = true; break;
+        case pumex::InputEvent::S: updateData.moveBackward = true; break;
+        case pumex::InputEvent::A: updateData.moveLeft     = true; break;
+        case pumex::InputEvent::D: updateData.moveRight    = true; break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = false; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = false; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = false; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = false; break;
+        case pumex::InputEvent::W: updateData.moveForward  = false; break;
+        case pumex::InputEvent::S: updateData.moveBackward = false; break;
+        case pumex::InputEvent::A: updateData.moveLeft     = false; break;
+        case pumex::InputEvent::D: updateData.moveRight    = false; break;
         }
         break;
       }
@@ -314,13 +318,13 @@ struct ViewerApplicationData
 
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
     glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (updateData.wKeyPressed)
+    if (updateData.moveForward)
       updateData.cameraPosition -= forward;
-    if (updateData.sKeyPressed)
+    if (updateData.moveBackward)
       updateData.cameraPosition += forward;
-    if (updateData.aKeyPressed)
+    if (updateData.moveLeft)
       updateData.cameraPosition -= right;
-    if (updateData.dKeyPressed)
+    if (updateData.moveRight)
       updateData.cameraPosition += right;
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
@@ -427,8 +431,6 @@ struct ViewerApplicationData
 #endif
 
   }
-
-
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
@@ -609,7 +611,6 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
     tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
 
-
     viewer->run();
   }
   catch (const std::exception e)
@@ -620,5 +621,5 @@ int main( int argc, char * argv[] )
   }
   viewer->cleanup();
   FLUSH_LOG;
-	return 0;
+  return 0;
 }

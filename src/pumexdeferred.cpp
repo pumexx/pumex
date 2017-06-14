@@ -27,6 +27,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+// This example shows how to setup basic deferred renderer with antialiasing.
+
+// Current measurment methods add 4ms to a single frame ( cout lags )
+// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define DEFERRED_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 511;
@@ -76,6 +80,7 @@ struct MaterialData
   }
 };
 
+// simple light point sent to GPU in a storage buffer
 struct LightPointData
 {
   LightPointData()
@@ -104,11 +109,14 @@ struct UpdateData
   bool      leftMouseKeyPressed;
   bool      rightMouseKeyPressed;
   
-  bool      wKeyPressed;
-  bool      sKeyPressed;
-  bool      aKeyPressed;
-  bool      dKeyPressed;
-  
+  bool      moveForward;
+  bool      moveBackward;
+  bool      moveLeft;
+  bool      moveRight;
+  bool      moveUp;
+  bool      moveDown;
+  bool      moveFast;
+
 };
 
 struct RenderData
@@ -296,15 +304,18 @@ struct DeferredApplicationData
     compositeDescriptorSet->setSource(3, input3);
     compositeDescriptorSet->setSource(4, input4);
 
-    updateData.cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    updateData.cameraDistance = 1.0f;
-    updateData.leftMouseKeyPressed = false;
-    updateData.rightMouseKeyPressed = false;
-    updateData.wKeyPressed = false;
-    updateData.sKeyPressed = false;
-    updateData.aKeyPressed = false;
-    updateData.dKeyPressed = false;
+    updateData.cameraDistance              = 1.0f;
+    updateData.leftMouseKeyPressed         = false;
+    updateData.rightMouseKeyPressed        = false;
+    updateData.moveForward                 = false;
+    updateData.moveBackward                = false;
+    updateData.moveLeft                    = false;
+    updateData.moveRight                   = false;
+    updateData.moveUp                      = false;
+    updateData.moveDown                    = false;
+    updateData.moveFast                    = false;
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
@@ -377,19 +388,25 @@ struct DeferredApplicationData
       case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = true; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = true; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = true; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = true; break;
+        case pumex::InputEvent::W:     updateData.moveForward  = true; break;
+        case pumex::InputEvent::S:     updateData.moveBackward = true; break;
+        case pumex::InputEvent::A:     updateData.moveLeft     = true; break;
+        case pumex::InputEvent::D:     updateData.moveRight    = true; break;
+        case pumex::InputEvent::Q:     updateData.moveUp       = true; break;
+        case pumex::InputEvent::Z:     updateData.moveDown     = true; break;
+        case pumex::InputEvent::SHIFT: updateData.moveFast     = true; break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = false; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = false; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = false; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = false; break;
+        case pumex::InputEvent::W:     updateData.moveForward  = false; break;
+        case pumex::InputEvent::S:     updateData.moveBackward = false; break;
+        case pumex::InputEvent::A:     updateData.moveLeft     = false; break;
+        case pumex::InputEvent::D:     updateData.moveRight    = false; break;
+        case pumex::InputEvent::Q:     updateData.moveUp       = false; break;
+        case pumex::InputEvent::Z:     updateData.moveDown     = false; break;
+        case pumex::InputEvent::SHIFT: updateData.moveFast     = false; break;
         }
         break;
       }
@@ -420,16 +437,24 @@ struct DeferredApplicationData
       updateData.lastMousePos = mouseMove;
     }
 
-    glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
-    glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (updateData.wKeyPressed)
-      updateData.cameraPosition -= forward;
-    if (updateData.sKeyPressed)
-      updateData.cameraPosition += forward;
-    if (updateData.aKeyPressed)
-      updateData.cameraPosition -= right;
-    if (updateData.dKeyPressed)
-      updateData.cameraPosition += right;
+    float camSpeed = 0.2f;
+    if (updateData.moveFast)
+      camSpeed = 1.0f;
+    glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0);
+    glm::vec3 right   = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0);
+    glm::vec3 up      = glm::vec3(0.0f, 0.0f, 1.0f);
+    if (updateData.moveForward)
+      updateData.cameraPosition -= forward * camSpeed;
+    if (updateData.moveBackward)
+      updateData.cameraPosition += forward * camSpeed;
+    if (updateData.moveLeft)
+      updateData.cameraPosition -= right * camSpeed;
+    if (updateData.moveRight)
+      updateData.cameraPosition += right * camSpeed;
+    if (updateData.moveUp)
+      updateData.cameraPosition += up * camSpeed;
+    if (updateData.moveDown)
+      updateData.cameraPosition -= up * camSpeed;
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.cameraDistance = updateData.cameraDistance;

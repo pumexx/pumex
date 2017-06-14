@@ -30,13 +30,28 @@
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 
+
+// This example shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands
+// ( the number of draw calls is equal to number of rendered object types ).
+// Each object type may be drawn with different sets of textures, because all textures used in rendering are stored in texture array
+// ( different set of textures for the same object is called "material variant" in that example ).
+//
+// This example also shows, how to animate assets and how to render different assets ( people, clothes ) using the same animated skeleton.
+//
+// Rendering consists of following parts :
+// 1. Positions and parameters of all objects are sent to compute shader. Compute shader ( a filter ) culls invisible objects using 
+//    camera parameters, object position and object bounding box. For visible objects the appropriate level of detail is chosen. 
+//    Results are stored in a buffer.
+// 2. Above mentioned buffer is used during rendering to choose appropriate object parameters ( position, bone matrices, object specific parameters, material ids, etc )
+
+
 // Current measurment methods add 4ms to a single frame ( cout lags )
 // I suggest using applications such as RenderDoc to measure frame time for now.
 //#define CROWD_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 63;
 
-// Structure holding information about people and objects.
+// Structure storing information about people and objects.
 // Structure is used by update loop to update its parameters.
 // Then it is sent to a render loop and used to produce a render data ( PositionData and InstanceData )
 
@@ -73,10 +88,10 @@ struct UpdateData
   bool                                     leftMouseKeyPressed;
   bool                                     rightMouseKeyPressed;
   
-  bool                                     wKeyPressed;
-  bool                                     sKeyPressed;
-  bool                                     aKeyPressed;
-  bool                                     dKeyPressed;
+  bool                                     moveForward;
+  bool                                     moveBackward;
+  bool                                     moveLeft;
+  bool                                     moveRight;
   
   bool                                     xKeyPressed;
 };
@@ -599,10 +614,10 @@ struct CrowdApplicationData
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
     updateData.xKeyPressed                 = false;
-    updateData.wKeyPressed                 = false;
-    updateData.sKeyPressed                 = false;
-    updateData.aKeyPressed                 = false;
-    updateData.dKeyPressed                 = false;
+    updateData.moveForward                 = false;
+    updateData.moveBackward                = false;
+    updateData.moveLeft                    = false;
+    updateData.moveRight                   = false;
 
     std::vector<pumex::DrawIndexedIndirectCommand> results;
     skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1,results, resultsGeomToType);
@@ -679,19 +694,19 @@ struct CrowdApplicationData
       case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = true; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = true; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = true; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = true; break;
+        case pumex::InputEvent::W: updateData.moveForward  = true; break;
+        case pumex::InputEvent::S: updateData.moveBackward = true; break;
+        case pumex::InputEvent::A: updateData.moveLeft     = true; break;
+        case pumex::InputEvent::D: updateData.moveRight    = true; break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = false; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = false; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = false; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = false; break;
+        case pumex::InputEvent::W: updateData.moveForward  = false; break;
+        case pumex::InputEvent::S: updateData.moveBackward = false; break;
+        case pumex::InputEvent::A: updateData.moveLeft     = false; break;
+        case pumex::InputEvent::D: updateData.moveRight    = false; break;
         }
         break;
       }
@@ -724,13 +739,13 @@ struct CrowdApplicationData
 
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
     glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (updateData.wKeyPressed)
+    if (updateData.moveForward)
       updateData.cameraPosition -= forward;
-    if (updateData.sKeyPressed)
+    if (updateData.moveBackward)
       updateData.cameraPosition += forward;
-    if (updateData.aKeyPressed)
+    if (updateData.moveLeft)
       updateData.cameraPosition -= right;
-    if (updateData.dKeyPressed)
+    if (updateData.moveRight)
       updateData.cameraPosition += right;
 //    if (windowSh->isKeyPressed('X'))
 //    {

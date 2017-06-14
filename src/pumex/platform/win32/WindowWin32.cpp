@@ -352,6 +352,7 @@ void WindowWin32::fillWin32Keycodes()
   win32Keycodes.insert({ VK_ESCAPE, InputEvent::ESCAPE});
   win32Keycodes.insert({ VK_SPACE, InputEvent::SPACE});
   win32Keycodes.insert({ VK_TAB, InputEvent::TAB});
+  win32Keycodes.insert({ VK_SHIFT, InputEvent::SHIFT });
 
   WPARAM i=0;
   

@@ -30,7 +30,9 @@
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
 
-// This demo shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands. 
+// This example shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands
+// ( the number of draw calls is equal to number of rendered object types ).
+//
 // Rendering consists of following parts :
 // 1. Positions and parameters of all objects are sent to compute shader. Compute shader ( a filter ) culls invisible objects using 
 //    camera parameters, object position and object bounding box. For visible objects the appropriate level of detail is chosen. 
@@ -39,19 +41,19 @@
 // 
 // Demo presents possibility to render both static and dynamic objects :
 // - static objects consist mainly of trees, so animation of waving in the wind was added ( amplitude of waving was set to 0 for buildings :) ).
-// - in this demo all static objects are sent at once ( that's why compute shader takes so much time - compare it to 500 people rendered in crowd demo ). 
+// - in this example all static objects are sent at once ( that's why compute shader takes so much time - compare it to 500 people rendered in crowd example ). 
 //   In real application CPU would only sent objects that are visible to a user. Such objects would be stored in some form of quad tree
 // - dynamic objects present the possibility to animate object parts of an object ( wheels, propellers ) 
 // - static and dynamic object use different set of rendering parameters : compare StaticInstanceData and DynamicInstanceData structures
 //
-// pumexgpucull demo is a copy of similar demo that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
-// compare Vulkan and OpenGL performance ( I didn't use compute shaders in OpenGL demo, but performance of rendering is comparable ).
+// pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
+// compare Vulkan and OpenGL performance ( I used ordinary graphics shaders instead of compute shaders in OpenGL demo, but performance of rendering is comparable ).
 
 // Current measurment methods add 4ms to a single frame ( cout lags )
 // I suggest using applications such as RenderDoc to measure frame time for now.
 //#define GPU_CULL_MEASURE_TIME 1
 
-// struct holding the whole information required to render a single static object
+// struct storing the whole information required by CPU and GPU to render a single static object ( trees and buildings )
 struct StaticInstanceData
 {
   StaticInstanceData(const glm::mat4& p = glm::mat4(), uint32_t t = 0, uint32_t m = 0, float b=1.0f, float wa=0.0f, float wf=1.0f, float wo=0.0f)
@@ -71,6 +73,7 @@ struct StaticInstanceData
 
 const uint32_t MAX_BONES = 9;
 
+// struct storing information about dynamic object used during update phase
 struct DynamicObjectData
 {
   pumex::Kinematic kinematic;
@@ -80,7 +83,7 @@ struct DynamicObjectData
   float            brightness;
 };
 
-// struct holding the whole information required to render a single dynamic object
+// struct storing the whole information required by GPU to render a single dynamic object
 struct DynamicInstanceData
 {
   DynamicInstanceData(const glm::mat4& p = glm::mat4(), uint32_t t=0, uint32_t m=0, float b=1.0f)
@@ -104,17 +107,18 @@ struct UpdateData
   glm::vec2                                       cameraGeographicCoordinates;
   float                                           cameraDistance;
 
-  std::vector<StaticInstanceData> staticInstanceData; // this will only be copied to render data
+  std::vector<StaticInstanceData>                 staticInstanceData; // this will only be copied to render data
   std::unordered_map<uint32_t, DynamicObjectData> dynamicObjectData;
 
   glm::vec2                                       lastMousePos;
   bool                                            leftMouseKeyPressed;
   bool                                            rightMouseKeyPressed;
 
-  bool                                            wKeyPressed;
-  bool                                            sKeyPressed;
-  bool                                            aKeyPressed;
-  bool                                            dKeyPressed;
+  bool                                            moveForward;
+  bool                                            moveBackward;
+  bool                                            moveLeft;
+  bool                                            moveRight;
+  bool                                            moveFast;
   
 };
 
@@ -136,7 +140,7 @@ struct RenderData
 };
 
 
-// struct that holds information about material used by specific object type. Demo does not use textures ( in contrast to crowd example )
+// struct that stores information about material used by specific object type. This example does not use textures ( in contrast to crowd example )
 struct MaterialGpuCull
 {
   glm::vec4 ambient;
@@ -691,10 +695,11 @@ struct GpuCullApplicationData
     updateData.cameraDistance              = 1.0f;
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
-    updateData.wKeyPressed                 = false;
-    updateData.sKeyPressed                 = false;
-    updateData.aKeyPressed                 = false;
-    updateData.dKeyPressed                 = false;
+    updateData.moveForward                 = false;
+    updateData.moveBackward                = false;
+    updateData.moveLeft                    = false;
+    updateData.moveRight                   = false;
+    updateData.moveFast                    = false;
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4*3);
   }
@@ -1057,19 +1062,21 @@ struct GpuCullApplicationData
       case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = true; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = true; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = true; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = true; break;
+        case pumex::InputEvent::W:     updateData.moveForward  = true; break;
+        case pumex::InputEvent::S:     updateData.moveBackward = true; break;
+        case pumex::InputEvent::A:     updateData.moveLeft     = true; break;
+        case pumex::InputEvent::D:     updateData.moveRight    = true; break;
+        case pumex::InputEvent::SHIFT: updateData.moveFast     = true; break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
         switch(m.key)
         {
-        case pumex::InputEvent::W: updateData.wKeyPressed = false; break;
-        case pumex::InputEvent::S: updateData.sKeyPressed = false; break;
-        case pumex::InputEvent::A: updateData.aKeyPressed = false; break;
-        case pumex::InputEvent::D: updateData.dKeyPressed = false; break;
+        case pumex::InputEvent::W:     updateData.moveForward  = false; break;
+        case pumex::InputEvent::S:     updateData.moveBackward = false; break;
+        case pumex::InputEvent::A:     updateData.moveLeft     = false; break;
+        case pumex::InputEvent::D:     updateData.moveRight    = false; break;
+        case pumex::InputEvent::SHIFT: updateData.moveFast     = false; break;
         }
         break;
       }
@@ -1101,17 +1108,17 @@ struct GpuCullApplicationData
     }
 
     float camSpeed = 1.0f;
-//    if (windowSh->isKeyPressed(VK_LSHIFT))
-//      camSpeed = 5.0f;
+    if (updateData.moveFast)
+      camSpeed = 5.0f;
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
     glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (updateData.wKeyPressed)
+    if (updateData.moveForward)
       updateData.cameraPosition -= forward * camSpeed;
-    if (updateData.sKeyPressed)
+    if (updateData.moveBackward)
       updateData.cameraPosition += forward * camSpeed;
-    if (updateData.aKeyPressed)
+    if (updateData.moveLeft)
       updateData.cameraPosition -= right * camSpeed;
-    if (updateData.dKeyPressed)
+    if (updateData.moveRight)
       updateData.cameraPosition += right * camSpeed;
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
