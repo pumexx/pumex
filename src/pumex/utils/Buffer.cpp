@@ -30,7 +30,7 @@
 namespace pumex
 {
 
-VkDeviceSize createBuffer(std::shared_ptr<Device> device, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, VkBuffer * buffer, VkDeviceMemory * memory, void* data)
+VkDeviceSize createBuffer(Device* device, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, VkBuffer * buffer, VkDeviceMemory * memory, void* data)
 {
   VkBufferCreateInfo bufferCreateInfo{};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -59,7 +59,7 @@ VkDeviceSize createBuffer(std::shared_ptr<Device> device, VkBufferUsageFlags usa
   return memAlloc.allocationSize;
 }
 
-void destroyBuffer(std::shared_ptr<Device> device, VkBuffer buffer, VkDeviceMemory memory)
+void destroyBuffer(Device*  device, VkBuffer buffer, VkDeviceMemory memory)
 {
   vkDestroyBuffer(device->device, buffer, nullptr);
   vkFreeMemory(device->device, memory, nullptr);
@@ -77,7 +77,7 @@ NBufferMemory::NBufferMemory(VkBufferUsageFlags uf, VkDeviceSize s, void* d)
 {
 }
 
-VkDeviceSize createBuffers(std::shared_ptr<Device> device, std::vector<NBufferMemory>& multiBuffer, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory* memory)
+VkDeviceSize createBuffers(Device* device, std::vector<NBufferMemory>& multiBuffer, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory* memory)
 {
   if (multiBuffer.empty())
     return 0;
@@ -119,7 +119,7 @@ VkDeviceSize createBuffers(std::shared_ptr<Device> device, std::vector<NBufferMe
   return memorySize;
 }
 
-void destroyBuffers(std::shared_ptr<Device> device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory)
+void destroyBuffers(Device* device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory)
 {
   for (auto& buffer : multiBuffer)
   {

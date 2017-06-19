@@ -73,7 +73,7 @@ public:
   ~DeviceMemoryAllocator();
 
 
-  DeviceMemoryBlock allocate(std::shared_ptr<Device> device, VkMemoryRequirements memoryRequirements);
+  DeviceMemoryBlock allocate(Device* device, VkMemoryRequirements memoryRequirements);
   void deallocate(VkDevice device, const DeviceMemoryBlock& block);
 
   inline VkDeviceSize getMemorySize() const;

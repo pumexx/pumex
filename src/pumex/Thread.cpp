@@ -20,6 +20,8 @@
 // SOFTWARE.
 //
 
+// WARNING : this file is now obsolete. Now we use TBB instead of std.
+
 #include <pumex/Thread.h>
 
 using namespace pumex;

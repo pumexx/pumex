@@ -167,10 +167,10 @@ public:
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t getNumTypesID() const;
   
-  void validate(std::shared_ptr<Device> device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue = VK_NULL_HANDLE);
+  void validate(Device* device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue = VK_NULL_HANDLE);
 
-  void cmdBindVertexIndexBuffer(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
-  void cmdDrawObject(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+  void cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
+  void cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
 
   inline std::shared_ptr<AssetBufferDescriptorSetSource> getTypeBufferDescriptorSetSource(uint32_t renderMask);
   inline std::shared_ptr<AssetBufferDescriptorSetSource> getLODBufferDescriptorSetSource(uint32_t renderMask);

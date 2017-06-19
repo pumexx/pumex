@@ -320,33 +320,33 @@ struct DeferredApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
-    VkDevice vkDevice = deviceSh->device;
+    pumex::Device*  devicePtr  = surface->device.lock().get();
+    VkDevice        vkDevice   = devicePtr->device;
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool, surface->getImageCount());
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
 
-    cameraUbo->validate(deviceSh);
-    positionUbo->validate(deviceSh);
-    lightsSbo->validate(deviceSh);
+    cameraUbo->validate(devicePtr);
+    positionUbo->validate(devicePtr);
+    lightsSbo->validate(devicePtr);
     input2->validate(surface);
     input3->validate(surface);
     input4->validate(surface);
 
     // loading models
-    assetBuffer.validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
-    materialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
+    assetBuffer.validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
+    materialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
-    pipelineCache->validate(deviceSh);
+    pipelineCache->validate(devicePtr);
 
-    gbufferDescriptorSetLayout->validate(deviceSh);
-    gbufferDescriptorPool->validate(deviceSh);
-    gbufferPipelineLayout->validate(deviceSh);
-    gbufferPipeline->validate(deviceSh);
+    gbufferDescriptorSetLayout->validate(devicePtr);
+    gbufferDescriptorPool->validate(devicePtr);
+    gbufferPipelineLayout->validate(devicePtr);
+    gbufferPipeline->validate(devicePtr);
 
-    compositeDescriptorSetLayout->validate(deviceSh);
-    compositeDescriptorPool->validate(deviceSh);
-    compositePipelineLayout->validate(deviceSh);
-    compositePipeline->validate(deviceSh);
+    compositeDescriptorSetLayout->validate(devicePtr);
+    compositeDescriptorPool->validate(devicePtr);
+    compositePipelineLayout->validate(devicePtr);
+    compositePipeline->validate(devicePtr);
 
   }
 
@@ -563,9 +563,10 @@ struct DeferredApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
-    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
-    VkDevice                        vkDevice = deviceSh->device;
+    pumex::Surface*                 surfacePtr = surface.get();
+    pumex::Device*                  devicePtr  = surface->device.lock().get();
+    VkDevice                        vkDevice   = devicePtr->device;
+    std::shared_ptr<pumex::Window>  windowSh   = surface->window.lock();
 
     uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
     const RenderData&              rData = renderData[renderIndex];
@@ -577,14 +578,14 @@ struct DeferredApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(deviceSh);
-    positionUbo->validate(deviceSh);
+    cameraUbo->validate(devicePtr);
+    positionUbo->validate(devicePtr);
     // preparing descriptor sets
     gbufferDescriptorSet->setActiveIndex(surface->getImageIndex());
-    gbufferDescriptorSet->validate(surface);
+    gbufferDescriptorSet->validate(surfacePtr);
 
     compositeDescriptorSet->setActiveIndex(surface->getImageIndex());
-    compositeDescriptorSet->validate(surface);
+    compositeDescriptorSet->validate(surfacePtr);
 
     auto currentCmdBuffer = myCmdBuffer[vkDevice];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
@@ -605,15 +606,15 @@ struct DeferredApplicationData
 
     currentCmdBuffer->cmdBindPipeline(gbufferPipeline);
     currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, gbufferPipelineLayout, 0, gbufferDescriptorSet);
-    assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-    assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 5000.0f);
+    assetBuffer.cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+    assetBuffer.cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 5000.0f);
 
     currentCmdBuffer->cmdNextSubPass(VK_SUBPASS_CONTENTS_INLINE);
 
     currentCmdBuffer->cmdBindPipeline(compositePipeline);
     currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, compositePipelineLayout, 0, compositeDescriptorSet);
-    assetBuffer.cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-    assetBuffer.cmdDrawObject(deviceSh, currentCmdBuffer, 1, squareTypeID, 0, 5000.0f);
+    assetBuffer.cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+    assetBuffer.cmdDrawObject(devicePtr, currentCmdBuffer, 1, squareTypeID, 0, 5000.0f);
 
     currentCmdBuffer->cmdEndRenderPass();
     currentCmdBuffer->cmdEnd();
@@ -662,8 +663,12 @@ struct DeferredApplicationData
 
   std::shared_ptr<pumex::StorageBuffer<LightPointData>>   lightsSbo;
 
-
   std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+
+  double    inputDuration;
+  double    updateDuration;
+  double    prepareBuffersDuration;
+  double    drawDuration;
 
 };
 

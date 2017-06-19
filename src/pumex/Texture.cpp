@@ -42,7 +42,7 @@ TextureTraits::TextureTraits(VkImageUsageFlags u, bool lt, VkFilter maf, VkFilte
 {
 }
 
-Image::Image(std::shared_ptr<Device> d, const ImageTraits& it, std::weak_ptr<DeviceMemoryAllocator> a)
+Image::Image(Device* d, const ImageTraits& it, std::weak_ptr<DeviceMemoryAllocator> a)
   : imageTraits{ it }, device(d->device), allocator{ a }, ownsImage{ true }
 {
   VkImageCreateInfo imageCI{};
@@ -94,7 +94,7 @@ Image::Image(std::shared_ptr<Device> d, const ImageTraits& it, std::weak_ptr<Dev
   VK_CHECK_LOG_THROW(vkCreateImageView(device, &imageViewCI, nullptr, &imageView), "failed vkCreateImageView");
 }
 
-Image::Image(std::shared_ptr<Device> d, VkImage i, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
+Image::Image(Device* d, VkImage i, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
   : device(d->device), image{ i }, ownsImage {  false }
 {
   // gather all what we know about delivered image
@@ -197,7 +197,7 @@ VkSampler Texture::getHandleSampler(VkDevice device) const
   return pddit->second.sampler;
 }
 
-void Texture::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void Texture::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

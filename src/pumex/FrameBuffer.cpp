@@ -46,14 +46,13 @@ FrameBufferImages::~FrameBufferImages()
 }
 
 
-void FrameBufferImages::validate(std::shared_ptr<Surface> surface)
+void FrameBufferImages::validate(Surface* surface)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
-    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface,imageDefinitions.size()) }).first;
+    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device,imageDefinitions.size()) }).first;
   if (!pddit->second.dirty)
     return;
-  std::shared_ptr<Device> deviceSh = surface->device.lock();
 
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
   {
@@ -64,11 +63,11 @@ void FrameBufferImages::validate(std::shared_ptr<Surface> surface)
     ImageTraits imageTraits(definition.usage, definition.format, { surface->swapChainSize.width, surface->swapChainSize.height, 1 }, false, 1, 1,
       definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
-    pddit->second.frameBufferImages[i] = std::make_unique<Image>(deviceSh, imageTraits, allocator);
+    pddit->second.frameBufferImages[i] = std::make_unique<Image>(surface->device.lock().get(), imageTraits, allocator);
   }
 }
 
-void FrameBufferImages::reset(std::shared_ptr<Surface> surface)
+void FrameBufferImages::reset(Surface* surface)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit != perSurfaceData.end())
@@ -79,7 +78,7 @@ void FrameBufferImages::reset(std::shared_ptr<Surface> surface)
 }
 
 
-Image* FrameBufferImages::getImage(std::shared_ptr<Surface> surface, uint32_t imageIndex)
+Image* FrameBufferImages::getImage(Surface* surface, uint32_t imageIndex)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
@@ -108,23 +107,23 @@ FrameBuffer::~FrameBuffer()
   for (auto it : perSurfaceData)
   {
     for (auto f : it.second.frameBuffers)
-      vkDestroyFramebuffer(it.second.surface->device.lock()->device, f, nullptr);
+      vkDestroyFramebuffer(it.second.device, f, nullptr);
   }
 }
 
-void FrameBuffer::reset(std::shared_ptr<Surface> surface)
+void FrameBuffer::reset(Surface* surface)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit != perSurfaceData.end())
   {
     for (auto f : pddit->second.frameBuffers)
-      vkDestroyFramebuffer(pddit->second.surface->device.lock()->device, f, nullptr);
+      vkDestroyFramebuffer(pddit->second.device, f, nullptr);
     perSurfaceData.erase(surface->surface);
   }
 }
 
 
-void FrameBuffer::validate(std::shared_ptr<Surface> surface, const std::vector<std::unique_ptr<Image>>& swapChainImages)
+void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages)
 {
   std::shared_ptr<RenderPass> rp         = renderPass.lock();
   std::shared_ptr<Device> deviceSh       = surface->device.lock();
@@ -132,7 +131,7 @@ void FrameBuffer::validate(std::shared_ptr<Surface> surface, const std::vector<s
 
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
-    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface, swapChainImages.empty()? 1 : swapChainImages.size() ) }).first;
+    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device, swapChainImages.empty()? 1 : swapChainImages.size() ) }).first;
   if (!pddit->second.dirty)
     return;
 
@@ -187,7 +186,7 @@ void FrameBuffer::validate(std::shared_ptr<Surface> surface, const std::vector<s
   }
 }
 
-VkFramebuffer FrameBuffer::getFrameBuffer(std::shared_ptr<Surface> surface, uint32_t fbIndex)
+VkFramebuffer FrameBuffer::getFrameBuffer(Surface* surface, uint32_t fbIndex)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
@@ -202,11 +201,12 @@ InputAttachment::InputAttachment(std::shared_ptr<FrameBuffer> fb, uint32_t fbi)
 {
 }
 
-void InputAttachment::validate(std::shared_ptr<Surface> surface)
+void InputAttachment::validate(std::weak_ptr<Surface> surface)
 {
-  auto pddit = perSurfaceData.find(surface->surface);
+  std::shared_ptr<Surface> s = surface.lock();
+  auto pddit = perSurfaceData.find(s->surface);
   if (pddit == perSurfaceData.end())
-    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface) }).first;
+    pddit = perSurfaceData.insert({ s->surface, PerSurfaceData(surface) }).first;
   if (!pddit->second.dirty)
     return;
   pddit->second.dirty = false;
@@ -217,20 +217,21 @@ void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t inde
   auto pddit = perSurfaceData.find(surface);
   if (pddit == perSurfaceData.end())
     return;
-  std::shared_ptr<Surface> s     = pddit->second.surface.lock();
-  if (frameBuffer.get() != nullptr)
+  std::shared_ptr<Surface>     s = pddit->second.surface.lock();
+  std::shared_ptr<FrameBuffer> f = frameBuffer.lock();
+  if (f.get() != nullptr)
   {
-    std::shared_ptr<RenderPass> rp         = frameBuffer->renderPass.lock();
-    std::shared_ptr<FrameBufferImages> fbi = frameBuffer->frameBufferImages.lock();
+    std::shared_ptr<RenderPass> rp         = f->renderPass.lock();
+    std::shared_ptr<FrameBufferImages> fbi = f->frameBufferImages.lock();
     uint32_t actualIndex = rp->attachments[frameBufferIndex].imageDefinitionIndex;
-    values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s.get(), frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
   }
   else
   {
     std::shared_ptr<RenderPass> rp         = s->frameBuffer->renderPass.lock();
     std::shared_ptr<FrameBufferImages> fbi = s->frameBuffer->frameBufferImages.lock();
     uint32_t actualIndex = rp->attachments[frameBufferIndex].imageDefinitionIndex;
-    values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s.get(), frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
   }
 }
 

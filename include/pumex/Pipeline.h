@@ -56,7 +56,7 @@ public:
   DescriptorSetLayout& operator=(const DescriptorSetLayout&) = delete;
   virtual ~DescriptorSetLayout();
 
-  void                  validate(std::shared_ptr<Device> device);
+  void                  validate(Device* device);
   VkDescriptorSetLayout getHandle(VkDevice device) const;
   VkDescriptorType      getDescriptorType(uint32_t binding) const;
   uint32_t              getDescriptorBindingCount(uint32_t binding) const;
@@ -78,7 +78,7 @@ public:
   DescriptorPool& operator=(const DescriptorPool&) = delete;
   virtual ~DescriptorPool();
 
-  void             validate(std::shared_ptr<Device> device);
+  void             validate(Device* device);
   VkDescriptorPool getHandle(VkDevice device) const;
 
   uint32_t poolSize;
@@ -136,7 +136,7 @@ public:
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
-  void            validate(std::shared_ptr<Surface> surface);
+  void            validate(Surface* surface);
   VkDescriptorSet getHandle(VkSurfaceKHR surface) const;
   void            setDirty();
   void            setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source);
@@ -173,7 +173,7 @@ public:
   PipelineLayout(const PipelineLayout&)            = delete;
   PipelineLayout& operator=(const PipelineLayout&) = delete;
   virtual ~PipelineLayout();
-  void             validate(std::shared_ptr<Device> device);
+  void             validate(Device* device);
   VkPipelineLayout getHandle(VkDevice device) const;
 
   std::vector<std::shared_ptr<DescriptorSetLayout>> descriptorSetLayouts;
@@ -194,7 +194,7 @@ public:
   PipelineCache& operator=(const PipelineCache&) = delete;
   virtual ~PipelineCache();
 
-  void            validate(std::shared_ptr<Device> device);
+  void            validate(Device* device);
   VkPipelineCache getHandle(VkDevice device) const;
 
 protected:
@@ -237,7 +237,7 @@ public:
   ShaderModule& operator=(const ShaderModule&) = delete;
   virtual ~ShaderModule();
 
-  void           validate(std::shared_ptr<Device> device);
+  void           validate(Device* device);
   VkShaderModule getHandle(VkDevice device) const;
 
   std::string fileName;
@@ -273,7 +273,7 @@ public:
   inline bool hasShaderStage(VkShaderStageFlagBits stage) const;
   // FIXME : add a bunch of handy functions defining different pipeline aspects
 
-  void       validate(std::shared_ptr<Device> device);
+  void       validate(Device* device);
   VkPipeline getHandle(VkDevice device) const;
   void       setDirty();
 
@@ -352,7 +352,7 @@ public:
   ComputePipeline& operator=(const ComputePipeline&) = delete;
   virtual ~ComputePipeline();
 
-  void       validate(std::shared_ptr<Device> device);
+  void       validate(Device* device);
   VkPipeline getHandle(VkDevice device) const;
   void       setDirty();
 

@@ -212,27 +212,26 @@ struct ViewerApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
-    VkDevice vkDevice = deviceSh->device;
+    pumex::Device* devicePtr = surface->device.lock().get();
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool, surface->getImageCount());
+    myCmdBuffer[devicePtr->device] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
 
-    cameraUbo->validate(deviceSh);
-    positionUbo->validate(deviceSh);
+    cameraUbo->validate(devicePtr);
+    positionUbo->validate(devicePtr);
 
     // loading models
-    assetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
-    boxAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
-    descriptorSetLayout->validate(deviceSh);
-    descriptorPool->validate(deviceSh);
-    pipelineLayout->validate(deviceSh);
-    pipelineCache->validate(deviceSh);
-    pipeline->validate(deviceSh);
-    boxPipeline->validate(deviceSh);
+    assetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
+    boxAssetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
+    descriptorSetLayout->validate(devicePtr);
+    descriptorPool->validate(devicePtr);
+    pipelineLayout->validate(devicePtr);
+    pipelineCache->validate(devicePtr);
+    pipeline->validate(devicePtr);
+    boxPipeline->validate(devicePtr);
 
     // preparing descriptor sets
-    descriptorSet->validate(surface);
-    boxDescriptorSet->validate(surface);
+    descriptorSet->validate(surface.get());
+    boxDescriptorSet->validate(surface.get());
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -434,12 +433,9 @@ struct ViewerApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
-    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
-    VkDevice                        vkDevice = deviceSh->device;
-
-    uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
-    const RenderData&              rData = renderData[renderIndex];
+    pumex::Device*                  devicePtr = surface->device.lock().get();
+    std::shared_ptr<pumex::Window>  windowSh  = surface->window.lock();
+    VkDevice                        vkDevice  = devicePtr->device;
 
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
@@ -448,9 +444,9 @@ struct ViewerApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(deviceSh);
+    cameraUbo->validate(devicePtr);
 
-    positionUbo->validate(deviceSh);
+    positionUbo->validate(devicePtr);
 
     auto currentCmdBuffer = myCmdBuffer[vkDevice];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
@@ -463,14 +459,14 @@ struct ViewerApplicationData
 
     currentCmdBuffer->cmdBindPipeline(pipeline);
     currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, descriptorSet);
-    assetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-    assetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
-    assetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
+    assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
+    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
 
     currentCmdBuffer->cmdBindPipeline(boxPipeline);
     currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, boxDescriptorSet);
-    boxAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-    boxAssetBuffer->cmdDrawObject(deviceSh, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
+    boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+    boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
 
     currentCmdBuffer->cmdEndRenderPass();
     currentCmdBuffer->cmdEnd();
@@ -521,7 +517,6 @@ int main( int argc, char * argv[] )
 
   std::string windowName = "Pumex viewer : ";
   windowName += argv[1];
-  std::string appName = "pumex viewer";
 
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
   pumex::ViewerTraits viewerTraits{ "pumex viewer", true, requestDebugLayers, 60 };

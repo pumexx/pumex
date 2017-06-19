@@ -93,9 +93,9 @@ class PUMEX_EXPORT Image
 public:
   Image()                            = delete;
   // user creates VkImage and assigns memory to it
-  explicit Image(std::shared_ptr<Device> device, const ImageTraits& imageTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  explicit Image(Device* device, const ImageTraits& imageTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
   // user delivers VkImage, Image does not own it, just creates VkImageView
-  explicit Image(std::shared_ptr<Device> device, VkImage image, VkFormat format, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA) );
+  explicit Image(Device* device, VkImage image, VkFormat format, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA) );
   Image(const Image&)                = delete;
   Image& operator=(const Image&)     = delete;
   virtual ~Image();
@@ -119,10 +119,8 @@ protected:
   std::weak_ptr<DeviceMemoryAllocator> allocator;
   VkImage                              image        = VK_NULL_HANDLE;
   DeviceMemoryBlock                    memoryBlock;
-  //VkDeviceMemory                       deviceMemory = VK_NULL_HANDLE;
   VkImageView                          imageView    = VK_NULL_HANDLE;
   VkImageLayout                        imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-  //VkMemoryRequirements                 memReqs;
   bool                                 ownsImage    = true;
 
 };
@@ -144,7 +142,7 @@ public:
   void      setDirty();
   Image*    getHandleImage(VkDevice device) const;
   VkSampler getHandleSampler(VkDevice device) const;
-  void      validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
+  void      validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
   void      getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 
   void setLayer(uint32_t layer, const gli::texture& tex);

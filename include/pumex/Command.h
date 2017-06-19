@@ -48,7 +48,7 @@ public:
   CommandPool& operator=(const CommandPool&) = delete;
   virtual ~CommandPool();
 
-  void          validate(std::shared_ptr<Device> device);
+  void          validate(Device* device);
   VkCommandPool getHandle(VkDevice device) const;
 
   uint32_t queueFamilyIndex;
@@ -67,7 +67,7 @@ struct PipelineBarrier;
 class PUMEX_EXPORT CommandBuffer
 {
 public:
-  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, uint32_t cbCount = 1);
+  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, Device* device, std::shared_ptr<CommandPool> commandPool, uint32_t cbCount = 1);
   CommandBuffer(const CommandBuffer&)            = delete;
   CommandBuffer& operator=(const CommandBuffer&) = delete;
   virtual ~CommandBuffer();

@@ -42,7 +42,7 @@ CommandPool::~CommandPool()
 }
 
 
-void CommandPool::validate(std::shared_ptr<Device> device)
+void CommandPool::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -63,7 +63,7 @@ VkCommandPool CommandPool::getHandle(VkDevice device) const
     return VK_NULL_HANDLE;
   return pddit->second.commandPool;
 }
-CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, std::shared_ptr<Device> d, std::shared_ptr<CommandPool> cp, uint32_t cbc)
+CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, std::shared_ptr<CommandPool> cp, uint32_t cbc)
   : bufferLevel{ bf }, commandPool{ cp }, device{d->device}
 {
   commandBuffer.resize(cbc);

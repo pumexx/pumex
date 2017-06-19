@@ -88,7 +88,7 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
 
   // create command pool
   commandPool = std::make_shared<CommandPool>(presentationQueueFamilyIndex);
-  commandPool->validate(deviceSh);
+  commandPool->validate(deviceSh.get());
 
   // Create synchronization objects
   VkSemaphoreCreateInfo semaphoreCreateInfo{};
@@ -106,13 +106,13 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
   defaultRenderPass = surfaceTraits.defaultRenderPass;
   frameBufferImages = surfaceTraits.frameBufferImages;
 
-  defaultRenderPass->validate(deviceSh);
+  defaultRenderPass->validate(deviceSh.get());
 
   frameBuffer = std::make_unique<FrameBuffer>(defaultRenderPass, frameBufferImages);
 
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
-    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh,commandPool));
+    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(),commandPool));
 
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -132,8 +132,8 @@ void Surface::cleanup()
   VkDevice dev = device.lock()->device;
   if (swapChain != VK_NULL_HANDLE)
   {
-    frameBuffer->reset(shared_from_this());
-    frameBufferImages->reset(shared_from_this());
+    frameBuffer->reset(this);
+    frameBufferImages->reset(this);
     swapChainImages.clear();
     vkDestroySwapchainKHR(dev, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
@@ -189,8 +189,8 @@ void Surface::createSwapChain()
   // remove old swap chain and all images
   if (oldSwapChain != VK_NULL_HANDLE)
   {
-    frameBuffer->reset(shared_from_this());
-    frameBufferImages->reset(shared_from_this());
+    frameBuffer->reset(this);
+    frameBufferImages->reset(this);
     swapChainImages.clear();
     vkDestroySwapchainKHR(vkDevice, oldSwapChain, nullptr);
   }
@@ -201,10 +201,10 @@ void Surface::createSwapChain()
   std::vector<VkImage> images(imageCount);
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
   for (uint32_t i = 0; i < imageCount; i++)
-    swapChainImages.push_back(std::make_unique<Image>(deviceSh, images[i], swapChainDefinition.format, 1, 1, swapChainDefinition.aspectMask, VK_IMAGE_VIEW_TYPE_2D, swapChainDefinition.swizzles));
+    swapChainImages.push_back(std::make_unique<Image>(deviceSh.get(), images[i], swapChainDefinition.format, 1, 1, swapChainDefinition.aspectMask, VK_IMAGE_VIEW_TYPE_2D, swapChainDefinition.swizzles));
 
-  frameBufferImages->validate(shared_from_this());
-  frameBuffer->validate(shared_from_this(), swapChainImages);
+  frameBufferImages->validate(this);
+  frameBuffer->validate(this, swapChainImages);
 
   // define prepresentation command buffers
   prePresentCmdBuffers.resize(swapChainImages.size());
@@ -236,8 +236,6 @@ void Surface::endFrame()
   // Submit pre present dummy image barrier so that we are able to signal a fence
   prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue, {}, {}, {}, waitFences[swapChainImageIndex]);
 
-  // FIXME - isn't a place for synchronizing many windows at once ?
-  // In that case we shouldn't call it for single surface, I suppose...
   VkPresentInfoKHR presentInfo{};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.swapchainCount     = 1;
@@ -256,7 +254,7 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
 
 VkFramebuffer Surface::getCurrentFrameBuffer() 
 { 
-  return frameBuffer->getFrameBuffer(shared_from_this(), swapChainImageIndex); 
+  return frameBuffer->getFrameBuffer(this, swapChainImageIndex); 
 }
 
 

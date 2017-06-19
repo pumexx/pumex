@@ -989,38 +989,38 @@ struct GpuCullApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
-    VkDevice                        vkDevice = deviceSh->device;
+    pumex::Device*  devicePtr = surface->device.lock().get();
+    VkDevice        vkDevice  = devicePtr->device;
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh, surface->commandPool, surface->getImageCount());
+    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
 
-    pipelineCache->validate(deviceSh);
-    instancedRenderDescriptorSetLayout->validate(deviceSh);
-    instancedRenderDescriptorPool->validate(deviceSh);
-    instancedRenderPipelineLayout->validate(deviceSh);
-    filterDescriptorSetLayout->validate(deviceSh);
-    filterDescriptorPool->validate(deviceSh);
-    filterPipelineLayout->validate(deviceSh);
-    timeStampQueryPool->validate(deviceSh);
+    pipelineCache->validate(devicePtr);
+    instancedRenderDescriptorSetLayout->validate(devicePtr);
+    instancedRenderDescriptorPool->validate(devicePtr);
+    instancedRenderPipelineLayout->validate(devicePtr);
+    filterDescriptorSetLayout->validate(devicePtr);
+    filterDescriptorPool->validate(devicePtr);
+    filterPipelineLayout->validate(devicePtr);
+    timeStampQueryPool->validate(devicePtr);
 
-    cameraUbo->validate(deviceSh);
+    cameraUbo->validate(devicePtr);
 
     if (_showStaticRendering)
     {
-      staticAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
-      staticMaterialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
-      staticRenderPipeline->validate(deviceSh);
-      staticFilterPipeline->validate(deviceSh);
-      staticResultsSbo2->validate(deviceSh);
+      staticAssetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
+      staticMaterialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+      staticRenderPipeline->validate(devicePtr);
+      staticFilterPipeline->validate(devicePtr);
+      staticResultsSbo2->validate(devicePtr);
     }
 
     if (_showDynamicRendering)
     {
-      dynamicAssetBuffer->validate(deviceSh, true, surface->commandPool, surface->presentationQueue);
-      dynamicMaterialSet->validate(deviceSh, surface->commandPool, surface->presentationQueue);
-      dynamicRenderPipeline->validate(deviceSh);
-      dynamicFilterPipeline->validate(deviceSh);
-      dynamicResultsSbo2->validate(deviceSh);
+      dynamicAssetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
+      dynamicMaterialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+      dynamicRenderPipeline->validate(devicePtr);
+      dynamicFilterPipeline->validate(devicePtr);
+      dynamicResultsSbo2->validate(devicePtr);
     }
   }
 
@@ -1340,10 +1340,11 @@ struct GpuCullApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Device> deviceSh = surface->device.lock();
-    VkDevice                       vkDevice = deviceSh->device;
-    uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
-    const RenderData&              rData = renderData[renderIndex];
+    pumex::Surface*   surfacePtr  = surface.get();
+    pumex::Device*    devicePtr   = surface->device.lock().get();
+    VkDevice          vkDevice    = devicePtr->device;
+    uint32_t          renderIndex = surface->viewer.lock()->getRenderIndex();
+    const RenderData& rData       = renderData[renderIndex];
 
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
@@ -1352,34 +1353,34 @@ struct GpuCullApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(deviceSh);
+    cameraUbo->validate(devicePtr);
 
     if (_showStaticRendering)
     {
       staticInstanceSbo->setActiveIndex(surface->getImageIndex());
-      staticInstanceSbo->validate(deviceSh);
-      staticResultsSbo->validate(deviceSh);
+      staticInstanceSbo->validate(devicePtr);
+      staticResultsSbo->validate(devicePtr);
       staticOffValuesSbo->setActiveIndex(surface->getImageIndex());
-      staticOffValuesSbo->validate(deviceSh);
+      staticOffValuesSbo->validate(devicePtr);
 
       staticRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
-      staticRenderDescriptorSet->validate(surface);
+      staticRenderDescriptorSet->validate(surfacePtr);
       staticFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
-      staticFilterDescriptorSet->validate(surface);
+      staticFilterDescriptorSet->validate(surfacePtr);
     }
 
     if (_showDynamicRendering)
     {
       dynamicInstanceSbo->setActiveIndex(surface->getImageIndex());
-      dynamicInstanceSbo->validate(deviceSh);
-      dynamicResultsSbo->validate(deviceSh);
+      dynamicInstanceSbo->validate(devicePtr);
+      dynamicResultsSbo->validate(devicePtr);
       dynamicOffValuesSbo->setActiveIndex(surface->getImageIndex());
-      dynamicOffValuesSbo->validate(deviceSh);
+      dynamicOffValuesSbo->validate(devicePtr);
 
       dynamicRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
-      dynamicRenderDescriptorSet->validate(surface);
+      dynamicRenderDescriptorSet->validate(surfacePtr);
       dynamicFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
-      dynamicFilterDescriptorSet->validate(surface);
+      dynamicFilterDescriptorSet->validate(surfacePtr);
     }
 #if defined(GPU_CULL_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
@@ -1389,10 +1390,10 @@ struct GpuCullApplicationData
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
     currentCmdBuffer->cmdBegin();
 
-    timeStampQueryPool->reset(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4, 4);
+    timeStampQueryPool->reset(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4, 4);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
     std::vector<pumex::DescriptorSetValue> staticResultsBuffer, staticResultsBuffer2, dynamicResultsBuffer, dynamicResultsBuffer2;
     uint32_t staticDrawCount, dynamicDrawCount;
@@ -1463,7 +1464,7 @@ struct GpuCullApplicationData
     currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarriers);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
@@ -1472,14 +1473,14 @@ struct GpuCullApplicationData
     currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
     if (_showStaticRendering)
     {
       currentCmdBuffer->cmdBindPipeline(staticRenderPipeline);
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, staticRenderDescriptorSet);
-      staticAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-      if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
+      staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer2[0].bufferInfo.buffer, staticResultsBuffer2[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
@@ -1491,8 +1492,8 @@ struct GpuCullApplicationData
     {
       currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline);
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, dynamicRenderDescriptorSet);
-      dynamicAssetBuffer->cmdBindVertexIndexBuffer(deviceSh, currentCmdBuffer, 1, 0);
-      if (deviceSh->physical.lock()->features.multiDrawIndirect == 1)
+      dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer2[0].bufferInfo.buffer, dynamicResultsBuffer2[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
       {
@@ -1501,7 +1502,7 @@ struct GpuCullApplicationData
       }
     }
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(deviceSh, currentCmdBuffer, surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
     currentCmdBuffer->cmdEndRenderPass();
@@ -1517,17 +1518,17 @@ struct GpuCullApplicationData
   void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
   {
 #if defined(GPU_CULL_MEASURE_TIME)
-    std::shared_ptr<pumex::Device>  deviceSh = surface->device.lock();
+    pumex::Device*  devicePtr = surface->device.lock().get();
 
     LOG_ERROR << "Process input          : " << 1000.0f * inputDuration << " ms" << std::endl;
     LOG_ERROR << "Update                 : " << 1000.0f * updateDuration << " ms" << std::endl;
     LOG_ERROR << "Prepare buffers        : " << 1000.0f * prepareBuffersDuration << " ms" << std::endl;
     LOG_ERROR << "CPU Draw               : " << 1000.0f * drawDuration << " ms" << std::endl;
 
-    float timeStampPeriod = deviceSh->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
+    float timeStampPeriod = devicePtr->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
     std::vector<uint64_t> queryResults;
     // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-    queryResults = timeStampQueryPool->getResults(deviceSh, ((surface->getImageIndex() + 2) % 3) * 4, 4, 0);
+    queryResults = timeStampQueryPool->getResults(devicePtr, ((surface->getImageIndex() + 2) % 3) * 4, 4, 0);
     LOG_ERROR << "GPU LOD compute shader : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << "GPU draw shader        : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << std::endl;

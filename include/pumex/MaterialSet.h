@@ -73,7 +73,7 @@ class TextureRegistry
 {
 public:
   virtual void refreshStructures() = 0;
-  virtual void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) = 0;
+  virtual void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) = 0;
   virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
 };
 
@@ -105,7 +105,7 @@ public:
   void setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
   void refreshMaterialStructures();
 
-  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
+  void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
 
   std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
   std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
@@ -174,7 +174,7 @@ public:
   {
   }
 
-  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
+  void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
   {
     for (auto t : textures)
       t.second->validate(device, commandPool, queue);
@@ -242,7 +242,7 @@ public:
     textureSamplerOffsets->set(tso);
   }
 
-  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
+  void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
   {
     for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
     {
@@ -303,7 +303,7 @@ public:
   void refreshStructures() override
   {
   }
-  void validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
+  void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue) override
   {
   }
   void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
@@ -539,7 +539,7 @@ void MaterialSet<T>::refreshMaterialStructures()
 }
 
 template <typename T>
-void MaterialSet<T>::validate(std::shared_ptr<Device> device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void MaterialSet<T>::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   typeDefinitionSbo->validate(device);
   materialVariantSbo->validate(device);

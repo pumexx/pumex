@@ -57,9 +57,9 @@ public:
   FrameBufferImages& operator=(const FrameBufferImages&) = delete;
   virtual ~FrameBufferImages();
 
-  void validate(std::shared_ptr<Surface> surface);
-  void reset(std::shared_ptr<Surface> surface);
-  Image* getImage(std::shared_ptr<Surface> surface, uint32_t imageIndex);
+  void validate(Surface* surface);
+  void reset(Surface* surface);
+  Image* getImage(Surface* surface, uint32_t imageIndex);
   FrameBufferImageDefinition getSwapChainDefinition();
 
 
@@ -67,12 +67,12 @@ public:
 protected:
   struct PerSurfaceData
   {
-    PerSurfaceData(std::shared_ptr<Surface> s, uint32_t imCount)
-      : surface{ s }
+    PerSurfaceData(VkDevice d, uint32_t imCount)
+      : device{ d }
     {
       frameBufferImages.resize(imCount);
     }
-    std::shared_ptr<Surface>             surface;
+    VkDevice                             device;
     std::vector<std::shared_ptr<Image>>  frameBufferImages;
     bool                                 dirty = true;
   };
@@ -92,21 +92,21 @@ public:
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   virtual ~FrameBuffer();
 
-  void reset(std::shared_ptr<Surface> surface);
-  void validate(std::shared_ptr<Surface> surface, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
-  VkFramebuffer getFrameBuffer(std::shared_ptr<Surface> surface, uint32_t fbIndex);
+  void reset(Surface* surface);
+  void validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
+  VkFramebuffer getFrameBuffer(Surface* surface, uint32_t fbIndex);
 
   std::weak_ptr<RenderPass>         renderPass;
   std::weak_ptr<FrameBufferImages>  frameBufferImages;
 protected:
   struct PerSurfaceData
   {
-    PerSurfaceData(std::shared_ptr<Surface> s, uint32_t fbCount)
-      : surface{ s }
+    PerSurfaceData(VkDevice d, uint32_t fbCount)
+      : device{ d }
     {
       frameBuffers.resize(fbCount, VK_NULL_HANDLE);
     }
-    std::shared_ptr<Surface>            surface;
+    VkDevice                            device;
     std::vector<VkFramebuffer>          frameBuffers;
     bool                                dirty = true;
   };
@@ -118,15 +118,15 @@ class PUMEX_EXPORT InputAttachment : public DescriptorSetSource
 public:
   InputAttachment(std::shared_ptr<FrameBuffer> frameBuffer, uint32_t frameBufferIndex);
 
-  void validate(std::shared_ptr<Surface> surface);
+  void validate(std::weak_ptr<Surface> surface);
   void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 protected:
-  std::shared_ptr<FrameBuffer> frameBuffer;
+  std::weak_ptr<FrameBuffer> frameBuffer;
   uint32_t frameBufferIndex;
 
   struct PerSurfaceData
   {
-    PerSurfaceData(std::shared_ptr<Surface> s)
+    PerSurfaceData(std::weak_ptr<Surface> s)
       : surface{ s }
     {
     }

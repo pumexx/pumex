@@ -40,7 +40,7 @@ QueryPool::~QueryPool()
 }
 
 
-void QueryPool::validate(std::shared_ptr<Device> device)
+void QueryPool::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -55,7 +55,7 @@ void QueryPool::validate(std::shared_ptr<Device> device)
   VK_CHECK_LOG_THROW(vkCreateQueryPool(pddit->first, &queryPoolCI, nullptr, &pddit->second.queryPool), "Cannot create query pool");
 }
 
-void QueryPool::reset(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery, uint32_t queryCount)
+void QueryPool::reset(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery, uint32_t queryCount)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before resetting");
@@ -64,28 +64,28 @@ void QueryPool::reset(std::shared_ptr<Device> device, std::shared_ptr<CommandBuf
   vkCmdResetQueryPool(cmdBuffer->getHandle(), pddit->second.queryPool, firstQuery, queryCount);
 }
 
-void QueryPool::beginQuery(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags)
+void QueryPool::beginQuery(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before beginQuery");
   vkCmdBeginQuery(cmdBuffer->getHandle(), pddit->second.queryPool, query, controlFlags);
 }
 
-void QueryPool::endQuery(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query)
+void QueryPool::endQuery(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before endQuery");
   vkCmdEndQuery(cmdBuffer->getHandle(), pddit->second.queryPool, query);
 }
 
-void QueryPool::queryTimeStamp(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage)
+void QueryPool::queryTimeStamp(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before endQuery");
   vkCmdWriteTimestamp(cmdBuffer->getHandle(), pipelineStage, pddit->second.queryPool, query);
 }
 
-std::vector<uint64_t> QueryPool::getResults(std::shared_ptr<Device> device, uint32_t firstQuery, uint32_t queryCount, VkQueryResultFlags resultFlags)
+std::vector<uint64_t> QueryPool::getResults(Device* device, uint32_t firstQuery, uint32_t queryCount, VkQueryResultFlags resultFlags)
 {
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before getting the results");

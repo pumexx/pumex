@@ -47,13 +47,13 @@ struct PUMEX_EXPORT NBufferMemory
 };
 
 // allocate memory for one buffer
-PUMEX_EXPORT VkDeviceSize createBuffer(std::shared_ptr<Device> device, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, VkBuffer* buffer, VkDeviceMemory* memory, void* data = nullptr);
-PUMEX_EXPORT void destroyBuffer(std::shared_ptr<Device> device, VkBuffer buffer, VkDeviceMemory memory);
+PUMEX_EXPORT VkDeviceSize createBuffer(Device* device, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, VkBuffer* buffer, VkDeviceMemory* memory, void* data = nullptr);
+PUMEX_EXPORT void destroyBuffer(Device* device, VkBuffer buffer, VkDeviceMemory memory);
 PUMEX_EXPORT void destroyBuffer(VkDevice device, VkBuffer buffer, VkDeviceMemory memory);
 
 // allocate common memory for many buffers at once, return size of the allocated memory
-PUMEX_EXPORT VkDeviceSize createBuffers(std::shared_ptr<Device> device, std::vector<NBufferMemory>& multiBuffer, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory* memory);
-PUMEX_EXPORT void destroyBuffers(std::shared_ptr<Device> device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory);
+PUMEX_EXPORT VkDeviceSize createBuffers(Device* device, std::vector<NBufferMemory>& multiBuffer, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory* memory);
+PUMEX_EXPORT void destroyBuffers(Device* device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory);
 PUMEX_EXPORT void destroyBuffers(VkDevice device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory);
 
 }

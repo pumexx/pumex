@@ -62,7 +62,7 @@ DeviceMemoryAllocator::~DeviceMemoryAllocator()
     vkFreeMemory(pddit.first, pddit.second.storageMemory, nullptr);
 }
 
-DeviceMemoryBlock DeviceMemoryAllocator::allocate(std::shared_ptr<Device> device, VkMemoryRequirements memoryRequirements)
+DeviceMemoryBlock DeviceMemoryAllocator::allocate(Device* device, VkMemoryRequirements memoryRequirements)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

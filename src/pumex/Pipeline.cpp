@@ -69,7 +69,7 @@ DescriptorSetLayout::~DescriptorSetLayout()
 }
 
 
-void DescriptorSetLayout::validate(std::shared_ptr<Device> device)
+void DescriptorSetLayout::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -135,7 +135,7 @@ DescriptorPool::~DescriptorPool()
 }
 
 
-void DescriptorPool::validate(std::shared_ptr<Device> device)
+void DescriptorPool::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -225,7 +225,7 @@ DescriptorSet::~DescriptorSet()
 }
 
 
-void DescriptorSet::validate(std::shared_ptr<Surface> surface)
+void DescriptorSet::validate(Surface* surface)
 {
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
@@ -340,7 +340,7 @@ PipelineLayout::~PipelineLayout()
 }
 
 
-void PipelineLayout::validate(std::shared_ptr<Device> device)
+void PipelineLayout::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -379,7 +379,7 @@ PipelineCache::~PipelineCache()
 }
 
 
-void PipelineCache::validate(std::shared_ptr<Device> device)
+void PipelineCache::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -419,7 +419,7 @@ ShaderModule::~ShaderModule()
 }
 
 
-void ShaderModule::validate(std::shared_ptr<Device> device)
+void ShaderModule::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
@@ -469,7 +469,7 @@ GraphicsPipeline::~GraphicsPipeline()
 }
 
 
-void GraphicsPipeline::validate(std::shared_ptr<Device> device)
+void GraphicsPipeline::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -676,7 +676,7 @@ ComputePipeline::~ComputePipeline()
 }
 
 
-void ComputePipeline::validate(std::shared_ptr<Device> device)
+void ComputePipeline::validate(Device* device)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

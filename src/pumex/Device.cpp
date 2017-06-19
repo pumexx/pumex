@@ -193,7 +193,7 @@ void Device::releaseQueue(VkQueue queue)
 
 std::shared_ptr<CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool)
 {
-  std::shared_ptr<CommandBuffer> commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, shared_from_this(), commandPool);
+  std::shared_ptr<CommandBuffer> commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, this, commandPool);
   commandBuffer->cmdBegin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
   return commandBuffer;
 }

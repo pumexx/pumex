@@ -125,7 +125,7 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
   return std::shared_ptr<Asset>();
 }
 
-void AssetBuffer::validate(std::shared_ptr<Device> device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void AssetBuffer::validate(Device* device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -353,7 +353,7 @@ void AssetBuffer::validate(std::shared_ptr<Device> device, bool useStaging, std:
   pddit->second.buffersDirty = false;
 }
 
-void AssetBuffer::cmdBindVertexIndexBuffer(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
+void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
@@ -374,7 +374,7 @@ void AssetBuffer::cmdBindVertexIndexBuffer(std::shared_ptr<Device> device, std::
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void AssetBuffer::cmdDrawObject(std::shared_ptr<Device> device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
+void AssetBuffer::cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
