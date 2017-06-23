@@ -49,11 +49,6 @@ layout (std430,binding = 3) readonly buffer MaterialVariantsSbo
 	MaterialVariantDefinition materialVariants[];
 };
 
-out gl_PerVertex 
-{
-	vec4 gl_Position;   
-};
-
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outTangent;
 layout (location = 2) out vec2 outUV;

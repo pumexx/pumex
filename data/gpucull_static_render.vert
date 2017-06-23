@@ -64,11 +64,6 @@ layout (std430,binding = 4) readonly buffer MaterialVariantsSbo
 const vec3 lightDirection = vec3(0,0,1);
 const vec2 windDirection = vec2( 0.707, 0.707 );
 
-out gl_PerVertex 
-{
-	vec4 gl_Position;   
-};
-
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outColor;
 layout (location = 2) out vec2 outUV;

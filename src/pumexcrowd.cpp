@@ -21,6 +21,8 @@
 //
 
 #include <random>
+#include <sstream>
+#include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -236,6 +238,7 @@ struct CrowdApplicationData
   std::shared_ptr<pumex::DescriptorPool>               filterDescriptorPool;
   std::shared_ptr<pumex::DescriptorSet>                filterDescriptorSet;
 
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> textCameraUbo;
   std::shared_ptr<pumex::Font>                         defaultFont;
   std::shared_ptr<pumex::Text>                         textFPS;
   std::shared_ptr<pumex::DescriptorSetLayout>          textDescriptorSetLayout;
@@ -247,6 +250,7 @@ struct CrowdApplicationData
 
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
+  pumex::HPClock::time_point lastFrameStart;
   double    inputDuration;
   double    updateDuration;
   double    prepareBuffersDuration;
@@ -619,12 +623,15 @@ struct CrowdApplicationData
     }
 
     std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
-    defaultFont                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 48, texturesAllocator, buffersAllocator);
+    defaultFont                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 24, texturesAllocator, buffersAllocator);
     textFPS                      = std::make_shared<pumex::Text>(defaultFont, buffersAllocator);
 
+    
+    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
     textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3, textLayoutBindings);
@@ -654,7 +661,8 @@ struct CrowdApplicationData
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSet->setSource(0, defaultFont->fontTexture);
+    textDescriptorSet->setSource(0, textCameraUbo);
+    textDescriptorSet->setSource(1, defaultFont->fontTexture);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -1076,6 +1084,11 @@ struct CrowdApplicationData
     uint32_t          renderIndex = surface->viewer.lock()->getRenderIndex();
     const RenderData& rData       = renderData[renderIndex];
 
+    pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
+    double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
+    lastFrameStart = thisFrameStart;
+
+
     uint32_t renderWidth  = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
 
@@ -1083,8 +1096,14 @@ struct CrowdApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    textFPS->setText(0, glm::vec2(20, 20), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), L"Za¿ó³æ gêœl¹ jaŸñ");
-//    textFPS->setText(0, glm::vec2(1, 1), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), L"ABCDEFGHIJKLM");
+    pumex::Camera textCamera;
+    textCamera.setProjectionMatrix(glm::ortho(0.0f,(float)renderWidth, (float)renderHeight, 0.0f));
+    textCameraUbo->set(textCamera);
+
+    std::wstringstream stream;
+    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
+    textFPS->setText(0, glm::vec2(renderWidth-150, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+
     textFPS->setActiveIndex(surface->getImageIndex());
     textFPS->validate(devicePtr, surface->commandPool, surface->presentationQueue, surface->getImageIndex());
     defaultFont->validate(devicePtr, surface->commandPool, surface->presentationQueue);
@@ -1105,6 +1124,7 @@ struct CrowdApplicationData
     filterDescriptorSet->setActiveIndex(surface->getImageIndex());
     filterDescriptorSet->validate(surfacePtr);
 
+    textCameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
     textDescriptorSet->setActiveIndex(surface->getImageIndex());
     textDescriptorSet->validate(surfacePtr);
 

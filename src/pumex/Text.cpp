@@ -142,9 +142,9 @@ size_t Font::getGlyphIndex(wchar_t charCode)
     ),
     glm::vec4( 
       fontFace->glyph->bitmap_left, 
-      fontFace->glyph->bitmap_top,
+      -1.0*fontFace->glyph->bitmap_top,
       fontFace->glyph->bitmap_left + fontFace->glyph->bitmap.width,
-      fontFace->glyph->bitmap_top + fontFace->glyph->bitmap.rows
+      -1.0*fontFace->glyph->bitmap_top + fontFace->glyph->bitmap.rows
     ), 
     fontFace->glyph->advance.x / 64.0f
   ) );
@@ -184,7 +184,6 @@ void Text::validate(Device* device, std::shared_ptr<CommandPool> commandPool, Vk
       fontPtr->addSymbolData(startPosition, color, text, *symbolData);
     }
     vertexBuffer->setDirty();
-
   }
   vertexBuffer->setActiveIndex(activeIndex);
   vertexBuffer->validate(device, commandPool, queue);
@@ -209,4 +208,5 @@ void Text::setText(uint32_t index, const glm::vec2& position, const glm::vec4& c
 void Text::removeText(uint32_t index)
 {
   texts.erase(index);
+  setDirty();
 }

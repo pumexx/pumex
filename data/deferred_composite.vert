@@ -9,11 +9,6 @@ layout (location = 2) in vec3 inUV;
 layout (location = 3) in float inBoneWeight;
 layout (location = 4) in float inBoneIndex;
 
-out gl_PerVertex 
-{
-	vec4 gl_Position;   
-};
-
 void main() 
 {
   gl_Position = vec4(inPos,1.0);
