@@ -216,8 +216,8 @@ struct ViewerApplicationData
 
     myCmdBuffer[devicePtr->device] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
 
-    cameraUbo->validate(devicePtr);
-    positionUbo->validate(devicePtr);
+    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
     // loading models
     assetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
@@ -444,9 +444,8 @@ struct ViewerApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(devicePtr);
-
-    positionUbo->validate(devicePtr);
+    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
     auto currentCmdBuffer = myCmdBuffer[vkDevice];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());

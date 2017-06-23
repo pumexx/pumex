@@ -23,10 +23,10 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include <gli/texture.hpp>
 #include <vulkan/vulkan.h>
-#include <pumex/RenderPass.h>
+#include <gli/texture.hpp>
 #include <pumex/Export.h>
+#include <pumex/RenderPass.h>
 #include <pumex/Pipeline.h>
 #include <pumex/DeviceMemoryAllocator.h>
 

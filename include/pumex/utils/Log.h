@@ -23,8 +23,8 @@
 #pragma once
 #include <string>
 #include <iostream>
-#include <pumex/Export.h>
 #include <vulkan/vulkan.h>
+#include <pumex/Export.h>
 
 // Set of functions and classes implementing possibility to log any information to output files ( only std::cout is used for now )
 

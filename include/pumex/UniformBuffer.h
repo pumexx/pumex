@@ -27,7 +27,11 @@
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Device.h>
+#include <pumex/Command.h>
 #include <pumex/Pipeline.h>
+#include <pumex/utils/Buffer.h>
+#include <pumex/utils/Log.h>
+
 
 // Simple uniform buffer for handling one C++ struct
 
@@ -49,7 +53,7 @@ public:
   inline T    get() const;
   void        getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
   void        setDirty();
-  void        validate(Device* device);
+  void        validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
 
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
@@ -135,19 +139,21 @@ void UniformBuffer<T>::setDirty()
 }
 
 template <typename T>
-void UniformBuffer<T>::validate(Device* device)
+void UniformBuffer<T>::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
   if (!pddit->second.dirty[activeIndex])
     return;
+
+  bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (pddit->second.uboBuffer[activeIndex] == VK_NULL_HANDLE)
   {
     std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
     VkBufferCreateInfo bufferCreateInfo{};
       bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-      bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags;
+      bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
       bufferCreateInfo.size  = std::max<VkDeviceSize>(1, sizeof(T));
     VK_CHECK_LOG_THROW(vkCreateBuffer(device->device, &bufferCreateInfo, nullptr, &pddit->second.uboBuffer[activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
@@ -158,12 +164,30 @@ void UniformBuffer<T>::validate(Device* device)
 
     notifyDescriptorSets();
   }
-  uint8_t *pData;
-  VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, sizeof(T), 0, (void **)&pData), "Cannot map memory");
-  memcpy(pData, &uboData, sizeof(T));
-  vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
-
+  if (memoryIsLocal)
+  {
+    std::shared_ptr<StagingBuffer> stagingBuffer = device->acquireStagingBuffer(&uboData, sizeof(T));
+    auto staggingCommandBuffer = device->beginSingleTimeCommands(commandPool);
+    VkBufferCopy copyRegion{};
+    copyRegion.size = sizeof(T);
+    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.uboBuffer[activeIndex], copyRegion);
+    device->endSingleTimeCommands(staggingCommandBuffer, queue);
+    device->releaseStagingBuffer(stagingBuffer);
+  }
+  else
+  {
+    uint8_t *pData;
+    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, sizeof(T), 0, (void **)&pData), "Cannot map memory");
+    memcpy(pData, &uboData, sizeof(T));
+    vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
+  }
   pddit->second.dirty[activeIndex] = false;
 }
+
+template <typename T>
+void UniformBuffer<T>::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }
+template <typename T>
+uint32_t UniformBuffer<T>::getActiveIndex() const { return activeIndex; }
+
 
 }

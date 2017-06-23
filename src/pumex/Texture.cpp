@@ -205,32 +205,53 @@ void Texture::validate(Device* device, std::shared_ptr<CommandPool> commandPool,
   if (!pddit->second.dirty)
     return;
 
+  // Create sampler
+  if( pddit->second.sampler == VK_NULL_HANDLE )
+  {
+    VkSamplerCreateInfo sampler{};
+      sampler.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+      sampler.magFilter               = traits.magFilter;
+      sampler.minFilter               = traits.minFilter;
+      sampler.mipmapMode              = traits.mipmapMode;
+      sampler.addressModeU            = traits.addressModeU;
+      sampler.addressModeV            = traits.addressModeV;
+      sampler.addressModeW            = traits.addressModeW;
+      sampler.mipLodBias              = traits.mipLodBias;
+      sampler.anisotropyEnable        = traits.anisotropyEnable;
+      sampler.maxAnisotropy           = traits.maxAnisotropy;
+      sampler.compareEnable           = traits.compareEnable;
+      sampler.compareOp               = traits.compareOp;
+      sampler.minLod                  = 0.0f;
+      sampler.maxLod                  = (!traits.linearTiling) ? (float)texture->levels() : 0.0f;
+      sampler.borderColor             = traits.borderColor;
+      sampler.unnormalizedCoordinates = traits.unnormalizedCoordinates;
+    VK_CHECK_LOG_THROW( vkCreateSampler(device->device, &sampler, nullptr, &pddit->second.sampler) , "Cannot create sampler");
+  }
+
   VkFormat format = vulkanFormatFromGliFormat(texture->format());
 
   VkFormatProperties formatProperties;
   vkGetPhysicalDeviceFormatProperties(device->physical.lock()->physicalDevice, format, &formatProperties);
 
-  // Only use linear tiling if requested (and supported by the device)
-  // Support for linear tiling is mostly limited, so prefer to use
-  // optimal tiling instead
-  // On most implementations linear tiling will only support a very
-  // limited amount of formats and features (mip maps, cubemaps, arrays, etc.)
-  VkBool32 useStaging = ! traits.linearTiling;
-
   auto cmdBuffer = device->beginSingleTimeCommands(commandPool);
-  if (useStaging)
+  bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  CHECK_LOG_THROW(memoryIsLocal && traits.linearTiling, "Cannot have texture with linear tiling in device local memory");
+  if (memoryIsLocal)
   {
-    // Create a host-visible staging buffer that contains the raw image data
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingMemory;
-
-    // bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VkDeviceSize stagingSize = createBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, texture->size(), &stagingBuffer, &stagingMemory, texture->data());
-    CHECK_LOG_THROW(stagingSize == 0, "Cannot create staging buffer");
+    if (pddit->second.image.get() == nullptr)
+    {
+      auto textureExtents = texture->extent(0);
+      VkImageUsageFlags usage = traits.usage;
+      if (!(usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+        usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+      ImageTraits imageTraits(usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, false, texture->levels(), texture->layers(),
+        VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
+        vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
+      pddit->second.image = std::make_shared<Image>(device, imageTraits, allocator);
+    }
 
     std::vector<VkBufferImageCopy> bufferCopyRegions;
     size_t offset = 0;
-
     for (uint32_t layer = texture->base_layer(); layer < texture->layers(); ++layer)
     {
       for (uint32_t level = texture->base_level(); level < texture->levels(); ++level)
@@ -252,86 +273,45 @@ void Texture::validate(Device* device, std::shared_ptr<CommandPool> commandPool,
       }
     }
 
-    auto textureExtents = texture->extent(0);
-    VkImageUsageFlags usage = traits.usage;
-    if (!(usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-      usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    ImageTraits imageTraits(usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, false, texture->levels(), texture->layers(), 
-      VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE, 
-      vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
-    pddit->second.image = std::make_shared<Image>(device, imageTraits, allocator);
-
+    std::shared_ptr<StagingBuffer> stagingBuffer = device->acquireStagingBuffer(texture->data(), texture->size());
     // Image barrier for optimal image (target)
     // Optimal image will be used as destination for the copy
     cmdBuffer->setImageLayout( *(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     // Copy mip levels from staging buffer
-    cmdBuffer->cmdCopyBufferToImage(stagingBuffer, (*pddit->second.image.get()), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions);
+    cmdBuffer->cmdCopyBufferToImage(stagingBuffer->buffer, (*pddit->second.image.get()), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions);
+    device->releaseStagingBuffer(stagingBuffer);
 
     // Change texture image layout to shader read after all mip levels have been copied
     cmdBuffer->setImageLayout( *(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    device->endSingleTimeCommands(cmdBuffer, queue);
-
-    // Clean up staging resources
-    destroyBuffer(device, stagingBuffer, stagingMemory);
   }
   else
   {
-    // Prefer using optimal tiling, as linear tiling 
-    // may support only a small set of features 
-    // depending on implementation (e.g. no mip maps, only one layer, etc.)
+//    assert(formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+    if (pddit->second.image.get() == nullptr)
+    {
+      auto textureExtents = texture->extent(0);
+      ImageTraits imageTraits(traits.usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, true, 1, texture->layers(),
+        VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
+        vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
+      pddit->second.image = std::make_shared<Image>(device, imageTraits, allocator);
+    }
 
-    // Check if this support is supported for linear tiling
-    assert(formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
-
-    auto textureExtents = texture->extent(0);
-    ImageTraits imageTraits(traits.usage, format, { uint32_t(textureExtents.x), uint32_t(textureExtents.y), 1 }, true, 1, texture->layers(),
-      VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
-      vulkanViewTypeFromGliTarget(texture->target()), texture->swizzles());
-    pddit->second.image = std::make_shared<Image>(device, imageTraits, allocator);
-
-    // Get sub resource layout
-    // Mip map count, array layer, etc.
     VkImageSubresource subRes{};
       subRes.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
       subRes.mipLevel   = 0;
 
     VkSubresourceLayout subResLayout;
-
-    // Get sub resources layout 
-    // Includes row pitch, size offsets, etc.
     pddit->second.image->getImageSubresourceLayout(subRes, subResLayout);
-    // Map image memory and copy data into it
     void* data = pddit->second.image->mapMemory(0, pddit->second.image->getMemorySize(), 0);
     memcpy(data, texture->data(0, 0, subRes.mipLevel), texture->size(subRes.mipLevel));
     pddit->second.image->unmapMemory();
 
     // Setup image memory barrier
     cmdBuffer->setImageLayout(*(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    device->endSingleTimeCommands(cmdBuffer, queue);
   }
+  device->endSingleTimeCommands(cmdBuffer, queue);
 
-  // Create sampler
-  VkSamplerCreateInfo sampler{};
-    sampler.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler.magFilter               = traits.magFilter;
-    sampler.minFilter               = traits.minFilter;
-    sampler.mipmapMode              = traits.mipmapMode;
-    sampler.addressModeU            = traits.addressModeU;
-    sampler.addressModeV            = traits.addressModeV;
-    sampler.addressModeW            = traits.addressModeW;
-    sampler.mipLodBias              = traits.mipLodBias;
-    sampler.anisotropyEnable        = traits.anisotropyEnable;
-    sampler.maxAnisotropy           = traits.maxAnisotropy;
-    sampler.compareEnable           = traits.compareEnable;
-    sampler.compareOp               = traits.compareOp;
-    sampler.minLod                  = 0.0f;
-    sampler.maxLod                  = (useStaging) ? (float)texture->levels() : 0.0f;
-    sampler.borderColor             = traits.borderColor;
-    sampler.unnormalizedCoordinates = traits.unnormalizedCoordinates;
-  VK_CHECK_LOG_THROW( vkCreateSampler(device->device, &sampler, nullptr, &pddit->second.sampler) , "Cannot create sampler");
   pddit->second.dirty = false;
 }
 

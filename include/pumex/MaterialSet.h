@@ -26,6 +26,7 @@
 #include <map>
 #include <set>
 #include <vulkan/vulkan.h>
+#include <gli/load.hpp>
 #include <pumex/Export.h>
 #include <pumex/Texture.h>
 #include <pumex/Command.h>
@@ -33,7 +34,6 @@
 #include <pumex/Device.h>
 #include <pumex/Viewer.h>
 #include <pumex/utils/Buffer.h>
-#include <gli/load.hpp>
 
 namespace pumex
 {
@@ -193,10 +193,10 @@ public:
 
 class TextureRegistryArrayOfTextures;
 
-class TRAOTDescriptorSetSource : public DescriptorSetSource
+class ArrayOfTexturesDescriptorSetSource : public DescriptorSetSource
 {
 public:
-  TRAOTDescriptorSetSource(TextureRegistryArrayOfTextures* o);
+  ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o);
   void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 private:
   TextureRegistryArrayOfTextures* owner;
@@ -217,10 +217,10 @@ public:
     textures[slotIndex]      = std::vector<std::shared_ptr<Texture>>();
   }
 
-  std::shared_ptr<TRAOTDescriptorSetSource> getTextureSamplerDescriptorSetSource()
+  std::shared_ptr<ArrayOfTexturesDescriptorSetSource> getTextureSamplerDescriptorSetSource()
   {
     if (textureSamplerDescriptorSetSource.get() == nullptr)
-      textureSamplerDescriptorSetSource = std::make_shared<TRAOTDescriptorSetSource>(this);
+      textureSamplerDescriptorSetSource = std::make_shared<ArrayOfTexturesDescriptorSetSource>(this);
     return textureSamplerDescriptorSetSource;
   }
 
@@ -252,7 +252,7 @@ public:
       for (auto tx : it->second)
         tx->validate(device, commandPool, queue);
     }
-    textureSamplerOffsets->validate(device);
+    textureSamplerOffsets->validate(device, commandPool, queue);
 
     if (textureSamplerDescriptorSetSource.get() != nullptr)
       textureSamplerDescriptorSetSource->notifyDescriptorSets();
@@ -269,21 +269,21 @@ public:
   }
 
   std::shared_ptr<StorageBuffer<uint32_t>>                         textureSamplerOffsets;
-  friend class TRAOTDescriptorSetSource;
+  friend class ArrayOfTexturesDescriptorSetSource;
 protected:
   std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Texture>>> textures;
   std::map<uint32_t, TextureTraits>                         textureTraits;
   uint32_t                                                  textureSamplersQuantity = 0;
-  std::shared_ptr<TRAOTDescriptorSetSource>                 textureSamplerDescriptorSetSource;
+  std::shared_ptr<ArrayOfTexturesDescriptorSetSource>                 textureSamplerDescriptorSetSource;
 
 };
 
-TRAOTDescriptorSetSource::TRAOTDescriptorSetSource(TextureRegistryArrayOfTextures* o)
+ArrayOfTexturesDescriptorSetSource::ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o)
   : owner{ o }
 {
 }
-void TRAOTDescriptorSetSource::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   values.reserve(values.size() + owner->textureSamplersQuantity);
@@ -541,10 +541,9 @@ void MaterialSet<T>::refreshMaterialStructures()
 template <typename T>
 void MaterialSet<T>::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
 {
-  typeDefinitionSbo->validate(device);
-  materialVariantSbo->validate(device);
-  materialDefinitionSbo->validate(device);
-
+  typeDefinitionSbo->validate(device, commandPool, queue);
+  materialVariantSbo->validate(device, commandPool, queue);
+  materialDefinitionSbo->validate(device, commandPool, queue);
   textureRegistry->validate(device, commandPool, queue);
 }
 

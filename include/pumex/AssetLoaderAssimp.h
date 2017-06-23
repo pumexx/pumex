@@ -21,12 +21,11 @@
 //
 
 #pragma once
-#include <pumex/Export.h>
-#include <pumex/Asset.h>
 #include <assimp/Importer.hpp> 
 #include <assimp/scene.h>     
 #include <assimp/postprocess.h>
-
+#include <pumex/Export.h>
+#include <pumex/Asset.h>
 
 namespace pumex
 {

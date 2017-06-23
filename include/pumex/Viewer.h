@@ -79,7 +79,7 @@ public:
   inline VkInstance getInstance() const;
   inline bool terminating() const;
 
-  std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem> ASAP
+  std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 
   ViewerTraits                        viewerTraits;
   VkInstance                          instance = VK_NULL_HANDLE;

@@ -45,3 +45,4 @@
 #include <pumex/Kinematic.h>
 #include <pumex/AssetBuffer.h>
 #include <pumex/MaterialSet.h>
+#include <pumex/Text.h>

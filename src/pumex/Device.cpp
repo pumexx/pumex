@@ -26,6 +26,7 @@
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Command.h>
 #include <pumex/utils/Log.h>
+#include <pumex/utils/Buffer.h>
 
 using namespace pumex;
 
@@ -145,6 +146,7 @@ void Device::cleanup()
 {
   if (device != VK_NULL_HANDLE)
   {
+    stagingBuffers.clear();
     vkDestroyDevice(device, nullptr);
     device = VK_NULL_HANDLE;
     queues.clear();
@@ -166,6 +168,16 @@ VkQueue Device::getQueue(const QueueTraits& queueTraits, bool reserve)
   return VK_NULL_HANDLE;
 }
 
+void Device::releaseQueue(VkQueue queue)
+{
+  for (auto& q : queues)
+  {
+    if (q.queue != queue)
+      continue;
+    q.available = true;
+  }
+}
+
 bool Device::getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result)
 {
   for (auto& q : queues)
@@ -179,14 +191,40 @@ bool Device::getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& re
   return false;
 }
 
-void Device::releaseQueue(VkQueue queue)
+std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(void* data, VkDeviceSize size)
 {
-  for (auto& q : queues)
+  // find smallest staging buffer that is able to transfer data
+  VkDeviceSize smallestSize = std::numeric_limits<VkDeviceSize>::max();
+  std::shared_ptr<StagingBuffer> resultBuffer;
+  std::lock_guard<std::mutex> lock(stagingMutex);
+  for (auto it = stagingBuffers.begin(); it != stagingBuffers.end(); ++it)
   {
-    if (q.queue != queue)
+    if ( (*it)->isReserved() || (*it)->bufferSize() < size)
       continue;
-    q.available = true;
+    if ((*it)->bufferSize() < smallestSize)
+    {
+      smallestSize = (*it)->bufferSize();
+      resultBuffer = *it;
+    }
   }
+  if (resultBuffer.get() == nullptr)
+  {
+    resultBuffer = std::make_shared<StagingBuffer>( this, size );
+    stagingBuffers.push_back(resultBuffer);
+  }
+  resultBuffer->setReserved(true);
+  if (data != nullptr)
+  {
+    resultBuffer->fillBuffer(data, size);
+  }
+  return resultBuffer;
+
+}
+
+void Device::releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer)
+{
+  std::lock_guard<std::mutex> lock(stagingMutex);
+  buffer->setReserved(false);
 }
 
 

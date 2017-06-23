@@ -325,9 +325,9 @@ struct DeferredApplicationData
 
     myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
 
-    cameraUbo->validate(devicePtr);
-    positionUbo->validate(devicePtr);
-    lightsSbo->validate(devicePtr);
+    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    lightsSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
     input2->validate(surface);
     input3->validate(surface);
     input4->validate(surface);
@@ -578,8 +578,8 @@ struct DeferredApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(devicePtr);
-    positionUbo->validate(devicePtr);
+    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
     // preparing descriptor sets
     gbufferDescriptorSet->setActiveIndex(surface->getImageIndex());
     gbufferDescriptorSet->validate(surfacePtr);
@@ -798,7 +798,6 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
     tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
     tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
-
 
     viewer->run();
   }

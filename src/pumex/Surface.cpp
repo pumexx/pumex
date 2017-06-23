@@ -29,7 +29,6 @@
 #include <pumex/FrameBuffer.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Texture.h>
-#include <vulkan/vulkan.h>
 
 using namespace pumex;
 

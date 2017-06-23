@@ -76,7 +76,9 @@ public:
   DeviceMemoryBlock allocate(Device* device, VkMemoryRequirements memoryRequirements);
   void deallocate(VkDevice device, const DeviceMemoryBlock& block);
 
-  inline VkDeviceSize getMemorySize() const;
+  inline VkMemoryPropertyFlags getMemoryPropertyFlags() const;
+  inline VkDeviceSize          getMemorySize() const;
+
 
 protected:
   VkMemoryPropertyFlags propertyFlags;
@@ -95,9 +97,8 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-VkDeviceSize DeviceMemoryAllocator::getMemorySize() const { return size; }
-
-
+VkMemoryPropertyFlags DeviceMemoryAllocator::getMemoryPropertyFlags() const { return propertyFlags; }
+VkDeviceSize          DeviceMemoryAllocator::getMemorySize() const { return size; }
 
 class PUMEX_EXPORT FirstFitAllocationStrategy : public AllocationStrategy
 {
@@ -106,7 +107,6 @@ public:
   DeviceMemoryBlock allocate(VkDeviceMemory storageMemory, std::list<FreeBlock>& freeBlocks, VkMemoryRequirements memoryRequirements) override;
   void deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) override;
 };
-
 
 
 }

@@ -23,8 +23,8 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include <pumex/Export.h>
 #include <vulkan/vulkan.h>
+#include <pumex/Export.h>
 
 namespace pumex
 {
@@ -55,5 +55,37 @@ PUMEX_EXPORT void destroyBuffer(VkDevice device, VkBuffer buffer, VkDeviceMemory
 PUMEX_EXPORT VkDeviceSize createBuffers(Device* device, std::vector<NBufferMemory>& multiBuffer, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory* memory);
 PUMEX_EXPORT void destroyBuffers(Device* device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory);
 PUMEX_EXPORT void destroyBuffers(VkDevice device, std::vector<NBufferMemory>& multiBuffer, VkDeviceMemory memory);
+
+class StagingBuffer
+{
+public:
+  StagingBuffer() = delete;
+  explicit StagingBuffer(Device* device, VkDeviceSize size);
+  StagingBuffer(const StagingBuffer&) = delete;
+  StagingBuffer& operator=(const StagingBuffer&) = delete;
+  virtual ~StagingBuffer();
+
+
+  inline VkDeviceSize bufferSize() const;
+  inline bool         isReserved() const;
+  inline void         setReserved(bool value);
+
+  void fillBuffer(void* data, VkDeviceSize size);
+
+  VkBuffer       buffer     = VK_NULL_HANDLE;
+protected:
+  VkDevice       device     = VK_NULL_HANDLE;
+  VkDeviceMemory memory     = VK_NULL_HANDLE;
+  VkDeviceSize   memorySize = 0;
+  bool           reserved   = false;
+
+
+};
+
+VkDeviceSize StagingBuffer::bufferSize() const { return memorySize; }
+bool         StagingBuffer::isReserved() const { return reserved; }
+void         StagingBuffer::setReserved(bool value) { reserved = value; }
+
+
 
 }

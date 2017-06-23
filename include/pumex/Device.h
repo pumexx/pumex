@@ -24,9 +24,10 @@
 #include <vector>
 #include <memory>
 #include <tuple>
+#include <mutex>
 #include <vulkan/vulkan.h>
-#include <pumex/Export.h>
 #include <glm/glm.hpp>
+#include <pumex/Export.h>
 
 namespace pumex
 {
@@ -35,6 +36,7 @@ class Viewer;
 class PhysicalDevice;
 class CommandPool;
 class CommandBuffer;
+class StagingBuffer;
 
 // struct that represents queues that must be provided by Vulkan implementation during initialization
 struct PUMEX_EXPORT QueueTraits
@@ -66,6 +68,10 @@ public:
   void releaseQueue(VkQueue queue);
   bool getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result);
 
+  std::shared_ptr<StagingBuffer> acquireStagingBuffer( void* data, VkDeviceSize size );
+  void releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
+
+
   // debug markers extension stuff - not tested yet
   void setObjectName(uint64_t object, VkDebugReportObjectTypeEXT objectType, const std::string& name);
   void setObjectTag(uint64_t object, VkDebugReportObjectTypeEXT objectType, uint64_t name, size_t tagSize, const void* tag);
@@ -89,9 +95,10 @@ public:
   void setFenceName(VkFence fence, const std::string& name);
   void setEventName(VkEvent _event, const std::string& name);
 
-	std::weak_ptr<Viewer>         viewer;
-	std::weak_ptr<PhysicalDevice> physical;
+  std::weak_ptr<Viewer>         viewer;
+  std::weak_ptr<PhysicalDevice> physical;
   VkDevice                        device             = VK_NULL_HANDLE;
+  
   bool                            enableDebugMarkers = false;
 protected:
   struct Queue
@@ -114,6 +121,8 @@ protected:
   PFN_vkCmdDebugMarkerEndEXT        pfnCmdDebugMarkerEnd        = VK_NULL_HANDLE;
   PFN_vkCmdDebugMarkerInsertEXT     pfnCmdDebugMarkerInsert     = VK_NULL_HANDLE;
 
+  std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
+  std::mutex                                  stagingMutex;
 };
 
 bool Device::isValid() { return device != VK_NULL_HANDLE; }

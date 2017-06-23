@@ -21,10 +21,10 @@
 //
 
 #pragma once
-#include <pumex/Export.h>
 #include <thread>
 #include <vector>
 #include <memory>
+#include <pumex/Export.h>
 
 // WARNING : this file is now obsolete. Now we use TBB instead of std.
 

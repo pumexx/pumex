@@ -23,10 +23,10 @@
 #pragma once
 #include <unordered_map>
 #include <memory>
-#include <pumex/Export.h>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <gli/texture.hpp>
+#include <pumex/Export.h>
 #include <pumex/Pipeline.h>
 #include <pumex/DeviceMemoryAllocator.h>
 

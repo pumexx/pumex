@@ -23,8 +23,8 @@
 #pragma once
 #include <memory>
 #include <map>
-#include <pumex/Export.h>
 #include <glm/glm.hpp>
+#include <pumex/Export.h>
 
 namespace pumex
 {

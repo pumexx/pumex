@@ -137,4 +137,27 @@ void destroyBuffers(VkDevice device, std::vector<NBufferMemory>& multiBuffer, Vk
   vkFreeMemory(device, memory, nullptr);
 }
 
+StagingBuffer::StagingBuffer(Device* d, VkDeviceSize s)
+  : device{ d->device }
+{
+  memorySize = createBuffer(d, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, s, &buffer, &memory);
+  CHECK_LOG_THROW(memorySize == 0, "Cannot create staging buffer");
+}
+
+StagingBuffer::~StagingBuffer()
+{
+  destroyBuffer(device, buffer, memory);
+}
+
+void StagingBuffer::fillBuffer(void* data, VkDeviceSize size)
+{
+  void *mapAddress;
+  VK_CHECK_LOG_THROW(vkMapMemory(device, memory, 0, size, 0, &mapAddress), "Cannot map memory");
+  std::memcpy(mapAddress, data, size);
+  vkUnmapMemory(device, memory);
+}
+
+
+
+
 }

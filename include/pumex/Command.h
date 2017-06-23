@@ -24,8 +24,8 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
-#include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 #include <pumex/Export.h>
 
 namespace pumex
@@ -96,6 +96,7 @@ public:
   void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets) const;
   void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet) const;
 
+  void cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
   void cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const;

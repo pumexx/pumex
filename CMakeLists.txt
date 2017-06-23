@@ -111,6 +111,28 @@ if( NOT ASSIMP_FOUND )
   endif(WIN32)
 endif( NOT ASSIMP_FOUND )
 
+find_library( FREETYPE NAMES freetype )
+if( NOT FREETYPE_FOUND )
+  set(FREETYPE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/freetype )
+  set(FREETYPE_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/freetype")
+  ExternalProject_Add( freetype-external
+    PREFIX "${FREETYPE_BUILD_DIR}"
+    BINARY_DIR "${FREETYPE_BUILD_DIR}/build"
+    STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/freetype"
+    GIT_REPOSITORY "git://git.sv.nongnu.org/freetype/freetype2.git"
+    GIT_TAG "VER-2-8"
+    SOURCE_DIR "${FREETYPE_SOURCE_DIR}"
+    UPDATE_COMMAND ""
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DCMAKE_DEBUG_POSTFIX=d
+    UPDATE_DISCONNECTED 1
+  )
+  set(FREETYPE_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/freetype.lib)
+  set(FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/freetyped.lib)
+  set(FREETYPE_LIBRARIES optimized "${FREETYPE_LIBRARY_RELEASE}" debug "${FREETYPE_LIBRARY_DEBUG}")
+  include_directories( ${CMAKE_CURRENT_BINARY_DIR}/include/freetype2 )
+  
+endif( NOT FREETYPE_FOUND )
+
 
 set(TBB_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/tbb)
 set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
@@ -166,18 +188,18 @@ foreach( _file ${PUMEX_SHADERS} )
   list (APPEND PUMEX_SHADERS_COMPILED ${_file_out})
 endforeach()
 
+add_custom_target (shaders DEPENDS ${PUMEX_SHADERS_COMPILED} SOURCES ${PUMEX_SHADERS})
+
 SET(CMAKE_DEBUG_POSTFIX "d")
 SET(CMAKE_RELEASE_POSTFIX "")
 SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
 SET(CMAKE_MINSIZEREL_POSTFIX "s")
 
-add_custom_target (shaders DEPENDS ${PUMEX_SHADERS_COMPILED} SOURCES ${PUMEX_SHADERS})
-
 add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
 target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
 target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
-add_dependencies( pumex glm-external gli-external assimp-external tbb-external )
-target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${TBB_LIBRARIES} ${Vulkan_LIBRARIES} ${ASSIMP_LIBRARIES} )
+add_dependencies( pumex glm-external gli-external assimp-external tbb-external freetype-external )
+target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${Vulkan_LIBRARIES} ${TBB_LIBRARIES} ${ASSIMP_LIBRARIES} ${FREETYPE_LIBRARIES} )
 
 MACRO(set_executable_postfixes target)
   set_target_properties(${target} PROPERTIES DEBUG_OUTPUT_NAME "${target}${CMAKE_DEBUG_POSTFIX}")

@@ -1003,7 +1003,7 @@ struct GpuCullApplicationData
     filterPipelineLayout->validate(devicePtr);
     timeStampQueryPool->validate(devicePtr);
 
-    cameraUbo->validate(devicePtr);
+    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
     if (_showStaticRendering)
     {
@@ -1011,7 +1011,7 @@ struct GpuCullApplicationData
       staticMaterialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
       staticRenderPipeline->validate(devicePtr);
       staticFilterPipeline->validate(devicePtr);
-      staticResultsSbo2->validate(devicePtr);
+      staticResultsSbo2->validate(devicePtr, surface->commandPool, surface->presentationQueue);
     }
 
     if (_showDynamicRendering)
@@ -1020,7 +1020,7 @@ struct GpuCullApplicationData
       dynamicMaterialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
       dynamicRenderPipeline->validate(devicePtr);
       dynamicFilterPipeline->validate(devicePtr);
-      dynamicResultsSbo2->validate(devicePtr);
+      dynamicResultsSbo2->validate(devicePtr, surface->commandPool, surface->presentationQueue);
     }
   }
 
@@ -1353,15 +1353,15 @@ struct GpuCullApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(devicePtr);
+    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
     if (_showStaticRendering)
     {
       staticInstanceSbo->setActiveIndex(surface->getImageIndex());
-      staticInstanceSbo->validate(devicePtr);
-      staticResultsSbo->validate(devicePtr);
+      staticInstanceSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+      staticResultsSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
       staticOffValuesSbo->setActiveIndex(surface->getImageIndex());
-      staticOffValuesSbo->validate(devicePtr);
+      staticOffValuesSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
       staticRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
       staticRenderDescriptorSet->validate(surfacePtr);
@@ -1372,10 +1372,10 @@ struct GpuCullApplicationData
     if (_showDynamicRendering)
     {
       dynamicInstanceSbo->setActiveIndex(surface->getImageIndex());
-      dynamicInstanceSbo->validate(devicePtr);
-      dynamicResultsSbo->validate(devicePtr);
+      dynamicInstanceSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+      dynamicResultsSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
       dynamicOffValuesSbo->setActiveIndex(surface->getImageIndex());
-      dynamicOffValuesSbo->validate(devicePtr);
+      dynamicOffValuesSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
 
       dynamicRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
       dynamicRenderDescriptorSet->validate(surfacePtr);

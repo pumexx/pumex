@@ -209,6 +209,11 @@ void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfa
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, 1, &descSet, 0, nullptr);
 }
 
+void CommandBuffer::cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const
+{
+  vkCmdDraw(commandBuffer[activeIndex], vertexCount, instanceCount, firstVertex, firstInstance);
+}
+
 void CommandBuffer::cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const
 {
   vkCmdDrawIndexed(commandBuffer[activeIndex], indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);

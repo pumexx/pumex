@@ -21,8 +21,8 @@
 //
 
 #pragma once
-#include <pumex/Export.h>
 #include <glm/glm.hpp>
+#include <pumex/Export.h>
 
 namespace pumex
 {
