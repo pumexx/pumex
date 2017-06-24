@@ -167,7 +167,7 @@ public:
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t getNumTypesID() const;
   
-  void validate(Device* device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue = VK_NULL_HANDLE);
+  void validate(Device* device, bool useStaging, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
 
   void cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
   void cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;

@@ -125,7 +125,7 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
   return std::shared_ptr<Asset>();
 }
 
-void AssetBuffer::validate(Device* device, bool useStaging, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void AssetBuffer::validate(Device* device, bool useStaging, CommandPool* commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

@@ -53,7 +53,7 @@ public:
   inline T    get() const;
   void        getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
   void        setDirty();
-  void        validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
+  void        validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
@@ -139,7 +139,7 @@ void UniformBuffer<T>::setDirty()
 }
 
 template <typename T>
-void UniformBuffer<T>::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void UniformBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

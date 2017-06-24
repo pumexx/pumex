@@ -63,7 +63,7 @@ VkCommandPool CommandPool::getHandle(VkDevice device) const
     return VK_NULL_HANDLE;
   return pddit->second.commandPool;
 }
-CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, std::shared_ptr<CommandPool> cp, uint32_t cbc)
+CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp, uint32_t cbc)
   : bufferLevel{ bf }, commandPool{ cp }, device{d->device}
 {
   commandBuffer.resize(cbc);

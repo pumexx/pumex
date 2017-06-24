@@ -256,7 +256,7 @@ struct CrowdApplicationData
   double    prepareBuffersDuration;
   double    drawDuration;
 
-  std::unordered_map<VkDevice,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  std::unordered_map<pumex::Device*,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
   CrowdApplicationData(std::shared_ptr<pumex::Viewer> v)
 	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -glm::pi<float>(), glm::pi<float>() }
@@ -683,15 +683,15 @@ struct CrowdApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Device* devicePtr = surface->device.lock().get();
-    VkDevice vkDevice = devicePtr->device;
+    pumex::Device* devicePtr           = surface->device.lock().get();
+    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
+    myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
     pipelineCache->validate(devicePtr);
 
-    skeletalAssetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
-    materialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    skeletalAssetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+    materialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     simpleRenderDescriptorSetLayout->validate(devicePtr);
     simpleRenderDescriptorPool->validate(devicePtr);
     simpleRenderPipelineLayout->validate(devicePtr);
@@ -707,15 +707,15 @@ struct CrowdApplicationData
     filterPipelineLayout->validate(devicePtr);
     filterPipeline->validate(devicePtr);
 
-    defaultFont->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    textFPS->validate(devicePtr, surface->commandPool, surface->presentationQueue, 0);
+    defaultFont->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    textFPS->validate(devicePtr, commandPoolPtr, surface->presentationQueue, 0);
     textDescriptorSetLayout->validate(devicePtr);
     textDescriptorPool->validate(devicePtr);
     textPipelineLayout->validate(devicePtr);
     textPipeline->validate(devicePtr);
 
     timeStampQueryPool->validate(devicePtr);
-    resultsSbo2->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    resultsSbo2->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
   }
 
 
@@ -1078,19 +1078,17 @@ struct CrowdApplicationData
 
   void draw( std::shared_ptr<pumex::Surface> surface )
   {
-    pumex::Surface*   surfacePtr  = surface.get();
-    pumex::Device*    devicePtr   = surface->device.lock().get();
-    VkDevice          vkDevice    = devicePtr->device;
-    uint32_t          renderIndex = surface->viewer.lock()->getRenderIndex();
-    const RenderData& rData       = renderData[renderIndex];
+    pumex::Surface*     surfacePtr     = surface.get();
+    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
+    uint32_t            renderIndex    = surface->viewer.lock()->getRenderIndex();
+    const RenderData&   rData          = renderData[renderIndex];
+    uint32_t            renderWidth    = surface->swapChainSize.width;
+    uint32_t            renderHeight   = surface->swapChainSize.height;
 
     pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
     double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
     lastFrameStart = thisFrameStart;
-
-
-    uint32_t renderWidth  = surface->swapChainSize.width;
-    uint32_t renderHeight = surface->swapChainSize.height;
 
     pumex::Camera camera = cameraUbo->get();
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
@@ -1105,17 +1103,17 @@ struct CrowdApplicationData
     textFPS->setText(0, glm::vec2(renderWidth-150, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
 
     textFPS->setActiveIndex(surface->getImageIndex());
-    textFPS->validate(devicePtr, surface->commandPool, surface->presentationQueue, surface->getImageIndex());
-    defaultFont->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    textFPS->validate(devicePtr, commandPoolPtr, surface->presentationQueue, surface->getImageIndex());
+    defaultFont->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     positionSbo->setActiveIndex(surface->getImageIndex());
-    positionSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    positionSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     instanceSbo->setActiveIndex(surface->getImageIndex());
-    instanceSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    resultsSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    instanceSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    resultsSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     offValuesSbo->setActiveIndex(surface->getImageIndex());
-    offValuesSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    offValuesSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
     simpleRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
     simpleRenderDescriptorSet->validate(surfacePtr);
@@ -1124,21 +1122,21 @@ struct CrowdApplicationData
     filterDescriptorSet->setActiveIndex(surface->getImageIndex());
     filterDescriptorSet->validate(surfacePtr);
 
-    textCameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    textCameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     textDescriptorSet->setActiveIndex(surface->getImageIndex());
     textDescriptorSet->validate(surfacePtr);
 
 #if defined(CROWD_MEASURE_TIME)
     auto drawStart = pumex::HPClock::now();
 #endif
-    auto currentCmdBuffer = myCmdBuffer[vkDevice];
+    auto currentCmdBuffer = myCmdBuffer[devicePtr];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
     currentCmdBuffer->cmdBegin();
     timeStampQueryPool->reset(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4, 4);
 
     std::vector<pumex::DescriptorSetValue> resultsBuffer, resultsBuffer2;
-    resultsSbo->getDescriptorSetValues(vkDevice, 0, resultsBuffer);
-    resultsSbo2->getDescriptorSetValues(vkDevice, 0, resultsBuffer2);
+    resultsSbo->getDescriptorSetValues(devicePtr->device, 0, resultsBuffer);
+    resultsSbo2->getDescriptorSetValues(devicePtr->device, 0, resultsBuffer2);
     uint32_t drawCount = resultsSbo->get().size();
 
     if (rData.renderMethod == 1)

@@ -38,7 +38,7 @@
 namespace pumex
 {
 
-// OK, last time I read a book about C++ templates about seven years ago
+// OK, last time I read a book about C++ templates about seven years ago, so this code may look ugly in 2017
 template<typename T> size_t uglyGetSize( const T& t )              { return sizeof(T); }
 template<typename T> size_t uglyGetSize( const std::vector<T>& t ) { return t.size() * sizeof(T); }
 template<typename T> T*     uglyGetPointer( T& t )                 { return &T; }
@@ -56,7 +56,7 @@ public:
 
   void     getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
   void     setDirty();
-  void     validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
+  void     validate(Device* device, CommandPool* commandPool, VkQueue queue);
   VkBuffer getBufferHandle(Device* device);
 
   inline void setActiveIndex(uint32_t index);
@@ -124,7 +124,7 @@ void GenericBuffer<T>::setDirty()
 }
 
 template <typename T>
-void GenericBuffer<T>::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

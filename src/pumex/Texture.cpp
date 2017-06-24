@@ -197,7 +197,7 @@ VkSampler Texture::getHandleSampler(VkDevice device) const
   return pddit->second.sampler;
 }
 
-void Texture::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void Texture::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())

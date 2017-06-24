@@ -320,21 +320,21 @@ struct DeferredApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Device*  devicePtr  = surface->device.lock().get();
-    VkDevice        vkDevice   = devicePtr->device;
+    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
 
-    myCmdBuffer[vkDevice] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
+    myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
-    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    lightsSbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    lightsSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     input2->validate(surface);
     input3->validate(surface);
     input4->validate(surface);
 
     // loading models
-    assetBuffer.validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
-    materialSet->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    assetBuffer.validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+    materialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
     pipelineCache->validate(devicePtr);
 
@@ -563,13 +563,11 @@ struct DeferredApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Surface*                 surfacePtr = surface.get();
-    pumex::Device*                  devicePtr  = surface->device.lock().get();
-    VkDevice                        vkDevice   = devicePtr->device;
-    std::shared_ptr<pumex::Window>  windowSh   = surface->window.lock();
-
-    uint32_t                       renderIndex = surface->viewer.lock()->getRenderIndex();
-    const RenderData&              rData = renderData[renderIndex];
+    pumex::Surface*     surfacePtr     = surface.get();
+    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
+    uint32_t            renderIndex    = surface->viewer.lock()->getRenderIndex();
+    const RenderData&   rData          = renderData[renderIndex];
 
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
@@ -578,8 +576,8 @@ struct DeferredApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     // preparing descriptor sets
     gbufferDescriptorSet->setActiveIndex(surface->getImageIndex());
     gbufferDescriptorSet->validate(surfacePtr);
@@ -587,7 +585,7 @@ struct DeferredApplicationData
     compositeDescriptorSet->setActiveIndex(surface->getImageIndex());
     compositeDescriptorSet->validate(surfacePtr);
 
-    auto currentCmdBuffer = myCmdBuffer[vkDevice];
+    auto currentCmdBuffer = myCmdBuffer[devicePtr];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
     currentCmdBuffer->cmdBegin();
 
@@ -663,7 +661,7 @@ struct DeferredApplicationData
 
   std::shared_ptr<pumex::StorageBuffer<LightPointData>>   lightsSbo;
 
-  std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  std::unordered_map<pumex::Device*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
   double    inputDuration;
   double    updateDuration;

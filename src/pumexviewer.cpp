@@ -212,16 +212,17 @@ struct ViewerApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Device* devicePtr = surface->device.lock().get();
+    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
 
-    myCmdBuffer[devicePtr->device] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, surface->commandPool, surface->getImageCount());
+    myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
-    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
     // loading models
-    assetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
-    boxAssetBuffer->validate(devicePtr, true, surface->commandPool, surface->presentationQueue);
+    assetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+    boxAssetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
     descriptorSetLayout->validate(devicePtr);
     descriptorPool->validate(devicePtr);
     pipelineLayout->validate(devicePtr);
@@ -433,21 +434,19 @@ struct ViewerApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Device*                  devicePtr = surface->device.lock().get();
-    std::shared_ptr<pumex::Window>  windowSh  = surface->window.lock();
-    VkDevice                        vkDevice  = devicePtr->device;
-
-    uint32_t renderWidth = surface->swapChainSize.width;
-    uint32_t renderHeight = surface->swapChainSize.height;
+    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
+    uint32_t            renderWidth    = surface->swapChainSize.width;
+    uint32_t            renderHeight   = surface->swapChainSize.height;
 
     pumex::Camera camera = cameraUbo->get();
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(camera);
 
-    cameraUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
-    positionUbo->validate(devicePtr, surface->commandPool, surface->presentationQueue);
+    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    auto currentCmdBuffer = myCmdBuffer[vkDevice];
+    auto currentCmdBuffer = myCmdBuffer[devicePtr];
     currentCmdBuffer->setActiveIndex(surface->getImageIndex());
     currentCmdBuffer->cmdBegin();
 
@@ -501,7 +500,7 @@ struct ViewerApplicationData
   std::shared_ptr<pumex::DescriptorSet>       descriptorSet;
   std::shared_ptr<pumex::DescriptorSet>       boxDescriptorSet;
 
-  std::unordered_map<VkDevice, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  std::unordered_map<pumex::Device*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
 };
 

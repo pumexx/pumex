@@ -100,7 +100,7 @@ void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color,
 }
 
 
-void Font::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue)
+void Font::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
   fontTexture->validate(device, commandPool, queue);
 }
@@ -168,7 +168,7 @@ Text::~Text()
 {
 }
 
-void Text::validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue, uint32_t activeIndex)
+void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue, uint32_t activeIndex)
 {
   if (dirty)
   {

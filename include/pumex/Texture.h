@@ -142,7 +142,7 @@ public:
   void      setDirty();
   Image*    getHandleImage(VkDevice device) const;
   VkSampler getHandleSampler(VkDevice device) const;
-  void      validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
+  void      validate(Device* device, CommandPool* commandPool, VkQueue queue);
   void      getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
 
   void setLayer(uint32_t layer, const gli::texture& tex);

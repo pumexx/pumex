@@ -155,7 +155,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
 
     if (definition.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED)
     {
-      auto commandBuffer = deviceSh->beginSingleTimeCommands(surface->commandPool);
+      auto commandBuffer = deviceSh->beginSingleTimeCommands(surface->commandPool.get());
       commandBuffer->setImageLayout(*(fbi->getImage(surface, definition.imageDefinitionIndex)), fbiDefinition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
       deviceSh->endSingleTimeCommands(commandBuffer, surface->presentationQueue);
     }

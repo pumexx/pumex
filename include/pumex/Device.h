@@ -61,7 +61,7 @@ public:
   inline bool isValid();
   void cleanup();
 
-  std::shared_ptr<CommandBuffer> beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool);
+  std::shared_ptr<CommandBuffer> beginSingleTimeCommands(CommandPool* commandPool);
   void endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue);
 
   VkQueue getQueue(const QueueTraits& queueTraits, bool reserve = false);

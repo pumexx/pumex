@@ -64,10 +64,13 @@ struct PipelineBarrier;
 
 // class representing Vulkan command buffer. Most of the vkCmd* commands will be defined here. 
 // For now only commands used in examples are defined.
+// Remark : commandPool is delivered by raw pointer, it is in user's responsibility to  ensure, 
+// that command pool exists as long as the command buffer. Most of the command buffers from examples
+// uses Surface::commandPool, so this condition is fullfilled
 class PUMEX_EXPORT CommandBuffer
 {
 public:
-  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, Device* device, std::shared_ptr<CommandPool> commandPool, uint32_t cbCount = 1);
+  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, Device* device, CommandPool* commandPool, uint32_t cbCount = 1);
   CommandBuffer(const CommandBuffer&)            = delete;
   CommandBuffer& operator=(const CommandBuffer&) = delete;
   virtual ~CommandBuffer();
@@ -112,7 +115,7 @@ public:
   void queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores = {}, const std::vector<VkPipelineStageFlags>& waitStages = {}, const std::vector<VkSemaphore>& signalSemaphores = {}, VkFence fence = VK_NULL_HANDLE) const;
 
   VkCommandBufferLevel         bufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  std::shared_ptr<CommandPool> commandPool;
+  CommandPool*                 commandPool;
 protected:
   VkDevice                     device        = VK_NULL_HANDLE;
   std::vector<VkCommandBuffer> commandBuffer;

@@ -111,7 +111,7 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
 
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
-    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(),commandPool));
+    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(),commandPool.get()));
 
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;

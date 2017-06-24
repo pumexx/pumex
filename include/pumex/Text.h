@@ -72,7 +72,7 @@ public:
   Font& operator=(const Font&) = delete;
   virtual ~Font();
 
-  void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue);
+  void validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
   void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
 
@@ -104,7 +104,7 @@ public:
 
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
-  void validate(Device* device, std::shared_ptr<CommandPool> commandPool, VkQueue queue, uint32_t activeIndex);
+  void validate(Device* device, CommandPool* commandPool, VkQueue queue, uint32_t activeIndex);
   void cmdDraw(Device* device, std::shared_ptr<CommandBuffer> commandBuffer ) const;
 
   void setText(uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
