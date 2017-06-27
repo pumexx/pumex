@@ -26,12 +26,15 @@
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 #include <pumex/BoundingBox.h>
+#include <pumex/StorageBuffer.h>
+#include <pumex/GenericBuffer.h>
 #include <pumex/Pipeline.h>
 
 namespace pumex
 {
 
 class Device;
+class DeviceMemoryAllocator;
 class CommandPool;
 class CommandBuffer;
 
@@ -69,12 +72,19 @@ class CommandBuffer;
 //  - has render mask
 //  - has pointers to vertex and index buffers
 
+struct PUMEX_EXPORT AssetBufferVertexSemantics
+{
+  AssetBufferVertexSemantics(uint32_t rm, const std::vector<VertexSemantic>& vs)
+    : renderMask{ rm }, vertexSemantic( vs )
+  {
+  }
+  uint32_t                    renderMask;
+  std::vector<VertexSemantic> vertexSemantic;
+};
 
 struct PUMEX_EXPORT AssetTypeDefinition
 {
-  AssetTypeDefinition()
-  {
-  }
+  AssetTypeDefinition() = default;
   AssetTypeDefinition(const BoundingBox& bb)
     : bbMin{ bb.bbMin.x, bb.bbMin.y, bb.bbMin.z, 1.0f }, bbMax{ bb.bbMax.x, bb.bbMax.y, bb.bbMax.z, 1.0f }
   {
@@ -89,6 +99,7 @@ struct PUMEX_EXPORT AssetTypeDefinition
 
 struct PUMEX_EXPORT AssetLodDefinition
 {
+  AssetLodDefinition() = default;
   AssetLodDefinition(float minval, float maxval)
     : minDistance{ glm::min(minval, maxval) }, maxDistance{ glm::max(minval, maxval) }
   {
@@ -105,6 +116,7 @@ struct PUMEX_EXPORT AssetLodDefinition
 
 struct PUMEX_EXPORT AssetGeometryDefinition
 {
+  AssetGeometryDefinition() = default;
   AssetGeometryDefinition(uint32_t ic, uint32_t fi, uint32_t vo)
     : indexCount{ ic }, firstIndex{ fi }, vertexOffset{vo}
   {
@@ -130,35 +142,15 @@ struct PUMEX_EXPORT DrawIndexedIndirectCommand
   uint32_t firstInstance = 0;
 };
 
-struct AssetKey
-{
-  AssetKey(uint32_t t, uint32_t l)
-    : typeID{ t }, lodID{l}
-  {
-  }
-  uint32_t typeID;
-  uint32_t lodID;
-};
-
-inline bool operator<(const AssetKey& lhs, const AssetKey& rhs)
-{
-  if (lhs.typeID!=rhs.typeID)
-    return lhs.typeID < rhs.typeID;
-  return lhs.lodID < rhs.lodID;
-}
-
-// Descriptor sets will use this class to access meta buffers held by AssetBuffer ( this class is a kind of adapter... )
-class AssetBufferDescriptorSetSource;
-
 class PUMEX_EXPORT AssetBuffer
 {
 public:
-  explicit AssetBuffer();
+  AssetBuffer()                              = delete;
+  explicit AssetBuffer(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator, std::weak_ptr<DeviceMemoryAllocator> vertexIndexAllocator);
   AssetBuffer(const AssetBuffer&)            = delete;
   AssetBuffer& operator=(const AssetBuffer&) = delete;
   virtual ~AssetBuffer();
 
-  void     registerVertexSemantic( uint32_t renderMask, const std::vector<VertexSemantic>& semantic);
   uint32_t registerType(const std::string& typeName, const AssetTypeDefinition& tdef);
   uint32_t registerObjectLOD( uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef );
   uint32_t getTypeID(const std::string& typeName) const;
@@ -167,19 +159,46 @@ public:
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t getNumTypesID() const;
   
-  void validate(Device* device, bool useStaging, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
+  inline void setDirty();
+  void validate(Device* device, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
 
   void cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
   void cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
 
-  inline std::shared_ptr<AssetBufferDescriptorSetSource> getTypeBufferDescriptorSetSource(uint32_t renderMask);
-  inline std::shared_ptr<AssetBufferDescriptorSetSource> getLODBufferDescriptorSetSource(uint32_t renderMask);
-  inline std::shared_ptr<AssetBufferDescriptorSetSource> getGeometryBufferDescriptorSetSource(uint32_t renderMask);
-
+  std::shared_ptr<StorageBuffer<AssetTypeDefinition>>     getTypeBuffer(uint32_t renderMask);
+  std::shared_ptr<StorageBuffer<AssetLodDefinition>>      getLodBuffer(uint32_t renderMask);
+  std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> getGeomBuffer(uint32_t renderMask);
   void prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const;
 
-  friend class AssetBufferDescriptorSetSource;
-private:
+protected:
+  bool                                                  dirty = true;
+
+  struct PerRenderMaskData
+  {
+    PerRenderMaskData() = default;
+    PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> bufferAllocator, std::weak_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
+    {
+      vertices     = std::make_shared<std::vector<float>>();
+      indices      = std::make_shared<std::vector<uint32_t>>();
+      vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices, vertexIndexAllocator);
+      indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices, vertexIndexAllocator);
+
+      typeBuffer   = std::make_shared<StorageBuffer<AssetTypeDefinition>>(bufferAllocator);
+      lodBuffer    = std::make_shared<StorageBuffer<AssetLodDefinition>>(bufferAllocator);
+      geomBuffer   = std::make_shared<StorageBuffer<AssetGeometryDefinition>>(bufferAllocator);
+
+    }
+    std::shared_ptr<std::vector<float>>                   vertices;
+    std::shared_ptr<std::vector<uint32_t>>                indices;
+    std::shared_ptr<GenericBuffer<std::vector<float>>>    vertexBuffer;
+    std::shared_ptr<GenericBuffer<std::vector<uint32_t>>> indexBuffer;
+
+    std::shared_ptr<StorageBuffer<AssetTypeDefinition>>     typeBuffer;
+    std::shared_ptr<StorageBuffer<AssetLodDefinition>>      lodBuffer;
+    std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> geomBuffer;
+  };
+
+
   struct InternalGeometryDefinition
   {
     InternalGeometryDefinition(uint32_t tid, uint32_t lid, uint32_t rm, uint32_t ai, uint32_t gi)
@@ -194,109 +213,39 @@ private:
     uint32_t geometryIndex;
   };
 
-  struct PerDeviceData
+  struct AssetKey
   {
-    PerDeviceData()
+    AssetKey(uint32_t t, uint32_t l)
+      : typeID{ t }, lodID{ l }
     {
     }
-    struct VertexIndexMetaBuffers
-    {
-      VertexIndexMetaBuffers()
-      {
-      }
-      VertexIndexMetaBuffers(VkBuffer v, VkBuffer i, VkDeviceMemory m)
-        : vertexBuffer{ v }, indexBuffer{ i }, bufferMemory{ m }
-      {
-      }
-      void deleteBuffers(VkDevice device)
-      {
-        if (typeBuffer != VK_NULL_HANDLE)
-          vkDestroyBuffer(device, typeBuffer, nullptr);
-        if (lodBuffer != VK_NULL_HANDLE)
-          vkDestroyBuffer(device, lodBuffer, nullptr);
-        if (geomBuffer != VK_NULL_HANDLE)
-          vkDestroyBuffer(device, geomBuffer, nullptr);
-        if (vertexBuffer != VK_NULL_HANDLE)
-          vkDestroyBuffer(device, vertexBuffer, nullptr);
-        if (indexBuffer != VK_NULL_HANDLE)
-          vkDestroyBuffer(device, indexBuffer, nullptr);
-        if (bufferMemory != VK_NULL_HANDLE)
-          vkFreeMemory(device, bufferMemory, nullptr);
-        typeBuffer   = VK_NULL_HANDLE;
-        lodBuffer    = VK_NULL_HANDLE;
-        geomBuffer   = VK_NULL_HANDLE;
-        vertexBuffer = VK_NULL_HANDLE;
-        indexBuffer  = VK_NULL_HANDLE;
-        bufferMemory = VK_NULL_HANDLE;
-      }
-      VkBuffer       typeBuffer   = VK_NULL_HANDLE;
-      VkBuffer       lodBuffer    = VK_NULL_HANDLE;
-      VkBuffer       geomBuffer   = VK_NULL_HANDLE;
-      VkBuffer       vertexBuffer = VK_NULL_HANDLE;
-      VkBuffer       indexBuffer  = VK_NULL_HANDLE;
-      VkDeviceMemory bufferMemory = VK_NULL_HANDLE;
-
-      std::vector<AssetTypeDefinition>     assetTypes;
-      std::vector<AssetLodDefinition>      assetLods;
-      std::vector<AssetGeometryDefinition> assetGeometries;
-    };
-    std::map<uint32_t, VertexIndexMetaBuffers> vertexIndexBuffers;
-    bool                                       buffersDirty = true;
+    uint32_t typeID;
+    uint32_t lodID;
   };
-  std::map<uint32_t,std::vector<VertexSemantic>> semantics;
-  std::vector<std::string>                       typeNames;
-  std::map<std::string, uint32_t>                invTypeNames;
-  std::vector<AssetTypeDefinition>               typeDefinitions;
-  std::vector<std::vector<AssetLodDefinition>>   lodDefinitions;
-  std::vector<InternalGeometryDefinition>        geometryDefinitions;
-  std::vector<std::shared_ptr<Asset>>            assets; // asset buffer owns assets
-  std::map<AssetKey, std::shared_ptr<Asset>>     assetMapping; 
-  std::map<VkDevice, PerDeviceData>              perDeviceData;
+  struct AssetKeyCompare
+  {
+    bool operator()(const AssetKey& lhs, const AssetKey& rhs) const
+    {
+      if (lhs.typeID != rhs.typeID)
+        return lhs.typeID < rhs.typeID;
+      return lhs.lodID < rhs.lodID;
+    }
+  };
 
-  std::map<uint32_t, std::shared_ptr<AssetBufferDescriptorSetSource>> typeBufferDescriptorSetValue;
-  std::map<uint32_t, std::shared_ptr<AssetBufferDescriptorSetSource>> lodBufferDescriptorSetValue;
-  std::map<uint32_t, std::shared_ptr<AssetBufferDescriptorSetSource>> geomBufferDescriptorSetValue;
+  std::map<uint32_t, std::vector<VertexSemantic>> semantics;
+  std::map<uint32_t, PerRenderMaskData>           perRenderMaskData;
+
+  std::vector<std::string>                        typeNames;
+  std::map<std::string, uint32_t>                 invTypeNames;
+  std::vector<AssetTypeDefinition>                typeDefinitions;
+  std::vector<std::vector<AssetLodDefinition>>    lodDefinitions;
+  std::vector<InternalGeometryDefinition>         geometryDefinitions;
+
+  std::vector<std::shared_ptr<Asset>>             assets; // asset buffer owns assets
+  std::map<AssetKey, std::shared_ptr<Asset>, AssetKeyCompare> assetMapping;
 };
 
-
-// Descriptor sets will use this class to access meta buffers held by AssetBuffer ( this class is a kind of adapter... )
-class PUMEX_EXPORT AssetBufferDescriptorSetSource : public DescriptorSetSource
-{
-public:
-  enum BufferType{ TypeBuffer, LodBuffer, GeometryBuffer };
-  AssetBufferDescriptorSetSource(AssetBuffer* owner, uint32_t renderMask, BufferType bufferType);
-  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-private:
-  AssetBuffer* owner;
-  uint32_t     renderMask;
-  BufferType   bufferType;
-};
-
-uint32_t AssetBuffer::getNumTypesID() const
-{
-  return typeNames.size();
-}
-
-std::shared_ptr<AssetBufferDescriptorSetSource> AssetBuffer::getTypeBufferDescriptorSetSource(uint32_t renderMask) 
-{
-  auto it = typeBufferDescriptorSetValue.find(renderMask);
-  if (it == typeBufferDescriptorSetValue.end())
-    it = typeBufferDescriptorSetValue.insert({ renderMask, std::make_shared<AssetBufferDescriptorSetSource>(this, renderMask, AssetBufferDescriptorSetSource::TypeBuffer) }).first;
-  return it->second;
-}
-std::shared_ptr<AssetBufferDescriptorSetSource> AssetBuffer::getLODBufferDescriptorSetSource(uint32_t renderMask)
-{
-  auto it = lodBufferDescriptorSetValue.find(renderMask);
-  if (it == lodBufferDescriptorSetValue.end())
-    it = lodBufferDescriptorSetValue.insert({ renderMask, std::make_shared<AssetBufferDescriptorSetSource>(this, renderMask, AssetBufferDescriptorSetSource::LodBuffer) }).first;
-  return it->second;
-}
-std::shared_ptr<AssetBufferDescriptorSetSource> AssetBuffer::getGeometryBufferDescriptorSetSource(uint32_t renderMask)
-{
-  auto it = geomBufferDescriptorSetValue.find(renderMask);
-  if (it == geomBufferDescriptorSetValue.end())
-    it = geomBufferDescriptorSetValue.insert({ renderMask, std::make_shared<AssetBufferDescriptorSetSource>(this, renderMask, AssetBufferDescriptorSetSource::GeometryBuffer) }).first;
-  return it->second;
-}
+uint32_t AssetBuffer::getNumTypesID() const { return typeNames.size(); }
+void     AssetBuffer::setDirty()            { dirty = true; }
 
 }

@@ -44,8 +44,8 @@ public:
   inline glm::mat4 getViewMatrix() const;
   inline glm::mat4 getViewMatrixInverse() const;
 
-  void             setProjectionMatrix(const glm::mat4& matrix);
-  inline glm::mat4 getProjectionMatrix() const;
+  void             setProjectionMatrix(const glm::mat4& matrix, bool usePerspectiveCorrection = true);
+  glm::mat4        getProjectionMatrix(bool usePerspectiveCorrection = true) const;
 
   void             setObserverPosition(const glm::vec3& pos);
   void             setObserverPosition( const glm::vec4& pos );
@@ -64,7 +64,6 @@ protected:
 
 glm::mat4 Camera::getViewMatrix() const        { return viewMatrix; }
 glm::mat4 Camera::getViewMatrixInverse() const { return viewMatrixInverse; }
-glm::mat4 Camera::getProjectionMatrix() const  { return projectionMatrix * vulkanPerspectiveCorrectionMatrix; }
 glm::vec4 Camera::getObserverPosition() const  { return observerPosition; }
 float     Camera::getTimeSinceStart() const    { return timeSinceStart; }
 

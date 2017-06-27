@@ -555,6 +555,7 @@ struct GpuCullApplicationData
   std::default_random_engine                           randomEngine;
 
   std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
 
   std::shared_ptr<pumex::AssetBuffer>                  staticAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> staticMaterialSet;
@@ -562,7 +563,7 @@ struct GpuCullApplicationData
   std::shared_ptr<pumex::AssetBuffer>                  dynamicAssetBuffer;
   std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> dynamicMaterialSet;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>            cameraUbo;
   std::shared_ptr<pumex::StorageBuffer<StaticInstanceData>>                 staticInstanceSbo;
   std::shared_ptr<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>  staticResultsSbo;
   std::shared_ptr<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>  staticResultsSbo2;
@@ -646,12 +647,15 @@ struct GpuCullApplicationData
 
     // alocate 32 MB for uniform and storage buffers
     buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     vertexSemantic      = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
     textureSemantic     = {};
     textureRegistryNull = std::make_shared<pumex::TextureRegistryNull>();
 
-    cameraUbo           = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
+
+    cameraUbo           = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     pipelineCache       = std::make_shared<pumex::PipelineCache>();
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
@@ -711,8 +715,8 @@ struct GpuCullApplicationData
 
     std::vector<uint32_t> typeIDs;
 
-    staticAssetBuffer = std::make_shared<pumex::AssetBuffer>();
-    staticAssetBuffer->registerVertexSemantic(1, vertexSemantic);
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, vertexSemantic } };
+    staticAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
     staticMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, buffersAllocator, textureSemantic);
 
     std::shared_ptr<pumex::Asset> groundAsset(createGround(_staticAreaSize, glm::vec4(0.0f, 0.7f, 0.0f, 1.0f)));
@@ -803,8 +807,8 @@ struct GpuCullApplicationData
     staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_static_filter_instances.comp.spv")), "main" };
 
     staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    staticFilterDescriptorSet->setSource(0, staticAssetBuffer->getTypeBufferDescriptorSetSource(1));
-    staticFilterDescriptorSet->setSource(1, staticAssetBuffer->getLODBufferDescriptorSetSource(1));
+    staticFilterDescriptorSet->setSource(0, staticAssetBuffer->getTypeBuffer(1));
+    staticFilterDescriptorSet->setSource(1, staticAssetBuffer->getLodBuffer(1));
     staticFilterDescriptorSet->setSource(2, cameraUbo);
     staticFilterDescriptorSet->setSource(3, staticInstanceSbo);
     staticFilterDescriptorSet->setSource(4, staticResultsSbo);
@@ -847,8 +851,8 @@ struct GpuCullApplicationData
 
     std::vector<uint32_t> typeIDs;
 
-    dynamicAssetBuffer = std::make_shared<pumex::AssetBuffer>();
-    dynamicAssetBuffer->registerVertexSemantic(1, vertexSemantic);
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, vertexSemantic } };
+    dynamicAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
     dynamicMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, buffersAllocator, textureSemantic);
 
     std::shared_ptr<pumex::Asset> blimpLod0 ( createBlimp(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)) );
@@ -950,8 +954,8 @@ struct GpuCullApplicationData
     dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_dynamic_filter_instances.comp.spv")), "main" };
 
     dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3 );
-    dynamicFilterDescriptorSet->setSource(0, dynamicAssetBuffer->getTypeBufferDescriptorSetSource(1));
-    dynamicFilterDescriptorSet->setSource(1, dynamicAssetBuffer->getLODBufferDescriptorSetSource(1));
+    dynamicFilterDescriptorSet->setSource(0, dynamicAssetBuffer->getTypeBuffer(1));
+    dynamicFilterDescriptorSet->setSource(1, dynamicAssetBuffer->getLodBuffer(1));
     dynamicFilterDescriptorSet->setSource(2, cameraUbo);
     dynamicFilterDescriptorSet->setSource(3, dynamicInstanceSbo);
     dynamicFilterDescriptorSet->setSource(4, dynamicResultsSbo);
@@ -1003,11 +1007,9 @@ struct GpuCullApplicationData
     filterPipelineLayout->validate(devicePtr);
     timeStampQueryPool->validate(devicePtr);
 
-    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-
     if (_showStaticRendering)
     {
-      staticAssetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+      staticAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
       staticMaterialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
       staticRenderPipeline->validate(devicePtr);
       staticFilterPipeline->validate(devicePtr);
@@ -1016,7 +1018,7 @@ struct GpuCullApplicationData
 
     if (_showDynamicRendering)
     {
-      dynamicAssetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+      dynamicAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
       dynamicMaterialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
       dynamicRenderPipeline->validate(devicePtr);
       dynamicFilterPipeline->validate(devicePtr);
@@ -1212,7 +1214,7 @@ struct GpuCullApplicationData
     }
   }
 
-  void prepareCameraForRendering()
+  void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
     uint32_t renderIndex = viewer.lock()->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
@@ -1240,11 +1242,14 @@ struct GpuCullApplicationData
 
     glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
 
-    pumex::Camera camera = cameraUbo->get();
+    pumex::Camera camera;
     camera.setViewMatrix(viewMatrix);
     camera.setObserverPosition(realEye);
     camera.setTimeSinceStart(renderTime);
-    cameraUbo->set(camera);
+    uint32_t renderWidth = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    cameraUbo->set(surface.get(), camera);
   }
 
   void prepareStaticBuffersForRendering()
@@ -1349,11 +1354,7 @@ struct GpuCullApplicationData
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
 
-    pumex::Camera camera = cameraUbo->get();
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    cameraUbo->set(camera);
-
-    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    cameraUbo->validate(surface.get());
 
     if (_showStaticRendering)
     {
@@ -1638,7 +1639,6 @@ int main(int argc, char * argv[])
 #if defined(GPU_CULL_MEASURE_TIME)
       auto prepareBuffersStart = pumex::HPClock::now();
 #endif
-      applicationData->prepareCameraForRendering();
       if (applicationData->_showStaticRendering)
         applicationData->prepareStaticBuffersForRendering();
       if (applicationData->_showDynamicRendering)
@@ -1648,7 +1648,7 @@ int main(int argc, char * argv[])
       applicationData->prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
 #endif
     });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });

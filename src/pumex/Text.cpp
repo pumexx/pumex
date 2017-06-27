@@ -184,6 +184,7 @@ void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue, uin
       fontPtr->addSymbolData(startPosition, color, text, *symbolData);
     }
     vertexBuffer->setDirty();
+    dirty = false;
   }
   vertexBuffer->setActiveIndex(activeIndex);
   vertexBuffer->validate(device, commandPool, queue);

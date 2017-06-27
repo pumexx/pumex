@@ -203,12 +203,13 @@ struct CrowdApplicationData
   std::uniform_int_distribution<uint32_t>              randomAnimation;
 
   std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
   std::shared_ptr<pumex::DeviceMemoryAllocator>        texturesAllocator;
   std::shared_ptr<pumex::AssetBuffer>                  skeletalAssetBuffer;
   std::shared_ptr<pumex::TextureRegistryTextureArray>  textureRegistry;
   std::shared_ptr<pumex::MaterialSet<MaterialData>>    materialSet;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                      cameraUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>            cameraUbo;
   std::shared_ptr<pumex::StorageBuffer<PositionData>>                       positionSbo;
   std::shared_ptr<pumex::StorageBuffer<InstanceData>>                       instanceSbo;
   std::shared_ptr<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>  resultsSbo;
@@ -238,7 +239,7 @@ struct CrowdApplicationData
   std::shared_ptr<pumex::DescriptorPool>               filterDescriptorPool;
   std::shared_ptr<pumex::DescriptorSet>                filterDescriptorSet;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> textCameraUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
   std::shared_ptr<pumex::Font>                         defaultFont;
   std::shared_ptr<pumex::Text>                         textFPS;
   std::shared_ptr<pumex::DescriptorSetLayout>          textDescriptorSetLayout;
@@ -309,15 +310,17 @@ struct CrowdApplicationData
 
 	randomAnimation = std::uniform_int_distribution<uint32_t>(1, animations.size() - 1);
 
-    std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
-    skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>();
-    skeletalAssetBuffer->registerVertexSemantic(1, vertexSemantic);
-
     // alocate 12 MB for uniform and storage buffers
     buffersAllocator  = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 80 MB memory for 24 compressed textures
     texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    
+
+    std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, vertexSemantic } };
+    skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+
     textureRegistry = std::make_shared<pumex::TextureRegistryTextureArray>();
     textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits(), texturesAllocator));
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 } };
@@ -452,7 +455,7 @@ struct CrowdApplicationData
     for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
       materialVariantCount[i] = materialSet->getMaterialVariantCount(i);
 
-    cameraUbo    = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
+    cameraUbo    = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     positionSbo  = std::make_shared<pumex::StorageBuffer<PositionData>>(buffersAllocator, 3);
     instanceSbo  = std::make_shared<pumex::StorageBuffer<InstanceData>>(buffersAllocator, 3);
     resultsSbo   = std::make_shared<pumex::StorageBuffer<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -563,8 +566,8 @@ struct CrowdApplicationData
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_filter_instances.comp.spv")), "main" };
 
     filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    filterDescriptorSet->setSource(0, skeletalAssetBuffer->getTypeBufferDescriptorSetSource(1));
-    filterDescriptorSet->setSource(1, skeletalAssetBuffer->getLODBufferDescriptorSetSource(1));
+    filterDescriptorSet->setSource(0, skeletalAssetBuffer->getTypeBuffer(1));
+    filterDescriptorSet->setSource(1, skeletalAssetBuffer->getLodBuffer(1));
     filterDescriptorSet->setSource(2, cameraUbo);
     filterDescriptorSet->setSource(3, positionSbo);
     filterDescriptorSet->setSource(4, instanceSbo);
@@ -627,7 +630,7 @@ struct CrowdApplicationData
     textFPS                      = std::make_shared<pumex::Text>(defaultFont, buffersAllocator);
 
     
-    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
+    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
@@ -690,7 +693,7 @@ struct CrowdApplicationData
 
     pipelineCache->validate(devicePtr);
 
-    skeletalAssetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+    skeletalAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     materialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     simpleRenderDescriptorSetLayout->validate(devicePtr);
     simpleRenderDescriptorPool->validate(devicePtr);
@@ -925,7 +928,7 @@ struct CrowdApplicationData
     }
   }
 
-  void prepareCameraForRendering()
+  void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
     uint32_t renderIndex = viewer.lock()->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
@@ -953,11 +956,18 @@ struct CrowdApplicationData
 
     glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
 
-    pumex::Camera camera = cameraUbo->get();
+    pumex::Camera camera;
     camera.setViewMatrix(viewMatrix);
     camera.setObserverPosition(realEye);
     camera.setTimeSinceStart(renderTime);
-    cameraUbo->set(camera);
+    uint32_t renderWidth = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    cameraUbo->set(surface.get(), camera);
+
+    pumex::Camera textCamera;
+    textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+    textCameraUbo->set(surface.get(), textCamera);
   }
 
   void prepareBuffersForRendering()
@@ -1090,14 +1100,6 @@ struct CrowdApplicationData
     double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
     lastFrameStart = thisFrameStart;
 
-    pumex::Camera camera = cameraUbo->get();
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    cameraUbo->set(camera);
-
-    pumex::Camera textCamera;
-    textCamera.setProjectionMatrix(glm::ortho(0.0f,(float)renderWidth, (float)renderHeight, 0.0f));
-    textCameraUbo->set(textCamera);
-
     std::wstringstream stream;
     stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
     textFPS->setText(0, glm::vec2(renderWidth-150, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
@@ -1106,7 +1108,7 @@ struct CrowdApplicationData
     textFPS->validate(devicePtr, commandPoolPtr, surface->presentationQueue, surface->getImageIndex());
     defaultFont->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    cameraUbo->validate(surface.get());
     positionSbo->setActiveIndex(surface->getImageIndex());
     positionSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     instanceSbo->setActiveIndex(surface->getImageIndex());
@@ -1122,7 +1124,7 @@ struct CrowdApplicationData
     filterDescriptorSet->setActiveIndex(surface->getImageIndex());
     filterDescriptorSet->validate(surfacePtr);
 
-    textCameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    textCameraUbo->validate(surface.get());
     textDescriptorSet->setActiveIndex(surface->getImageIndex());
     textDescriptorSet->validate(surfacePtr);
 
@@ -1344,8 +1346,8 @@ int main(void)
     // Consider make_edge() in render graph :
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering();  applicationData->prepareBuffersForRendering(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareBuffersForRendering(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });

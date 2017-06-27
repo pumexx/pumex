@@ -35,10 +35,22 @@ void Camera::setViewMatrix(const glm::mat4& matrix)
   viewMatrixInverse = glm::inverse(matrix);
 }
 
-void Camera::setProjectionMatrix(const glm::mat4& matrix)
+void Camera::setProjectionMatrix(const glm::mat4& matrix, bool usePerspectiveCorrection )
 {
-  projectionMatrix = vulkanPerspectiveCorrectionMatrix * matrix;
+  if(usePerspectiveCorrection)
+    projectionMatrix = vulkanPerspectiveCorrectionMatrix * matrix;
+  else
+    projectionMatrix = matrix;
 }
+
+glm::mat4 Camera::getProjectionMatrix(bool usePerspectiveCorrection) const 
+{ 
+  if(usePerspectiveCorrection)
+    return projectionMatrix * vulkanPerspectiveCorrectionMatrix;
+  else
+    return projectionMatrix;
+}
+
 
 void Camera::setObserverPosition(const glm::vec4& pos)
 {

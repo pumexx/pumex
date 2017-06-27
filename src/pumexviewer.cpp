@@ -92,16 +92,18 @@ struct ViewerApplicationData
   }
   void setup()
   {
-    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
-    std::vector<pumex::VertexSemantic> boxSemantic = requiredSemantic;//{ { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 } };
+    // alocate 1 MB for uniform and storage buffers
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
-    // alocate 0.5 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 512 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::vector<pumex::VertexSemantic> requiredSemantic           = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
+    std::vector<pumex::VertexSemantic> boxSemantic                = requiredSemantic;//{ { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 } };
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, requiredSemantic } };
+    std::vector<pumex::AssetBufferVertexSemantics> boxSemantics   = { { 1, boxSemantic } };
 
-    assetBuffer = std::make_shared<pumex::AssetBuffer>();
-    assetBuffer->registerVertexSemantic(1, requiredSemantic);
-    boxAssetBuffer = std::make_shared<pumex::AssetBuffer>();
-    boxAssetBuffer->registerVertexSemantic(1, boxSemantic);
+    assetBuffer    = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+    boxAssetBuffer = std::make_shared<pumex::AssetBuffer>(boxSemantics, buffersAllocator, verticesAllocator);
     pumex::AssetLoaderAssimp loader;
     std::shared_ptr<pumex::Asset> asset(loader.load(modelName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelName);
@@ -184,7 +186,7 @@ struct ViewerApplicationData
     };
     boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    cameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator);
+    cameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
 
     // is this the fastest way to calculate all global transformations for a model ?
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
@@ -217,12 +219,12 @@ struct ViewerApplicationData
 
     myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
-    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    cameraUbo->validate(surface.get());
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
     // loading models
-    assetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
-    boxAssetBuffer->validate(devicePtr, true, commandPoolPtr, surface->presentationQueue);
+    assetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    boxAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     descriptorSetLayout->validate(devicePtr);
     descriptorPool->validate(devicePtr);
     pipelineLayout->validate(devicePtr);
@@ -341,7 +343,7 @@ struct ViewerApplicationData
   {
   }
 
-  void prepareCameraForRendering()
+  void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
     uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
@@ -369,11 +371,16 @@ struct ViewerApplicationData
 
     glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
 
-    pumex::Camera camera = cameraUbo->get();
+    pumex::Camera camera;
     camera.setViewMatrix(viewMatrix);
     camera.setObserverPosition(realEye);
     camera.setTimeSinceStart(renderTime);
-    cameraUbo->set(camera);
+
+    uint32_t renderWidth  = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+
+    cameraUbo->set(surface.get(), camera);
   }
 
   void prepareModelForRendering()
@@ -439,11 +446,7 @@ struct ViewerApplicationData
     uint32_t            renderWidth    = surface->swapChainSize.width;
     uint32_t            renderHeight   = surface->swapChainSize.height;
 
-    pumex::Camera camera = cameraUbo->get();
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    cameraUbo->set(camera);
-
-    cameraUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    cameraUbo->validate(surface.get());
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
     auto currentCmdBuffer = myCmdBuffer[devicePtr];
@@ -485,7 +488,8 @@ struct ViewerApplicationData
   std::array<RenderData, 3>                            renderData;
 
   std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
   std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
 
   std::shared_ptr<pumex::AssetBuffer>         assetBuffer;
@@ -501,7 +505,6 @@ struct ViewerApplicationData
   std::shared_ptr<pumex::DescriptorSet>       boxDescriptorSet;
 
   std::unordered_map<pumex::Device*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
-
 };
 
 int main( int argc, char * argv[] )
@@ -591,8 +594,8 @@ int main( int argc, char * argv[] )
     // Consider make_edge() in render graph :
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(); applicationData->prepareModelForRendering(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->beginFrame(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareModelForRendering(); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });

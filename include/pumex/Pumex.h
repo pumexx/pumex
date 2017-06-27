@@ -38,6 +38,7 @@
 #include <pumex/Command.h>
 #include <pumex/Query.h>
 #include <pumex/UniformBuffer.h>
+#include <pumex/UniformBufferPerSurface.h>
 #include <pumex/StorageBuffer.h>
 
 #include <pumex/Asset.h>

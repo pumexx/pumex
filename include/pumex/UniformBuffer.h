@@ -33,7 +33,7 @@
 #include <pumex/utils/Log.h>
 
 
-// Simple uniform buffer for handling one C++ struct
+// Simple uniform buffer that stores THE SAME C++ struct on EACH of the Vulkan devices
 
 namespace pumex
 {
@@ -42,7 +42,7 @@ template <typename T>
 class UniformBuffer : public DescriptorSetSource
 {
 public:
-  explicit UniformBuffer()                       = delete;
+  UniformBuffer()                                = delete;
   explicit UniformBuffer(std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   explicit UniformBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   UniformBuffer(const UniformBuffer&)            = delete;

@@ -66,7 +66,7 @@ struct PUMEX_EXPORT SymbolData
 class PUMEX_EXPORT Font
 {
 public:
-  explicit Font()              = delete;
+  Font()                       = delete;
   explicit Font(const std::string& fileName, glm::uvec2 textureSize, uint32_t fontPixelHeight, std::weak_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator);
   Font(const Font&)            = delete;
   Font& operator=(const Font&) = delete;
@@ -96,9 +96,9 @@ protected:
 class PUMEX_EXPORT Text
 {
 public:
-  explicit Text() = delete;
+  Text()                       = delete;
   explicit Text(std::weak_ptr<Font> f, std::weak_ptr<DeviceMemoryAllocator> ba);
-  Text(const Text&) = delete;
+  Text(const Text&)            = delete;
   Text& operator=(const Text&) = delete;
   virtual ~Text();
 

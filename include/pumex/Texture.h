@@ -132,7 +132,7 @@ protected:
 class PUMEX_EXPORT Texture : public DescriptorSetSource
 {
 public:
-  explicit Texture()                 = delete;
+  Texture()                          = delete;
   explicit Texture(const gli::texture& texture, const TextureTraits& traits, std::weak_ptr<DeviceMemoryAllocator> allocator);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;

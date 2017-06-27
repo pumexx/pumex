@@ -33,7 +33,7 @@
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
-// Simple storage buffer for handling a vector of C++ structs
+// Simple storage buffer for storing a vector of C++ structs on EACH of the Vulkan devices
 
 namespace pumex
 {
