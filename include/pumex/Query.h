@@ -24,6 +24,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 
@@ -59,6 +60,7 @@ protected:
   {
     VkQueryPool queryPool = VK_NULL_HANDLE;
   };
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 

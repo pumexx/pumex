@@ -177,12 +177,14 @@ Texture::~Texture()
 
 void Texture::setDirty()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     pdd.second.dirty = true;
 }
 
 Image* Texture::getHandleImage(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return nullptr;
@@ -191,6 +193,7 @@ Image* Texture::getHandleImage(VkDevice device) const
 
 VkSampler Texture::getHandleSampler(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
@@ -199,6 +202,7 @@ VkSampler Texture::getHandleSampler(VkDevice device) const
 
 void Texture::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
@@ -317,6 +321,7 @@ void Texture::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 
 void Texture::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Texture::getDescriptorSetValue : texture was not validated");
 

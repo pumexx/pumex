@@ -71,6 +71,8 @@ public:
   std::shared_ptr<StagingBuffer> acquireStagingBuffer( void* data, VkDeviceSize size );
   void releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
 
+  inline void setID(uint32_t newID);
+  inline uint32_t getID() const;
 
   // debug markers extension stuff - not tested yet
   void setObjectName(uint64_t object, VkDebugReportObjectTypeEXT objectType, const std::string& name);
@@ -113,7 +115,8 @@ protected:
     bool        available   = true;
   };
 
-  std::vector<Queue> queues;
+  std::vector<Queue>                queues;
+  uint32_t                          id                          = 0;
 
   PFN_vkDebugMarkerSetObjectTagEXT  pfnDebugMarkerSetObjectTag  = VK_NULL_HANDLE;
   PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName = VK_NULL_HANDLE;
@@ -125,6 +128,8 @@ protected:
   std::mutex                                  stagingMutex;
 };
 
-bool Device::isValid() { return device != VK_NULL_HANDLE; }
+bool     Device::isValid()             { return device != VK_NULL_HANDLE; }
+void     Device::setID(uint32_t newID) { id = newID; }
+uint32_t Device::getID() const         { return id; }
 
 }

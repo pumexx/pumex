@@ -441,36 +441,42 @@ struct ViewerApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::Surface*     surfacePtr = surface.get();
+    pumex::Device*      devicePtr = surface->device.lock().get();
     pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-    uint32_t            renderWidth    = surface->swapChainSize.width;
-    uint32_t            renderHeight   = surface->swapChainSize.height;
+    unsigned long long  frameNumber = surface->viewer.lock()->getFrameNumber();
+    uint32_t            activeIndex = frameNumber % 3;
+    uint32_t            renderWidth = surface->swapChainSize.width;
+    uint32_t            renderHeight = surface->swapChainSize.height;
 
-    cameraUbo->validate(surface.get());
+    cameraUbo->validate(surfacePtr);
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
     auto currentCmdBuffer = myCmdBuffer[devicePtr];
-    currentCmdBuffer->setActiveIndex(surface->getImageIndex());
-    currentCmdBuffer->cmdBegin();
+    currentCmdBuffer->setActiveIndex(activeIndex);
+    if (currentCmdBuffer->isDirty(activeIndex))
+    {
+      currentCmdBuffer->cmdBegin();
 
-    std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    currentCmdBuffer->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
+      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
-    currentCmdBuffer->cmdBindPipeline(pipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, descriptorSet);
-    assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
-    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
+      currentCmdBuffer->cmdBindPipeline(pipeline);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, descriptorSet);
+      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
 
-    currentCmdBuffer->cmdBindPipeline(boxPipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, boxDescriptorSet);
-    boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-    boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
+      currentCmdBuffer->cmdBindPipeline(boxPipeline);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, boxDescriptorSet);
+      boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
 
-    currentCmdBuffer->cmdEndRenderPass();
-    currentCmdBuffer->cmdEnd();
+      currentCmdBuffer->cmdEndRenderPass();
+      currentCmdBuffer->cmdEnd();
+    }
     currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
   }
 

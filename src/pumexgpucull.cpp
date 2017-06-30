@@ -1345,42 +1345,43 @@ struct GpuCullApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Surface*     surfacePtr     = surface.get();
-    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::Surface*     surfacePtr = surface.get();
+    pumex::Device*      devicePtr = surface->device.lock().get();
     pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-    uint32_t            renderIndex    = surface->viewer.lock()->getRenderIndex();
-    const RenderData&   rData          = renderData[renderIndex];
+    uint32_t            renderIndex = surface->viewer.lock()->getRenderIndex();
+    const RenderData&   rData = renderData[renderIndex];
+    unsigned long long  frameNumber = surface->viewer.lock()->getFrameNumber();
+    uint32_t            activeIndex = frameNumber % 3;
+    uint32_t            renderWidth = surface->swapChainSize.width;
+    uint32_t            renderHeight = surface->swapChainSize.height;
 
-    uint32_t renderWidth = surface->swapChainSize.width;
-    uint32_t renderHeight = surface->swapChainSize.height;
-
-    cameraUbo->validate(surface.get());
+    cameraUbo->validate(surfacePtr);
 
     if (_showStaticRendering)
     {
-      staticInstanceSbo->setActiveIndex(surface->getImageIndex());
+      staticInstanceSbo->setActiveIndex(activeIndex);
       staticInstanceSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
       staticResultsSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      staticOffValuesSbo->setActiveIndex(surface->getImageIndex());
+      staticOffValuesSbo->setActiveIndex(activeIndex);
       staticOffValuesSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-      staticRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
+      staticRenderDescriptorSet->setActiveIndex(activeIndex);
       staticRenderDescriptorSet->validate(surfacePtr);
-      staticFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
+      staticFilterDescriptorSet->setActiveIndex(activeIndex);
       staticFilterDescriptorSet->validate(surfacePtr);
     }
 
     if (_showDynamicRendering)
     {
-      dynamicInstanceSbo->setActiveIndex(surface->getImageIndex());
+      dynamicInstanceSbo->setActiveIndex(activeIndex);
       dynamicInstanceSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
       dynamicResultsSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      dynamicOffValuesSbo->setActiveIndex(surface->getImageIndex());
+      dynamicOffValuesSbo->setActiveIndex(activeIndex);
       dynamicOffValuesSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-      dynamicRenderDescriptorSet->setActiveIndex(surface->getImageIndex());
+      dynamicRenderDescriptorSet->setActiveIndex(activeIndex);
       dynamicRenderDescriptorSet->validate(surfacePtr);
-      dynamicFilterDescriptorSet->setActiveIndex(surface->getImageIndex());
+      dynamicFilterDescriptorSet->setActiveIndex(activeIndex);
       dynamicFilterDescriptorSet->validate(surfacePtr);
     }
 #if defined(GPU_CULL_MEASURE_TIME)
@@ -1388,7 +1389,7 @@ struct GpuCullApplicationData
 #endif
 
     auto currentCmdBuffer = myCmdBuffer[devicePtr];
-    currentCmdBuffer->setActiveIndex(surface->getImageIndex());
+    currentCmdBuffer->setActiveIndex(activeIndex);
     currentCmdBuffer->cmdBegin();
 
     timeStampQueryPool->reset(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4, 4);
@@ -1469,7 +1470,7 @@ struct GpuCullApplicationData
 #endif
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    currentCmdBuffer->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+    currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
     currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
     currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 

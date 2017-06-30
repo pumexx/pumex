@@ -22,7 +22,9 @@
 
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
+#include <pumex/FrameBuffer.h>
 #include <pumex/Device.h>
+#include <pumex/Surface.h>
 #include <pumex/Pipeline.h>
 #include <pumex/Texture.h>
 #include <pumex/utils/Log.h>
@@ -44,6 +46,7 @@ CommandPool::~CommandPool()
 
 void CommandPool::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
     return;
@@ -58,13 +61,14 @@ void CommandPool::validate(Device* device)
 
 VkCommandPool CommandPool::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.commandPool;
 }
 CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp, uint32_t cbc)
-  : bufferLevel{ bf }, commandPool{ cp }, device{d->device}
+  : bufferLevel{ bf }, commandPool{ cp }, device{ d->device }
 {
   commandBuffer.resize(cbc);
   VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
@@ -73,11 +77,36 @@ CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp
     cmdBufAllocateInfo.level              = bufferLevel;
     cmdBufAllocateInfo.commandBufferCount = cbc;
   VK_CHECK_LOG_THROW(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffer.data()), "failed vkAllocateCommandBuffers");
+  dirty.resize(cbc, true);
 }
 
 CommandBuffer::~CommandBuffer()
 {
+  clearSources();
   vkFreeCommandBuffers(device, commandPool->getHandle(device), commandBuffer.size(), commandBuffer.data());
+}
+
+void CommandBuffer::setDirty(uint32_t index) 
+{ 
+  if (index == UINT32_MAX) 
+    std::fill(dirty.begin(), dirty.end(), true);
+  else 
+    dirty[index] = true; 
+}
+
+void CommandBuffer::addSource(CommandBufferSource* source)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  sources.insert(source);
+  source->addCommandBuffer(this);
+}
+
+void CommandBuffer::clearSources()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& s : sources)
+    s->removeCommandBuffer(this);
+  sources.clear();
 }
 
 
@@ -86,28 +115,32 @@ VkCommandBuffer CommandBuffer::getHandle() const
   return commandBuffer[activeIndex];
 }
 
-void CommandBuffer::cmdBegin(VkCommandBufferUsageFlags usageFlags) const
+void CommandBuffer::cmdBegin(VkCommandBufferUsageFlags usageFlags)
 {
+  clearSources();
   VkCommandBufferBeginInfo cmdBufInfo{};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmdBufInfo.flags = usageFlags;
   VK_CHECK_LOG_THROW(vkBeginCommandBuffer(commandBuffer[activeIndex], &cmdBufInfo), "failed vkBeginCommandBuffer");
 }
 
-void CommandBuffer::cmdEnd() const
+void CommandBuffer::cmdEnd()
 {
   VK_CHECK_LOG_THROW(vkEndCommandBuffer(commandBuffer[activeIndex]), "failed vkEndCommandBuffer");
+  dirty[activeIndex] = false;
 }
 
-void CommandBuffer::cmdBeginRenderPass(std::shared_ptr<RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const
+void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues)
 {
+  addSource(renderPass);
+  addSource(frameBuffer);
   VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.renderPass      = renderPass->getHandle(device);
     renderPassBeginInfo.renderArea      = renderArea;
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
-    renderPassBeginInfo.framebuffer     = frameBuffer;
+    renderPassBeginInfo.framebuffer     = frameBuffer->getFrameBuffer(surface,imageIndex);
   vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
@@ -183,27 +216,33 @@ void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const 
   vkCmdCopyBuffer(commandBuffer[activeIndex], srcBuffer, dstBuffer, 1, &bufferCopy);
 }
 
-void CommandBuffer::cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline) const
+void CommandBuffer::cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline)
 {
+  addSource(pipeline.get());
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline) const
+void CommandBuffer::cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline)
 {
+  addSource(pipeline.get());
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets) const
+void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets)
 {
   std::vector<VkDescriptorSet> descSets;
-  for (const auto& d : descriptorSets)
+  for (auto& d : descriptorSets)
+  {
+    addSource(d.get());
     descSets.push_back(d->getHandle(surface));
+  }
   // TODO : dynamic offset counts
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, descSets.size(), descSets.data(), 0, nullptr);
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet) const
+void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet)
 {
+  addSource(descriptorSet.get());
   VkDescriptorSet descSet = descriptorSet->getHandle(surface);
   // TODO : dynamic offset counts
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, 1, &descSet, 0, nullptr);
@@ -402,5 +441,29 @@ PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstA
   imageBarrier.image               = image;
   imageBarrier.subresourceRange    = subresourceRange;
 }
+
+CommandBufferSource::~CommandBufferSource()
+{
+}
+
+void CommandBufferSource::addCommandBuffer(CommandBuffer* commandBuffer)
+{
+  std::lock_guard<std::mutex> lock(commandMutex);
+  commandBuffers.insert(commandBuffer);
+}
+
+void CommandBufferSource::removeCommandBuffer(CommandBuffer* commandBuffer)
+{
+  std::lock_guard<std::mutex> lock(commandMutex);
+  commandBuffers.erase(commandBuffer);
+}
+
+void CommandBufferSource::notifyCommandBuffers(uint32_t index)
+{
+  std::lock_guard<std::mutex> lock(commandMutex);
+  for (auto cb : commandBuffers)
+    cb->setDirty(index);
+}
+
 
 }

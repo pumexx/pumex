@@ -120,6 +120,7 @@ RenderPass::~RenderPass()
 
 void RenderPass::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
@@ -154,6 +155,7 @@ void RenderPass::validate(Device* device)
 
 VkRenderPass RenderPass::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;

@@ -23,6 +23,7 @@
 #pragma once
 #include <unordered_map>
 #include <memory>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <gli/texture.hpp>
@@ -161,6 +162,7 @@ private:
     std::shared_ptr<Image> image;
     VkSampler              sampler      = VK_NULL_HANDLE;
   };
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 

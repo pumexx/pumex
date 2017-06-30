@@ -205,6 +205,7 @@ void Viewer::run()
         std::lock_guard<std::mutex> lck(updateMutex);
         renderIndex      = getNextRenderSlot();
         renderStartTime  = HPClock::now();
+        frameNumber++;
         updateConditionVariable.notify_one();
       }
       //switch (renderIndex)
@@ -320,6 +321,7 @@ std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, cons
   CHECK_LOG_THROW(requestedQueues.empty(), "Could not create device with no queues");
 
   std::shared_ptr<Device> device = std::make_shared<Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedQueues, requestedExtensions);
+  device->setID(nextDeviceID++);
   devices.push_back(device);
   return device;
 }
@@ -327,6 +329,7 @@ std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, cons
 std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const pumex::SurfaceTraits& surfaceTraits)
 {
   std::shared_ptr<Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
+  surface->setID(nextSurfaceID++);
   surfaces.push_back(surface);
   return surface;
 }

@@ -81,10 +81,10 @@ public:
 protected:
   size_t getGlyphIndex(wchar_t charCode);
 
-  std::mutex        mutex;
-  static FT_Library fontLibrary;
-  static uint32_t   fontCount;
-  FT_Face           fontFace = nullptr;
+  mutable std::mutex mutex;
+  static FT_Library  fontLibrary;
+  static uint32_t    fontCount;
+  FT_Face            fontFace = nullptr;
 
   gli::texture2d                      fontTexture2d;
   std::unordered_map<wchar_t, size_t> registeredGlyphs;
@@ -104,7 +104,7 @@ public:
 
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
-  void validate(Device* device, CommandPool* commandPool, VkQueue queue, uint32_t activeIndex);
+  void validate(Device* device, CommandPool* commandPool, VkQueue queue);
   void cmdDraw(Device* device, std::shared_ptr<CommandBuffer> commandBuffer ) const;
 
   void setText(uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
@@ -114,9 +114,10 @@ public:
   std::shared_ptr<GenericBuffer<std::vector<SymbolData>>> vertexBuffer;
   std::vector<VertexSemantic>                             textVertexSemantic;
 protected:
-  bool                                                    dirty;
-  std::weak_ptr<Font>                                     font;
-  std::shared_ptr<std::vector<SymbolData>>                symbolData;
+  mutable std::mutex                       mutex;
+  bool                                     dirty;
+  std::weak_ptr<Font>                      font;
+  std::shared_ptr<std::vector<SymbolData>> symbolData;
 
   std::unordered_map<uint32_t, std::tuple<glm::vec2, glm::vec4, std::wstring>> texts;
 };

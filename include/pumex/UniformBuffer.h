@@ -23,6 +23,7 @@
 #pragma once
 #include <memory>
 #include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
@@ -72,6 +73,8 @@ private:
     std::vector<VkBuffer>           uboBuffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
+
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   T                                           uboData;
   std::weak_ptr<DeviceMemoryAllocator>        allocator;
@@ -96,6 +99,7 @@ UniformBuffer<T>::UniformBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocat
 template <typename T>
 UniformBuffer<T>::~UniformBuffer()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perDeviceData)
   {
@@ -124,6 +128,7 @@ T UniformBuffer<T>::get() const
 template <typename T>
 void UniformBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "UniformBuffer<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
@@ -133,6 +138,7 @@ void UniformBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, s
 template <typename T>
 void UniformBuffer<T>::setDirty()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     for (uint32_t i = 0; i<activeCount; ++i)
       pdd.second.dirty[i] = true;
@@ -141,16 +147,17 @@ void UniformBuffer<T>::setDirty()
 template <typename T>
 void UniformBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
   if (!pddit->second.dirty[activeIndex])
     return;
 
-  bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
+  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (pddit->second.uboBuffer[activeIndex] == VK_NULL_HANDLE)
   {
-    std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
     VkBufferCreateInfo bufferCreateInfo{};
       bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
       bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
@@ -160,7 +167,7 @@ void UniformBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     vkGetBufferMemoryRequirements(device->device, pddit->second.uboBuffer[activeIndex], &memReqs);
     pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
-    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset), "Cannot bind memory to buffer");
+    alloc->bindBufferMemory(device, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
     notifyDescriptorSets();
   }
@@ -176,10 +183,7 @@ void UniformBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
   }
   else
   {
-    uint8_t *pData;
-    VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, sizeof(T), 0, (void **)&pData), "Cannot map memory");
-    memcpy(pData, &uboData, sizeof(T));
-    vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
+    alloc->copyToDeviceMemory(device, pddit->second.memoryBlock[activeIndex].alignedOffset, &uboData, sizeof(T), 0);
   }
   pddit->second.dirty[activeIndex] = false;
 }

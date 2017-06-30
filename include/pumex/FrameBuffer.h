@@ -23,11 +23,13 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
 #include <pumex/RenderPass.h>
 #include <pumex/Pipeline.h>
+#include <pumex/Command.h>
 #include <pumex/DeviceMemoryAllocator.h>
 
 namespace pumex
@@ -39,13 +41,15 @@ class Image;
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
   enum Type { SwapChain, Depth, Color };
-  FrameBufferImageDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  FrameBufferImageDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, bool imageSizeSurfaceDependentconst = true, const glm::vec2& imageSize = glm::vec2(1.0f,1.0f), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
   Type                  type;
   VkFormat              format;
   VkImageUsageFlags     usage;
   VkImageAspectFlags    aspectMask;
   VkSampleCountFlagBits samples;
-  gli::swizzles         swizzles;  
+  bool                  imageSizeSurfaceDependent;
+  glm::vec2             imageSize;
+  gli::swizzles         swizzles;
 };
 
 class PUMEX_EXPORT FrameBufferImages
@@ -76,14 +80,16 @@ protected:
     std::vector<std::shared_ptr<Image>>  frameBufferImages;
     bool                                 dirty = true;
   };
+
+  mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  std::weak_ptr<DeviceMemoryAllocator> allocator;
+  std::weak_ptr<DeviceMemoryAllocator>             allocator;
 };
 
 // FIXME : as for now the extent of a frame buffer is the same as the extent of a surface.
 // These two extents should be independent
 
-class PUMEX_EXPORT FrameBuffer
+class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
   FrameBuffer()                              = delete;
@@ -110,6 +116,7 @@ protected:
     std::vector<VkFramebuffer>          frameBuffers;
     bool                                dirty = true;
   };
+  mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 
@@ -133,6 +140,7 @@ protected:
     std::weak_ptr<Surface> surface;
     bool                   dirty = true;
   };
+  mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 

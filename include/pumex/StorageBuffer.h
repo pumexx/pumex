@@ -24,6 +24,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
@@ -42,6 +43,7 @@ template <typename T>
 class StorageBuffer : public DescriptorSetSource
 {
 public:
+  StorageBuffer()                                = delete;
   explicit StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0 );
   explicit StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   StorageBuffer(const StorageBuffer&)            = delete;
@@ -71,6 +73,8 @@ private:
     std::vector<VkBuffer>           storageBuffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
+
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   std::vector<T>                              storageData;
   std::weak_ptr<DeviceMemoryAllocator>        allocator;
@@ -95,6 +99,7 @@ StorageBuffer<T>::StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocat
 template <typename T>
 StorageBuffer<T>::~StorageBuffer()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perDeviceData)
   {
@@ -129,6 +134,7 @@ const std::vector<T>& StorageBuffer<T>::get() const
 template <typename T>
 void StorageBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "StorageBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
@@ -138,6 +144,7 @@ void StorageBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, s
 template <typename T>
 void StorageBuffer<T>::setDirty()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     for(uint32_t i=0; i<activeCount; ++i)
       pdd.second.dirty[i] = true;
@@ -146,6 +153,7 @@ void StorageBuffer<T>::setDirty()
 template <typename T>
 void StorageBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
@@ -160,7 +168,7 @@ void StorageBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
   }
 
-  bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (pddit->second.storageBuffer[activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
@@ -172,13 +180,13 @@ void StorageBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     vkGetBufferMemoryRequirements(device->device, pddit->second.storageBuffer[activeIndex], &memReqs);
     pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
-    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset), "Cannot bind memory to buffer");
+    alloc->bindBufferMemory(device, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
     notifyDescriptorSets();
   }
   if (storageData.size() > 0)
   {
-    bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     if (memoryIsLocal)
     {
       std::shared_ptr<StagingBuffer> stagingBuffer = device->acquireStagingBuffer(storageData.data(), sizeof(T)*storageData.size());
@@ -191,10 +199,7 @@ void StorageBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     }
     else
     {
-      uint8_t *pData;
-      VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, sizeof(T)*storageData.size(), 0, (void **)&pData), "Cannot map memory");
-      memcpy(pData, storageData.data(), sizeof(T)*storageData.size());
-      vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
+      alloc->copyToDeviceMemory(device, pddit->second.memoryBlock[activeIndex].alignedOffset, storageData.data(), sizeof(T)*storageData.size(), 0);
     }
   }
   pddit->second.dirty[activeIndex] = false;

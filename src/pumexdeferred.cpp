@@ -568,55 +568,57 @@ struct DeferredApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    pumex::Surface*     surfacePtr     = surface.get();
-    pumex::Device*      devicePtr      = surface->device.lock().get();
+    pumex::Surface*     surfacePtr = surface.get();
+    pumex::Device*      devicePtr = surface->device.lock().get();
     pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-    uint32_t            renderIndex    = surface->viewer.lock()->getRenderIndex();
-    const RenderData&   rData          = renderData[renderIndex];
-
-    uint32_t renderWidth = surface->swapChainSize.width;
-    uint32_t renderHeight = surface->swapChainSize.height;
+    unsigned long long  frameNumber = surface->viewer.lock()->getFrameNumber();
+    uint32_t            activeIndex = frameNumber % 3;
+    uint32_t            renderWidth = surface->swapChainSize.width;
+    uint32_t            renderHeight = surface->swapChainSize.height;
 
     cameraUbo->validate(surface.get());
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     // preparing descriptor sets
-    gbufferDescriptorSet->setActiveIndex(surface->getImageIndex());
+    gbufferDescriptorSet->setActiveIndex(activeIndex);
     gbufferDescriptorSet->validate(surfacePtr);
 
-    compositeDescriptorSet->setActiveIndex(surface->getImageIndex());
+    compositeDescriptorSet->setActiveIndex(activeIndex);
     compositeDescriptorSet->validate(surfacePtr);
 
     auto currentCmdBuffer = myCmdBuffer[devicePtr];
-    currentCmdBuffer->setActiveIndex(surface->getImageIndex());
-    currentCmdBuffer->cmdBegin();
+    currentCmdBuffer->setActiveIndex(activeIndex);
+    if (currentCmdBuffer->isDirty(activeIndex))
+    {
+      currentCmdBuffer->cmdBegin();
 
-    std::vector<VkClearValue> clearValues = 
-    { 
-      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // target image
-      pumex::makeDepthStencilClearValue(1.0f, 0),                    // depth buffer image
-      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), // position in world coordinates
-      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), // normals in world coordiantes
-      pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // albedo and specular
-      pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f))  // lighting pass image
-    };
-    currentCmdBuffer->cmdBeginRenderPass(defaultRenderPass, surface->getCurrentFrameBuffer(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+      std::vector<VkClearValue> clearValues =
+      {
+        pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // target image
+        pumex::makeDepthStencilClearValue(1.0f, 0),                    // depth buffer image
+        pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), // position in world coordinates
+        pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), // normals in world coordiantes
+        pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // albedo and specular
+        pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f))  // lighting pass image
+      };
+      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
-    currentCmdBuffer->cmdBindPipeline(gbufferPipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, gbufferPipelineLayout, 0, gbufferDescriptorSet);
-    assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 5000.0f);
+      currentCmdBuffer->cmdBindPipeline(gbufferPipeline);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, gbufferPipelineLayout, 0, gbufferDescriptorSet);
+      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 5000.0f);
 
-    currentCmdBuffer->cmdNextSubPass(VK_SUBPASS_CONTENTS_INLINE);
+      currentCmdBuffer->cmdNextSubPass(VK_SUBPASS_CONTENTS_INLINE);
 
-    currentCmdBuffer->cmdBindPipeline(compositePipeline);
-    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, compositePipelineLayout, 0, compositeDescriptorSet);
-    assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, squareTypeID, 0, 5000.0f);
+      currentCmdBuffer->cmdBindPipeline(compositePipeline);
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, compositePipelineLayout, 0, compositeDescriptorSet);
+      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, squareTypeID, 0, 5000.0f);
 
-    currentCmdBuffer->cmdEndRenderPass();
-    currentCmdBuffer->cmdEnd();
+      currentCmdBuffer->cmdEndRenderPass();
+      currentCmdBuffer->cmdEnd();
+    }
     currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
   }
 

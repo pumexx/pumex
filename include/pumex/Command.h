@@ -21,9 +21,11 @@
 //
 
 #pragma once
-#include <vector>
-#include <unordered_map>
 #include <memory>
+#include <vector>
+#include <set>
+#include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <pumex/Export.h>
@@ -32,7 +34,9 @@ namespace pumex
 {
 
 class Device;
+class Surface;
 class RenderPass;
+class FrameBuffer;
 class ComputePipeline;
 class GraphicsPipeline;
 class PipelineLayout;
@@ -57,16 +61,19 @@ protected:
   {
     VkCommandPool commandPool = VK_NULL_HANDLE;
   };
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 struct PipelineBarrier;
 
+class CommandBufferSource;
+
 // class representing Vulkan command buffer. Most of the vkCmd* commands will be defined here. 
 // For now only commands used in examples are defined.
 // Remark : commandPool is delivered by raw pointer, it is in user's responsibility to  ensure, 
 // that command pool exists as long as the command buffer. Most of the command buffers from examples
-// uses Surface::commandPool, so this condition is fullfilled
+// uses Surface::commandPool, so this condition is fullfilled.
 class PUMEX_EXPORT CommandBuffer
 {
 public:
@@ -78,12 +85,18 @@ public:
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
+  void setDirty(uint32_t index);
+  inline bool isDirty(uint32_t index);
+
+  void addSource(CommandBufferSource* source);
+  void clearSources();
+
   VkCommandBuffer getHandle() const;
 
-  void cmdBegin(VkCommandBufferUsageFlags usageFlags = 0) const;
-  void cmdEnd() const;
+  void cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
+  void cmdEnd();
 
-  void cmdBeginRenderPass(std::shared_ptr<RenderPass> renderPass, VkFramebuffer frameBuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues) const;
+  void cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues);
   void cmdNextSubPass(VkSubpassContents contents) const;
   void cmdEndRenderPass() const;
 
@@ -94,10 +107,10 @@ public:
   void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
   void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
   void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
-  void cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline) const;
-  void cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline) const;
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets) const;
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet) const;
+  void cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline);
+  void cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline);
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets);
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet);
 
   void cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
@@ -116,14 +129,18 @@ public:
 
   VkCommandBufferLevel         bufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   CommandPool*                 commandPool;
+  VkDevice                     device = VK_NULL_HANDLE;
 protected:
-  VkDevice                     device        = VK_NULL_HANDLE;
-  std::vector<VkCommandBuffer> commandBuffer;
-  uint32_t                     activeIndex   = 0;
+  std::vector<VkCommandBuffer>   commandBuffer;
+  std::vector<bool>              dirty;
+  mutable std::mutex             mutex;
+  std::set<CommandBufferSource*> sources;
+  uint32_t                       activeIndex   = 0;
 };
 
 void     CommandBuffer::setActiveIndex(uint32_t index) { activeIndex = index % commandBuffer.size(); }
 uint32_t CommandBuffer::getActiveIndex() const         { return activeIndex; }
+bool     CommandBuffer::isDirty(uint32_t index)        { return dirty[index]; }
 
 // helper class defining pipeline barrier used later in CommandBuffer::cmdPipelineBarrier()
 struct PUMEX_EXPORT PipelineBarrier
@@ -145,6 +162,23 @@ struct PUMEX_EXPORT PipelineBarrier
     VkBufferMemoryBarrier bufferBarrier;
     VkImageMemoryBarrier  imageBarrier;
   };
+};
+
+// Some classes used by CommandBuffer may change their internal values so that the CommandBuffer must be rebuilt
+// Such classes should inherit from CommandBufferSource
+
+class PUMEX_EXPORT CommandBufferSource
+{
+public:
+  virtual ~CommandBufferSource();
+
+  void addCommandBuffer(CommandBuffer* commandBuffer);
+  void removeCommandBuffer(CommandBuffer* commandBuffer);
+  void notifyCommandBuffers(uint32_t index = UINT32_MAX);
+
+protected:
+  mutable std::mutex       commandMutex;
+  std::set<CommandBuffer*> commandBuffers;
 };
 
 inline VkRect2D makeVkRect2D(uint32_t x, uint32_t y, uint32_t width, uint32_t height)

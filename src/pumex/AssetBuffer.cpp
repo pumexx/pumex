@@ -125,6 +125,7 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
 
 void AssetBuffer::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (dirty)
   {
     // divide geometries according to renderMasks
@@ -218,6 +219,7 @@ void AssetBuffer::validate(Device* device, CommandPool* commandPool, VkQueue que
 
 void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
   if (prmit == perRenderMaskData.end())
   {
@@ -233,6 +235,7 @@ void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<Comma
 
 void AssetBuffer::cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
   if (prmit == perRenderMaskData.end())
   {
@@ -264,22 +267,24 @@ void AssetBuffer::cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> c
 
 std::shared_ptr<StorageBuffer<AssetTypeDefinition>> AssetBuffer::getTypeBuffer(uint32_t renderMask)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBuffer::getTypeBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.typeBuffer;
 }
 std::shared_ptr<StorageBuffer<AssetLodDefinition>> AssetBuffer::getLodBuffer(uint32_t renderMask)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBuffer::getLodBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.lodBuffer;
 }
 std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> AssetBuffer::getGeomBuffer(uint32_t renderMask)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBuffer::getGeomBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.geomBuffer;
-
 }
 
 void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const

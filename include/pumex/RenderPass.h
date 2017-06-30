@@ -24,8 +24,10 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
+#include <pumex/Command.h>
 
 namespace pumex
 {
@@ -92,7 +94,7 @@ struct PUMEX_EXPORT SubpassDependencyDefinition
 };
 
 // class representing Vulkan render pass along with its attachments, subpasses and dependencies
-class PUMEX_EXPORT RenderPass
+class PUMEX_EXPORT RenderPass : public CommandBufferSource
 {
 public:
   RenderPass()                             = delete;
@@ -114,6 +116,7 @@ protected:
     bool         dirty      = true;
   };
 
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 	

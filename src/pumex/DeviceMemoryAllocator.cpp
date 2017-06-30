@@ -64,6 +64,7 @@ DeviceMemoryAllocator::~DeviceMemoryAllocator()
 
 DeviceMemoryBlock DeviceMemoryAllocator::allocate(Device* device, VkMemoryRequirements memoryRequirements)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
@@ -81,9 +82,29 @@ DeviceMemoryBlock DeviceMemoryAllocator::allocate(Device* device, VkMemoryRequir
 
 void DeviceMemoryAllocator::deallocate(VkDevice device, const DeviceMemoryBlock& block)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Cannot deallocate memory - device memory was never allocated");
   allocationStrategy->deallocate(pddit->second.freeBlocks, block);
+}
+
+void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags) 
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perDeviceData.find(device->device);
+  CHECK_LOG_THROW(pddit == perDeviceData.end(), "DeviceMemoryAllocator::copyToDeviceMemory() : cannot copy to memory that not have been allocated yet");
+  uint8_t *pData;
+  VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, offset, size, 0, (void **)&pData), "Cannot map memory");
+  memcpy(pData, data, size);
+  vkUnmapMemory(device->device, pddit->second.storageMemory);
+}
+
+void DeviceMemoryAllocator::bindBufferMemory(Device* device, VkBuffer buffer, VkDeviceSize offset)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perDeviceData.find(device->device);
+  CHECK_LOG_THROW(pddit == perDeviceData.end(), "DeviceMemoryAllocator::bindBufferMemory() : cannot bind memory that not have been allocated yet");
+  VK_CHECK_LOG_THROW(vkBindBufferMemory(device->device, buffer, pddit->second.storageMemory, offset), "Cannot bind memory to buffer");
 }
 
 FirstFitAllocationStrategy::FirstFitAllocationStrategy()

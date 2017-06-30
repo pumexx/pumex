@@ -29,8 +29,8 @@
 namespace pumex
 {
 
-FrameBufferImageDefinition::FrameBufferImageDefinition(Type t, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, const gli::swizzles& sw)
-  : type{ t }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, swizzles{ sw }
+FrameBufferImageDefinition::FrameBufferImageDefinition(Type t, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, bool issd, const glm::vec2& is, const gli::swizzles& sw)
+  : type{ t }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, imageSizeSurfaceDependent{ issd }, imageSize{ is }, swizzles{ sw }
 {
 }
 
@@ -48,6 +48,7 @@ FrameBufferImages::~FrameBufferImages()
 
 void FrameBufferImages::validate(Surface* surface)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device,imageDefinitions.size()) }).first;
@@ -59,16 +60,30 @@ void FrameBufferImages::validate(Surface* surface)
     FrameBufferImageDefinition& definition = imageDefinitions[i];
     if (definition.type == FrameBufferImageDefinition::SwapChain)
       continue;
-    // FIXME : framebuffer size should not be dependent on swap chain size
-    ImageTraits imageTraits(definition.usage, definition.format, { surface->swapChainSize.width, surface->swapChainSize.height, 1 }, false, 1, 1,
+    VkExtent3D imSize;
+    if (definition.imageSizeSurfaceDependent)
+    {
+      imSize.width  = surface->swapChainSize.width  * definition.imageSize.x;
+      imSize.height = surface->swapChainSize.height * definition.imageSize.y;
+      imSize.depth  = 1;
+    }
+    else
+    {
+      imSize.width  = definition.imageSize.x;
+      imSize.height = definition.imageSize.y;
+      imSize.depth  = 1;
+    }
+    ImageTraits imageTraits(definition.usage, definition.format, imSize, false, 1, 1,
       definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
     pddit->second.frameBufferImages[i] = std::make_unique<Image>(surface->device.lock().get(), imageTraits, allocator);
   }
+  pddit->second.dirty = false;
 }
 
 void FrameBufferImages::reset(Surface* surface)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit != perSurfaceData.end())
   {
@@ -80,6 +95,7 @@ void FrameBufferImages::reset(Surface* surface)
 
 Image* FrameBufferImages::getImage(Surface* surface, uint32_t imageIndex)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
     return nullptr;
@@ -113,6 +129,7 @@ FrameBuffer::~FrameBuffer()
 
 void FrameBuffer::reset(Surface* surface)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit != perSurfaceData.end())
   {
@@ -125,6 +142,7 @@ void FrameBuffer::reset(Surface* surface)
 
 void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   std::shared_ptr<RenderPass> rp         = renderPass.lock();
   std::shared_ptr<Device> deviceSh       = surface->device.lock();
   std::shared_ptr<FrameBufferImages> fbi = frameBufferImages.lock();
@@ -136,7 +154,6 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
     return;
 
   // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
-//  frameBufferImages.resize(rp->attachments.size());
   std::vector<VkImageView> imageViews;
   imageViews.resize(rp->attachments.size());
   for (uint32_t i = 0; i < rp->attachments.size(); i++)
@@ -162,7 +179,6 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
   }
 
   // create frame buffer for each swap chain image
-//  frameBuffers.resize(swapChainImages.size());
   for (uint32_t i = 0; i < pddit->second.frameBuffers.size(); i++)
   {
     for (uint32_t j = 0; j < rp->attachments.size(); j++)
@@ -184,10 +200,13 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
       frameBufferCreateInfo.layers          = 1;
     VK_CHECK_LOG_THROW(vkCreateFramebuffer(deviceSh->device, &frameBufferCreateInfo, nullptr, &pddit->second.frameBuffers[i]), "Could not create frame buffer " << i);
   }
+  pddit->second.dirty = false;
+  notifyCommandBuffers();
 }
 
 VkFramebuffer FrameBuffer::getFrameBuffer(Surface* surface, uint32_t fbIndex)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
     return VK_NULL_HANDLE;
@@ -203,6 +222,7 @@ InputAttachment::InputAttachment(std::shared_ptr<FrameBuffer> fb, uint32_t fbi)
 
 void InputAttachment::validate(std::weak_ptr<Surface> surface)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   std::shared_ptr<Surface> s = surface.lock();
   auto pddit = perSurfaceData.find(s->surface);
   if (pddit == perSurfaceData.end())
@@ -214,6 +234,7 @@ void InputAttachment::validate(std::weak_ptr<Surface> surface)
 
 void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface);
   if (pddit == perSurfaceData.end())
     return;

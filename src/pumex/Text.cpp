@@ -168,10 +168,11 @@ Text::~Text()
 {
 }
 
-void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue, uint32_t activeIndex)
+void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
   if (dirty)
   {
+    std::lock_guard<std::mutex> lock(mutex);
     Font* fontPtr = font.lock().get();
     symbolData->resize(0);
 
@@ -186,7 +187,6 @@ void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue, uin
     vertexBuffer->setDirty();
     dirty = false;
   }
-  vertexBuffer->setActiveIndex(activeIndex);
   vertexBuffer->validate(device, commandPool, queue);
 }
 
@@ -202,12 +202,14 @@ void Text::cmdDraw(Device* device, std::shared_ptr<CommandBuffer> commandBuffer 
 
 void Text::setText(uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   texts[index] = std::make_tuple(position, color, text);
   setDirty();
 }
 
 void Text::removeText(uint32_t index)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   texts.erase(index);
   setDirty();
 }

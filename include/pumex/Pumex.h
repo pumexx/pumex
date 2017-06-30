@@ -40,6 +40,7 @@
 #include <pumex/UniformBuffer.h>
 #include <pumex/UniformBufferPerSurface.h>
 #include <pumex/StorageBuffer.h>
+#include <pumex/StorageBufferPerSurface.h>
 
 #include <pumex/Asset.h>
 #include <pumex/Camera.h>

@@ -24,6 +24,7 @@
 #include <memory>
 #include <list>
 #include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 
@@ -76,6 +77,10 @@ public:
   DeviceMemoryBlock allocate(Device* device, VkMemoryRequirements memoryRequirements);
   void deallocate(VkDevice device, const DeviceMemoryBlock& block);
 
+  void copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags);
+  void bindBufferMemory(Device* device, VkBuffer buffer, VkDeviceSize offset);
+
+
   inline VkMemoryPropertyFlags getMemoryPropertyFlags() const;
   inline VkDeviceSize          getMemorySize() const;
 
@@ -86,6 +91,7 @@ protected:
   std::unique_ptr<AllocationStrategy> allocationStrategy;
 
 
+  mutable std::mutex                          mutex;
   struct PerDeviceData
   {
     PerDeviceData()

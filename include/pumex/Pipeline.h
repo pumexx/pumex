@@ -23,9 +23,11 @@
 #pragma once
 #include <set>
 #include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
+#include <pumex/Command.h>
 
 namespace pumex
 {
@@ -88,6 +90,7 @@ protected:
   {
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
   };
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
@@ -125,7 +128,7 @@ protected:
   std::set<DescriptorSet*> descriptorSets;
 };
 
-class PUMEX_EXPORT DescriptorSet
+class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {
 public:
   explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout, std::shared_ptr<DescriptorPool> pool, uint32_t activeCount = 1);
@@ -144,7 +147,6 @@ public:
 
   std::shared_ptr<DescriptorSetLayout>                              layout;
   std::shared_ptr<DescriptorPool>                                   pool;
-  std::unordered_map<uint32_t,std::shared_ptr<DescriptorSetSource>> sources; // descriptor set owns the buffers, images and whatnot
 protected:
   struct PerSurfaceData
   {
@@ -158,9 +160,12 @@ protected:
     std::vector<bool>            dirty;
     VkDevice                     device;
   };
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  uint32_t                       activeCount;
-  uint32_t                       activeIndex = 0;
+
+  mutable std::mutex                                                 mutex;
+  std::unordered_map<VkSurfaceKHR, PerSurfaceData>                   perSurfaceData;
+  std::unordered_map<uint32_t, std::shared_ptr<DescriptorSetSource>> sources; // descriptor set owns the buffers, images and whatnot
+  uint32_t                                                           activeCount;
+  uint32_t                                                           activeIndex = 0;
 };
 
 void DescriptorSet::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }
@@ -182,6 +187,8 @@ protected:
   {
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
   };
+
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
@@ -202,6 +209,7 @@ protected:
   {
     VkPipelineCache pipelineCache = VK_NULL_HANDLE;
   };
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
@@ -260,7 +268,7 @@ struct PUMEX_EXPORT ShaderStageDefinition
   std::string                   entryPoint = "main";
 };
 
-class PUMEX_EXPORT GraphicsPipeline
+class PUMEX_EXPORT GraphicsPipeline : public CommandBufferSource
 {
 public:
   GraphicsPipeline()                                   = delete;
@@ -340,10 +348,11 @@ protected:
     bool       dirty    = true;
   };
 
-  std::unordered_map<VkDevice,PerDeviceData> perDeviceData;
+  mutable std::mutex                          mutex;
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-class PUMEX_EXPORT ComputePipeline
+class PUMEX_EXPORT ComputePipeline : public CommandBufferSource
 {
 public:
   ComputePipeline()                                  = delete;
@@ -368,6 +377,7 @@ protected:
     bool       dirty = true;
   };
 
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 

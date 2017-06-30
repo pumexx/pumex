@@ -137,6 +137,7 @@ DescriptorPool::~DescriptorPool()
 
 void DescriptorPool::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
     return;
@@ -161,6 +162,7 @@ void DescriptorPool::validate(Device* device)
 
 VkDescriptorPool DescriptorPool::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
@@ -227,6 +229,7 @@ DescriptorSet::~DescriptorSet()
 
 void DescriptorSet::validate(Surface* surface)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount,surface->device.lock()->device) }).first;
@@ -292,6 +295,7 @@ void DescriptorSet::validate(Surface* surface)
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
   vkUpdateDescriptorSets(pddit->second.device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+  notifyCommandBuffers(activeIndex);
   pddit->second.dirty[activeIndex] = false;
 }
 
@@ -342,6 +346,7 @@ PipelineLayout::~PipelineLayout()
 
 void PipelineLayout::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
     return;
@@ -362,6 +367,7 @@ void PipelineLayout::validate(Device* device)
 
 VkPipelineLayout PipelineLayout::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
@@ -381,6 +387,7 @@ PipelineCache::~PipelineCache()
 
 void PipelineCache::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit != perDeviceData.end())
     return;
@@ -393,6 +400,7 @@ void PipelineCache::validate(Device* device)
 
 VkPipelineCache PipelineCache::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
@@ -471,6 +479,7 @@ GraphicsPipeline::~GraphicsPipeline()
 
 void GraphicsPipeline::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
@@ -647,11 +656,13 @@ void GraphicsPipeline::validate(Device* device)
     pipelineCI.pDepthStencilState              = &depthStencilState;
     pipelineCI.pDynamicState                   = &dynamicState;
   VK_CHECK_LOG_THROW(vkCreateGraphicsPipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create graphics pipeline");
+  notifyCommandBuffers();
   pddit->second.dirty = false;
 }
 
 VkPipeline GraphicsPipeline::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
@@ -660,6 +671,7 @@ VkPipeline GraphicsPipeline::getHandle(VkDevice device) const
 
 void GraphicsPipeline::setDirty()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     pdd.second.dirty = true;
 }
@@ -678,6 +690,7 @@ ComputePipeline::~ComputePipeline()
 
 void ComputePipeline::validate(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
@@ -697,11 +710,13 @@ void ComputePipeline::validate(Device* device)
     pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();//"main";
 
   VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create compute pipeline");
+  notifyCommandBuffers();
   pddit->second.dirty = false;
 }
 
 VkPipeline ComputePipeline::getHandle(VkDevice device) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
@@ -710,6 +725,7 @@ VkPipeline ComputePipeline::getHandle(VkDevice device) const
 
 void ComputePipeline::setDirty()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     pdd.second.dirty = true;
 }

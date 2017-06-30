@@ -23,6 +23,7 @@
 #pragma once
 #include <map>
 #include <algorithm>
+#include <mutex>
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 #include <pumex/BoundingBox.h>
@@ -233,6 +234,7 @@ protected:
   };
 
   std::map<uint32_t, std::vector<VertexSemantic>> semantics;
+  mutable std::mutex                              mutex;
   std::map<uint32_t, PerRenderMaskData>           perRenderMaskData;
 
   std::vector<std::string>                        typeNames;

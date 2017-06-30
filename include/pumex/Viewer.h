@@ -82,7 +82,7 @@ public:
   std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 
   ViewerTraits                        viewerTraits;
-  VkInstance                          instance = VK_NULL_HANDLE;
+  VkInstance                          instance      = VK_NULL_HANDLE;
   std::vector<VkExtensionProperties>  extensionProperties;
   bool                                viewerTerminate = false;
 
@@ -96,6 +96,7 @@ public:
 
   inline uint32_t getUpdateIndex() const;
   inline uint32_t getRenderIndex() const;
+  inline unsigned long long getFrameNumber() const;
 
   inline HPClock::duration   getUpdateDuration() const;      // time of one update ( = 1 / viewerTraits.updatesPerSecond )
   inline HPClock::time_point getApplicationStartTime() const;// get the time point of the application start
@@ -117,21 +118,24 @@ protected:
   std::vector<std::shared_ptr<Device>>         devices;
   std::vector<std::shared_ptr<Surface>>        surfaces;
 
+  uint32_t                                     nextSurfaceID                 = 0;
+  uint32_t                                     nextDeviceID                  = 0;
+  unsigned long long                           frameNumber                   = 0;
   HPClock::time_point                          viewerStartTime;
   HPClock::time_point                          renderStartTime;
   HPClock::time_point                          updateStartTimes[3];
   HPClock::duration                            lastRenderDuration;
   HPClock::duration                            lastUpdateDuration;
 
-  uint32_t                                     renderIndex = 0;
-  uint32_t                                     updateIndex = 1;
+  uint32_t                                     renderIndex                   = 0;
+  uint32_t                                     updateIndex                   = 1;
 
   std::mutex                                   updateMutex;
   std::condition_variable                      updateConditionVariable;
 
-  PFN_vkCreateDebugReportCallbackEXT           pfnCreateDebugReportCallback = VK_NULL_HANDLE;
+  PFN_vkCreateDebugReportCallbackEXT           pfnCreateDebugReportCallback  = VK_NULL_HANDLE;
   PFN_vkDestroyDebugReportCallbackEXT          pfnDestroyDebugReportCallback = VK_NULL_HANDLE;
-  PFN_vkDebugReportMessageEXT                  pfnDebugReportMessage = VK_NULL_HANDLE;
+  PFN_vkDebugReportMessageEXT                  pfnDebugReportMessage         = VK_NULL_HANDLE;
   VkDebugReportCallbackEXT                     msgCallback;
 
 };
@@ -140,6 +144,7 @@ VkInstance          Viewer::getInstance() const             { return instance; }
 bool                Viewer::terminating() const             { return viewerTerminate; }
 uint32_t            Viewer::getUpdateIndex() const          { return updateIndex; }
 uint32_t            Viewer::getRenderIndex() const          { return renderIndex; }
+unsigned long long  Viewer::getFrameNumber() const          { return frameNumber; }
 HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStartTime; }
 HPClock::duration   Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
 HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }

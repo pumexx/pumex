@@ -24,6 +24,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
@@ -76,6 +77,8 @@ private:
     std::vector<VkBuffer>           buffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
+
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   VkBufferUsageFlagBits                       usage;
   std::shared_ptr<T>                          data;
@@ -94,6 +97,7 @@ GenericBuffer<T>::GenericBuffer(VkBufferUsageFlagBits u, std::shared_ptr<T> d, s
 template <typename T>
 GenericBuffer<T>::~GenericBuffer()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perDeviceData)
   {
@@ -109,6 +113,7 @@ GenericBuffer<T>::~GenericBuffer()
 template <typename T>
 void GenericBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "GenericBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
@@ -118,6 +123,7 @@ void GenericBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, s
 template <typename T>
 void GenericBuffer<T>::setDirty()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     for (uint32_t i = 0; i<activeCount; ++i)
       pdd.second.dirty[i] = true;
@@ -126,6 +132,8 @@ void GenericBuffer<T>::setDirty()
 template <typename T>
 void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
+  std::lock_guard<std::mutex> lock(mutex);
+
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
@@ -140,7 +148,7 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
   }
 
-  bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (pddit->second.buffer[activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
@@ -152,7 +160,7 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     vkGetBufferMemoryRequirements(device->device, pddit->second.buffer[activeIndex], &memReqs);
     pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
-    VK_CHECK_LOG_THROW(vkBindBufferMemory(pddit->first, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset), "Cannot bind memory to buffer");
+    alloc->bindBufferMemory(device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
     notifyDescriptorSets();
   }
@@ -170,10 +178,7 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     }
     else
     {
-      uint8_t *pData;
-      VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetSize(*data), 0, (void **)&pData), "Cannot map memory");
-      memcpy(pData, uglyGetPointer(*data), uglyGetSize(*data));
-      vkUnmapMemory(device->device, pddit->second.memoryBlock[activeIndex].memory);
+      alloc->copyToDeviceMemory(device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*data), uglyGetSize(*data), 0);
     }
   }
   pddit->second.dirty[activeIndex] = false;
@@ -182,6 +187,7 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
 template <typename T>
 VkBuffer GenericBuffer<T>::getBufferHandle(Device* device)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;

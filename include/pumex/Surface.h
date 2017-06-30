@@ -79,6 +79,10 @@ public:
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
   VkFramebuffer getCurrentFrameBuffer();
+
+  inline void setID(uint32_t newID);
+  inline uint32_t getID() const;
+
     
   std::weak_ptr<Viewer>               viewer;
   std::weak_ptr<Window>               window;
@@ -109,6 +113,7 @@ public:
   std::shared_ptr<RenderPass>         defaultRenderPass;
   std::shared_ptr<FrameBufferImages>  frameBufferImages;
 protected:
+  uint32_t                            id                           = 0;
   VkSwapchainKHR                      swapChain                    = VK_NULL_HANDLE;
   std::vector<VkFence>                waitFences;
   std::vector<std::shared_ptr<CommandBuffer>> prePresentCmdBuffers;
@@ -117,6 +122,8 @@ protected:
   void createSwapChain();
 };
 
+void     Surface::setID(uint32_t newID) { id = newID; }
+uint32_t Surface::getID() const         { return id; }
 uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }
 uint32_t Surface::getImageIndex() const { return swapChainImageIndex; }
 
