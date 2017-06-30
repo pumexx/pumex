@@ -1421,14 +1421,14 @@ struct GpuCullApplicationData
     // perform compute shaders
     if (_showStaticRendering)
     {
-      currentCmdBuffer->cmdBindPipeline(staticFilterPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surface->surface, filterPipelineLayout, 0, staticFilterDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(staticFilterPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, staticFilterDescriptorSet.get());
       currentCmdBuffer->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16>0) ? 1 : 0), 1, 1);
     }
     if (_showDynamicRendering)
     {
-      currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surface->surface, filterPipelineLayout, 0, dynamicFilterDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, dynamicFilterDescriptorSet.get());
       currentCmdBuffer->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16>0) ? 1 : 0), 1, 1);
     }
 
@@ -1479,8 +1479,8 @@ struct GpuCullApplicationData
 #endif
     if (_showStaticRendering)
     {
-      currentCmdBuffer->cmdBindPipeline(staticRenderPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, staticRenderDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(staticRenderPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, staticRenderDescriptorSet.get());
       staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
       if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer2[0].bufferInfo.buffer, staticResultsBuffer2[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
@@ -1492,8 +1492,8 @@ struct GpuCullApplicationData
     }
     if (_showDynamicRendering)
     {
-      currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, dynamicRenderDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, dynamicRenderDescriptorSet.get());
       dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
       if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer2[0].bufferInfo.buffer, dynamicResultsBuffer2[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));

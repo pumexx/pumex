@@ -186,7 +186,6 @@ void StorageBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
   }
   if (storageData.size() > 0)
   {
-    bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     if (memoryIsLocal)
     {
       std::shared_ptr<StagingBuffer> stagingBuffer = device->acquireStagingBuffer(storageData.data(), sizeof(T)*storageData.size());

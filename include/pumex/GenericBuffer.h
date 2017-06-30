@@ -46,7 +46,7 @@ template<typename T> T*     uglyGetPointer( T& t )                 { return &T; 
 template<typename T> T*     uglyGetPointer( std::vector<T>& t )    { return t.data(); }
 
 template <typename T>
-class GenericBuffer : public DescriptorSetSource
+class GenericBuffer : public DescriptorSetSource, public CommandBufferSource
 {
 public:
   GenericBuffer()                                = delete;
@@ -163,6 +163,7 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     alloc->bindBufferMemory(device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
     notifyDescriptorSets();
+    notifyCommandBuffers(activeIndex);
   }
   if ( uglyGetSize(*data) > 0)
   {

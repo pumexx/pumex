@@ -107,10 +107,10 @@ public:
   void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
   void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
   void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
-  void cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline);
-  void cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline);
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets);
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet);
+  void cmdBindPipeline(ComputePipeline* pipeline);
+  void cmdBindPipeline(GraphicsPipeline* pipeline);
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets);
+  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet);
 
   void cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;

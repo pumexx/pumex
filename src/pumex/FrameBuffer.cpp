@@ -92,7 +92,6 @@ void FrameBufferImages::reset(Surface* surface)
   }
 }
 
-
 Image* FrameBufferImages::getImage(Surface* surface, uint32_t imageIndex)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -111,7 +110,6 @@ FrameBufferImageDefinition FrameBufferImages::getSwapChainDefinition()
       return d;
   return FrameBufferImageDefinition(FrameBufferImageDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT);
 }
-
 
 FrameBuffer::FrameBuffer(std::shared_ptr<RenderPass> rp, std::shared_ptr<FrameBufferImages> fbi)
   : renderPass{ rp }, frameBufferImages{ fbi }
@@ -138,7 +136,6 @@ void FrameBuffer::reset(Surface* surface)
     perSurfaceData.erase(surface->surface);
   }
 }
-
 
 void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages)
 {
@@ -255,8 +252,5 @@ void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t inde
     values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s.get(), frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
   }
 }
-
-
-
 
 }

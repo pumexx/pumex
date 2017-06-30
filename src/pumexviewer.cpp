@@ -463,14 +463,14 @@ struct ViewerApplicationData
       currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
       currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
-      currentCmdBuffer->cmdBindPipeline(pipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, descriptorSet);
+      currentCmdBuffer->cmdBindPipeline(pipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
       assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
 
-      currentCmdBuffer->cmdBindPipeline(boxPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, pipelineLayout, 0, boxDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(boxPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, boxDescriptorSet.get());
       boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
       boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
 

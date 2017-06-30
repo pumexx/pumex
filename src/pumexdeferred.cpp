@@ -604,15 +604,15 @@ struct DeferredApplicationData
       currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
       currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
-      currentCmdBuffer->cmdBindPipeline(gbufferPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, gbufferPipelineLayout, 0, gbufferDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(gbufferPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, gbufferPipelineLayout.get(), 0, gbufferDescriptorSet.get());
       assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 5000.0f);
 
       currentCmdBuffer->cmdNextSubPass(VK_SUBPASS_CONTENTS_INLINE);
 
-      currentCmdBuffer->cmdBindPipeline(compositePipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, compositePipelineLayout, 0, compositeDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(compositePipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, compositePipelineLayout.get(), 0, compositeDescriptorSet.get());
       assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, squareTypeID, 0, 5000.0f);
 

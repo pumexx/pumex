@@ -216,34 +216,34 @@ void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const 
   vkCmdCopyBuffer(commandBuffer[activeIndex], srcBuffer, dstBuffer, 1, &bufferCopy);
 }
 
-void CommandBuffer::cmdBindPipeline(std::shared_ptr<ComputePipeline> pipeline)
+void CommandBuffer::cmdBindPipeline(ComputePipeline* pipeline)
 {
-  addSource(pipeline.get());
+  addSource(pipeline);
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindPipeline(std::shared_ptr<GraphicsPipeline> pipeline)
+void CommandBuffer::cmdBindPipeline(GraphicsPipeline* pipeline)
 {
-  addSource(pipeline.get());
+  addSource(pipeline);
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, const std::vector<std::shared_ptr<DescriptorSet>> descriptorSets)
+void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets)
 {
   std::vector<VkDescriptorSet> descSets;
   for (auto& d : descriptorSets)
   {
-    addSource(d.get());
-    descSets.push_back(d->getHandle(surface));
+    addSource(d);
+    descSets.push_back(d->getHandle(surface->surface));
   }
   // TODO : dynamic offset counts
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, descSets.size(), descSets.data(), 0, nullptr);
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, VkSurfaceKHR surface, std::shared_ptr<PipelineLayout> pipelineLayout, uint32_t firstSet, std::shared_ptr<DescriptorSet> descriptorSet)
+void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet)
 {
-  addSource(descriptorSet.get());
-  VkDescriptorSet descSet = descriptorSet->getHandle(surface);
+  addSource(descriptorSet);
+  VkDescriptorSet descSet = descriptorSet->getHandle(surface->surface);
   // TODO : dynamic offset counts
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, 1, &descSet, 0, nullptr);
 }

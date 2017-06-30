@@ -170,9 +170,9 @@ Text::~Text()
 
 void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (dirty)
   {
-    std::lock_guard<std::mutex> lock(mutex);
     Font* fontPtr = font.lock().get();
     symbolData->resize(0);
 
@@ -194,6 +194,7 @@ void Text::cmdDraw(Device* device, std::shared_ptr<CommandBuffer> commandBuffer 
 {
   VkBuffer     vBuffer = vertexBuffer->getBufferHandle(device);
   VkDeviceSize offsets = 0;
+  commandBuffer->addSource(vertexBuffer.get());
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);
   // FIXME : vertex count should be taken from buffer size, not from symbolData->size()
   commandBuffer->cmdDraw(symbolData->size(), 1, 0, 0, 0);

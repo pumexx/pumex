@@ -208,19 +208,22 @@ void StorageBufferPerSurface<T>::validate(Surface* surface)
 
     notifyDescriptorSets();
   }
-  if (memoryIsLocal)
+  if (it->second.storageData.size() > 0)
   {
-    std::shared_ptr<StagingBuffer> stagingBuffer = devicePtr->acquireStagingBuffer(it->second.storageData.data(), sizeof(T)*it->second.storageData.size());
-    auto staggingCommandBuffer = devicePtr->beginSingleTimeCommands(surface->commandPool.get());
-    VkBufferCopy copyRegion{};
-    copyRegion.size = sizeof(T) * it->second.storageData.size();
-    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.storageBuffer[activeIndex], copyRegion);
-    devicePtr->endSingleTimeCommands(staggingCommandBuffer, surface->presentationQueue);
-    devicePtr->releaseStagingBuffer(stagingBuffer);
-  }
-  else
-  {
-    alloc->copyToDeviceMemory(devicePtr, it->second.memoryBlock[activeIndex].alignedOffset, it->second.storageData.data(), sizeof(T) * it->second.storageData.size(), 0);
+    if (memoryIsLocal)
+    {
+      std::shared_ptr<StagingBuffer> stagingBuffer = devicePtr->acquireStagingBuffer(it->second.storageData.data(), sizeof(T)*it->second.storageData.size());
+      auto staggingCommandBuffer = devicePtr->beginSingleTimeCommands(surface->commandPool.get());
+      VkBufferCopy copyRegion{};
+      copyRegion.size = sizeof(T) * it->second.storageData.size();
+      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.storageBuffer[activeIndex], copyRegion);
+      devicePtr->endSingleTimeCommands(staggingCommandBuffer, surface->presentationQueue);
+      devicePtr->releaseStagingBuffer(stagingBuffer);
+    }
+    else
+    {
+      alloc->copyToDeviceMemory(devicePtr, it->second.memoryBlock[activeIndex].alignedOffset, it->second.storageData.data(), sizeof(T) * it->second.storageData.size(), 0);
+    }
   }
   it->second.dirty[activeIndex] = false;
 }

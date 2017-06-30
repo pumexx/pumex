@@ -228,6 +228,8 @@ void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<Comma
   }
   VkBuffer vBuffer = prmit->second.vertexBuffer->getBufferHandle(device);
   VkBuffer iBuffer = prmit->second.indexBuffer->getBufferHandle(device);
+  commandBuffer->addSource(prmit->second.vertexBuffer.get());
+  commandBuffer->addSource(prmit->second.indexBuffer.get());
   VkDeviceSize offsets = 0;
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), vertexBinding, 1, &vBuffer, &offsets);
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);

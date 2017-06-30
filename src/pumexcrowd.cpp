@@ -212,9 +212,9 @@ struct CrowdApplicationData
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>            cameraUbo;
   std::shared_ptr<pumex::StorageBuffer<PositionData>>                       positionSbo;
   std::shared_ptr<pumex::StorageBuffer<InstanceData>>                       instanceSbo;
+
   std::vector<pumex::DrawIndexedIndirectCommand>                            initialResultValues;
   std::vector<uint32_t>                                                     resultsGeomToType;
-
   std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> resultsSbo;
   std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          offValuesSbo;
 
@@ -709,8 +709,6 @@ struct CrowdApplicationData
     filterPipelineLayout->validate(devicePtr);
     filterPipeline->validate(devicePtr);
 
-    defaultFont->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    textFPS->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     textDescriptorSetLayout->validate(devicePtr);
     textDescriptorPool->validate(devicePtr);
     textPipelineLayout->validate(devicePtr);
@@ -1155,8 +1153,8 @@ struct CrowdApplicationData
 #if defined(CROWD_MEASURE_TIME)
         timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
-        currentCmdBuffer->cmdBindPipeline(filterPipeline);
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surface->surface, filterPipelineLayout, 0, filterDescriptorSet);
+        currentCmdBuffer->cmdBindPipeline(filterPipeline.get());
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, filterDescriptorSet.get());
         uint32_t instanceCount = rData.people.size() + rData.clothes.size();
         currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
 
@@ -1196,8 +1194,8 @@ struct CrowdApplicationData
       }
       case 1: // compute culling and instanced rendering
       {
-        currentCmdBuffer->cmdBindPipeline(instancedRenderPipeline);
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, instancedRenderPipelineLayout, 0, instancedRenderDescriptorSet);
+        currentCmdBuffer->cmdBindPipeline(instancedRenderPipeline.get());
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, instancedRenderDescriptorSet.get());
         skeletalAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
         if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
           currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
@@ -1213,8 +1211,8 @@ struct CrowdApplicationData
       timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
-      currentCmdBuffer->cmdBindPipeline(textPipeline);
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surface->surface, textPipelineLayout, 0, textDescriptorSet);
+      currentCmdBuffer->cmdBindPipeline(textPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
       textFPS->cmdDraw(devicePtr, currentCmdBuffer);
 
       currentCmdBuffer->cmdEndRenderPass();
@@ -1268,7 +1266,7 @@ int main(void)
   LOG_INFO << "Crowd rendering" << std::endl;
 	
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", false, requestDebugLayers, 50 };
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", true, requestDebugLayers, 50 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -1295,8 +1293,8 @@ int main(void)
       { pumex::FrameBufferImageDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM,    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
       { pumex::FrameBufferImageDefinition::Depth,     VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_SAMPLE_COUNT_1_BIT }
     };
-    // allocate 16 MB for frame buffers ( actually only depth buffer will be allocated )
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 24 MB for frame buffers ( actually only depth buffer will be allocated )
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, frameBufferAllocator);
 
     std::vector<pumex::AttachmentDefinition> renderPassAttachments =

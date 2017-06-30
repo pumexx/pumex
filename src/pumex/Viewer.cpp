@@ -205,7 +205,6 @@ void Viewer::run()
         std::lock_guard<std::mutex> lck(updateMutex);
         renderIndex      = getNextRenderSlot();
         renderStartTime  = HPClock::now();
-        frameNumber++;
         updateConditionVariable.notify_one();
       }
       //switch (renderIndex)
@@ -220,6 +219,7 @@ void Viewer::run()
       bool continueRun = true;
       try
       {
+        frameNumber++;
         continueRun = !terminating();
         if (continueRun)
         {

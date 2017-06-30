@@ -90,6 +90,8 @@ void DeviceMemoryAllocator::deallocate(VkDevice device, const DeviceMemoryBlock&
 
 void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags) 
 {
+  if (size == 0)
+    return;
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "DeviceMemoryAllocator::copyToDeviceMemory() : cannot copy to memory that not have been allocated yet");
