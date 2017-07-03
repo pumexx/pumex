@@ -49,19 +49,7 @@ struct DrawIndexedIndirectCommand
 
 layout (local_size_x = 16) in;
 
-// Binding 0 : information about types
-layout(std430,binding = 0) readonly buffer types
-{
-   AssetType assetTypes[];
-};
-
-// Binding 1 : information about type lods
-layout(std140,binding = 1) readonly buffer lods
-{
-   AssetLOD assetLods[];
-};
-
-layout (binding = 2) uniform CameraUbo
+layout (binding = 0) uniform CameraUbo
 {
   mat4 viewMatrix;
   mat4 viewMatrixInverse;
@@ -69,9 +57,22 @@ layout (binding = 2) uniform CameraUbo
   vec4 observerPosition;
 } camera;
 
-layout (std430,binding = 3) readonly buffer DynamicInstanceDataSbo
+layout (std430,binding = 1) readonly buffer DynamicInstanceDataSbo
 {
 	DynamicInstanceData instances[ ];
+};
+
+
+// Binding 2 : information about types
+layout(std430,binding = 2) readonly buffer types
+{
+   AssetType assetTypes[];
+};
+
+// Binding 3 : information about type lods
+layout(std140,binding = 3) readonly buffer lods
+{
+   AssetLOD assetLods[];
 };
 
 layout (std430,binding = 4) buffer ResultsSbo
