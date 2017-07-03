@@ -49,6 +49,7 @@ public:
   UniformBufferPerSurface& operator=(const UniformBufferPerSurface&) = delete;
   ~UniformBufferPerSurface();
 
+  inline void set(const T& data);
   inline void set( Surface* surface, const T& data );
   inline T    get( Surface* surface ) const;
   void        getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
@@ -111,6 +112,16 @@ UniformBufferPerSurface<T>::~UniformBufferPerSurface()
   }
 }
 
+template <typename T>
+void UniformBufferPerSurface<T>::set(const T& data)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perSurfaceData)
+  {
+    pdd.second.uboData = data;
+    pdd.second.setDirty();
+  }
+}
 
 template <typename T>
 void UniformBufferPerSurface<T>::set(Surface* surface, const T& data)
