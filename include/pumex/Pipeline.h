@@ -115,18 +115,35 @@ class PUMEX_EXPORT DescriptorSetSource
 {
 public:
   virtual ~DescriptorSetSource();
-  void addDescriptorSet(DescriptorSet* descriptorSet);
-  void removeDescriptorSet(DescriptorSet* descriptorSet);
+  virtual void addDescriptorSet(DescriptorSet* descriptorSet);
+  virtual void removeDescriptorSet(DescriptorSet* descriptorSet);
   virtual void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
   {
   }
   virtual void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
   {
   }
-  void notifyDescriptorSets();
+  virtual void notifyDescriptorSets();
 protected:
   std::set<DescriptorSet*> descriptorSets;
 };
+
+// class not used ATM, but I will leave it for now
+//class PUMEX_EXPORT DescriptorSetSourceArray : public DescriptorSetSource
+//{
+//public:
+//  DescriptorSetSourceArray() = default;
+//  void addSource(std::shared_ptr<DescriptorSetSource> source);
+//  void addDescriptorSet(DescriptorSet* descriptorSet) override;
+//  void removeDescriptorSet(DescriptorSet* descriptorSet) override;
+//
+//  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+//  void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+//
+//  void notifyDescriptorSets() override;
+//protected:
+//  std::vector<std::shared_ptr<DescriptorSetSource>> sources;
+//};
 
 class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {

@@ -54,19 +54,7 @@ struct DrawIndexedIndirectCommand
 
 layout (local_size_x = 16) in;
 
-// Binding 0 : information about types
-layout(std430,binding = 0) readonly buffer types
-{
-   AssetType assetTypes[];
-};
-
-// Binding 1 : information about type lods
-layout(std140,binding = 1) readonly buffer lods
-{
-   AssetLOD assetLods[];
-};
-
-layout (binding = 2) uniform CameraUbo
+layout (binding = 0) uniform CameraUbo
 {
   mat4 viewMatrix;
   mat4 viewMatrixInverse;
@@ -74,24 +62,37 @@ layout (binding = 2) uniform CameraUbo
   vec4 observerPosition;
 } camera;
 
-layout (std430,binding = 3) readonly buffer PositionSbo
+layout (std430,binding = 1) readonly buffer PositionSbo
 {
-	PositionData positions[ ];
+  PositionData positions[ ];
 };
 
-layout (std430,binding = 4) readonly buffer InstanceDataSbo
+layout (std430,binding = 2) readonly buffer InstanceDataSbo
 {
-	InstanceData instances[ ];
+  InstanceData instances[ ];
+};
+
+
+// Binding 0 : information about types
+layout(std430,binding = 3) readonly buffer types
+{
+  AssetType assetTypes[];
+};
+
+// Binding 1 : information about type lods
+layout(std140,binding = 4) readonly buffer lods
+{
+  AssetLOD assetLods[];
 };
 
 layout (std430,binding = 5) buffer ResultsSbo
 {
-	DrawIndexedIndirectCommand targetCommands[];
+  DrawIndexedIndirectCommand targetCommands[];
 };
 
 layout (std430,binding = 6) buffer OffValuesSbo
 {
-	uint typeOffsetValues[];
+  uint typeOffsetValues[];
 };
 
 bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )
@@ -130,19 +131,23 @@ void main()
   mat4 mvpMatrix     = camera.projectionMatrix * camera.viewMatrix * modelMatrix;
   if( boundingBoxInViewFrustum( mvpMatrix, assetTypes[typeIndex].bbMin, assetTypes[typeIndex].bbMax ) )
   {
-// Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
-//    float distanceToObject = distance(camera.viewMatrixInverse[3].xyz / camera.viewMatrixInverse[3].w, modelMatrix[3].xyz / modelMatrix[3].w );
+    // Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera,
+    // so that LODs depend on user defined position, not on position of light in shadow camera : 
+    // float distanceToObject = distance(camera.viewMatrixInverse[3].xyz / camera.viewMatrixInverse[3].w, modelMatrix[3].xyz / modelMatrix[3].w );
     float distanceToObject = distance(camera.observerPosition.xyz / camera.observerPosition.w, modelMatrix[3].xyz / modelMatrix[3].w );
+
+    // if we use more than one mask then we have to have a copy of bindings 3 to 6 for each mask
+    // and for each mask we have to make the same loop :
     for( uint l = assetTypes[typeIndex].lodFirst; l<assetTypes[typeIndex].lodFirst + assetTypes[typeIndex].lodSize; ++l)
     {
       if( distanceToObject >= assetLods[l].minDistance && distanceToObject < assetLods[l].maxDistance )
-	  {
+      {
         for( uint g=assetLods[l].geomFirst; g<assetLods[l].geomFirst + assetLods[l].geomSize; ++g )
         {
-		  uint currentInstance = atomicAdd( targetCommands[g].instanceCount, 1);
-		  typeOffsetValues[ targetCommands[g].firstInstance + currentInstance ] = instanceIndex;
+          uint currentInstance = atomicAdd( targetCommands[g].instanceCount, 1);
+          typeOffsetValues[ targetCommands[g].firstInstance + currentInstance ] = instanceIndex;
         }
-	  }
+      }
     }
   }
 }

@@ -53,7 +53,7 @@ class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>
 {
 public:
   Device()                         = delete;
-  explicit Device(std::shared_ptr<Viewer> const& viewer, std::shared_ptr<PhysicalDevice> const& physical, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
+  explicit Device(std::shared_ptr<Viewer> viewer, std::shared_ptr<PhysicalDevice>  physical, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
   Device(const Device&)            = delete;
   Device& operator=(const Device&) = delete;
   ~Device();

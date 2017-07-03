@@ -29,6 +29,7 @@
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Device.h>
+#include <pumex/Surface.h>
 #include <pumex/Command.h>
 #include <pumex/Pipeline.h>
 #include <pumex/utils/Buffer.h>

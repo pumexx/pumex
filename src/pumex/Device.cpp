@@ -35,7 +35,7 @@ QueueTraits::QueueTraits(VkQueueFlags h, VkQueueFlags nh, const std::vector<floa
 {
 }
 
-Device::Device(std::shared_ptr<Viewer> const& v, std::shared_ptr<PhysicalDevice> const& d, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
+Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
   : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }
 {
   auto physicalDevice = physical.lock();

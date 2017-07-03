@@ -285,7 +285,7 @@ ArrayOfTexturesDescriptorSetSource::ArrayOfTexturesDescriptorSetSource(TextureRe
 }
 void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
 {
-  CHECK_LOG_THROW(owner == nullptr, "MaterialSetDescriptorSetSource::getDescriptorSetValue() : owner not defined");
+  CHECK_LOG_THROW(owner == nullptr, "ArrayOfTexturesDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   values.reserve(values.size() + owner->textureSamplersQuantity);
   for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
   {

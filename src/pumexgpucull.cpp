@@ -1392,10 +1392,10 @@ struct GpuCullApplicationData
     currentCmdBuffer->setActiveIndex(activeIndex);
     currentCmdBuffer->cmdBegin();
 
-    timeStampQueryPool->reset(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4, 4);
+    timeStampQueryPool->reset(devicePtr, currentCmdBuffer, activeIndex * 4, 4);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
     std::vector<pumex::DescriptorSetValue> staticResultsBuffer, staticResultsBuffer2, dynamicResultsBuffer, dynamicResultsBuffer2;
     uint32_t staticDrawCount, dynamicDrawCount;
@@ -1404,15 +1404,15 @@ struct GpuCullApplicationData
     std::vector<pumex::PipelineBarrier> beforeBufferBarriers;
     if (_showStaticRendering)
     {
-      staticResultsSbo->getDescriptorSetValues(devicePtr->device, surface->getImageIndex(), staticResultsBuffer);
-      staticResultsSbo2->getDescriptorSetValues(devicePtr->device, surface->getImageIndex(),  staticResultsBuffer2);
+      staticResultsSbo->getDescriptorSetValues(devicePtr->device, activeIndex, staticResultsBuffer);
+      staticResultsSbo2->getDescriptorSetValues(devicePtr->device, activeIndex,  staticResultsBuffer2);
       staticDrawCount      = staticResultsSbo->get().size();
       beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer[0].bufferInfo));
     }
     if (_showDynamicRendering)
     {
-      dynamicResultsSbo->getDescriptorSetValues(devicePtr->device, surface->getImageIndex(),  dynamicResultsBuffer);
-      dynamicResultsSbo2->getDescriptorSetValues(devicePtr->device, surface->getImageIndex(),  dynamicResultsBuffer2);
+      dynamicResultsSbo->getDescriptorSetValues(devicePtr->device, activeIndex,  dynamicResultsBuffer);
+      dynamicResultsSbo2->getDescriptorSetValues(devicePtr->device, activeIndex,  dynamicResultsBuffer2);
       dynamicDrawCount      = dynamicResultsSbo->get().size();
       beforeBufferBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer[0].bufferInfo));
     }
@@ -1466,7 +1466,7 @@ struct GpuCullApplicationData
     currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, afterCopyBufferBarriers);
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
 #endif
 
     std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
@@ -1475,13 +1475,13 @@ struct GpuCullApplicationData
     currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
 
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
     if (_showStaticRendering)
     {
       currentCmdBuffer->cmdBindPipeline(staticRenderPipeline.get());
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, staticRenderDescriptorSet.get());
-      staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
       if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer2[0].bufferInfo.buffer, staticResultsBuffer2[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
@@ -1494,7 +1494,7 @@ struct GpuCullApplicationData
     {
       currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline.get());
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, dynamicRenderDescriptorSet.get());
-      dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
+      dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
       if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
         currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer2[0].bufferInfo.buffer, dynamicResultsBuffer2[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
       else
@@ -1504,7 +1504,7 @@ struct GpuCullApplicationData
       }
     }
 #if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, surface->getImageIndex() * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 #endif
 
     currentCmdBuffer->cmdEndRenderPass();
@@ -1530,7 +1530,7 @@ struct GpuCullApplicationData
     float timeStampPeriod = devicePtr->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
     std::vector<uint64_t> queryResults;
     // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-    queryResults = timeStampQueryPool->getResults(devicePtr, ((surface->getImageIndex() + 2) % 3) * 4, 4, 0);
+    queryResults = timeStampQueryPool->getResults(devicePtr, ((activeIndex + 2) % 3) * 4, 4, 0);
     LOG_ERROR << "GPU LOD compute shader : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << "GPU draw shader        : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
     LOG_ERROR << std::endl;

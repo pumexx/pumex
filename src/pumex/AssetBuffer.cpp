@@ -217,7 +217,7 @@ void AssetBuffer::validate(Device* device, CommandPool* commandPool, VkQueue que
   }
 }
 
-void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
+void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
@@ -235,7 +235,7 @@ void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<Comma
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void AssetBuffer::cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
+void AssetBuffer::cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
@@ -332,5 +332,99 @@ void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, s
     }
   }
 }
+
+AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> ab, std::weak_ptr<DeviceMemoryAllocator> buffersAllocator)
+  : assetBuffer{ ab }
+{
+  for (const auto& vs : vertexSemantics)
+  {
+    semantics[vs.renderMask]         = vs.vertexSemantic;
+    perRenderMaskData[vs.renderMask] = PerRenderMaskData(buffersAllocator);
+  }
+}
+
+AssetBufferInstancedResults::~AssetBufferInstancedResults()
+{
+}
+
+void AssetBufferInstancedResults::setup()
+{
+  auto ab = assetBuffer.lock();
+  for (auto& prm : perRenderMaskData)
+  {
+    ab->prepareDrawIndexedIndirectCommandBuffer(prm.first, prm.second.initialResultValues, prm.second.resultsGeomToType);
+  }
+}
+
+void AssetBufferInstancedResults::prepareBuffers(const std::vector<uint32_t>& typeCount)
+{
+  for (auto& prm : perRenderMaskData)
+  {
+    PerRenderMaskData& rmData = prm.second;
+    std::vector<uint32_t> offsets;
+    for (uint32_t i = 0; i < rmData.resultsGeomToType.size(); ++i)
+      offsets.push_back(typeCount[rmData.resultsGeomToType[i]]);
+
+    std::vector<pumex::DrawIndexedIndirectCommand> results = rmData.initialResultValues;
+    uint32_t offsetSum = 0;
+    for (uint32_t i = 0; i < offsets.size(); ++i)
+    {
+      uint32_t tmp = offsetSum;
+      offsetSum += offsets[i];
+      offsets[i] = tmp;
+      results[i].firstInstance = tmp;
+    }
+    rmData.resultsSbo->set(results);
+    rmData.offValuesSbo->set(std::vector<uint32_t>(offsetSum));
+  }
+}
+
+std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = perRenderMaskData.find(renderMask);
+  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getResults() attempting to get a buffer for nonexisting render mask");
+  return it->second.resultsSbo;
+}
+
+std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = perRenderMaskData.find(renderMask);
+  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getOffsetValues() attempting to get a buffer for nonexisting render mask");
+  return it->second.offValuesSbo;
+}
+
+uint32_t AssetBufferInstancedResults::getDrawCount(uint32_t renderMask)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = perRenderMaskData.find(renderMask);
+  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getDrawCount() attempting to get a draw count for nonexisting render mask");
+  return it->second.initialResultValues.size();
+}
+
+
+
+void AssetBufferInstancedResults::setActiveIndex(uint32_t index) 
+{ 
+  for (auto& prm : perRenderMaskData)
+  {
+    PerRenderMaskData& rmData = prm.second;
+    rmData.resultsSbo->setActiveIndex(index);
+    rmData.offValuesSbo->setActiveIndex(index);
+  }
+}
+
+void AssetBufferInstancedResults::validate(Surface* surface)
+{
+  for (auto& prm : perRenderMaskData)
+  {
+    PerRenderMaskData& rmData = prm.second;
+    rmData.resultsSbo->validate(surface);
+    rmData.offValuesSbo->validate(surface);
+  }
+}
+
+
 
 }

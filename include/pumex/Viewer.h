@@ -133,9 +133,9 @@ protected:
   std::mutex                                   updateMutex;
   std::condition_variable                      updateConditionVariable;
 
-  PFN_vkCreateDebugReportCallbackEXT           pfnCreateDebugReportCallback  = VK_NULL_HANDLE;
-  PFN_vkDestroyDebugReportCallbackEXT          pfnDestroyDebugReportCallback = VK_NULL_HANDLE;
-  PFN_vkDebugReportMessageEXT                  pfnDebugReportMessage         = VK_NULL_HANDLE;
+  PFN_vkCreateDebugReportCallbackEXT           pfnCreateDebugReportCallback  = nullptr;
+  PFN_vkDestroyDebugReportCallbackEXT          pfnDestroyDebugReportCallback = nullptr;
+  PFN_vkDebugReportMessageEXT                  pfnDebugReportMessage         = nullptr;
   VkDebugReportCallbackEXT                     msgCallback;
 
 };

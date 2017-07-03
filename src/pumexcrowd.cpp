@@ -52,6 +52,7 @@
 //#define CROWD_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 63;
+const uint32_t MAIN_RENDER_MASK = 1;
 
 // Structure storing information about people and objects.
 // Structure is used by update loop to update its parameters.
@@ -75,7 +76,6 @@ struct ObjectData
 struct UpdateData
 {
   UpdateData()
-    : renderMethod{1}
   {
   }
   glm::vec3                                cameraPosition;
@@ -85,7 +85,6 @@ struct UpdateData
   std::unordered_map<uint32_t, ObjectData> people;
   std::unordered_map<uint32_t, ObjectData> clothes;
 
-  uint32_t                                 renderMethod;
   glm::vec2                                lastMousePos;
   bool                                     leftMouseKeyPressed;
   bool                                     rightMouseKeyPressed;
@@ -94,19 +93,15 @@ struct UpdateData
   bool                                     moveBackward;
   bool                                     moveLeft;
   bool                                     moveRight;
-  
-  bool                                     xKeyPressed;
 };
 
 
 struct RenderData
 {
   RenderData()
-    : renderMethod{ 1 }, prevCameraDistance{ 1.0f }, cameraDistance{ 1.0f }
+    : prevCameraDistance{ 1.0f }, cameraDistance{ 1.0f }
   {
   }
-  uint32_t                renderMethod;
-
   glm::vec3               prevCameraPosition;
   glm::vec2               prevCameraGeographicCoordinates;
   float                   prevCameraDistance;
@@ -185,81 +180,71 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
 
 struct CrowdApplicationData
 {
-  std::weak_ptr<pumex::Viewer>                         viewer;
+  std::weak_ptr<pumex::Viewer>                           viewer;
 
-  UpdateData                                           updateData;
-  std::array<RenderData, 3>                            renderData;
+  UpdateData                                             updateData;
+  std::array<RenderData, 3>                              renderData;
 
-  glm::vec3                                            minArea;
-  glm::vec3                                            maxArea;
-  std::vector<pumex::Skeleton>                         skeletons;
-  std::vector<pumex::Animation>                        animations;
-  std::map<SkelAnimKey, std::vector<uint32_t>>         skelAnimBoneMapping;
-  std::vector<float>                                   animationSpeed;
+  glm::vec3                                              minArea;
+  glm::vec3                                              maxArea;
+  std::vector<pumex::Skeleton>                           skeletons;
+  std::vector<pumex::Animation>                          animations;
+  std::map<SkelAnimKey, std::vector<uint32_t>>           skelAnimBoneMapping;
+  std::vector<float>                                     animationSpeed;
 
-  std::default_random_engine                           randomEngine;
-  std::exponential_distribution<float>                 randomTime2NextTurn;
-  std::uniform_real_distribution<float>                randomRotation;
-  std::uniform_int_distribution<uint32_t>              randomAnimation;
+  std::default_random_engine                             randomEngine;
+  std::exponential_distribution<float>                   randomTime2NextTurn;
+  std::uniform_real_distribution<float>                  randomRotation;
+  std::uniform_int_distribution<uint32_t>                randomAnimation;
 
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        texturesAllocator;
-  std::shared_ptr<pumex::AssetBuffer>                  skeletalAssetBuffer;
-  std::shared_ptr<pumex::TextureRegistryTextureArray>  textureRegistry;
-  std::shared_ptr<pumex::MaterialSet<MaterialData>>    materialSet;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>          buffersAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>          verticesAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>          texturesAllocator;
+  std::shared_ptr<pumex::AssetBuffer>                    skeletalAssetBuffer;
+  std::shared_ptr<pumex::AssetBufferInstancedResults>    instancedResults;
+  std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry;
+  std::shared_ptr<pumex::MaterialSet<MaterialData>>      materialSet;
 
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>            cameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<PositionData>>                       positionSbo;
-  std::shared_ptr<pumex::StorageBuffer<InstanceData>>                       instanceSbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
+  std::shared_ptr<pumex::StorageBuffer<PositionData>>            positionSbo;
+  std::shared_ptr<pumex::StorageBuffer<InstanceData>>            instanceSbo;
 
-  std::vector<pumex::DrawIndexedIndirectCommand>                            initialResultValues;
-  std::vector<uint32_t>                                                     resultsGeomToType;
-  std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> resultsSbo;
-  std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          offValuesSbo;
+  std::shared_ptr<pumex::RenderPass>                     defaultRenderPass;
 
-  std::shared_ptr<pumex::RenderPass>                   defaultRenderPass;
+  std::shared_ptr<pumex::PipelineCache>                  pipelineCache;
 
-  std::shared_ptr<pumex::PipelineCache>                pipelineCache;
+  std::shared_ptr<pumex::DescriptorSetLayout>            instancedRenderDescriptorSetLayout;
+  std::shared_ptr<pumex::PipelineLayout>                 instancedRenderPipelineLayout;
+  std::shared_ptr<pumex::GraphicsPipeline>               instancedRenderPipeline;
+  std::shared_ptr<pumex::DescriptorPool>                 instancedRenderDescriptorPool;
+  std::shared_ptr<pumex::DescriptorSet>                  instancedRenderDescriptorSet;
 
-  std::shared_ptr<pumex::DescriptorSetLayout>          simpleRenderDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>               simpleRenderPipelineLayout;
-  std::shared_ptr<pumex::GraphicsPipeline>             simpleRenderPipeline;
-  std::shared_ptr<pumex::DescriptorPool>               simpleRenderDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                simpleRenderDescriptorSet;
-
-  std::shared_ptr<pumex::DescriptorSetLayout>          instancedRenderDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>               instancedRenderPipelineLayout;
-  std::shared_ptr<pumex::GraphicsPipeline>             instancedRenderPipeline;
-  std::shared_ptr<pumex::DescriptorPool>               instancedRenderDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                instancedRenderDescriptorSet;
-
-  std::shared_ptr<pumex::DescriptorSetLayout>          filterDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>               filterPipelineLayout;
-  std::shared_ptr<pumex::ComputePipeline>              filterPipeline;
-  std::shared_ptr<pumex::DescriptorPool>               filterDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                filterDescriptorSet;
+  std::shared_ptr<pumex::DescriptorSetLayout>            filterDescriptorSetLayout;
+  std::shared_ptr<pumex::PipelineLayout>                 filterPipelineLayout;
+  std::shared_ptr<pumex::ComputePipeline>                filterPipeline;
+  std::shared_ptr<pumex::DescriptorPool>                 filterDescriptorPool;
+  std::shared_ptr<pumex::DescriptorSet>                  filterDescriptorSet;
 
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::Font>                         defaultFont;
-  std::shared_ptr<pumex::Text>                         textFPS;
-  std::shared_ptr<pumex::DescriptorSetLayout>          textDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>               textPipelineLayout;
-  std::shared_ptr<pumex::GraphicsPipeline>             textPipeline;
-  std::shared_ptr<pumex::DescriptorPool>               textDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                textDescriptorSet;
+  std::shared_ptr<pumex::Font>                           defaultFont;
+  std::shared_ptr<pumex::Text>                           textFPS;
+  std::shared_ptr<pumex::DescriptorSetLayout>            textDescriptorSetLayout;
+  std::shared_ptr<pumex::PipelineLayout>                 textPipelineLayout;
+  std::shared_ptr<pumex::GraphicsPipeline>               textPipeline;
+  std::shared_ptr<pumex::DescriptorPool>                 textDescriptorPool;
+  std::shared_ptr<pumex::DescriptorSet>                  textDescriptorSet;
 
+  std::shared_ptr<pumex::QueryPool>                      timeStampQueryPool;
 
-  std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
+  pumex::HPClock::time_point                             lastFrameStart;
+  double                                                 inputDuration;
+  double                                                 updateDuration;
+  double                                                 prepareBuffersDuration;
+  double                                                 drawDuration;
 
-  pumex::HPClock::time_point lastFrameStart;
-  double    inputDuration;
-  double    updateDuration;
-  double    prepareBuffersDuration;
-  double    drawDuration;
+  std::unordered_map<uint32_t, glm::mat4>                slaveViewMatrix;
 
   std::unordered_map<pumex::Surface*,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
-  std::unordered_map<uint32_t, glm::mat4> slaveViewMatrix;
 
 
   CrowdApplicationData(std::shared_ptr<pumex::Viewer> v)
@@ -317,12 +302,13 @@ struct CrowdApplicationData
     buffersAllocator  = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 80 MB memory for 24 compressed textures
+    // allocate 80 MB memory for 24 compressed textures and for font textures
     texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, vertexSemantic } };
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
     skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+    instancedResults    = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
 
     textureRegistry = std::make_shared<pumex::TextureRegistryTextureArray>();
     textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::TextureTraits(), texturesAllocator));
@@ -453,6 +439,8 @@ struct CrowdApplicationData
         }
       }
     }
+    instancedResults->setup();
+
     materialSet->refreshMaterialStructures();
     std::vector<uint32_t> materialVariantCount(skeletalNames.size()+1);
     for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
@@ -461,51 +449,8 @@ struct CrowdApplicationData
     cameraUbo    = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     positionSbo  = std::make_shared<pumex::StorageBuffer<PositionData>>(buffersAllocator, 3);
     instanceSbo  = std::make_shared<pumex::StorageBuffer<InstanceData>>(buffersAllocator, 3);
-    resultsSbo   = std::make_shared<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>>(buffersAllocator, 1, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-    offValuesSbo = std::make_shared<pumex::StorageBufferPerSurface<uint32_t>>(buffersAllocator, 3);
 
     pipelineCache = std::make_shared<pumex::PipelineCache>();
-
-    std::vector<pumex::DescriptorSetLayoutBinding> simpleRenderLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-
-    };
-    simpleRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(simpleRenderLayoutBindings);
-    simpleRenderDescriptorPool = std::make_shared<pumex::DescriptorPool>(3*3, simpleRenderLayoutBindings);
-    // building pipeline layout
-    simpleRenderPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    simpleRenderPipelineLayout->descriptorSetLayouts.push_back(simpleRenderDescriptorSetLayout);
-    simpleRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, simpleRenderPipelineLayout, defaultRenderPass, 0);
-    simpleRenderPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_simple_animation.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_simple_animation.frag.spv")), "main" }
-    };
-    simpleRenderPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
-    };
-    simpleRenderPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    simpleRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    simpleRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(simpleRenderDescriptorSetLayout, simpleRenderDescriptorPool, 3);
-    simpleRenderDescriptorSet->setSource(0, cameraUbo);
-    simpleRenderDescriptorSet->setSource(1, positionSbo);
-    simpleRenderDescriptorSet->setSource(2, instanceSbo);
-    simpleRenderDescriptorSet->setSource(3, materialSet->typeDefinitionSbo);
-    simpleRenderDescriptorSet->setSource(4, materialSet->materialVariantSbo);
-    simpleRenderDescriptorSet->setSource(5, materialSet->materialDefinitionSbo);
-    simpleRenderDescriptorSet->setSource(6, textureRegistry->getTargetTexture(0));
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
     {
@@ -543,7 +488,7 @@ struct CrowdApplicationData
     instancedRenderDescriptorSet->setSource(0, cameraUbo);
     instancedRenderDescriptorSet->setSource(1, positionSbo);
     instancedRenderDescriptorSet->setSource(2, instanceSbo);
-    instancedRenderDescriptorSet->setSource(3, offValuesSbo);
+    instancedRenderDescriptorSet->setSource(3, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
     instancedRenderDescriptorSet->setSource(4, materialSet->typeDefinitionSbo);
     instancedRenderDescriptorSet->setSource(5, materialSet->materialVariantSbo);
     instancedRenderDescriptorSet->setSource(6, materialSet->materialDefinitionSbo);
@@ -551,9 +496,9 @@ struct CrowdApplicationData
 
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
       { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
       { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
       { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
       { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
@@ -568,13 +513,13 @@ struct CrowdApplicationData
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_filter_instances.comp.spv")), "main" };
 
     filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    filterDescriptorSet->setSource(0, skeletalAssetBuffer->getTypeBuffer(1));
-    filterDescriptorSet->setSource(1, skeletalAssetBuffer->getLodBuffer(1));
-    filterDescriptorSet->setSource(2, cameraUbo);
-    filterDescriptorSet->setSource(3, positionSbo);
-    filterDescriptorSet->setSource(4, instanceSbo);
-    filterDescriptorSet->setSource(5, resultsSbo);
-    filterDescriptorSet->setSource(6, offValuesSbo);
+    filterDescriptorSet->setSource(0, cameraUbo);
+    filterDescriptorSet->setSource(1, positionSbo);
+    filterDescriptorSet->setSource(2, instanceSbo);
+    filterDescriptorSet->setSource(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setSource(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setSource(5, instancedResults->getResults(MAIN_RENDER_MASK));
+    filterDescriptorSet->setSource(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,12);
 
@@ -674,13 +619,11 @@ struct CrowdApplicationData
     updateData.cameraDistance              = 1.0f;
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
-    updateData.xKeyPressed                 = false;
     updateData.moveForward                 = false;
     updateData.moveBackward                = false;
     updateData.moveLeft                    = false;
     updateData.moveRight                   = false;
 
-    skeletalAssetBuffer->prepareDrawIndexedIndirectCommandBuffer(1, initialResultValues, resultsGeomToType);
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
@@ -693,11 +636,8 @@ struct CrowdApplicationData
     pipelineCache->validate(devicePtr);
 
     skeletalAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    instancedResults->validate(surface.get());
     materialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    simpleRenderDescriptorSetLayout->validate(devicePtr);
-    simpleRenderDescriptorPool->validate(devicePtr);
-    simpleRenderPipelineLayout->validate(devicePtr);
-    simpleRenderPipeline->validate(devicePtr);
 
     instancedRenderDescriptorSetLayout->validate(devicePtr);
     instancedRenderDescriptorPool->validate(devicePtr);
@@ -715,9 +655,6 @@ struct CrowdApplicationData
     textPipeline->validate(devicePtr);
 
     timeStampQueryPool->validate(devicePtr);
-
-    resultsSbo->validate(surface.get());
-    offValuesSbo->validate(surface.get());
   }
 
 
@@ -812,23 +749,7 @@ struct CrowdApplicationData
       updateData.cameraPosition -= right;
     if (updateData.moveRight)
       updateData.cameraPosition += right;
-//    if (windowSh->isKeyPressed('X'))
-//    {
-//      if (!updateData.xKeyPressed)
-//      {
-//        updateData.renderMethod = (updateData.renderMethod + 1) % 2;
-//        switch (updateData.renderMethod)
-//        {
-//        case 0: LOG_INFO << "Rendering using simple method ( each entity uses its own vkCmdDrawIndexed )" << std::endl; break;
-//        case 1: LOG_INFO << "Rendering using instanced method ( all entities use only a single vkCmdDrawIndexedIndirect )" << std::endl; break;
-//        }
-//        updateData.xKeyPressed = true;
-//      }
-//    }
-//    else
-//      updateData.xKeyPressed = false;
 
-    uData.renderMethod                = updateData.renderMethod;
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.cameraDistance              = updateData.cameraDistance;
     uData.cameraPosition              = updateData.cameraPosition;
@@ -985,32 +906,15 @@ struct CrowdApplicationData
     float deltaTime  = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
     float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
 
-    if (rData.renderMethod == 1)
-    {
-      std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
-      std::fill(typeCount.begin(), typeCount.end(), 0);
-      // compute how many instances of each type there is
-      for (uint32_t i = 0; i < rData.people.size(); ++i)
-        typeCount[rData.people[i].typeID]++;
-      for (uint32_t i = 0; i < rData.clothes.size(); ++i)
-        typeCount[rData.clothes[i].typeID]++;
+    std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
+    std::fill(typeCount.begin(), typeCount.end(), 0);
+    // compute how many instances of each type there is
+    for (uint32_t i = 0; i < rData.people.size(); ++i)
+      typeCount[rData.people[i].typeID]++;
+    for (uint32_t i = 0; i < rData.clothes.size(); ++i)
+      typeCount[rData.clothes[i].typeID]++;
 
-      std::vector<uint32_t> offsets;
-      for (uint32_t i = 0; i < resultsGeomToType.size(); ++i)
-        offsets.push_back(typeCount[resultsGeomToType[i]]);
-
-      std::vector<pumex::DrawIndexedIndirectCommand> results = initialResultValues;
-      uint32_t offsetSum = 0;
-      for (uint32_t i = 0; i < offsets.size(); ++i)
-      {
-        uint32_t tmp = offsetSum;
-        offsetSum += offsets[i];
-        offsets[i] = tmp;
-        results[i].firstInstance = tmp;
-      }
-      resultsSbo->set(results);
-      offValuesSbo->set(std::vector<uint32_t>(offsetSum));
-    }
+    instancedResults->prepareBuffers(typeCount);
 
     std::vector<PositionData> positionData;
     std::vector<InstanceData> instanceData;
@@ -1111,25 +1015,21 @@ struct CrowdApplicationData
     textFPS->setActiveIndex(activeIndex);
     textFPS->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    cameraUbo->validate(surface.get());
+    cameraUbo->validate(surfacePtr);
     positionSbo->setActiveIndex(activeIndex);
     positionSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     instanceSbo->setActiveIndex(activeIndex);
     instanceSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    resultsSbo->setActiveIndex(activeIndex);
-    resultsSbo->validate(surface.get());
-    offValuesSbo->setActiveIndex(activeIndex);
-    offValuesSbo->validate(surface.get());
+    instancedResults->setActiveIndex(activeIndex);
+    instancedResults->validate(surfacePtr);
 
-    simpleRenderDescriptorSet->setActiveIndex(activeIndex);
-    simpleRenderDescriptorSet->validate(surfacePtr);
     instancedRenderDescriptorSet->setActiveIndex(activeIndex);
     instancedRenderDescriptorSet->validate(surfacePtr);
     filterDescriptorSet->setActiveIndex(activeIndex);
     filterDescriptorSet->validate(surfacePtr);
 
-    textCameraUbo->validate(surface.get());
+    textCameraUbo->validate(surfacePtr);
     textDescriptorSet->setActiveIndex(activeIndex);
     textDescriptorSet->validate(surfacePtr);
 
@@ -1143,28 +1043,24 @@ struct CrowdApplicationData
       currentCmdBuffer->cmdBegin();
       timeStampQueryPool->reset(devicePtr, currentCmdBuffer, activeIndex * 4, 4);
 
-      // FIXME - this is FUBAR
       std::vector<pumex::DescriptorSetValue> resultsBuffer;
-      resultsSbo->getDescriptorSetValues(surface->surface, 0, resultsBuffer);
-      uint32_t drawCount = initialResultValues.size();
-
-      if (rData.renderMethod == 1)
-      {
-#if defined(CROWD_MEASURE_TIME)
-        timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-#endif
-        currentCmdBuffer->cmdBindPipeline(filterPipeline.get());
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, filterDescriptorSet.get());
-        uint32_t instanceCount = rData.people.size() + rData.clothes.size();
-        currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
-
-        pumex::PipelineBarrier afterComputeBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer[0].bufferInfo);
-        currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterComputeBarrier);
+      instancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, resultsBuffer);
+      uint32_t drawCount = instancedResults->getDrawCount(MAIN_RENDER_MASK);
 
 #if defined(CROWD_MEASURE_TIME)
-        timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+      timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 #endif
-      }
+      currentCmdBuffer->cmdBindPipeline(filterPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, filterDescriptorSet.get());
+      uint32_t instanceCount = rData.people.size() + rData.clothes.size();
+      currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
+
+      pumex::PipelineBarrier afterComputeBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, resultsBuffer[0].bufferInfo);
+      currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, afterComputeBarrier);
+
+#if defined(CROWD_MEASURE_TIME)
+      timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
+#endif
 
       std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
       currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(),  pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
@@ -1174,38 +1070,15 @@ struct CrowdApplicationData
 #if defined(CROWD_MEASURE_TIME)
       timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
 #endif
-      switch (rData.renderMethod)
+      currentCmdBuffer->cmdBindPipeline(instancedRenderPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, instancedRenderDescriptorSet.get());
+      skeletalAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), MAIN_RENDER_MASK, 0);
+      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
+        currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+      else
       {
-      case 0: // simple rendering: no compute culling, no instancing
-      {
-        //currentCmdBuffer->cmdBindPipeline(simpleRenderPipeline);
-        //currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, simpleRenderPipelineLayout, 0, simpleRenderDescriptorSet);
-        //skeletalAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-        //// Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera
-        ////      glm::vec4 cameraPos = frameData.camera.getViewMatrixInverse() * glm::vec4(0,0,0,1);
-        //glm::vec4 cameraPos = frameData[readIdx].camera.getObserverPosition();
-        //for (uint32_t i = 0; i<frameData[readIdx].instanceData.size(); ++i)
-        //{
-        //  glm::vec4 objectPos = frameData[readIdx].positionData[frameData[readIdx].instanceData[i].positionIndex].position[3];
-        //  float distanceToCamera = glm::length(cameraPos - objectPos);
-        //  skeletalAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, frameData[readIdx].instanceData[i].typeID, i, distanceToCamera);
-        //}
-        break;
-      }
-      case 1: // compute culling and instanced rendering
-      {
-        currentCmdBuffer->cmdBindPipeline(instancedRenderPipeline.get());
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, instancedRenderDescriptorSet.get());
-        skeletalAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-        if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
-          currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
-        else
-        {
-          for (uint32_t i = 0; i < drawCount; ++i)
-            currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
-        }
-        break;
-      }
+        for (uint32_t i = 0; i < drawCount; ++i)
+          currentCmdBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
       }
 #if defined(CROWD_MEASURE_TIME)
       timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
@@ -1266,7 +1139,7 @@ int main(void)
   LOG_INFO << "Crowd rendering" << std::endl;
 	
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", true, requestDebugLayers, 50 };
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", false, requestDebugLayers, 50 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -1341,7 +1214,6 @@ int main(void)
     std::shared_ptr<pumex::Surface> surface2 = viewer->addSurface(window2, device, surfaceTraits);
     applicationData->surfaceSetup(surface2);
 
-
     // Making the update graph
     // The update in this example is "almost" singlethreaded. 
     // In more complicated scenarios update should be also divided into advanced update graph.
@@ -1396,7 +1268,6 @@ int main(void)
     tbb::flow::make_edge(startSurfaceFrame2, drawSurfaceFrame2);
     tbb::flow::make_edge(drawSurfaceFrame2, endSurfaceFrame2);
     tbb::flow::make_edge(endSurfaceFrame2, endWholeFrame);
-
 
     tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
 

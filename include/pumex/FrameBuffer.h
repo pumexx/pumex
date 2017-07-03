@@ -86,8 +86,6 @@ protected:
   std::weak_ptr<DeviceMemoryAllocator>             allocator;
 };
 
-// FIXME : as for now the extent of a frame buffer is the same as the extent of a surface.
-// These two extents should be independent
 
 class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {

@@ -28,6 +28,7 @@
 #include <pumex/Asset.h>
 #include <pumex/BoundingBox.h>
 #include <pumex/StorageBuffer.h>
+#include <pumex/StorageBufferPerSurface.h>
 #include <pumex/GenericBuffer.h>
 #include <pumex/Pipeline.h>
 
@@ -163,8 +164,10 @@ public:
   inline void setDirty();
   void validate(Device* device, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
 
-  void cmdBindVertexIndexBuffer(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
-  void cmdDrawObject(Device* device, std::shared_ptr<CommandBuffer> commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+  void cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
+  void cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+
+  inline uint32_t getNumRenderMasks() const;
 
   std::shared_ptr<StorageBuffer<AssetTypeDefinition>>     getTypeBuffer(uint32_t renderMask);
   std::shared_ptr<StorageBuffer<AssetLodDefinition>>      getLodBuffer(uint32_t renderMask);
@@ -233,9 +236,9 @@ protected:
     }
   };
 
-  std::map<uint32_t, std::vector<VertexSemantic>> semantics;
   mutable std::mutex                              mutex;
-  std::map<uint32_t, PerRenderMaskData>           perRenderMaskData;
+  std::map<uint32_t, std::vector<VertexSemantic>> semantics;
+  std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
 
   std::vector<std::string>                        typeNames;
   std::map<std::string, uint32_t>                 invTypeNames;
@@ -247,7 +250,52 @@ protected:
   std::map<AssetKey, std::shared_ptr<Asset>, AssetKeyCompare> assetMapping;
 };
 
-uint32_t AssetBuffer::getNumTypesID() const { return typeNames.size(); }
-void     AssetBuffer::setDirty()            { dirty = true; }
+uint32_t AssetBuffer::getNumTypesID() const     { return typeNames.size(); }
+void     AssetBuffer::setDirty()                { dirty = true; }
+uint32_t AssetBuffer::getNumRenderMasks() const { return perRenderMaskData.size(); }
+
+// helper class with buffers storing results of compute shader computations
+class PUMEX_EXPORT AssetBufferInstancedResults
+{
+public:
+  AssetBufferInstancedResults()                                              = delete;
+  explicit AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> assetBuffer, std::weak_ptr<DeviceMemoryAllocator> buffersAllocator);
+  AssetBufferInstancedResults(const AssetBufferInstancedResults&)            = delete;
+  AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
+  virtual ~AssetBufferInstancedResults();
+
+  void setup();
+  void prepareBuffers(const std::vector<uint32_t>& typeCount);
+
+  std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
+  std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          getOffsetValues(uint32_t renderMask);
+  uint32_t                                                                           getDrawCount(uint32_t renderMask);
+
+
+  void setActiveIndex(uint32_t index);
+  void validate(Surface* surface);
+
+protected:
+  struct PerRenderMaskData
+  {
+    PerRenderMaskData() = default;
+    PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> allocator)
+    {
+      resultsSbo = std::make_shared<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>>(allocator, 1, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+      offValuesSbo = std::make_shared<pumex::StorageBufferPerSurface<uint32_t>>(allocator, 3);
+    }
+
+    std::vector<pumex::DrawIndexedIndirectCommand>                                     initialResultValues;
+    std::vector<uint32_t>                                                              resultsGeomToType;
+    std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> resultsSbo;
+    std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          offValuesSbo;
+  };
+
+  mutable std::mutex                              mutex;
+  std::map<uint32_t, std::vector<VertexSemantic>> semantics;
+  std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
+  std::weak_ptr<AssetBuffer>                      assetBuffer;
+//  std::weak_ptr<DeviceMemoryAllocator>            buffersAllocator;
+};
 
 }

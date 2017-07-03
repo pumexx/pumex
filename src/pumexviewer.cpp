@@ -465,14 +465,14 @@ struct ViewerApplicationData
 
       currentCmdBuffer->cmdBindPipeline(pipeline.get());
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
-      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, modelTypeID, 0, 50.0f);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, testFigureTypeID, 0, 50.0f);
+      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, testFigureTypeID, 0, 50.0f);
 
       currentCmdBuffer->cmdBindPipeline(boxPipeline.get());
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, boxDescriptorSet.get());
-      boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer, 1, 0);
-      boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer, 1, boxTypeID, 0, 50.0f);
+      boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+      boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, boxTypeID, 0, 50.0f);
 
       currentCmdBuffer->cmdEndRenderPass();
       currentCmdBuffer->cmdEnd();

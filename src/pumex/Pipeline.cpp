@@ -210,6 +210,48 @@ void DescriptorSetSource::notifyDescriptorSets()
     ds->setDirty();
 }
 
+//void DescriptorSetSourceArray::addSource(std::shared_ptr<DescriptorSetSource> source)
+//{
+//  sources.push_back(source);
+//}
+//
+//void DescriptorSetSourceArray::addDescriptorSet(DescriptorSet* descriptorSet)
+//{
+//  for (auto& s : sources)
+//  {
+//    s->addDescriptorSet(descriptorSet);
+//  }
+//}
+//
+//void DescriptorSetSourceArray::removeDescriptorSet(DescriptorSet* descriptorSet)
+//{
+//  for (auto& s : sources)
+//  {
+//    s->removeDescriptorSet(descriptorSet);
+//  }
+//}
+//
+//void DescriptorSetSourceArray::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+//{
+//  for (const auto& s : sources)
+//  {
+//    s->getDescriptorSetValues(device, index, values);
+//  }
+//}
+//
+//void DescriptorSetSourceArray::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
+//{
+//  for (const auto& s : sources)
+//  {
+//    s->getDescriptorSetValues(surface, index, values);
+//  }
+//}
+//
+//void DescriptorSetSourceArray::notifyDescriptorSets()
+//{
+//  for (auto& s : sources)
+//    s->notifyDescriptorSets();
+//}
 
 DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared_ptr<DescriptorPool> p, uint32_t ac)
   : layout{ l }, pool{ p }, activeCount{ ac }
