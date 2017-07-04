@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 
+#include <cstring>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Device.h>
 #include <pumex/PhysicalDevice.h>
@@ -97,7 +98,7 @@ void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offs
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "DeviceMemoryAllocator::copyToDeviceMemory() : cannot copy to memory that not have been allocated yet");
   uint8_t *pData;
   VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, offset, size, 0, (void **)&pData), "Cannot map memory");
-  memcpy(pData, data, size);
+  std::memcpy(pData, data, size);
   vkUnmapMemory(device->device, pddit->second.storageMemory);
 }
 

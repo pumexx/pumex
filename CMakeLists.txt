@@ -77,9 +77,31 @@ ExternalProject_Add_Step( gli-external gli-external-copy-includes
   DEPENDEES install
 )
 
-find_library( ASSIMP_LIBRARIES NAMES assimp )
-find_package_handle_standard_args( ASSIMP REQUIRED_VARS ASSIMP_LIBRARIES )
-if( NOT ASSIMP_FOUND )
+set(CXXOPTS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/cxxopts")
+ExternalProject_Add( cxxopts-external
+  PREFIX "${CXXOPTS_BUILD_DIR}"
+  BINARY_DIR "${CXXOPTS_BUILD_DIR}/build"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/cxxopts"
+  GIT_REPOSITORY "https://github.com/jarro2783/cxxopts.git"
+  GIT_TAG "v1.2.0"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/cxxopts"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  UPDATE_COMMAND ""
+  PATCH_COMMAND ""
+  TEST_COMMAND ""
+  INSTALL_COMMAND ""
+  UPDATE_DISCONNECTED 1
+)
+ExternalProject_Add_Step( cxxopts-external cxxopts-external-copy-includes
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/cxxopts/include" "${CMAKE_CURRENT_BINARY_DIR}/include"
+  COMMENT "Copying cxxopts headers"
+  DEPENDEES install
+)
+
+set( PUMEX_DEPENDENCIES )
+
+if(WIN32)
   set(ASSIMP_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/assimp)
   set(ASSIMP_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/assimp")
   ExternalProject_Add( assimp-external
@@ -104,15 +126,19 @@ if( NOT ASSIMP_FOUND )
       set(ASSIMP_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/assimp-${ASSIMP_MSVC_VERSION}-mtd.lib)
       set(ASSIMP_LIBRARIES optimized "${ASSIMP_LIBRARY_RELEASE}" debug "${ASSIMP_LIBRARY_DEBUG}")
     endif()
+    list ( APPEND PUMEX_DEPENDENCIES assimp-external )
   else(WIN32)
+# This code is inactive now.
       set(ASSIMP_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libassimp.so)
       set(ASSIMP_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libassimpd.so)
       set(ASSIMP_LIBRARIES optimized "${ASSIMP_LIBRARY_RELEASE}" debug "${ASSIMP_LIBRARY_DEBUG}")
   endif(WIN32)
-endif( NOT ASSIMP_FOUND )
+else(WIN32)
+  find_package( ASSIMP REQUIRED )
+#  find_package_handle_standard_args( ASSIMP REQUIRED_VARS ASSIMP_LIBRARIES )
+endif(WIN32)
 
-find_library( FREETYPE NAMES freetype )
-if( NOT FREETYPE_FOUND )
+if( WIN32 )
   set(FREETYPE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/freetype )
   set(FREETYPE_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/freetype")
   ExternalProject_Add( freetype-external
@@ -130,56 +156,40 @@ if( NOT FREETYPE_FOUND )
   set(FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/freetyped.lib)
   set(FREETYPE_LIBRARIES optimized "${FREETYPE_LIBRARY_RELEASE}" debug "${FREETYPE_LIBRARY_DEBUG}")
   include_directories( ${CMAKE_CURRENT_BINARY_DIR}/include/freetype2 )
-  
-endif( NOT FREETYPE_FOUND )
-
-
-set(TBB_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/tbb)
-set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
-ExternalProject_Add( tbb-external
-  PREFIX "${TBB_BUILD_DIR}"
-  BINARY_DIR "${TBB_BUILD_DIR}/build"
-  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/tbb"
-  GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
-  SOURCE_DIR "${TBB_SOURCE_DIR}"
-  UPDATE_COMMAND ""
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DCMAKE_DEBUG_POSTFIX=_debug -DTBB_BUILD_TESTS=OFF
-  UPDATE_DISCONNECTED 1
-)
+  list ( APPEND PUMEX_DEPENDENCIES freetype-external )
+else( WIN32 )
+  find_package( Freetype REQUIRED )
+  include_directories( ${FREETYPE_INCLUDE_DIRS} )
+endif( WIN32 )
 
 if(WIN32)
-  set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib)
-  set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb_debug.lib)
-  set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
-else(WIN32)
+  set(TBB_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/tbb)
+  set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
+  ExternalProject_Add( tbb-external
+    PREFIX "${TBB_BUILD_DIR}"
+    BINARY_DIR "${TBB_BUILD_DIR}/build"
+    STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/tbb"
+    GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
+    SOURCE_DIR "${TBB_SOURCE_DIR}"
+    UPDATE_COMMAND ""
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DCMAKE_DEBUG_POSTFIX=_debug -DTBB_BUILD_TESTS=OFF
+    UPDATE_DISCONNECTED 1
+  )
+
+  if(WIN32)
+    set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib)
+    set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb_debug.lib)
+    set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
+  else(WIN32)
 #  find_library(TBB_LIBRARIES NAMES tbb PATHS /usr/local/lib/ )
-  set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb.so)
-  set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb_debug.so)
-  set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
-endif(WIN32)
-
-set(CXXOPTS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/cxxopts")
-ExternalProject_Add( cxxopts-external
-  PREFIX "${CXXOPTS_BUILD_DIR}"
-  BINARY_DIR "${CXXOPTS_BUILD_DIR}/build"
-  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/cxxopts"
-  GIT_REPOSITORY "https://github.com/jarro2783/cxxopts.git"
-  GIT_TAG "v1.2.0"
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/cxxopts"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  UPDATE_COMMAND ""
-  PATCH_COMMAND ""
-  TEST_COMMAND ""
-  INSTALL_COMMAND ""
-  UPDATE_DISCONNECTED 1
-)
-ExternalProject_Add_Step( cxxopts-external cxxopts-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/cxxopts/include" "${CMAKE_CURRENT_BINARY_DIR}/include"
-  COMMENT "Copying cxxopts headers"
-  DEPENDEES install
-)
-
+    set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb.so)
+    set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb_debug.so)
+    set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
+  endif(WIN32)
+  list ( APPEND PUMEX_DEPENDENCIES tbb-external )
+else( WIN32 )
+  find_package( TBB COMPONENTS tbbmalloc tbbmalloc_proxy )
+endif( WIN32 )
 
 # FIXME - android not implemented
 if(WIN32)
@@ -221,7 +231,7 @@ SET(CMAKE_MINSIZEREL_POSTFIX "s")
 add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
 target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
 target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
-add_dependencies( pumex glm-external gli-external assimp-external tbb-external freetype-external )
+add_dependencies( pumex glm-external gli-external ${PUMEX_DEPENDENCIES} )
 target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${Vulkan_LIBRARIES} ${TBB_LIBRARIES} ${ASSIMP_LIBRARIES} ${FREETYPE_LIBRARIES} )
 
 MACRO(set_executable_postfixes target)

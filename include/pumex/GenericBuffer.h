@@ -42,7 +42,7 @@ namespace pumex
 // OK, last time I read a book about C++ templates about seven years ago, so this code may look ugly in 2017
 template<typename T> size_t uglyGetSize( const T& t )              { return sizeof(T); }
 template<typename T> size_t uglyGetSize( const std::vector<T>& t ) { return t.size() * sizeof(T); }
-template<typename T> T*     uglyGetPointer( T& t )                 { return &T; }
+template<typename T> T*     uglyGetPointer( T& t )                 { return std::addressof(t); }
 template<typename T> T*     uglyGetPointer( std::vector<T>& t )    { return t.data(); }
 
 template <typename T>
@@ -89,7 +89,7 @@ private:
 };
 
 template <typename T>
-GenericBuffer<T>::GenericBuffer(VkBufferUsageFlagBits u, std::shared_ptr<T> d, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac = 1)
+GenericBuffer<T>::GenericBuffer(VkBufferUsageFlagBits u, std::shared_ptr<T> d, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac)
   : usage{ u }, data{ d }, allocator { a }, activeCount{ ac }
 {
 }

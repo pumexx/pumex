@@ -71,8 +71,7 @@ private:
     }
     void setDirty()
     {
-      for (auto& d : dirty)
-        d = true;
+      std::fill(dirty.begin(), dirty.end(), true);
     }
 
     T                               uboData;
@@ -158,7 +157,7 @@ template <typename T>
 void UniformBufferPerSurface<T>::setDirty()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
+  for (auto& pdd : perSurfaceData)
     pdd.second->setDirty();
 }
 

@@ -74,8 +74,7 @@ private:
     }
     void setDirty()
     {
-      for (auto& d : dirty)
-        d = true;
+      std::fill(dirty.begin(), dirty.end(), true);
     }
 
     std::vector<T>                  storageData;
@@ -167,7 +166,7 @@ template <typename T>
 void StorageBufferPerSurface<T>::setDirty()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
+  for (auto& pdd : perSurfaceData)
     pdd.second->setDirty();
 }
 
