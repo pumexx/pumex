@@ -158,6 +158,29 @@ else(WIN32)
   set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
 endif(WIN32)
 
+set(CXXOPTS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/cxxopts")
+ExternalProject_Add( cxxopts-external
+  PREFIX "${CXXOPTS_BUILD_DIR}"
+  BINARY_DIR "${CXXOPTS_BUILD_DIR}/build"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/cxxopts"
+  GIT_REPOSITORY "https://github.com/jarro2783/cxxopts.git"
+  GIT_TAG "v1.2.0"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/cxxopts"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  UPDATE_COMMAND ""
+  PATCH_COMMAND ""
+  TEST_COMMAND ""
+  INSTALL_COMMAND ""
+  UPDATE_DISCONNECTED 1
+)
+ExternalProject_Add_Step( cxxopts-external cxxopts-external-copy-includes
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/cxxopts/include" "${CMAKE_CURRENT_BINARY_DIR}/include"
+  COMMENT "Copying cxxopts headers"
+  DEPENDEES install
+)
+
+
 # FIXME - android not implemented
 if(WIN32)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_WIN32_KHR")
@@ -209,22 +232,22 @@ MACRO(set_executable_postfixes target)
 ENDMACRO(set_executable_postfixes)
 
 add_executable( pumexviewer src/pumexviewer.cpp )
-add_dependencies( pumexviewer shaders )
+add_dependencies( pumexviewer shaders cxxopts-external )
 target_link_libraries( pumexviewer pumex )
 set_executable_postfixes( pumexviewer )
 
 add_executable( pumexcrowd src/pumexcrowd.cpp )
-add_dependencies( pumexcrowd shaders )
+add_dependencies( pumexcrowd shaders cxxopts-external )
 target_link_libraries( pumexcrowd pumex )
 set_executable_postfixes( pumexcrowd )
 
 add_executable( pumexgpucull src/pumexgpucull.cpp )
-add_dependencies( pumexgpucull shaders )
+add_dependencies( pumexgpucull shaders cxxopts-external )
 target_link_libraries( pumexgpucull pumex )
 set_executable_postfixes( pumexgpucull )
 
 add_executable( pumexdeferred src/pumexdeferred.cpp )
-add_dependencies( pumexdeferred shaders )
+add_dependencies( pumexdeferred shaders cxxopts-external )
 target_link_libraries( pumexdeferred pumex )
 set_executable_postfixes( pumexdeferred )
 

@@ -20,12 +20,12 @@
 // SOFTWARE.
 //
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
 
 // pumexviewer is a very basic program, that performs textureless rendering of a model provided in a commandline
 
@@ -515,18 +515,46 @@ struct ViewerApplicationData
 
 int main( int argc, char * argv[] )
 {
-  SET_LOG_ERROR;
-  if (argc < 2)
+  SET_LOG_INFO;
+  bool enableDebugging = false;
+  bool useFullScreen   = false;
+  std::string modelFileName;
+
+  try
   {
-    LOG_WARNING << "Model filename not defined" << std::endl;
+    cxxopts::Options options("pumexviewer", "pumex example : model viewer");
+    options.add_options()
+      ("h,help", "print help")
+      ("m,model", "show model", cxxopts::value<std::string>(modelFileName))
+      ("d,debug", "enable Vulkan debugging", cxxopts::value<bool>(enableDebugging))
+      ("f,fullscreen", "create fullscreen window", cxxopts::value<bool>(useFullScreen))
+      ;
+    options.parse(argc, argv);
+    if (options.count("help"))
+    {
+      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
+      FLUSH_LOG;
+      return 0;
+    }
+    if (options.count("model") == 0)
+    {
+      LOG_ERROR << "Model not defined, use option -m <filename>" << std::endl;
+      FLUSH_LOG;
+      return 1;
+    }
+  }
+  catch (const cxxopts::OptionException& e)
+  {
+    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    FLUSH_LOG;
     return 1;
   }
 
   std::string windowName = "Pumex viewer : ";
-  windowName += argv[1];
+  windowName += modelFileName;
 
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", true, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", enableDebugging, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -539,7 +567,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, false, windowName };
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
@@ -579,7 +607,7 @@ int main( int argc, char * argv[] )
     surfaceTraits.setDefaultRenderPass(renderPass);
     surfaceTraits.setFrameBufferImages(frameBufferImages);
 
-    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(viewer, argv[1]);
+    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(viewer, modelFileName);
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup();
 

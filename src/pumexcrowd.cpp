@@ -29,6 +29,7 @@
 #include <glm/simd/matrix.h>
 #include <gli/gli.hpp>
 #include <tbb/tbb.h>
+#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 
@@ -1099,7 +1100,7 @@ struct CrowdApplicationData
 
   }
 
-  void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
+  void finishFrame(std::shared_ptr<pumex::Viewer> viewer)
   {
 #if defined(CROWD_MEASURE_TIME)
     pumex::Device*  devicePtr = surface->device.lock().get();
@@ -1133,13 +1134,43 @@ struct CrowdApplicationData
 };
 
 
-int main(void)
+int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
-  LOG_INFO << "Crowd rendering" << std::endl;
-	
+  bool enableDebugging = false;
+  bool useFullScreen   = false;
+  bool render3windows  = false;
+
+  try
+  {
+    cxxopts::Options options("pumexcrowd", "pumex example : multithreaded crowd rendering on more than one window");
+    options.add_options()
+      ("h,help",          "print help")
+      ("d,debug",         "enable Vulkan debugging", cxxopts::value<bool>(enableDebugging))
+      ("f,fullscreen",    "create fullscreen window", cxxopts::value<bool>(useFullScreen))
+      ("t,three_windows", "render in three windows", cxxopts::value<bool>(render3windows))
+      ;
+    options.parse(argc, argv);
+    if (options.count("help"))
+    {
+      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
+      FLUSH_LOG;
+      return 0;
+    }
+  }
+  catch (const cxxopts::OptionException& e)
+  {
+    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    FLUSH_LOG;
+    return 1;
+  }
+  LOG_INFO << "Crowd rendering";
+  if (enableDebugging)
+    LOG_INFO << " : Vulkan debugging enabled";
+  LOG_INFO << std::endl;
+
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", false, requestDebugLayers, 50 };
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", enableDebugging, requestDebugLayers, 50 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -1152,14 +1183,21 @@ int main(void)
     std::shared_ptr<pumex::Device> device            = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
 
-    pumex::WindowTraits windowTraits0{0, 30, 100, 512, 384, false, "Crowd rendering"};
-    std::shared_ptr<pumex::Window> window0 = pumex::Window::createWindow(windowTraits0);
+    std::vector<pumex::WindowTraits> windowTraits;
+    if (render3windows)
+    {
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 30,   100, 512, 384, false, "Crowd rendering 1" } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 570,  100, 512, 384, false, "Crowd rendering 2" } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 1110, 100, 512, 384, false, "Crowd rendering 3" } );
+    }
+    else
+    {
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen, "Crowd rendering" });
+    }
 
-    pumex::WindowTraits windowTraits1{ 0, 570, 100, 512, 384, false, "Crowd rendering 2" };
-    std::shared_ptr<pumex::Window> window1 = pumex::Window::createWindow(windowTraits1);
-
-    pumex::WindowTraits windowTraits2{ 0, 1110, 100, 512, 384, false, "Crowd rendering 3" };
-    std::shared_ptr<pumex::Window> window2 = pumex::Window::createWindow(windowTraits2);
+    std::vector<std::shared_ptr<pumex::Window>> windows;
+    for (const auto& t : windowTraits)
+      windows.push_back(pumex::Window::createWindow(t));
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {
@@ -1201,18 +1239,22 @@ int main(void)
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
 
-    applicationData->setSlaveViewMatrix(0, glm::rotate(glm::mat4(), glm::radians(-75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
-    applicationData->setSlaveViewMatrix(1, glm::mat4());
-    applicationData->setSlaveViewMatrix(2, glm::rotate(glm::mat4(), glm::radians(75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    if (render3windows)
+    {
+      applicationData->setSlaveViewMatrix(0, glm::rotate(glm::mat4(), glm::radians(-75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
+      applicationData->setSlaveViewMatrix(1, glm::mat4());
+      applicationData->setSlaveViewMatrix(2, glm::rotate(glm::mat4(), glm::radians(75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    }
+    else
+    {
+      applicationData->setSlaveViewMatrix(0, glm::mat4());
+    }
 
-    std::shared_ptr<pumex::Surface> surface0 = viewer->addSurface(window0, device, surfaceTraits);
-    applicationData->surfaceSetup(surface0);
-
-    std::shared_ptr<pumex::Surface> surface1 = viewer->addSurface(window1, device, surfaceTraits);
-    applicationData->surfaceSetup(surface1);
-
-    std::shared_ptr<pumex::Surface> surface2 = viewer->addSurface(window2, device, surfaceTraits);
-    applicationData->surfaceSetup(surface2);
+    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
+    for (auto win : windows)
+      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
+    for (auto surf : surfaces)
+      applicationData->surfaceSetup(surf);
 
     // Making the update graph
     // The update in this example is "almost" singlethreaded. 
@@ -1222,9 +1264,8 @@ int main(void)
     // All leaf nodes should point to viewer->endUpdateGraph.
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
-      applicationData->processInput(surface0); 
-      applicationData->processInput(surface1);
-      applicationData->processInput(surface2);
+      for (auto surf : surfaces)
+        applicationData->processInput(surf);
       applicationData->update(pumex::inSeconds( viewer->getUpdateTime() - viewer->getApplicationStartTime() ), pumex::inSeconds(viewer->getUpdateDuration()));
     });
 
@@ -1237,40 +1278,24 @@ int main(void)
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
     tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareBuffersForRendering(); });
-
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame0(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface0); surface0->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame0(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface0); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame0(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface0->endFrame(); });
-
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame1(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface1); surface1->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame1(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface1); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame1(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface1->endFrame(); });
-
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame2(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface2); surface2->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame2(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface2); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame2(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface2->endFrame(); });
-
-    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface0); });
+    std::vector<tbb::flow::continue_node< tbb::flow::continue_msg >> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
+    for (auto& surf : surfaces)
+    {
+      startSurfaceFrame.emplace_back(tbb::flow::continue_node< tbb::flow::continue_msg >(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surf); surf->beginFrame(); }));
+      drawSurfaceFrame.emplace_back(tbb::flow::continue_node< tbb::flow::continue_msg >(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surf); }));
+      endSurfaceFrame.emplace_back(tbb::flow::continue_node< tbb::flow::continue_msg >(viewer->renderGraph, [=](tbb::flow::continue_msg) { surf->endFrame(); }));
+    }
+    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer); });
 
     tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
-
-    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame0);
-    tbb::flow::make_edge(startSurfaceFrame0, drawSurfaceFrame0);
-    tbb::flow::make_edge(drawSurfaceFrame0, endSurfaceFrame0);
-    tbb::flow::make_edge(endSurfaceFrame0, endWholeFrame);
-
-    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame1);
-    tbb::flow::make_edge(startSurfaceFrame1, drawSurfaceFrame1);
-    tbb::flow::make_edge(drawSurfaceFrame1, endSurfaceFrame1);
-    tbb::flow::make_edge(endSurfaceFrame1, endWholeFrame);
-
-    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame2);
-    tbb::flow::make_edge(startSurfaceFrame2, drawSurfaceFrame2);
-    tbb::flow::make_edge(drawSurfaceFrame2, endSurfaceFrame2);
-    tbb::flow::make_edge(endSurfaceFrame2, endWholeFrame);
-
+    for (uint32_t i = 0; i < startSurfaceFrame.size(); ++i)
+    {
+      tbb::flow::make_edge(prepareBuffers, startSurfaceFrame[i]);
+      tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);
+      tbb::flow::make_edge(drawSurfaceFrame[i], endSurfaceFrame[i]);
+      tbb::flow::make_edge(endSurfaceFrame[i], endWholeFrame);
+    }
     tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
-
     viewer->run();
   }
   catch (const std::exception e)

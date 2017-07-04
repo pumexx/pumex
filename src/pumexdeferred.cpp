@@ -20,12 +20,12 @@
 // SOFTWARE.
 //
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
 
 // This example shows how to setup basic deferred renderer with antialiasing.
 
@@ -677,11 +677,39 @@ struct DeferredApplicationData
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
-  LOG_INFO << "Deferred rendering" << std::endl;
+  bool enableDebugging = false;
+  bool useFullScreen = false;
+
+  try
+  {
+    cxxopts::Options options("pumexdeferred", "pumex example : deferred rendering with antialiasing");
+    options.add_options()
+      ("h,help", "print help")
+      ("d,debug", "enable Vulkan debugging", cxxopts::value<bool>(enableDebugging))
+      ("f,fullscreen", "create fullscreen window", cxxopts::value<bool>(useFullScreen))
+      ;
+    options.parse(argc, argv);
+    if (options.count("help"))
+    {
+      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
+      FLUSH_LOG;
+      return 0;
+    }
+  }
+  catch (const cxxopts::OptionException& e)
+  {
+    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    FLUSH_LOG;
+    return 1;
+  }
+  LOG_INFO << "Deferred rendering";
+  if (enableDebugging)
+    LOG_INFO << " : Vulkan debugging enabled";
+  LOG_INFO << std::endl;
 
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
   // FIXME : validation layers are turned off, because VkLayer_core_validation.dll causes exception when window is resized
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", false, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", enableDebugging, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -694,7 +722,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, false, "Deferred rendering" };
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen, "Deferred rendering" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =

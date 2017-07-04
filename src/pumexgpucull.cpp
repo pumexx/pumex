@@ -26,6 +26,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <gli/gli.hpp>
 #include <tbb/tbb.h>
+#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
@@ -1465,20 +1466,60 @@ struct GpuCullApplicationData
 int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
-  LOG_INFO << "Object culling on GPU" << std::endl;
-
-  // Later I will move these parameters to a command line as in osggpucull example
-  bool  showStaticRendering  = true;
-  bool  showDynamicRendering = true;
+  bool  enableDebugging      = false;
+  bool  useFullScreen        = false;
+  bool  skipStaticRendering  = false;
+  bool  skipDynamicRendering = false;
   float staticAreaSize       = 2000.0f;
   float dynamicAreaSize      = 1000.0f;
-  float lodModifier          = 1.0f;  // lod distances are multiplied by this parameter
-  float densityModifier      = 1.0f;  // 
-  float triangleModifier     = 1.0f;
-	
+  float lodModifier          = 100.0f;  // lod distances are multiplied by this parameter
+  float densityModifier      = 100.0f;  // density of objects is multiplied by this parameter
+  float triangleModifier     = 100.0f;  // the number of triangles on geometries is multiplied by this parameter
+
+  try
+  {
+    cxxopts::Options options("pumexgpucull", "pumex example : instanced rendering for static and dynamic objects");
+    options.add_options()
+      ("h,help",            "print help")
+      ("d,debug",           "enable Vulkan debugging",                cxxopts::value<bool>(enableDebugging))
+      ("f,fullscreen",      "create fullscreen window",               cxxopts::value<bool>(useFullScreen))
+      ("skip-static",       "skip rendering of static objects",       cxxopts::value<bool>(skipStaticRendering))
+      ("skip-dynamic",      "skip rendering of dynamic objects",      cxxopts::value<bool>(skipDynamicRendering))
+      ("static-area-size",  "size of the area for static rendering",  cxxopts::value<float>(staticAreaSize)->default_value("2000"))
+      ("dynamic-area-size", "size of the area for dynamic rendering", cxxopts::value<float>(dynamicAreaSize)->default_value("1000"))
+      ("lod-modifier",      "LOD range [%]",                          cxxopts::value<float>(lodModifier)->default_value("100"))
+      ("density-modifier",  "instance density [%]",                   cxxopts::value<float>(densityModifier)->default_value("100"))
+      ("triangle-modifier", "instance triangle quantity [%]",         cxxopts::value<float>(triangleModifier)->default_value("100"))
+      ;
+    options.parse(argc, argv);
+    if (options.count("help"))
+    {
+      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
+      FLUSH_LOG;
+      return 0;
+    }
+  }
+  catch (const cxxopts::OptionException& e)
+  {
+    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    FLUSH_LOG;
+    return 1;
+  }
+  bool  showStaticRendering  = !skipStaticRendering;
+  bool  showDynamicRendering = !skipDynamicRendering;
+  lodModifier                /= 100.0f;
+  densityModifier            /= 100.0f;
+  triangleModifier           /= 100.0f;
+
+  LOG_INFO << "Object culling on GPU";
+  if (enableDebugging)
+    LOG_INFO << " : Vulkan debugging enabled";
+  LOG_INFO << std::endl;
+
+
   // Below is the definition of Vulkan instance, devices, queues, surfaces, windows, render passes and render threads. All in one place - with all parameters listed
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", true, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", enableDebugging, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer = std::make_shared<pumex::Viewer>(viewerTraits);
@@ -1489,7 +1530,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
 
-    pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, false, "Object culling on GPU"};
+    pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, useFullScreen, "Object culling on GPU"};
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
