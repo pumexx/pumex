@@ -77,14 +77,14 @@ ExternalProject_Add_Step( gli-external gli-external-copy-includes
   DEPENDEES install
 )
 
-set(CXXOPTS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/cxxopts")
-ExternalProject_Add( cxxopts-external
-  PREFIX "${CXXOPTS_BUILD_DIR}"
-  BINARY_DIR "${CXXOPTS_BUILD_DIR}/build"
-  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/cxxopts"
-  GIT_REPOSITORY "https://github.com/jarro2783/cxxopts.git"
-  GIT_TAG "v1.2.0"
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/cxxopts"
+set(ARGS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/args")
+ExternalProject_Add( args-external
+  PREFIX "${ARGS_BUILD_DIR}"
+  BINARY_DIR "${ARGS_BUILD_DIR}/build"
+  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/args"
+  GIT_REPOSITORY "https://github.com/Taywee/args.git"
+  GIT_TAG "6.0.4"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/args"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
@@ -93,9 +93,9 @@ ExternalProject_Add( cxxopts-external
   INSTALL_COMMAND ""
   UPDATE_DISCONNECTED 1
 )
-ExternalProject_Add_Step( cxxopts-external cxxopts-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/cxxopts/include" "${CMAKE_CURRENT_BINARY_DIR}/include"
-  COMMENT "Copying cxxopts headers"
+ExternalProject_Add_Step( args-external args-external-copy-includes
+  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/external/args/args.hxx" "${CMAKE_CURRENT_BINARY_DIR}/include/args.hxx"
+  COMMENT "Copying args headers"
   DEPENDEES install
 )
 
@@ -243,22 +243,22 @@ MACRO(set_executable_postfixes target)
 ENDMACRO(set_executable_postfixes)
 
 add_executable( pumexviewer src/pumexviewer.cpp )
-add_dependencies( pumexviewer shaders cxxopts-external )
+add_dependencies( pumexviewer shaders args-external )
 target_link_libraries( pumexviewer pumex )
 set_executable_postfixes( pumexviewer )
 
 add_executable( pumexcrowd src/pumexcrowd.cpp )
-add_dependencies( pumexcrowd shaders cxxopts-external )
+add_dependencies( pumexcrowd shaders args-external )
 target_link_libraries( pumexcrowd pumex )
 set_executable_postfixes( pumexcrowd )
 
 add_executable( pumexgpucull src/pumexgpucull.cpp )
-add_dependencies( pumexgpucull shaders cxxopts-external )
+add_dependencies( pumexgpucull shaders args-external )
 target_link_libraries( pumexgpucull pumex )
 set_executable_postfixes( pumexgpucull )
 
 add_executable( pumexdeferred src/pumexdeferred.cpp )
-add_dependencies( pumexdeferred shaders cxxopts-external )
+add_dependencies( pumexdeferred shaders args-external )
 target_link_libraries( pumexdeferred pumex )
 set_executable_postfixes( pumexdeferred )
 

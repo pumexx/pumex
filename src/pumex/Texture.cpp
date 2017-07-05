@@ -32,7 +32,7 @@ namespace pumex
 
 ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, bool lt, uint32_t m, uint32_t l, VkSampleCountFlagBits s, VkImageLayout il, 
   VkImageAspectFlags am, VkMemoryPropertyFlags mp, VkImageCreateFlags ic, VkImageType it, VkSharingMode sm, VkImageViewType vt, const gli::swizzles& sw)
-  : usage{ u }, linearTiling{ lt }, format{ f }, extent{ e }, mipLevels{ m }, arrayLayers{ l }, samples{ s }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }, viewType{ vt }, swizzles{ sw }, aspectMask{ am }, memoryProperty{ mp }
+  : usage{ u }, linearTiling{ lt }, format{ f }, extent( e ), mipLevels{ m }, arrayLayers{ l }, samples{ s }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }, viewType{ vt }, swizzles{ sw }, aspectMask{ am }, memoryProperty{ mp }
 {
 }
 

@@ -22,10 +22,16 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
+// suppression of noexcept keyword used in args library ( so that code may compile on VS 2013 )
+#ifdef _MSC_VER
+  #if _MSC_VER<1900
+    #define noexcept 
+  #endif
+#endif
+#include <args.hxx>
 
 // pumexviewer is a very basic program, that performs textureless rendering of a model provided in a commandline
 
@@ -516,40 +522,42 @@ struct ViewerApplicationData
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
-  bool enableDebugging = false;
-  bool useFullScreen   = false;
-  std::string modelFileName;
-
+  args::ArgumentParser         parser("pumex example : minimal 3D model viewer without textures");
+  args::HelpFlag               help(parser, "help", "Display this help menu", { 'h', "help" });
+  args::Flag                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
+  args::Flag                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  args::ValueFlag<std::string> modelNameArg(parser, "model", "3D model filename", { 'm' });
   try
   {
-    cxxopts::Options options("pumexviewer", "pumex example : model viewer");
-    options.add_options()
-      ("h,help", "print help")
-      ("m,model", "show model", cxxopts::value<std::string>(modelFileName))
-      ("d,debug", "enable Vulkan debugging", cxxopts::value<bool>(enableDebugging))
-      ("f,fullscreen", "create fullscreen window", cxxopts::value<bool>(useFullScreen))
-      ;
-    options.parse(argc, argv);
-    if (options.count("help"))
-    {
-      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
-      FLUSH_LOG;
-      return 0;
-    }
-    if (options.count("model") == 0)
-    {
-      LOG_ERROR << "Model not defined, use option -m <filename>" << std::endl;
-      FLUSH_LOG;
-      return 1;
-    }
+    parser.ParseCLI(argc, argv);
   }
-  catch (const cxxopts::OptionException& e)
+  catch (args::Help)
   {
-    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    LOG_ERROR << parser;
+    FLUSH_LOG;
+    return 0;
+  }
+  catch (args::ParseError e)
+  {
+    LOG_ERROR << e.what() << std::endl;
+    LOG_ERROR << parser;
     FLUSH_LOG;
     return 1;
   }
-
+  catch (args::ValidationError e)
+  {
+    LOG_ERROR << e.what() << std::endl;
+    LOG_ERROR << parser;
+    FLUSH_LOG;
+    return 1;
+  }
+  if (!modelNameArg)
+  {
+    LOG_ERROR << "Model filename is not defined" << std::endl;
+    FLUSH_LOG;
+    return 1;
+  }
+  std::string modelFileName = args::get(modelNameArg);
   std::string windowName = "Pumex viewer : ";
   windowName += modelFileName;
 

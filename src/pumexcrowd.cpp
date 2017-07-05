@@ -29,9 +29,15 @@
 #include <glm/simd/matrix.h>
 #include <gli/gli.hpp>
 #include <tbb/tbb.h>
-#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
+// suppression of noexcept keyword used in args library ( so that code may compile on VS 2013 )
+#ifdef _MSC_VER
+  #if _MSC_VER<1900
+    #define noexcept 
+  #endif
+#endif
+#include <args.hxx>
 
 
 // This example shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands
@@ -1137,30 +1143,32 @@ struct CrowdApplicationData
 int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
-  bool enableDebugging = false;
-  bool useFullScreen   = false;
-  bool render3windows  = false;
-
+  args::ArgumentParser parser("pumex example : multithreaded crowd rendering on more than one window");
+  args::HelpFlag       help(parser, "help", "display this help menu", {'h', "help"});
+  args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", {'d'});
+  args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", {'f'});
+  args::Flag           render3windows(parser, "three_windows", "render in three windows", {'t'});
   try
   {
-    cxxopts::Options options("pumexcrowd", "pumex example : multithreaded crowd rendering on more than one window");
-    options.add_options()
-      ("h,help",          "print help")
-      ("d,debug",         "enable Vulkan debugging", cxxopts::value<bool>(enableDebugging))
-      ("f,fullscreen",    "create fullscreen window", cxxopts::value<bool>(useFullScreen))
-      ("t,three_windows", "render in three windows", cxxopts::value<bool>(render3windows))
-      ;
-    options.parse(argc, argv);
-    if (options.count("help"))
-    {
-      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
-      FLUSH_LOG;
-      return 0;
-    }
+    parser.ParseCLI(argc, argv);
   }
-  catch (const cxxopts::OptionException& e)
+  catch (args::Help)
   {
-    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    LOG_ERROR << parser;
+    FLUSH_LOG;
+    return 0;
+  }
+  catch (args::ParseError e)
+  {
+    LOG_ERROR << e.what() << std::endl;
+    LOG_ERROR << parser;
+    FLUSH_LOG;
+    return 1;
+  }
+  catch (args::ValidationError e)
+  {
+    LOG_ERROR << e.what() << std::endl;
+    LOG_ERROR << parser;
     FLUSH_LOG;
     return 1;
   }

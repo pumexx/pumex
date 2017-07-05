@@ -26,10 +26,17 @@
 #include <glm/gtx/quaternion.hpp>
 #include <gli/gli.hpp>
 #include <tbb/tbb.h>
-#include <cxxopts.hpp>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
+// suppression of noexcept keyword used in args library ( so that code may compile on VS 2013 )
+#ifdef _MSC_VER
+  #if _MSC_VER<1900
+    #define noexcept 
+  #endif
+#endif
+#include <args.hxx>
+
 
 // This example shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands
 // ( the number of draw calls is equal to number of rendered object types ).
@@ -1466,51 +1473,49 @@ struct GpuCullApplicationData
 int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
-  bool  enableDebugging      = false;
-  bool  useFullScreen        = false;
-  bool  skipStaticRendering  = false;
-  bool  skipDynamicRendering = false;
-  float staticAreaSize       = 2000.0f;
-  float dynamicAreaSize      = 1000.0f;
-  float lodModifier          = 100.0f;  // lod distances are multiplied by this parameter
-  float densityModifier      = 100.0f;  // density of objects is multiplied by this parameter
-  float triangleModifier     = 100.0f;  // the number of triangles on geometries is multiplied by this parameter
-
+  args::ArgumentParser    parser("pumex example : instanced rendering for static and dynamic objects");
+  args::HelpFlag          help(parser, "help", "Display this help menu", { 'h', "help" });
+  args::Flag              enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
+  args::Flag              useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  args::Flag              skipStaticRendering(parser, "skip-static", "skip rendering of static objects", { "skip-static" });
+  args::Flag              skipDynamicRendering(parser, "skip-dynamic", "skip rendering of dynamic objects", { "skip-dynamic" });
+  args::ValueFlag<float>  staticAreaSizeArg(parser, "static-area-size", "size of the area for static rendering", { "static-area-size" }, 2000.0f);
+  args::ValueFlag<float>  dynamicAreaSizeArg(parser, "dynamic-area-size", "size of the area for dynamic rendering", { "dynamic-area-size" }, 1000.0f);
+  args::ValueFlag<float>  lodModifierArg(parser, "lod-modifier", "LOD range [%]", { "lod-modifier" }, 100.0f);
+  args::ValueFlag<float>  densityModifierArg(parser, "density-modifier", "instance density [%]", { "density-modifier" }, 100.0f);
+  args::ValueFlag<float>  triangleModifierArg(parser, "triangle-modifier", "instance triangle quantity [%]", { "triangle-modifier" }, 100.0f);
   try
   {
-    cxxopts::Options options("pumexgpucull", "pumex example : instanced rendering for static and dynamic objects");
-    options.add_options()
-      ("h,help",            "print help")
-      ("d,debug",           "enable Vulkan debugging",                cxxopts::value<bool>(enableDebugging))
-      ("f,fullscreen",      "create fullscreen window",               cxxopts::value<bool>(useFullScreen))
-      ("skip-static",       "skip rendering of static objects",       cxxopts::value<bool>(skipStaticRendering))
-      ("skip-dynamic",      "skip rendering of dynamic objects",      cxxopts::value<bool>(skipDynamicRendering))
-      ("static-area-size",  "size of the area for static rendering",  cxxopts::value<float>(staticAreaSize)->default_value("2000"))
-      ("dynamic-area-size", "size of the area for dynamic rendering", cxxopts::value<float>(dynamicAreaSize)->default_value("1000"))
-      ("lod-modifier",      "LOD range [%]",                          cxxopts::value<float>(lodModifier)->default_value("100"))
-      ("density-modifier",  "instance density [%]",                   cxxopts::value<float>(densityModifier)->default_value("100"))
-      ("triangle-modifier", "instance triangle quantity [%]",         cxxopts::value<float>(triangleModifier)->default_value("100"))
-      ;
-    options.parse(argc, argv);
-    if (options.count("help"))
-    {
-      LOG_ERROR << options.help({ "", "Group" }) << std::endl;
-      FLUSH_LOG;
-      return 0;
-    }
+    parser.ParseCLI(argc, argv);
   }
-  catch (const cxxopts::OptionException& e)
+  catch (args::Help)
   {
-    LOG_ERROR << "Error parsing options: " << e.what() << std::endl;
+    LOG_ERROR << parser;
+    FLUSH_LOG;
+    return 0;
+  }
+  catch (args::ParseError e)
+  {
+    LOG_ERROR << e.what() << std::endl;
+    LOG_ERROR << parser;
     FLUSH_LOG;
     return 1;
   }
+  catch (args::ValidationError e)
+  {
+    LOG_ERROR << e.what() << std::endl;
+    LOG_ERROR << parser;
+    FLUSH_LOG;
+    return 1;
+  }
+
   bool  showStaticRendering  = !skipStaticRendering;
   bool  showDynamicRendering = !skipDynamicRendering;
-  lodModifier                /= 100.0f;
-  densityModifier            /= 100.0f;
-  triangleModifier           /= 100.0f;
-
+  float staticAreaSize       = args::get(staticAreaSizeArg);
+  float dynamicAreaSize      = args::get(dynamicAreaSizeArg);
+  float lodModifier          = args::get(lodModifierArg) / 100.0f;      // lod distances are multiplied by this parameter
+  float densityModifier      = args::get(densityModifierArg) / 100.0f;  // density of objects is multiplied by this parameter
+  float triangleModifier     = args::get(triangleModifierArg) / 100.0f; // the number of triangles on geometries is multiplied by this parameter
   LOG_INFO << "Object culling on GPU";
   if (enableDebugging)
     LOG_INFO << " : Vulkan debugging enabled";
