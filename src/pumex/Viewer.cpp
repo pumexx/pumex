@@ -33,6 +33,7 @@
   #define getcwd _getcwd
 #elif defined(__linux__)
   #include <pumex/platform/linux/WindowXcb.h>
+  #include <X11/Xlib.h>
   #include <unistd.h>
 #endif
 #include <sys/stat.h>
@@ -134,6 +135,7 @@ Viewer::Viewer(const ViewerTraits& vt)
   enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(__linux__)
   enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+  XInitThreads();
 #elif defined(__ANDROID__)
   enabledExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #endif
