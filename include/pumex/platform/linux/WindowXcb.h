@@ -23,6 +23,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <mutex>
 #include <pumex/Window.h>
 #include <xcb/xcb.h>
 
@@ -67,7 +68,7 @@ protected:
   static xcb_connection_t*                            connection;
   static const xcb_setup_t*                           connectionSetup;
   static std::unordered_map<xcb_window_t, WindowXcb*> registeredWindows;
-  
+  static std::mutex                                   regMutex;
   
 };
 

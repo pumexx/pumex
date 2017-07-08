@@ -32,6 +32,7 @@ xcb_connection_t*                             WindowXcb::connection        = nul
 const xcb_setup_t*                            WindowXcb::connectionSetup   = nullptr;
 std::unordered_map<uint32_t, InputEvent::Key> WindowXcb::xcbKeycodes;
 std::unordered_map<xcb_window_t, WindowXcb*>  WindowXcb::registeredWindows;
+std::mutex                                    WindowXcb::regMutex;
 
 WindowXcb::WindowXcb(const WindowTraits& windowTraits)
 {
@@ -136,16 +137,19 @@ std::shared_ptr<pumex::Surface> WindowXcb::createSurface(std::shared_ptr<pumex::
 
 void WindowXcb::registerWindow(xcb_window_t windowID, WindowXcb* window)
 {
+  std::lock_guard<std::mutex> lock(regMutex);
   registeredWindows.insert({windowID,window});
 }
 
 void WindowXcb::unregisterWindow(xcb_window_t windowID)
 {
+  std::lock_guard<std::mutex> lock(regMutex);
   registeredWindows.erase(windowID);
 }
 
 WindowXcb* WindowXcb::getWindow(xcb_window_t windowID)
 {
+  std::lock_guard<std::mutex> lock(regMutex);
   auto it = registeredWindows.find(windowID);
   if (it == registeredWindows.end())
     return nullptr;
@@ -268,20 +272,25 @@ bool WindowXcb::checkWindowMessages()
     free(event);
   }
   // check for a delayed window resize
-  for( auto it : WindowXcb::registeredWindows )
+  std::lock_guard<std::mutex> lock(regMutex);
+  for( auto& win : WindowXcb::registeredWindows )
   {
-    if( !it.second->resizeCalled )
+    if( !win.second->resizeCalled )
       continue;
     // if last resize was called less than 1 second ago, then wait a little more
-    if( inSeconds( timeNow - it.second->lastResizeTimePoint ) < 1.0 )
+    if( inSeconds( timeNow - win.second->lastResizeTimePoint ) < 1.0 )
       continue;
-
-    it.second->resizeCalled        = false;    
-    it.second->lastResizeTimePoint = timeNow;
-    auto surf                      = it.second->surface.lock();
-    surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, it.second->newWidth, it.second->newHeight));
-    it.second->width               = it.second->newWidth;
-    it.second->height              = it.second->newHeight;
+    
+LOG_ERROR << "delayed resize " << win.second->newWidth << " " << win.second->newHeight << std::endl;
+    
+    win.second->resizeCalled        = false;
+    if( win.second->width == win.second->newWidth && win.second->height == win.second->newHeight  )
+      continue;
+    win.second->lastResizeTimePoint = timeNow;
+    auto surf                      = win.second->surface.lock();
+    surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, win.second->newWidth, win.second->newHeight));
+    win.second->width               = win.second->newWidth;
+    win.second->height              = win.second->newHeight;
   }
   
   return true;

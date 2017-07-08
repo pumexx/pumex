@@ -117,6 +117,7 @@ protected:
   std::vector<std::shared_ptr<PhysicalDevice>> physicalDevices;
   std::vector<std::shared_ptr<Device>>         devices;
   std::vector<std::shared_ptr<Surface>>        surfaces;
+  std::vector<std::shared_ptr<Window>>         windows;
 
   uint32_t                                     nextSurfaceID                 = 0;
   uint32_t                                     nextDeviceID                  = 0;

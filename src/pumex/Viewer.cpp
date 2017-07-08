@@ -300,6 +300,7 @@ void Viewer::cleanup()
     for( auto s : surfaces )
       s->cleanup();
     surfaces.clear();
+    windows.clear();
     for (auto d : devices)
       d->cleanup();
     devices.clear();
@@ -333,6 +334,7 @@ std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std:
   std::shared_ptr<Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
   surface->setID(nextSurfaceID++);
   surfaces.push_back(surface);
+  windows.push_back(window);
   return surface;
 }
 
