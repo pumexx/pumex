@@ -34,6 +34,8 @@ std::unordered_map<uint32_t, InputEvent::Key> WindowXcb::xcbKeycodes;
 std::unordered_map<xcb_window_t, WindowXcb*>  WindowXcb::registeredWindows;
 std::mutex                                    WindowXcb::regMutex;
 
+static const char PUMEX_WINDOW_CLASS_ON_LINUX[] = "pumex_class\0pumex_class";
+
 WindowXcb::WindowXcb(const WindowTraits& windowTraits)
 {
   if(xcbKeycodes.empty())
@@ -61,7 +63,11 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
     xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
   else
     xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, windowTraits.x, windowTraits.y, windowTraits.w, windowTraits.h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+  // Window managers on Linux like to place your windows in random positions. Using window class you can create a rule ( in a window manager ) that says that you want to place your window in exact position
+  xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 23, PUMEX_WINDOW_CLASS_ON_LINUX);  
+  // set window name
   xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, windowTraits.windowName.size(),   windowTraits.windowName.c_str());  
+
   
   xcb_intern_atom_cookie_t wmDeleteCookie    = xcb_intern_atom(connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
   xcb_intern_atom_cookie_t wmProtocolsCookie = xcb_intern_atom(connection, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
@@ -280,8 +286,6 @@ bool WindowXcb::checkWindowMessages()
     // if last resize was called less than 1 second ago, then wait a little more
     if( inSeconds( timeNow - win.second->lastResizeTimePoint ) < 1.0 )
       continue;
-    
-LOG_ERROR << "delayed resize " << win.second->newWidth << " " << win.second->newHeight << std::endl;
     
     win.second->resizeCalled        = false;
     if( win.second->width == win.second->newWidth && win.second->height == win.second->newHeight  )
