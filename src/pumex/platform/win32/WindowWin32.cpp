@@ -119,7 +119,7 @@ WindowWin32::WindowWin32(const WindowTraits& windowTraits)
   case WindowTraits::HALFSCREEN_RIGHT:
     rect.left     = deviceMode.dmPosition.x + deviceMode.dmPelsWidth / 2;
     rect.top      = deviceMode.dmPosition.y;
-    rect.right    = rect.left + deviceMode.dmPelsWidth;
+    rect.right    = rect.left + deviceMode.dmPelsWidth / 2;
     rect.bottom   = rect.top + deviceMode.dmPelsHeight;
     style         = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
     extendedStyle = WS_EX_APPWINDOW;
