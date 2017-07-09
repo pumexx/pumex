@@ -54,8 +54,6 @@
 // 2. Above mentioned buffer is used during rendering to choose appropriate object parameters ( position, bone matrices, object specific parameters, material ids, etc )
 
 
-// Current measurment methods add 4ms to a single frame ( cout lags )
-// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define CROWD_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 63;
@@ -1147,6 +1145,7 @@ int main(int argc, char * argv[])
   args::HelpFlag       help(parser, "help", "display this help menu", {'h', "help"});
   args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", {'d'});
   args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", {'f'});
+  args::Flag           renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
   args::Flag           render3windows(parser, "three_windows", "render in three windows", {'t'});
   try
   {
@@ -1194,13 +1193,18 @@ int main(int argc, char * argv[])
     std::vector<pumex::WindowTraits> windowTraits;
     if (render3windows)
     {
-      windowTraits.emplace_back( pumex::WindowTraits{ 0, 30,   100, 512, 384, false, "Crowd rendering 1" } );
-      windowTraits.emplace_back( pumex::WindowTraits{ 0, 570,  100, 512, 384, false, "Crowd rendering 2" } );
-      windowTraits.emplace_back( pumex::WindowTraits{ 0, 1110, 100, 512, 384, false, "Crowd rendering 3" } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 30,   100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 1" } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 570,  100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 2" } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 1110, 100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 3" } );
+    }
+    else if (renderVRwindows)
+    {
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 0, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_LEFT, "Crowd rendering L" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_RIGHT, "Crowd rendering R" });
     }
     else
     {
-      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen, "Crowd rendering" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Crowd rendering" });
     }
 
     std::vector<std::shared_ptr<pumex::Window>> windows;
@@ -1252,6 +1256,11 @@ int main(int argc, char * argv[])
       applicationData->setSlaveViewMatrix(0, glm::rotate(glm::mat4(), glm::radians(-75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
       applicationData->setSlaveViewMatrix(1, glm::mat4());
       applicationData->setSlaveViewMatrix(2, glm::rotate(glm::mat4(), glm::radians(75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    }
+    else if(renderVRwindows)
+    {
+      applicationData->setSlaveViewMatrix(0, glm::translate(glm::mat4(), glm::vec3( -0.03f, 0.0f, 0.0f)));
+      applicationData->setSlaveViewMatrix(1, glm::translate(glm::mat4(), glm::vec3( 0.03f, 0.0f, 0.0f)));
     }
     else
     {

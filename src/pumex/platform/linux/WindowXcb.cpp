@@ -59,15 +59,25 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   uint32_t eventMask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
   uint32_t valueList[] = { screen->black_pixel, XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE };
   
-  if (windowTraits.fullscreen)
-    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
-  else
+  switch(windowTraits.type)
+  {
+  case WindowTraits::WINDOW:
     xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, windowTraits.x, windowTraits.y, windowTraits.w, windowTraits.h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    break;
+  case WindowTraits::FULLSCREEN:
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    break;
+  case WindowTraits::HALFSCREEN_LEFT:
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels / 2, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    break;
+  case WindowTraits::HALFSCREEN_RIGHT:
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, screen->width_in_pixels / 2, 0, screen->width_in_pixels/ 2, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    break;
+  }
   // Window managers on Linux like to place your windows in random positions. Using window class you can create a rule ( in a window manager ) that says that you want to place your window in exact position
   xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 23, PUMEX_WINDOW_CLASS_ON_LINUX);  
   // set window name
   xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, windowTraits.windowName.size(),   windowTraits.windowName.c_str());  
-
   
   xcb_intern_atom_cookie_t wmDeleteCookie    = xcb_intern_atom(connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
   xcb_intern_atom_cookie_t wmProtocolsCookie = xcb_intern_atom(connection, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
@@ -95,7 +105,7 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   }
   free(reply);
   
-  if (windowTraits.fullscreen)
+  if (windowTraits.type != WindowTraits::WINDOW)
   {
     xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
     xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);

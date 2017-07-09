@@ -90,23 +90,41 @@ WindowWin32::WindowWin32(const WindowTraits& windowTraits)
   RECT rect;
   unsigned int style = 0;
   unsigned int extendedStyle = 0;
-  if (windowTraits.fullscreen)
+  switch (windowTraits.type)
   {
-    rect.left     = deviceMode.dmPosition.x;
-    rect.top      = deviceMode.dmPosition.y;
-    rect.right    = rect.left + deviceMode.dmPelsWidth;
-    rect.bottom   = rect.top + deviceMode.dmPelsHeight;
-    style         = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
-    extendedStyle = WS_EX_APPWINDOW;
-  }
-  else
-  {
+  case WindowTraits::WINDOW:
     rect.left     = deviceMode.dmPosition.x + windowTraits.x;
     rect.top      = deviceMode.dmPosition.y + windowTraits.y;
     rect.right    = rect.left + windowTraits.w;
     rect.bottom   = rect.top + windowTraits.h;
     style         = WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
     extendedStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+    break;
+  case WindowTraits::FULLSCREEN:
+    rect.left     = deviceMode.dmPosition.x;
+    rect.top      = deviceMode.dmPosition.y;
+    rect.right    = rect.left + deviceMode.dmPelsWidth;
+    rect.bottom   = rect.top + deviceMode.dmPelsHeight;
+    style         = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+    extendedStyle = WS_EX_APPWINDOW;
+    break;
+  case WindowTraits::HALFSCREEN_LEFT:
+    rect.left     = deviceMode.dmPosition.x;
+    rect.top      = deviceMode.dmPosition.y;
+    rect.right    = rect.left + deviceMode.dmPelsWidth / 2;
+    rect.bottom   = rect.top + deviceMode.dmPelsHeight;
+    style         = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+    extendedStyle = WS_EX_APPWINDOW;
+    break;
+  case WindowTraits::HALFSCREEN_RIGHT:
+    rect.left     = deviceMode.dmPosition.x + deviceMode.dmPelsWidth / 2;
+    rect.top      = deviceMode.dmPosition.y;
+    rect.right    = rect.left + deviceMode.dmPelsWidth;
+    rect.bottom   = rect.top + deviceMode.dmPelsHeight;
+    style         = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+    extendedStyle = WS_EX_APPWINDOW;
+    break;
+
   }
   CHECK_LOG_THROW(!::AdjustWindowRectEx(&rect, style, FALSE, extendedStyle), "AdjustWindowRectEx failed" );
 

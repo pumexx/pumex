@@ -33,8 +33,8 @@
 
 using namespace pumex;
 
-WindowTraits::WindowTraits(uint32_t sn, uint32_t ax, uint32_t ay, uint32_t aw, uint32_t ah, bool af, const std::string& aWindowName)
-  : screenNum{ sn }, x{ ax }, y{ ay }, w{ aw }, h{ ah }, fullscreen{af}, windowName(aWindowName)
+WindowTraits::WindowTraits(uint32_t sn, uint32_t ax, uint32_t ay, uint32_t aw, uint32_t ah, Type wt, const std::string& aWindowName)
+  : screenNum{ sn }, x{ ax }, y{ ay }, w{ aw }, h{ ah }, type{wt}, windowName(aWindowName)
 {
 }
 

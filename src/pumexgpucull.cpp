@@ -57,8 +57,6 @@
 // pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
 // compare Vulkan and OpenGL performance ( I used ordinary graphics shaders instead of compute shaders in OpenGL demo, but performance of rendering is comparable ).
 
-// Current measurment methods add 4ms to a single frame ( cout lags )
-// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define GPU_CULL_MEASURE_TIME 1
 
 const uint32_t MAIN_RENDER_MASK = 1;
@@ -1535,7 +1533,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
 
-    pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, useFullScreen, "Object culling on GPU"};
+    pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Object culling on GPU"};
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =

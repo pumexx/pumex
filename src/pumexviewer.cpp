@@ -35,8 +35,6 @@
 
 // pumexviewer is a very basic program, that performs textureless rendering of a model provided in a commandline
 
-// Current measurment methods add 4ms to a single frame ( cout lags )
-// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define VIEWER_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 511;
@@ -575,7 +573,8 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen, windowName };
+    
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =

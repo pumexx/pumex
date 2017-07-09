@@ -35,8 +35,6 @@
 
 // This example shows how to setup basic deferred renderer with antialiasing.
 
-// Current measurment methods add 4ms to a single frame ( cout lags )
-// I suggest using applications such as RenderDoc to measure frame time for now.
 //#define DEFERRED_MEASURE_TIME 1
 
 const uint32_t MAX_BONES = 511;
@@ -731,7 +729,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen, "Deferred rendering" };
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =

@@ -43,14 +43,15 @@ struct SurfaceTraits;
 // struct storing all information required to create a window
 struct PUMEX_EXPORT WindowTraits
 {
-  WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, bool fullscreen, const std::string& windowName);
+  enum Type{ WINDOW, FULLSCREEN, HALFSCREEN_LEFT, HALFSCREEN_RIGHT };
+  WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, Type wType, const std::string& windowName);
 
   uint32_t screenNum = 0;
   uint32_t x         = 0;
   uint32_t y         = 0;
   uint32_t w         = 1;
   uint32_t h         = 1;
-  bool fullscreen    = false;
+  Type     type      = WINDOW;
   std::string windowName;
 };
 
