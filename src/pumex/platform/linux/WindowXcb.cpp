@@ -89,6 +89,40 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   
   registerWindow(window, this);
   
+  switch(windowTraits.type)
+  {
+  case WindowTraits::WINDOW:
+    break;
+  case WindowTraits::FULLSCREEN :
+  {
+    xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
+    xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);
+    
+    xcb_intern_atom_cookie_t cookieFs  = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN");
+    xcb_intern_atom_reply_t* atomFs = xcb_intern_atom_reply(connection, cookieFs, NULL);
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, atomWms->atom, XCB_ATOM_ATOM, 32, 1, &(atomFs->atom));
+    free(atomFs);
+    free(atomWms);
+    break;
+  }
+  case WindowTraits::HALFSCREEN_LEFT:
+  case WindowTraits::HALFSCREEN_RIGHT:
+  {
+    xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
+    xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);
+    
+    xcb_intern_atom_cookie_t cookieMV  = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE_MAXIMIZED_VERT"), "_NET_WM_STATE_MAXIMIZED_VERT");
+    xcb_intern_atom_reply_t* atomMV    = xcb_intern_atom_reply(connection, cookieMV, NULL);
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, atomWms->atom, XCB_ATOM_ATOM, 32, 1, &(atomMV->atom));
+
+    // FIXME : I haven't found any reliable method to turn window decorations off :(
+    
+    free(atomMV);
+    free(atomWms);
+    break;
+  }
+  }
+  
   // collect window size  
   xcb_get_geometry_cookie_t cookie;
   xcb_get_geometry_reply_t *reply;
@@ -105,20 +139,8 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   }
   free(reply);
   
-  if (windowTraits.type != WindowTraits::WINDOW)
-  {
-    xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
-    xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);
-    
-    xcb_intern_atom_cookie_t cookieFs  = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN");
-    xcb_intern_atom_reply_t* atomFs = xcb_intern_atom_reply(connection, cookieFs, NULL);
-    
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, atomWms->atom, XCB_ATOM_ATOM, 32, 1, &(atomFs->atom));
-    free(atomFs);
-    free(atomWms);
-  }
-  
   xcb_map_window(connection, window); 
+  xcb_flush(connection);   
 }
 
 WindowXcb::~WindowXcb()
