@@ -50,11 +50,12 @@ public:
   ~UniformBufferPerSurface();
 
   inline void set(const T& data);
-  inline void set( Surface* surface, const T& data );
-  inline T    get( Surface* surface ) const;
+  inline void set(Surface* surface, const T& data);
+  inline T    get(Surface* surface) const;
   void        getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
   void        setDirty();
   void        validate(Surface* surface);
+  VkBuffer    getBufferHandle(Surface* surface);
 
   inline void setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
@@ -206,6 +207,18 @@ void UniformBufferPerSurface<T>::validate(Surface* surface)
   }
   it->second.dirty[activeIndex] = false;
 }
+
+template <typename T>
+VkBuffer UniformBufferPerSurface<T>::getBufferHandle(Surface* surface)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = perSurfaceData.find(surface->surface);
+  if (it == perSurfaceData.end())
+    return VK_NULL_HANDLE;
+  return it->second.uboBuffer[activeIndex];
+}
+
+
 
 template <typename T>
 void UniformBufferPerSurface<T>::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }

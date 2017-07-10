@@ -114,5 +114,10 @@ public:
   void deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) override;
 };
 
+// OK, last time I read a book about C++ templates about seven years ago, so this code may look ugly in 2017
+template<typename T> size_t uglyGetSize(const T& t) { return sizeof(T); }
+template<typename T> size_t uglyGetSize(const std::vector<T>& t) { return t.size() * sizeof(T); }
+template<typename T> T*     uglyGetPointer(T& t) { return std::addressof(t); }
+template<typename T> T*     uglyGetPointer(std::vector<T>& t) { return t.data(); }
 
 }

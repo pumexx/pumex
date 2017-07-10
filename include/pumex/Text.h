@@ -32,7 +32,7 @@
 #include <pumex/Export.h>
 #include <pumex/UniformBuffer.h>
 #include <pumex/StorageBuffer.h>
-#include <pumex/GenericBuffer.h>
+#include <pumex/GenericBufferPerSurface.h>
 
 namespace pumex
 {
@@ -104,22 +104,41 @@ public:
 
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
-  void validate(Device* device, CommandPool* commandPool, VkQueue queue);
-  void cmdDraw(Device* device, std::shared_ptr<CommandBuffer> commandBuffer ) const;
+  void validate(Surface* surface);
+  void cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer) const;
 
-  void setText(uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
-  void removeText(uint32_t index);
+  void setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
+  void removeText(Surface* surface, uint32_t index);
   inline void setDirty();
 
-  std::shared_ptr<GenericBuffer<std::vector<SymbolData>>> vertexBuffer;
-  std::vector<VertexSemantic>                             textVertexSemantic;
+  std::shared_ptr<GenericBufferPerSurface<std::vector<SymbolData>>> vertexBuffer;
+  std::vector<VertexSemantic>                                       textVertexSemantic;
 protected:
+  struct TextKey
+  {
+    TextKey(VkSurfaceKHR s, uint32_t i)
+      : surface{ s }, index{ i }
+    {
+    }
+    VkSurfaceKHR surface;
+    uint32_t     index;
+  };
+  struct TextKeyCompare
+  {
+    bool operator()(const TextKey& lhs, const TextKey& rhs) const
+    {
+      if (lhs.surface != rhs.surface)
+        return lhs.surface < rhs.surface;
+      return lhs.index < rhs.index;
+    }
+  };
+
+
   mutable std::mutex                       mutex;
   bool                                     dirty;
   std::weak_ptr<Font>                      font;
-  std::shared_ptr<std::vector<SymbolData>> symbolData;
-
-  std::unordered_map<uint32_t, std::tuple<glm::vec2, glm::vec4, std::wstring>> texts;
+  std::unordered_map<VkSurfaceKHR,std::shared_ptr<std::vector<SymbolData>>> symbolData;
+  std::map<TextKey, std::tuple<glm::vec2, glm::vec4, std::wstring>, TextKeyCompare> texts;
 };
 
 void     Text::setActiveIndex(uint32_t index) { vertexBuffer->setActiveIndex(index); }

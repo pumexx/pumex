@@ -231,8 +231,11 @@ struct CrowdApplicationData
   std::shared_ptr<pumex::DescriptorSet>                  filterDescriptorSet;
 
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::Font>                           defaultFont;
-  std::shared_ptr<pumex::Text>                           textFPS;
+  std::shared_ptr<pumex::Font>                           fontDefault;
+  std::shared_ptr<pumex::Font>                           fontSmall;
+  std::shared_ptr<pumex::Text>                           textDefault;
+  std::shared_ptr<pumex::Text>                           textSmall;
+
   std::shared_ptr<pumex::DescriptorSetLayout>            textDescriptorSetLayout;
   std::shared_ptr<pumex::PipelineLayout>                 textPipelineLayout;
   std::shared_ptr<pumex::GraphicsPipeline>               textPipeline;
@@ -578,8 +581,10 @@ struct CrowdApplicationData
     }
 
     std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
-    defaultFont                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 24, texturesAllocator, buffersAllocator);
-    textFPS                      = std::make_shared<pumex::Text>(defaultFont, buffersAllocator);
+    fontDefault                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 24, texturesAllocator, buffersAllocator);
+    textDefault                  = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+    fontSmall                    = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512,512), 16, texturesAllocator, buffersAllocator);
+    textSmall                    = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
 
     
     textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
@@ -596,7 +601,7 @@ struct CrowdApplicationData
     textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 0);
     textPipeline->vertexInput =
     {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textFPS->textVertexSemantic }
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
     };
     textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
     textPipeline->blendAttachments =
@@ -617,7 +622,7 @@ struct CrowdApplicationData
 
     textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
     textDescriptorSet->setSource(0, textCameraUbo);
-    textDescriptorSet->setSource(1, defaultFont->fontTexture);
+    textDescriptorSet->setSource(1, fontDefault->fontTexture);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -995,7 +1000,7 @@ struct CrowdApplicationData
 
     std::wstringstream stream;
     stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-    textFPS->setText(0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
 
 #if defined(CROWD_MEASURE_TIME)
     auto prepareBuffersEnd = pumex::HPClock::now();
@@ -1016,9 +1021,9 @@ struct CrowdApplicationData
     uint32_t            renderWidth    = surface->swapChainSize.width;
     uint32_t            renderHeight   = surface->swapChainSize.height;
 
-    defaultFont->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    textFPS->setActiveIndex(activeIndex);
-    textFPS->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    fontDefault->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    textDefault->setActiveIndex(activeIndex);
+    textDefault->validate(surfacePtr);
 
     cameraUbo->validate(surfacePtr);
     positionSbo->setActiveIndex(activeIndex);
@@ -1091,7 +1096,7 @@ struct CrowdApplicationData
 
       currentCmdBuffer->cmdBindPipeline(textPipeline.get());
       currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
-      textFPS->cmdDraw(devicePtr, currentCmdBuffer);
+      textDefault->cmdDraw(surfacePtr, currentCmdBuffer);
 
       currentCmdBuffer->cmdEndRenderPass();
       currentCmdBuffer->cmdEnd();

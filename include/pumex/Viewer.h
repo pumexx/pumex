@@ -22,10 +22,11 @@
 
 #pragma once
 
-#include <vector>
 #include <memory>
 #include <thread>
 #include <condition_variable>
+#include <vector>
+#include <unordered_map>
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <tbb/flow_graph.h>
@@ -72,6 +73,10 @@ public:
 
   std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
   std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
+  Device*  getDevice(uint32_t id);
+  Surface* getSurface(uint32_t id);
+
+
   void run();
   void cleanup();
   void setTerminate();
@@ -104,7 +109,6 @@ public:
   inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
 
   inline void addDefaultDirectory(const std::string& directory);
-
 protected:
   void setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
   void cleanupDebugging();
@@ -113,11 +117,11 @@ protected:
   inline uint32_t getNextUpdateSlot() const;
   inline void doNothing() const;
 
-  std::vector<std::string>                     defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
-  std::vector<std::shared_ptr<PhysicalDevice>> physicalDevices;
-  std::vector<std::shared_ptr<Device>>         devices;
-  std::vector<std::shared_ptr<Surface>>        surfaces;
-  std::vector<std::shared_ptr<Window>>         windows;
+  std::vector<std::string>                               defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
+  std::vector<std::shared_ptr<PhysicalDevice>>           physicalDevices;
+  std::unordered_map<uint32_t, std::shared_ptr<Device>>  devices;
+  std::unordered_map<uint32_t, std::shared_ptr<Surface>> surfaces;
+  std::vector<std::shared_ptr<Window>>                   windows;
 
   uint32_t                                     nextSurfaceID                 = 0;
   uint32_t                                     nextDeviceID                  = 0;

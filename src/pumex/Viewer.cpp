@@ -288,7 +288,7 @@ void Viewer::run()
   }
   renderThread.join();
   for (auto& d : devices)
-    vkDeviceWaitIdle(d->device);
+    vkDeviceWaitIdle(d.second->device);
 }
 
 void Viewer::cleanup()
@@ -298,11 +298,11 @@ void Viewer::cleanup()
   if (instance != VK_NULL_HANDLE)
   {
     for( auto s : surfaces )
-      s->cleanup();
+      s.second->cleanup();
     surfaces.clear();
     windows.clear();
     for (auto d : devices)
-      d->cleanup();
+      d.second->cleanup();
     devices.clear();
     physicalDevices.clear();
     if (viewerTraits.useValidation)
@@ -324,19 +324,36 @@ std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, cons
   CHECK_LOG_THROW(requestedQueues.empty(), "Could not create device with no queues");
 
   std::shared_ptr<Device> device = std::make_shared<Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedQueues, requestedExtensions);
-  device->setID(nextDeviceID++);
-  devices.push_back(device);
+  device->setID(nextDeviceID);
+  devices.insert({ nextDeviceID++, device });
   return device;
 }
 
 std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const pumex::SurfaceTraits& surfaceTraits)
 {
   std::shared_ptr<Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
-  surface->setID(nextSurfaceID++);
-  surfaces.push_back(surface);
+  surface->setID(nextSurfaceID);
+  surfaces.insert({ nextSurfaceID++, surface });
   windows.push_back(window);
   return surface;
 }
+
+Device*  Viewer::getDevice(uint32_t id)
+{
+  auto it = devices.find(id);
+  if (it == devices.end())
+    return nullptr;
+  return it->second.get();
+}
+
+Surface* Viewer::getSurface(uint32_t id)
+{
+  auto it = surfaces.find(id);
+  if (it == surfaces.end())
+    return nullptr;
+  return it->second.get();
+}
+
 
 std::string Viewer::getFullFilePath(const std::string& shortFileName) const
 {

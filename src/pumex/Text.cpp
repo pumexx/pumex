@@ -24,6 +24,7 @@
 #include <pumex/Texture.h>
 #include <pumex/utils/Log.h>
 #include <pumex/utils/Shapes.h>
+#include <pumex/Surface.h>
 
 /*
 std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
@@ -159,8 +160,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
 Text::Text(std::weak_ptr<Font> f, std::weak_ptr<DeviceMemoryAllocator> ba)
   : dirty{ true }, font{ f }
 {
-  symbolData   = std::make_shared<std::vector<SymbolData>>();
-  vertexBuffer = std::make_shared<GenericBuffer<std::vector<SymbolData>>>(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, symbolData, ba, 3);
+  vertexBuffer = std::make_shared<GenericBufferPerSurface<std::vector<SymbolData>>>(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, ba, 3);
   textVertexSemantic = { { pumex::VertexSemantic::Position, 4 },{ pumex::VertexSemantic::TexCoord, 4 } , { pumex::VertexSemantic::Color, 4 } };
 }
 
@@ -168,49 +168,63 @@ Text::~Text()
 {
 }
 
-void Text::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void Text::validate(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
+  auto sit = symbolData.find(surface->surface);
+  if (sit == symbolData.end())
+  {
+    sit = symbolData.insert({ surface->surface, std::make_shared<std::vector<SymbolData>>() }).first;
+    vertexBuffer->set(surface, sit->second);
+  }
+
   if (dirty)
   {
     Font* fontPtr = font.lock().get();
-    symbolData->resize(0);
+    sit->second->resize(0);
 
     for (const auto& t : texts)
     {
+      if (t.first.surface != sit->first)
+        continue;
       glm::vec2    startPosition;
       glm::vec4    color;
       std::wstring text;
       std::tie(startPosition, color, text) = t.second;
-      fontPtr->addSymbolData(startPosition, color, text, *symbolData);
+      fontPtr->addSymbolData(startPosition, color, text, *(sit->second));
     }
     vertexBuffer->setDirty();
     dirty = false;
   }
-  vertexBuffer->validate(device, commandPool, queue);
+  vertexBuffer->validate(surface);
 }
 
-void Text::cmdDraw(Device* device, std::shared_ptr<CommandBuffer> commandBuffer ) const
+void Text::cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer ) const
 {
-  VkBuffer     vBuffer = vertexBuffer->getBufferHandle(device);
+  std::lock_guard<std::mutex> lock(mutex);
+  auto sit = symbolData.find(surface->surface);
+  CHECK_LOG_THROW(sit == symbolData.end(), "Text::cmdDraw() : text was not validated");
+
+  VkBuffer     vBuffer = vertexBuffer->getBufferHandle(surface);
   VkDeviceSize offsets = 0;
   commandBuffer->addSource(vertexBuffer.get());
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);
   // FIXME : vertex count should be taken from buffer size, not from symbolData->size()
-  commandBuffer->cmdDraw(symbolData->size(), 1, 0, 0, 0);
+  commandBuffer->cmdDraw(sit->second->size(), 1, 0, 0, 0);
 }
 
-
-void Text::setText(uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text)
+void Text::setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  texts[index] = std::make_tuple(position, color, text);
+  texts[TextKey(surface->surface,index)] = std::make_tuple(position, color, text);
+  setDirty();
+
+}
+
+void Text::removeText(Surface* surface, uint32_t index)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  texts.erase(TextKey(surface->surface, index));
   setDirty();
 }
 
-void Text::removeText(uint32_t index)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  texts.erase(index);
-  setDirty();
-}
