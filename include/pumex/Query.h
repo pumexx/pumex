@@ -32,6 +32,7 @@ namespace pumex
 {
 
 class Device;
+class Surface;
 class CommandBuffer;
 
 // class storing Vulkan queries ( render time, rendered triangles count, etc )
@@ -44,24 +45,29 @@ public:
   QueryPool& operator=(const QueryPool&) = delete;
   virtual ~QueryPool();
 
-  void validate(Device* device);
+  void validate(Surface* surface);
 
-  void reset(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery = 0, uint32_t queryCount = 0);
-  void beginQuery(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags = 0);
-  void endQuery(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query);
-  void queryTimeStamp(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
-  std::vector<uint64_t> getResults(Device* device, uint32_t firstQuery = 0, uint32_t queryCount = 0, VkQueryResultFlags resultFlags = 0);
+  void reset(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery = 0, uint32_t queryCount = 0);
+  void beginQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags = 0);
+  void endQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query);
+  void queryTimeStamp(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
+  std::vector<uint64_t> getResults(Surface* surface, uint32_t firstQuery = 0, uint32_t queryCount = 0, VkQueryResultFlags resultFlags = 0);
 
   VkQueryType                   queryType;
   uint32_t                      poolSize;
   VkQueryPipelineStatisticFlags pipelineStatistics;
 protected:
-  struct PerDeviceData
+  struct PerSurfaceData
   {
+    PerSurfaceData(VkDevice d)
+      : device{ d }
+    {
+    }
+    VkDevice    device;
     VkQueryPool queryPool = VK_NULL_HANDLE;
   };
-  mutable std::mutex                          mutex;
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  mutable std::mutex                               mutex;
+  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 
 	

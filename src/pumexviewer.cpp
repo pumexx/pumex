@@ -221,7 +221,7 @@ struct ViewerApplicationData
     pumex::Device*      devicePtr      = surface->device.lock().get();
     pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
 
-    myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
+    myCmdBuffer[surface.get()] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
     cameraUbo->validate(surface.get());
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
@@ -456,7 +456,7 @@ struct ViewerApplicationData
     cameraUbo->validate(surfacePtr);
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    auto currentCmdBuffer = myCmdBuffer[devicePtr];
+    auto currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
     if (currentCmdBuffer->isDirty(activeIndex))
     {
@@ -514,7 +514,7 @@ struct ViewerApplicationData
   std::shared_ptr<pumex::DescriptorSet>       descriptorSet;
   std::shared_ptr<pumex::DescriptorSet>       boxDescriptorSet;
 
-  std::unordered_map<pumex::Device*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  std::unordered_map<pumex::Surface*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 };
 
 int main( int argc, char * argv[] )

@@ -22,6 +22,7 @@
 
 #include <pumex/Query.h>
 #include <pumex/Device.h>
+#include <pumex/Surface.h>
 #include <pumex/Command.h>
 #include <pumex/utils/Log.h>
 
@@ -35,71 +36,71 @@ QueryPool::QueryPool(VkQueryType qt, uint32_t p, VkQueryPipelineStatisticFlags p
 
 QueryPool::~QueryPool()
 {
-  for (auto& pddit : perDeviceData)
-    vkDestroyQueryPool(pddit.first, pddit.second.queryPool, nullptr);
+  for (auto& pddit : perSurfaceData)
+    vkDestroyQueryPool(pddit.second.device, pddit.second.queryPool, nullptr);
 }
 
 
-void QueryPool::validate(Device* device)
+void QueryPool::validate(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  if (pddit != perDeviceData.end())
+  auto pddit = perSurfaceData.find(surface->surface);
+  if (pddit != perSurfaceData.end())
     return;
-  pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device) }).first;
 
   VkQueryPoolCreateInfo queryPoolCI{};
     queryPoolCI.sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
     queryPoolCI.queryType          = queryType;
     queryPoolCI.queryCount         = poolSize;
     queryPoolCI.pipelineStatistics = pipelineStatistics;
-  VK_CHECK_LOG_THROW(vkCreateQueryPool(pddit->first, &queryPoolCI, nullptr, &pddit->second.queryPool), "Cannot create query pool");
+  VK_CHECK_LOG_THROW(vkCreateQueryPool(pddit->second.device, &queryPoolCI, nullptr, &pddit->second.queryPool), "Cannot create query pool");
 }
 
-void QueryPool::reset(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery, uint32_t queryCount)
+void QueryPool::reset(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery, uint32_t queryCount)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before resetting");
+  auto pddit = perSurfaceData.find(surface->surface);
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "Query pool was not validated before resetting");
   if (firstQuery == 0 && queryCount == 0)
     queryCount = poolSize;
   vkCmdResetQueryPool(cmdBuffer->getHandle(), pddit->second.queryPool, firstQuery, queryCount);
 }
 
-void QueryPool::beginQuery(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags)
+void QueryPool::beginQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before beginQuery");
+  auto pddit = perSurfaceData.find(surface->surface);
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "Query pool was not validated before beginQuery");
   vkCmdBeginQuery(cmdBuffer->getHandle(), pddit->second.queryPool, query, controlFlags);
 }
 
-void QueryPool::endQuery(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query)
+void QueryPool::endQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before endQuery");
+  auto pddit = perSurfaceData.find(surface->surface);
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "Query pool was not validated before endQuery");
   vkCmdEndQuery(cmdBuffer->getHandle(), pddit->second.queryPool, query);
 }
 
-void QueryPool::queryTimeStamp(Device* device, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage)
+void QueryPool::queryTimeStamp(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before endQuery");
+  auto pddit = perSurfaceData.find(surface->surface);
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "Query pool was not validated before queryTimeStamp()");
   vkCmdWriteTimestamp(cmdBuffer->getHandle(), pipelineStage, pddit->second.queryPool, query);
 }
 
-std::vector<uint64_t> QueryPool::getResults(Device* device, uint32_t firstQuery, uint32_t queryCount, VkQueryResultFlags resultFlags)
+std::vector<uint64_t> QueryPool::getResults(Surface* surface, uint32_t firstQuery, uint32_t queryCount, VkQueryResultFlags resultFlags)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Query pool was not validated before getting the results");
+  auto pddit = perSurfaceData.find(surface->surface);
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "Query pool was not validated before getting the results");
 
   if (firstQuery == 0 && queryCount == 0)
     queryCount = poolSize;
   std::vector<uint64_t> results(queryCount);
   //VK_CHECK_LOG_THROW( vkGetQueryPoolResults(pddit->first, pddit->second.queryPool, firstQuery, queryCount, sizeof(uint64_t) * results.size(), results.data(), sizeof(uint64_t), resultFlags & VK_QUERY_RESULT_64_BIT ), "Cannot query the results");
-  vkGetQueryPoolResults(pddit->first, pddit->second.queryPool, firstQuery, queryCount, sizeof(uint64_t) * results.size(), results.data(), sizeof(uint64_t), resultFlags & VK_QUERY_RESULT_64_BIT);
+  vkGetQueryPoolResults(pddit->second.device, pddit->second.queryPool, firstQuery, queryCount, sizeof(uint64_t) * results.size(), results.data(), sizeof(uint64_t), resultFlags & VK_QUERY_RESULT_64_BIT);
   return results;
 }

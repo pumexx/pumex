@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 
+#include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <pumex/Pumex.h>
@@ -37,6 +38,7 @@
 
 //#define DEFERRED_MEASURE_TIME 1
 
+const uint32_t MAX_SURFACES = 6;
 const uint32_t MAX_BONES = 511;
 const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_4_BIT;
 
@@ -143,10 +145,13 @@ struct DeferredApplicationData
   DeferredApplicationData(std::shared_ptr<pumex::Viewer> v, const std::string& mName )
     : viewer{v}
   {
-    modelName = viewer->getFullFilePath(mName);
+    modelName = viewer.lock()->getFullFilePath(mName);
   }
   void setup()
   {
+    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
+    CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
+
     // alocate 1 MB for uniform and storage buffers
     buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -163,7 +168,7 @@ struct DeferredApplicationData
     textureRegistry->setTargetTextureTraits(0, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(1, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(2, pumex::TextureTraits());
-    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewer, textureRegistry, buffersAllocator, textureSemantic);
+    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, buffersAllocator, textureSemantic);
 
     pumex::AssetLoaderAssimp loader;
     loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace);
@@ -212,7 +217,7 @@ struct DeferredApplicationData
     };
     gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
 
-    gbufferDescriptorPool = std::make_shared<pumex::DescriptorPool>(2, gbufferLayoutBindings);
+    gbufferDescriptorPool = std::make_shared<pumex::DescriptorPool>(2* MAX_SURFACES, gbufferLayoutBindings);
 
     // building gbufferPipeline layout
     gbufferPipelineLayout = std::make_shared<pumex::PipelineLayout>();
@@ -221,8 +226,8 @@ struct DeferredApplicationData
     gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout, defaultRenderPass, 0);
     gbufferPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("deferred_gbuffers.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("deferred_gbuffers.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_gbuffers.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_gbuffers.frag.spv")), "main" }
     };
     gbufferPipeline->vertexInput =
     {
@@ -247,7 +252,7 @@ struct DeferredApplicationData
     };
     compositeDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(compositeLayoutBindings);
 
-    compositeDescriptorPool = std::make_shared<pumex::DescriptorPool>(2, compositeLayoutBindings);
+    compositeDescriptorPool = std::make_shared<pumex::DescriptorPool>(2* MAX_SURFACES, compositeLayoutBindings);
 
     // building gbufferPipeline layout
     compositePipelineLayout = std::make_shared<pumex::PipelineLayout>();
@@ -256,8 +261,8 @@ struct DeferredApplicationData
     compositePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, compositePipelineLayout, defaultRenderPass, 1);
     compositePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("deferred_composite.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("deferred_composite.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_composite.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_composite.frag.spv")), "main" }
     };
     compositePipeline->depthTestEnable  = VK_FALSE;
     compositePipeline->depthWriteEnable = VK_FALSE;
@@ -311,6 +316,47 @@ struct DeferredApplicationData
     compositeDescriptorSet->setSource(3, input3);
     compositeDescriptorSet->setSource(4, input4);
 
+    std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
+    fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
+    textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+
+    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
+    textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, textLayoutBindings);
+    // building pipeline layout
+    textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
+    textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 1);
+    textPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+    };
+    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    textPipeline->blendAttachments =
+    {
+      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+    };
+    textPipeline->depthTestEnable = VK_FALSE;
+    textPipeline->depthWriteEnable = VK_FALSE;
+    textPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.frag.spv")), "main" }
+    };
+    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
+    textDescriptorSet->setSource(0, textCameraUbo);
+    textDescriptorSet->setSource(1, fontDefault->fontTexture);
+
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
     updateData.cameraDistance              = 1.0f;
@@ -327,10 +373,11 @@ struct DeferredApplicationData
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
   {
+    pumex::Surface*     surfacePtr     = surface.get();
     pumex::Device*      devicePtr      = surface->device.lock().get();
     pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
 
-    myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
+    myCmdBuffer[surfacePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
     lightsSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
@@ -354,6 +401,10 @@ struct DeferredApplicationData
     compositePipelineLayout->validate(devicePtr);
     compositePipeline->validate(devicePtr);
 
+    textDescriptorSetLayout->validate(devicePtr);
+    textDescriptorPool->validate(devicePtr);
+    textPipelineLayout->validate(devicePtr);
+    textPipeline->validate(devicePtr);
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -418,7 +469,7 @@ struct DeferredApplicationData
       }
     }
 
-    uint32_t updateIndex = viewer->getUpdateIndex();
+    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
     RenderData& uData = renderData[updateIndex];
     uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.prevCameraDistance = updateData.cameraDistance;
@@ -478,11 +529,12 @@ struct DeferredApplicationData
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
-    uint32_t renderIndex = viewer->getRenderIndex();
+    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
+    uint32_t renderIndex = viewerSh->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
+    float deltaTime = pumex::inSeconds(viewerSh->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewerSh->getUpdateTime() - viewerSh->getApplicationStartTime()) + deltaTime;
 
     glm::vec3 relCam
     (
@@ -512,10 +564,16 @@ struct DeferredApplicationData
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(surface.get(), camera);
+
+    pumex::Camera textCamera;
+    textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+    textCameraUbo->set(surface.get(), textCamera);
   }
 
   void prepareModelForRendering()
   {
+    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
+
 #if defined(DEFERRED_MEASURE_TIME)
     auto prepareBuffersStart = pumex::HPClock::now();
 #endif
@@ -524,11 +582,11 @@ struct DeferredApplicationData
     if (assetX->animations.empty())
       return;
 
-    uint32_t renderIndex = viewer->getRenderIndex();
+    uint32_t renderIndex = viewerSh->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
+    float deltaTime = pumex::inSeconds(viewerSh->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewerSh->getUpdateTime() - viewerSh->getApplicationStartTime()) + deltaTime;
 
 
     PositionData positionData;
@@ -589,7 +647,15 @@ struct DeferredApplicationData
     compositeDescriptorSet->setActiveIndex(activeIndex);
     compositeDescriptorSet->validate(surfacePtr);
 
-    auto currentCmdBuffer = myCmdBuffer[devicePtr];
+    fontDefault->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    textDefault->setActiveIndex(activeIndex);
+    textDefault->validate(surfacePtr);
+
+    textCameraUbo->validate(surfacePtr);
+    textDescriptorSet->setActiveIndex(activeIndex);
+    textDescriptorSet->validate(surfacePtr);
+
+    auto currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
     if (currentCmdBuffer->isDirty(activeIndex))
     {
@@ -620,6 +686,10 @@ struct DeferredApplicationData
       assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, squareTypeID, 0, 5000.0f);
 
+      currentCmdBuffer->cmdBindPipeline(textPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
+      textDefault->cmdDraw(surfacePtr, currentCmdBuffer);
+
       currentCmdBuffer->cmdEndRenderPass();
       currentCmdBuffer->cmdEnd();
     }
@@ -630,7 +700,7 @@ struct DeferredApplicationData
   {
   }
 
-  std::shared_ptr<pumex::Viewer> viewer;
+  std::weak_ptr<pumex::Viewer> viewer;
   std::string modelName;
   uint32_t    modelTypeID;
 
@@ -667,14 +737,32 @@ struct DeferredApplicationData
   std::shared_ptr<pumex::DescriptorPool>                  compositeDescriptorPool;
   std::shared_ptr<pumex::DescriptorSet>                   compositeDescriptorSet;
 
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
+  std::shared_ptr<pumex::Font>                            fontDefault;
+  std::shared_ptr<pumex::Text>                            textDefault;
+  std::shared_ptr<pumex::DescriptorSetLayout>             textDescriptorSetLayout;
+  std::shared_ptr<pumex::PipelineLayout>                  textPipelineLayout;
+  std::shared_ptr<pumex::GraphicsPipeline>                textPipeline;
+  std::shared_ptr<pumex::DescriptorPool>                  textDescriptorPool;
+  std::shared_ptr<pumex::DescriptorSet>                   textDescriptorSet;
+
+
   std::shared_ptr<pumex::StorageBuffer<LightPointData>>   lightsSbo;
 
-  std::unordered_map<pumex::Device*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  pumex::HPClock::time_point                              lastFrameStart;
 
-  double    inputDuration;
-  double    updateDuration;
-  double    prepareBuffersDuration;
-  double    drawDuration;
+  std::unordered_map<pumex::Surface*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+
+  void fillFPS()
+  {
+    pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
+    double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
+    lastFrameStart = thisFrameStart;
+
+    std::wstringstream stream;
+    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
+    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+  }
 
 };
 
@@ -823,11 +911,28 @@ int main( int argc, char * argv[] )
     // Consider make_edge() in render graph :
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareModelForRendering(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      applicationData->fillFPS();
+      applicationData->prepareModelForRendering(); 
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      applicationData->prepareCameraForRendering(surface); 
+      surface->beginFrame(); 
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      applicationData->draw(surface); 
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      surface->endFrame(); 
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      applicationData->finishFrame(viewer, surface); 
+    });
 
     tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
     tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);

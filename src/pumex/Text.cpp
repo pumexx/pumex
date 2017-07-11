@@ -85,7 +85,6 @@ Font::~Font()
 void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  symbolData.reserve(symbolData.size() + text.size());
   glm::vec4 currentPosition(startPosition.x, startPosition.y, startPosition.x, startPosition.y);
   for (auto c : text)
   {
@@ -209,7 +208,6 @@ void Text::cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffe
   VkDeviceSize offsets = 0;
   commandBuffer->addSource(vertexBuffer.get());
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);
-  // FIXME : vertex count should be taken from buffer size, not from symbolData->size()
   commandBuffer->cmdDraw(sit->second->size(), 1, 0, 0, 0);
 }
 
@@ -218,7 +216,6 @@ void Text::setText(Surface* surface, uint32_t index, const glm::vec2& position, 
   std::lock_guard<std::mutex> lock(mutex);
   texts[TextKey(surface->surface,index)] = std::make_tuple(position, color, text);
   setDirty();
-
 }
 
 void Text::removeText(Surface* surface, uint32_t index)
@@ -227,4 +224,13 @@ void Text::removeText(Surface* surface, uint32_t index)
   texts.erase(TextKey(surface->surface, index));
   setDirty();
 }
+
+void Text::clearTexts()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  texts.clear();
+  setDirty();
+}
+
+
 

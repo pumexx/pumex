@@ -21,6 +21,7 @@
 //
 
 #include <random>
+#include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -57,8 +58,7 @@
 // pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
 // compare Vulkan and OpenGL performance ( I used ordinary graphics shaders instead of compute shaders in OpenGL demo, but performance of rendering is comparable ).
 
-//#define GPU_CULL_MEASURE_TIME 1
-
+const uint32_t MAX_SURFACES = 6;
 const uint32_t MAIN_RENDER_MASK = 1;
 
 // struct storing the whole information required by CPU and GPU to render a single static object ( trees and buildings )
@@ -126,8 +126,10 @@ struct UpdateData
   bool                                            moveBackward;
   bool                                            moveLeft;
   bool                                            moveRight;
+  bool                                            moveUp;
+  bool                                            moveDown;
   bool                                            moveFast;
-  
+  bool                                            measureTime;
 };
 
 struct RenderData
@@ -564,6 +566,8 @@ struct GpuCullApplicationData
 
   std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
   std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
+  std::shared_ptr<pumex::DeviceMemoryAllocator>        texturesAllocator;
+
 
   std::shared_ptr<pumex::AssetBuffer>                  staticAssetBuffer;
   std::shared_ptr<pumex::AssetBufferInstancedResults>  staticInstancedResults;
@@ -619,15 +623,28 @@ struct GpuCullApplicationData
   std::shared_ptr<pumex::ComputePipeline>              dynamicFilterPipeline;
   std::shared_ptr<pumex::DescriptorSet>                dynamicFilterDescriptorSet;
 
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
+  std::shared_ptr<pumex::Font>                         fontDefault;
+  std::shared_ptr<pumex::Font>                         fontSmall;
+  std::shared_ptr<pumex::Text>                         textDefault;
+  std::shared_ptr<pumex::Text>                         textSmall;
+
+  std::shared_ptr<pumex::DescriptorSetLayout>          textDescriptorSetLayout;
+  std::shared_ptr<pumex::PipelineLayout>               textPipelineLayout;
+  std::shared_ptr<pumex::GraphicsPipeline>             textPipeline;
+  std::shared_ptr<pumex::DescriptorPool>               textDescriptorPool;
+  std::shared_ptr<pumex::DescriptorSet>                textDescriptorSet;
+  std::shared_ptr<pumex::DescriptorSet>                textDescriptorSetSmall;
+
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
-  double    inputDuration;
-  double    updateDuration;
-  double    prepareBuffersDuration;
-  double    drawDuration;
+  pumex::HPClock::time_point                           lastFrameStart;
+  bool                                                 measureTime = true;
+  std::mutex                                           measureMutex;
+  std::unordered_map<uint32_t, double>                 times;
 
-  std::unordered_map<pumex::Device*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
-
+  std::unordered_map<uint32_t, glm::mat4>              slaveViewMatrix;
+  std::unordered_map<pumex::Surface*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
   GpuCullApplicationData(std::shared_ptr<pumex::Viewer> v)
     : viewer{ v }, randomTime2NextTurn { 0.1f }, randomRotation(-glm::pi<float>(), glm::pi<float>())
@@ -646,11 +663,15 @@ struct GpuCullApplicationData
     _triangleModifier     = triangleModifier;
     _minArea = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
     _maxArea = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
+    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
+    CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
 
     // alocate 32 MB for uniform and storage buffers
     buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 4 MB memory for font textures
+    texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 4 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     vertexSemantic      = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
     textureSemantic     = {};
@@ -669,7 +690,7 @@ struct GpuCullApplicationData
       { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
-    instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(2*3, instancedRenderLayoutBindings);
+    instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, instancedRenderLayoutBindings);
     instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
 
@@ -684,7 +705,7 @@ struct GpuCullApplicationData
       { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
     };
     filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(2*3, filterLayoutBindings);
+    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
     // building pipeline layout
     filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
@@ -695,6 +716,56 @@ struct GpuCullApplicationData
     if (showDynamicRendering)
       createDynamicRendering();
 
+    std::string fullFontFileName = viewer.lock()->getFullFilePath("fonts/DejaVuSans.ttf");
+    fontDefault                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 24, texturesAllocator, buffersAllocator);
+    textDefault                  = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+    fontSmall                    = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512,512), 16, texturesAllocator, buffersAllocator);
+    textSmall                    = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
+
+    
+    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
+    textDescriptorPool = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
+    // building pipeline layout
+    textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
+    textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 0);
+    textPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+    };
+    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    textPipeline->blendAttachments =
+    {
+      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+    };
+    textPipeline->depthTestEnable  = VK_FALSE;
+    textPipeline->depthWriteEnable = VK_FALSE;
+    textPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.frag.spv")), "main" }
+    };
+    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
+    textDescriptorSet->setSource(0, textCameraUbo);
+    textDescriptorSet->setSource(1, fontDefault->fontTexture);
+
+    textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
+    textDescriptorSetSmall->setSource(0, textCameraUbo);
+    textDescriptorSetSmall->setSource(1, fontSmall->fontTexture);
+
+    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP, 8 * MAX_SURFACES);
+
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
     updateData.cameraDistance              = 1.0f;
@@ -704,9 +775,10 @@ struct GpuCullApplicationData
     updateData.moveBackward                = false;
     updateData.moveLeft                    = false;
     updateData.moveRight                   = false;
+    updateData.moveUp                      = false;
+    updateData.moveDown                    = false;
     updateData.moveFast                    = false;
-
-    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4*3);
+    updateData.measureTime                 = true;
   }
 
   void createStaticRendering()
@@ -984,7 +1056,7 @@ struct GpuCullApplicationData
     pumex::Device*      devicePtr      = surface->device.lock().get();
     pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
 
-    myCmdBuffer[devicePtr] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
+    myCmdBuffer[surface.get()] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
 
     pipelineCache->validate(devicePtr);
     instancedRenderDescriptorSetLayout->validate(devicePtr);
@@ -993,7 +1065,13 @@ struct GpuCullApplicationData
     filterDescriptorSetLayout->validate(devicePtr);
     filterDescriptorPool->validate(devicePtr);
     filterPipelineLayout->validate(devicePtr);
-    timeStampQueryPool->validate(devicePtr);
+
+    textDescriptorSetLayout->validate(devicePtr);
+    textDescriptorPool->validate(devicePtr);
+    textPipelineLayout->validate(devicePtr);
+    textPipeline->validate(devicePtr);
+
+    timeStampQueryPool->validate(surface.get());
 
     if (_showStaticRendering)
     {
@@ -1016,9 +1094,6 @@ struct GpuCullApplicationData
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto inputStart = pumex::HPClock::now();
-#endif
     std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
 
     std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
@@ -1056,7 +1131,10 @@ struct GpuCullApplicationData
         case pumex::InputEvent::S:     updateData.moveBackward = true; break;
         case pumex::InputEvent::A:     updateData.moveLeft     = true; break;
         case pumex::InputEvent::D:     updateData.moveRight    = true; break;
+        case pumex::InputEvent::Q:     updateData.moveUp       = true; break;
+        case pumex::InputEvent::Z:     updateData.moveDown     = true; break;
         case pumex::InputEvent::SHIFT: updateData.moveFast     = true; break;
+        case pumex::InputEvent::T:     updateData.measureTime  = !updateData.measureTime; break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
@@ -1066,6 +1144,8 @@ struct GpuCullApplicationData
         case pumex::InputEvent::S:     updateData.moveBackward = false; break;
         case pumex::InputEvent::A:     updateData.moveLeft     = false; break;
         case pumex::InputEvent::D:     updateData.moveRight    = false; break;
+        case pumex::InputEvent::Q:     updateData.moveUp       = false; break;
+        case pumex::InputEvent::Z:     updateData.moveDown     = false; break;
         case pumex::InputEvent::SHIFT: updateData.moveFast     = false; break;
         }
         break;
@@ -1101,7 +1181,8 @@ struct GpuCullApplicationData
     if (updateData.moveFast)
       camSpeed = 5.0f;
     glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
-    glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
+    glm::vec3 right   = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
+    glm::vec3 up      = glm::vec3(0.0f, 0.0f, 1.0f);
     if (updateData.moveForward)
       updateData.cameraPosition -= forward * camSpeed;
     if (updateData.moveBackward)
@@ -1110,24 +1191,25 @@ struct GpuCullApplicationData
       updateData.cameraPosition -= right * camSpeed;
     if (updateData.moveRight)
       updateData.cameraPosition += right * camSpeed;
+    if (updateData.moveUp)
+      updateData.cameraPosition += up * camSpeed;
+    if (updateData.moveDown)
+      updateData.cameraPosition -= up * camSpeed;
+
+    if (measureTime != updateData.measureTime)
+    {
+      for (auto& cb : myCmdBuffer)
+        cb.second->setDirty(UINT32_MAX);
+      measureTime = updateData.measureTime;
+    }
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.cameraDistance = updateData.cameraDistance;
     uData.cameraPosition = updateData.cameraPosition;
-
-
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto inputEnd = pumex::HPClock::now();
-    inputDuration = pumex::inSeconds(inputEnd - inputStart);
-#endif
   }
 
   void update(float timeSinceStart, float updateStep)
   {
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto updateStart = pumex::HPClock::now();
-#endif
-
     // send UpdateData to RenderData
     uint32_t updateIndex = viewer.lock()->getUpdateIndex();
 
@@ -1156,11 +1238,8 @@ struct GpuCullApplicationData
         renderData[updateIndex].dynamicObjectData.push_back(it->second);
 
     }
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto updateEnd = pumex::HPClock::now();
-    updateDuration = pumex::inSeconds(updateEnd - updateStart);
-#endif
   }
+
   void updateInstance(DynamicObjectData& objectData, float timeSinceStart, float updateStep)
   {
     if (objectData.time2NextTurn < 0.0f)
@@ -1227,8 +1306,7 @@ struct GpuCullApplicationData
 
     glm::vec3 realEye = eye + deltaTime * (eye - prevEye);
     glm::vec3 realCenter = rData.cameraPosition + deltaTime * (rData.cameraPosition - rData.prevCameraPosition);
-
-    glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
+    glm::mat4 viewMatrix = slaveViewMatrix[surface->getID()] * glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
 
     pumex::Camera camera;
     camera.setViewMatrix(viewMatrix);
@@ -1238,6 +1316,10 @@ struct GpuCullApplicationData
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
     cameraUbo->set(surface.get(), camera);
+
+    pumex::Camera textCamera;
+    textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+    textCameraUbo->set(surface.get(), textCamera);
   }
 
   void prepareStaticBuffersForRendering()
@@ -1315,6 +1397,92 @@ struct GpuCullApplicationData
     uint32_t            renderWidth = surface->swapChainSize.width;
     uint32_t            renderHeight = surface->swapChainSize.height;
 
+    fontDefault->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    textDefault->setActiveIndex(activeIndex);
+    textDefault->validate(surfacePtr);
+
+    fontSmall->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
+    if (measureTime)
+    {
+      std::lock_guard<std::mutex> lock(measureMutex);
+      std::wstringstream stream;
+      stream << "Process input          : " << std::fixed << std::setprecision(3) << 1000.0 * times[1010] << " ms";
+      textSmall->setText(surfacePtr, 1010, glm::vec2(30, 58), glm::vec4(0.0f, 0.9f, 0.0f, 1.0f), stream.str());
+
+      stream.str(L"");
+      stream << "Update                    : " << std::fixed << std::setprecision(3) << 1000.0 * times[1020] << " ms";
+      textSmall->setText(surfacePtr, 1020, glm::vec2(30, 78), glm::vec4(0.0f, 0.9f, 0.0f, 1.0f), stream.str());
+
+      stream.str(L"");
+      stream << "Prepare static buffers    : " << std::fixed << std::setprecision(3) << 1000.0 * times[2010] << " ms";
+      textSmall->setText(surfacePtr, 2010, glm::vec2(30, 118), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+      stream.str(L"");
+      stream << "Prepare dynamic buffers    : " << std::fixed << std::setprecision(3) << 1000.0 * times[2011] << " ms";
+      textSmall->setText(surfacePtr, 2011, glm::vec2(30, 138), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+      stream.str(L"");
+      stream << "Begin frame            : " << std::fixed << std::setprecision(3) << 1000.0 * times[2020+surfacePtr->getID()] << " ms";
+      textSmall->setText(surfacePtr, 2020, glm::vec2(30, 158), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+      stream.str(L"");
+      stream << "Draw frame             : " << std::fixed << std::setprecision(3) << 1000.0 * times[2030 + surfacePtr->getID()] << " ms";
+      textSmall->setText(surfacePtr, 2030, glm::vec2(30, 178), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+      stream.str(L"");
+      stream << "End frame               : " << std::fixed << std::setprecision(3) << 1000.0 * times[2040 + surfacePtr->getID()] << " ms";
+      textSmall->setText(surfacePtr, 2040, glm::vec2(30, 198), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+      float timeStampPeriod = devicePtr->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
+      std::vector<uint64_t> queryResults;
+      // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
+      queryResults = timeStampQueryPool->getResults(surfacePtr, ((activeIndex + 2) % 3) * 8, 8, 0);
+      uint32_t y = 238;
+      if (_showStaticRendering)
+      {
+        // exclude timer overflows
+        if (queryResults[1] > queryResults[0])
+        {
+          stream.str(L"");
+          stream << "GPU LOD compute static : " << std::fixed << std::setprecision(3) << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms";
+          textSmall->setText(surfacePtr, 3010, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+        }
+        y += 20;
+
+        // exclude timer overflows
+        if (queryResults[5] > queryResults[4])
+        {
+          stream.str(L"");
+          stream << "GPU draw shader static       : " << std::fixed << std::setprecision(3) << (queryResults[5] - queryResults[4]) * timeStampPeriod << " ms";
+          textSmall->setText(surfacePtr, 3020, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+        }
+        y += 20;
+      }
+      if (_showDynamicRendering)
+      {
+        // exclude timer overflows
+        if (queryResults[3] > queryResults[2])
+        {
+          stream.str(L"");
+          stream << "GPU LOD compute dynamic : " << std::fixed << std::setprecision(3) << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms";
+          textSmall->setText(surfacePtr, 3030, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+        }
+        y += 20;
+
+        // exclude timer overflows
+        if (queryResults[7] > queryResults[6])
+        {
+          stream.str(L"");
+          stream << "GPU draw shader dynamic     : " << std::fixed << std::setprecision(3) << (queryResults[7] - queryResults[6]) * timeStampPeriod << " ms";
+          textSmall->setText(surfacePtr, 3040, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+        }
+        y += 20;
+      }
+    }
+    textSmall->setActiveIndex(activeIndex);
+    textSmall->validate(surfacePtr);
+
+
     cameraUbo->validate(surfacePtr);
 
     if (_showStaticRendering)
@@ -1342,128 +1510,155 @@ struct GpuCullApplicationData
       dynamicFilterDescriptorSet->setActiveIndex(activeIndex);
       dynamicFilterDescriptorSet->validate(surfacePtr);
     }
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto drawStart = pumex::HPClock::now();
-#endif
+    textCameraUbo->validate(surfacePtr);
+    textDescriptorSet->setActiveIndex(activeIndex);
+    textDescriptorSet->validate(surfacePtr);
 
-    auto currentCmdBuffer = myCmdBuffer[devicePtr];
+    textDescriptorSetSmall->setActiveIndex(activeIndex);
+    textDescriptorSetSmall->validate(surfacePtr);
+
+    auto currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
-    currentCmdBuffer->cmdBegin();
-
-    timeStampQueryPool->reset(devicePtr, currentCmdBuffer, activeIndex * 4, 4);
-
-#if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-#endif
-    std::vector<pumex::DescriptorSetValue> staticResultsBuffer, dynamicResultsBuffer;
-    uint32_t staticDrawCount, dynamicDrawCount;
-
-    // Set up memory barrier to ensure that the indirect commands have been consumed before the compute shaders update them
-    if (_showStaticRendering)
+    if (currentCmdBuffer->isDirty(activeIndex))
     {
-      staticInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, staticResultsBuffer);
-      staticDrawCount = staticInstancedResults->getDrawCount(MAIN_RENDER_MASK);
-    }
-    if (_showDynamicRendering)
-    {
-      dynamicInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, dynamicResultsBuffer);
-      dynamicDrawCount = dynamicInstancedResults->getDrawCount(MAIN_RENDER_MASK);
-    }
+      currentCmdBuffer->cmdBegin();
 
-    // perform compute shaders
-    if (_showStaticRendering)
-    {
-      currentCmdBuffer->cmdBindPipeline(staticFilterPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, staticFilterDescriptorSet.get());
-      currentCmdBuffer->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16>0) ? 1 : 0), 1, 1);
-    }
-    if (_showDynamicRendering)
-    {
-      currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, dynamicFilterDescriptorSet.get());
-      currentCmdBuffer->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16>0) ? 1 : 0), 1, 1);
-    }
+      timeStampQueryPool->reset(surfacePtr, currentCmdBuffer, activeIndex * 8, 8);
 
-    // setup memory barriers, so that copying data to *resultsSbo2 will start only after compute shaders finish working
-    std::vector<pumex::PipelineBarrier> afterComputeBarriers;
-    if (_showStaticRendering)
-      afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer[0].bufferInfo));
-    if (_showDynamicRendering)
-      afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer[0].bufferInfo));
-    currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, afterComputeBarriers);
+      std::vector<pumex::DescriptorSetValue> staticResultsBuffer, dynamicResultsBuffer;
+      uint32_t staticDrawCount, dynamicDrawCount;
 
-#if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 1, VK_PIPELINE_STAGE_TRANSFER_BIT);
-#endif
-
-    std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-    currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-#if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 2, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
-#endif
-    if (_showStaticRendering)
-    {
-      currentCmdBuffer->cmdBindPipeline(staticRenderPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, staticRenderDescriptorSet.get());
-      staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
-        currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
-      else
+      // Set up memory barrier to ensure that the indirect commands have been consumed before the compute shaders update them
+      if (_showStaticRendering)
       {
-        for (uint32_t i = 0; i < staticDrawCount; ++i)
-          currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+        staticInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, staticResultsBuffer);
+        staticDrawCount = staticInstancedResults->getDrawCount(MAIN_RENDER_MASK);
       }
-    }
-    if (_showDynamicRendering)
-    {
-      currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, dynamicRenderDescriptorSet.get());
-      dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
-        currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
-      else
+      if (_showDynamicRendering)
       {
-        for (uint32_t i = 0; i < dynamicDrawCount; ++i)
-          currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+        dynamicInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, dynamicResultsBuffer);
+        dynamicDrawCount = dynamicInstancedResults->getDrawCount(MAIN_RENDER_MASK);
       }
-    }
-#if defined(GPU_CULL_MEASURE_TIME)
-    timeStampQueryPool->queryTimeStamp(devicePtr, currentCmdBuffer, activeIndex * 4 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-#endif
 
-    currentCmdBuffer->cmdEndRenderPass();
-    currentCmdBuffer->cmdEnd();
+      // perform compute shaders
+      if (_showStaticRendering)
+      {
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        currentCmdBuffer->cmdBindPipeline(staticFilterPipeline.get());
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, staticFilterDescriptorSet.get());
+        currentCmdBuffer->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16 > 0) ? 1 : 0), 1, 1);
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 1, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+      }
+      if (_showDynamicRendering)
+      {
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 2, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline.get());
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, dynamicFilterDescriptorSet.get());
+        currentCmdBuffer->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16 > 0) ? 1 : 0), 1, 1);
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+      }
+
+      // setup memory barriers, so that copying data to *resultsSbo2 will start only after compute shaders finish working
+      std::vector<pumex::PipelineBarrier> afterComputeBarriers;
+      if (_showStaticRendering)
+        afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer[0].bufferInfo));
+      if (_showDynamicRendering)
+        afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer[0].bufferInfo));
+      if(!afterComputeBarriers.empty())
+        currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, afterComputeBarriers);
+
+      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
+      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+
+      if (_showStaticRendering)
+      {
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 4, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        currentCmdBuffer->cmdBindPipeline(staticRenderPipeline.get());
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, staticRenderDescriptorSet.get());
+        staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+        if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
+          currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        else
+        {
+          for (uint32_t i = 0; i < staticDrawCount; ++i)
+            currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+        }
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 5, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+      }
+      if (_showDynamicRendering)
+      {
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 6, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline.get());
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, dynamicRenderDescriptorSet.get());
+        dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+        if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
+          currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+        else
+        {
+          for (uint32_t i = 0; i < dynamicDrawCount; ++i)
+            currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+        }
+        if (measureTime)
+          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 7, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+      }
+
+      currentCmdBuffer->cmdBindPipeline(textPipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
+      textDefault->cmdDraw(surfacePtr, currentCmdBuffer);
+
+      if (measureTime)
+      {
+        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSetSmall.get());
+        textSmall->cmdDraw(surfacePtr, currentCmdBuffer);
+      }
+
+      currentCmdBuffer->cmdEndRenderPass();
+      currentCmdBuffer->cmdEnd();
+    }
     currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
-
-#if defined(GPU_CULL_MEASURE_TIME)
-    auto drawEnd = pumex::HPClock::now();
-    drawDuration = pumex::inSeconds(drawEnd - drawStart);
-#endif
   }
 
-  void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
+  void fillFPS()
   {
-#if defined(GPU_CULL_MEASURE_TIME)
-    pumex::Device*  devicePtr = surface->device.lock().get();
+    pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
+    double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
+    lastFrameStart = thisFrameStart;
 
-    LOG_ERROR << "Process input          : " << 1000.0f * inputDuration << " ms" << std::endl;
-    LOG_ERROR << "Update                 : " << 1000.0f * updateDuration << " ms" << std::endl;
-    LOG_ERROR << "Prepare buffers        : " << 1000.0f * prepareBuffersDuration << " ms" << std::endl;
-    LOG_ERROR << "CPU Draw               : " << 1000.0f * drawDuration << " ms" << std::endl;
-
-    float timeStampPeriod = devicePtr->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
-    std::vector<uint64_t> queryResults;
-    // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-    queryResults = timeStampQueryPool->getResults(devicePtr, ((activeIndex + 2) % 3) * 4, 4, 0);
-    LOG_ERROR << "GPU LOD compute shader : " << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms" << std::endl;
-    LOG_ERROR << "GPU draw shader        : " << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms" << std::endl;
-    LOG_ERROR << std::endl;
-#endif
-
+    std::wstringstream stream;
+    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
+    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
+
+  void setSlaveViewMatrix(uint32_t index, const glm::mat4& matrix)
+  {
+    slaveViewMatrix[index] = matrix;
+  }
+  pumex::HPClock::time_point now()
+  {
+    if (!measureTime)
+      return pumex::HPClock::time_point();
+    return pumex::HPClock::now();
+  }
+  pumex::HPClock::time_point setTime(uint32_t marker, pumex::HPClock::time_point& startPoint)
+  {
+    if (!measureTime)
+      return pumex::HPClock::time_point();
+    std::lock_guard<std::mutex> lock(measureMutex);
+    auto result = pumex::HPClock::now();
+    times[marker] = pumex::inSeconds(result - startPoint);
+    return result;
+  }
+
+
 };
 
 // thread that renders data to a Vulkan surface
@@ -1475,6 +1670,8 @@ int main(int argc, char * argv[])
   args::HelpFlag          help(parser, "help", "Display this help menu", { 'h', "help" });
   args::Flag              enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag              useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  args::Flag              renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
+  args::Flag              render3windows(parser, "three_windows", "render in three windows", { 't' });
   args::Flag              skipStaticRendering(parser, "skip-static", "skip rendering of static objects", { "skip-static" });
   args::Flag              skipDynamicRendering(parser, "skip-dynamic", "skip rendering of dynamic objects", { "skip-dynamic" });
   args::ValueFlag<float>  staticAreaSizeArg(parser, "static-area-size", "size of the area for static rendering", { "static-area-size" }, 2000.0f);
@@ -1525,16 +1722,38 @@ int main(int argc, char * argv[])
   pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", enableDebugging, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
-  std::shared_ptr<pumex::Viewer> viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+  std::shared_ptr<pumex::Viewer> viewer;
   try
   {
-    std::vector<pumex::QueueTraits> requestQueues = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, { 0.75f } } };
+    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+
+    std::vector<pumex::WindowTraits> windowTraits;
+    if (render3windows)
+    {
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 30,   100, 512, 384, pumex::WindowTraits::WINDOW, "Object culling on GPU 1" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 570,  100, 512, 384, pumex::WindowTraits::WINDOW, "Object culling on GPU 2" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 1110, 100, 512, 384, pumex::WindowTraits::WINDOW, "Object culling on GPU 3" });
+    }
+    else if (renderVRwindows)
+    {
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 0, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_LEFT, "Object culling on GPU L" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_RIGHT, "Object culling on GPU R" });
+    }
+    else
+    {
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Object culling on GPU" });
+    }
+
+    std::vector<float> queuePriorities;
+    queuePriorities.resize(windowTraits.size(), 0.75f);
+    std::vector<pumex::QueueTraits> requestQueues = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, queuePriorities } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
 
-    pumex::WindowTraits windowTraits{0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Object culling on GPU"};
-    std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
+    std::vector<std::shared_ptr<pumex::Window>> windows;
+    for (const auto& t : windowTraits)
+      windows.push_back(pumex::Window::createWindow(t));
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {
@@ -1576,9 +1795,27 @@ int main(int argc, char * argv[])
     std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(viewer);
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup(showStaticRendering,showDynamicRendering, staticAreaSize, dynamicAreaSize, lodModifier, densityModifier, triangleModifier);
+    if (render3windows)
+    {
+      applicationData->setSlaveViewMatrix(0, glm::rotate(glm::mat4(), glm::radians(-75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
+      applicationData->setSlaveViewMatrix(1, glm::mat4());
+      applicationData->setSlaveViewMatrix(2, glm::rotate(glm::mat4(), glm::radians(75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    }
+    else if (renderVRwindows)
+    {
+      applicationData->setSlaveViewMatrix(0, glm::translate(glm::mat4(), glm::vec3(-0.03f, 0.0f, 0.0f)));
+      applicationData->setSlaveViewMatrix(1, glm::translate(glm::mat4(), glm::vec3(0.03f, 0.0f, 0.0f)));
+    }
+    else
+    {
+      applicationData->setSlaveViewMatrix(0, glm::mat4());
+    }
 
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
-    applicationData->surfaceSetup(surface);
+    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
+    for (auto win : windows)
+      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
+    for (auto surf : surfaces)
+      applicationData->surfaceSetup(surf);
 
     // Making the update graph
     // The update in this example is "almost" singlethreaded. 
@@ -1588,8 +1825,12 @@ int main(int argc, char * argv[])
     // All leaf nodes should point to viewer->endUpdateGraph.
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
-      applicationData->processInput(surface);
+      auto inputBeginTime = applicationData->now();
+      for (auto surf : surfaces)
+        applicationData->processInput(surf);
+      auto updateBeginTime = applicationData->setTime(1010, inputBeginTime);
       applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
+      applicationData->setTime(1020, updateBeginTime);
     });
 
     tbb::flow::make_edge(viewer->startUpdateGraph, update);
@@ -1602,29 +1843,49 @@ int main(int argc, char * argv[])
     // All leaf nodes should point to viewer->endRenderGraph.
     tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg)
     {
-#if defined(GPU_CULL_MEASURE_TIME)
-      auto prepareBuffersStart = pumex::HPClock::now();
-#endif
+      auto staticBeginTime = applicationData->now();
+      applicationData->fillFPS();
       if (applicationData->_showStaticRendering)
         applicationData->prepareStaticBuffersForRendering();
+      auto dynamicBeginTime = applicationData->setTime(2010, staticBeginTime);
       if (applicationData->_showDynamicRendering)
         applicationData->prepareDynamicBuffersForRendering();
-#if defined(GPU_CULL_MEASURE_TIME)
-      auto prepareBuffersEnd = pumex::HPClock::now();
-      applicationData->prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
-#endif
+      applicationData->setTime(2011, dynamicBeginTime);
+
     });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
+    std::vector<tbb::flow::continue_node< tbb::flow::continue_msg >> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
+    for (auto& surf : surfaces)
+    {
+
+      startSurfaceFrame.emplace_back(viewer->renderGraph, [=](tbb::flow::continue_msg)
+      {
+        auto t = applicationData->now();
+        applicationData->prepareCameraForRendering(surf);
+        surf->beginFrame();
+        applicationData->setTime(2020 + surf->getID(), t);
+      });
+      drawSurfaceFrame.emplace_back(viewer->renderGraph, [=](tbb::flow::continue_msg)
+      {
+        auto t = applicationData->now();
+        applicationData->draw(surf);
+        applicationData->setTime(2030 + surf->getID(), t);
+      });
+      endSurfaceFrame.emplace_back(viewer->renderGraph, [=](tbb::flow::continue_msg)
+      {
+        auto t = applicationData->now();
+        surf->endFrame();
+        applicationData->setTime(2040 + surf->getID(), t);
+      });
+    }
 
     tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
-    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
-    tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
-    tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
-    tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
-    tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
+    for (uint32_t i = 0; i < startSurfaceFrame.size(); ++i)
+    {
+      tbb::flow::make_edge(prepareBuffers, startSurfaceFrame[i]);
+      tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);
+      tbb::flow::make_edge(drawSurfaceFrame[i], endSurfaceFrame[i]);
+      tbb::flow::make_edge(endSurfaceFrame[i], viewer->endRenderGraph);
+    }
 
     viewer->run();
   }

@@ -75,7 +75,8 @@ public:
   std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
   Device*  getDevice(uint32_t id);
   Surface* getSurface(uint32_t id);
-
+  inline uint32_t getNumDevices() const;
+  inline uint32_t getNumSurfaces() const;
 
   void run();
   void cleanup();
@@ -145,6 +146,8 @@ protected:
 
 };
 
+uint32_t            Viewer::getNumDevices() const           { return devices.size(); }
+uint32_t            Viewer::getNumSurfaces() const          { return surfaces.size(); }
 VkInstance          Viewer::getInstance() const             { return instance; }
 bool                Viewer::terminating() const             { return viewerTerminate; }
 uint32_t            Viewer::getUpdateIndex() const          { return updateIndex; }
