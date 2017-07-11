@@ -22,6 +22,7 @@
 
 #pragma once
 #include <memory>
+#include <vector>
 #include <list>
 #include <unordered_map>
 #include <mutex>

@@ -345,7 +345,7 @@ InputEvent::Key WindowXcb::xcbKeyCodeToPumex(xcb_keycode_t keycode) const
   auto it = xcbKeycodes.find(keycode);
   if(it != xcbKeycodes.end() )
     return it->second;
-//  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
+  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
   return InputEvent::KEY_UNDEFINED;
 }
 
@@ -355,6 +355,7 @@ void WindowXcb::fillXcbKeycodes()
   xcbKeycodes.insert({0x9, InputEvent::ESCAPE});
   xcbKeycodes.insert({0x41, InputEvent::SPACE});
   xcbKeycodes.insert({0x17, InputEvent::TAB});
+  xcbKeycodes.insert({0x32, InputEvent::SHIFT});
   
   uint32_t i=0;
   
