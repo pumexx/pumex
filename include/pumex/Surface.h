@@ -56,8 +56,8 @@ struct PUMEX_EXPORT SurfaceTraits
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
-  QueueTraits                        presentationQueueTraits;
 
+  QueueTraits                        presentationQueueTraits;
   std::shared_ptr<RenderPass>        defaultRenderPass;
   std::shared_ptr<FrameBufferImages> frameBufferImages;
 };

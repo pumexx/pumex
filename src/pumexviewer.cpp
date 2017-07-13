@@ -484,10 +484,6 @@ struct ViewerApplicationData
     currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
   }
 
-  void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
-  {
-  }
-
   std::shared_ptr<pumex::Viewer> viewer;
   std::string modelName;
   uint32_t    modelTypeID;
@@ -521,7 +517,7 @@ int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
   args::ArgumentParser         parser("pumex example : minimal 3D model viewer without textures");
-  args::HelpFlag               help(parser, "help", "Display this help menu", { 'h', "help" });
+  args::HelpFlag               help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::ValueFlag<std::string> modelNameArg(parser, "model", "3D model filename", { 'm' });
@@ -573,7 +569,6 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
@@ -639,14 +634,12 @@ int main( int argc, char * argv[] )
     tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endWholeFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->finishFrame(viewer, surface); });
 
     tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
     tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
     tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
     tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
-    tbb::flow::make_edge(endSurfaceFrame, endWholeFrame);
-    tbb::flow::make_edge(endWholeFrame, viewer->endRenderGraph);
+    tbb::flow::make_edge(endSurfaceFrame, viewer->endRenderGraph);
 
     viewer->run();
   }

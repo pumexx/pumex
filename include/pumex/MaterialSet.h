@@ -142,19 +142,6 @@ private:
 
 };
 
-// Descriptor sets will use this class to access meta buffers held by MaterialSet ( this class is a kind of adapter... )
-template <typename T>
-class MaterialSetDescriptorSetSource : public DescriptorSetSource
-{
-public:
-  enum BufferType{ TypeBuffer, MaterialVariantBuffer, MaterialBuffer };
-  MaterialSetDescriptorSetSource(MaterialSet<T>* owner, BufferType bufferType);
-  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-private:
-  MaterialSet<T>* owner;
-  BufferType      bufferType;
-};
-
 class TextureRegistryTextureArray : public TextureRegistry
 {
 public:

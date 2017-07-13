@@ -1667,7 +1667,7 @@ int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
   args::ArgumentParser    parser("pumex example : instanced rendering for static and dynamic objects");
-  args::HelpFlag          help(parser, "help", "Display this help menu", { 'h', "help" });
+  args::HelpFlag          help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag              enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag              useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::Flag              renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });

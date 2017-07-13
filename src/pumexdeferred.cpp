@@ -770,7 +770,7 @@ int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
   args::ArgumentParser parser("pumex example : deferred rendering with antialiasing");
-  args::HelpFlag       help(parser, "help", "Display this help menu", { 'h', "help" });
+  args::HelpFlag       help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   try
