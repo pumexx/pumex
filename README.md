@@ -1,4 +1,4 @@
-#### Pumex library
+# Pumex library
 
 The purpose of the **Pumex** library is to create an efficient rendering engine using **Vulkan API** that has following properties :
 
@@ -11,7 +11,7 @@ The purpose of the **Pumex** library is to create an efficient rendering engine 
 
 
 
-#### Instalation on Windows
+## Instalation on Windows
 
 Elements that are required to install Pumex on Windows :
 
@@ -23,12 +23,18 @@ Elements that are required to install Pumex on Windows :
 Steps needed to build a library :
 
 1. download Pumex Library from [here](https://github.com/pumexx/pumex)
+
 2. create solution files for MS Visual Studio using CMake
+
 3. build Release version for 64 bit. All external dependencies will be downloaded during first build
+
 4. if example programs have problem with opening shader files, or 3D models - set the **PUMEX_DATA_DIR** environment variable so that it points to a directory with data files, for example :
+
    ```set PUMEX_DATA_DIR=C:\Dev\pumex\data```
 
-#### Installation on Linux
+   ​
+
+## Installation on Linux
 
 Elements that are required to install Pumex on Windows :
 
@@ -50,18 +56,24 @@ Other libraries will be downloaded during first build ( [glm](http://glm.g-truc.
 Steps needed to build a library :
 
 1. download Pumex Library from [here](https://github.com/pumexx/pumex)
+
 2. create solution files for gcc using CMake, choose "Release" configuration type for maximum performance 
+
 3. perform make
+
 4. if example programs have problem with opening shader files, or 3D models - set the **PUMEX_DATA_DIR** environment variable so that it points to a directory with data files, for example :
+
    ```export PUMEX_DATA_DIR=${HOME}/Dev/pumex/data```
 
-#### Pumex examples
+## Pumex examples
 
 There are four example programs in Pumex right now :
 
-##### pumexcrowd
+### pumexcrowd
 
 Application that renders a crowd of 500 animated people on one or more windows
+
+![pumexcrowd example rendered on 3 windows](doc/images/crowd3windows.png "pumexcrowd example on 3 windows")
 
 - There are 3 different models of human body, each one has 3 LODs ( levels of detail ) :
   - LOD0 has 26756 triangles
@@ -88,13 +100,17 @@ While application is running, you are able to use following keys :
 - Left Shift - move camera faster
 - T - hide / show time statistics
 
-Camera rotation may be done by moving a mouse.
+Camera rotation may be done by moving a mouse while holding a left mouse button.
 
+Below is additional image showing pumexcrowd example working in VR mode ( 2 windows - each one covers half of the screen, window decorations disabled ) :
 
+![pumexcrowd in VR mode](doc/images/crowdVR.png "VR mode")
 
-##### pumexgpucull
+### pumexgpucull
 
  Application that renders simple not textured static objects ( trees, buildings ) and dynamic objects ( cars, airplanes, blimps ) on one or more windows. This application serves as performance test, because all main parameters may be modified ( LOD ranges, number of objects, triangle count on each mesh ). All meshes are generated procedurally. Each LOD for each mesh has different color, so you may see, when it switches betwen LODs. In OpeneSceneGraph library there is almost the same application called osggpucull, so you may compare performance of Vulkan API and OpenGL API.
+
+![pumexgpucull example](doc/images/gpucull.png "gpu cull example rendered on 1 window")
 
 Command line parameters enable us to use one of predefined window configurations and also we are able to modify all parameters that affect performance :
 
@@ -124,11 +140,15 @@ While application is running, you are able to use following keys :
 - Left Shift - move camera faster
 - T - hide / show time statistics
 
-Camera rotation may be done by moving a mouse.
+Camera rotation may be done by moving a mouse while holding a left mouse button.
 
-##### pumexdeferred
+
+
+### pumexdeferred
 
 Application that makes deferred rendering with multisampling in one window. Famous Sponza Palace model is used as a render scene.
+
+![pumexdeferred example](doc/images/deferred.png "pumexdeferred example rendered on one window")
 
 Available command line parameters :
 
@@ -144,13 +164,15 @@ While application is running, you are able to use following keys :
 - Q, Z - move camera up, down
 - Left Shift - move camera faster
 
-Camera rotation may be done by moving a mouse.
+Camera rotation may be done by moving a mouse while holding a left mouse button.
 
 
 
-##### pumexviewer
+### pumexviewer
 
 Minimal pumex application that renders single not textured 3D model provided by the user in command line. Models that may be read by Assimp library are able to render in that application.
+
+![pumexviewer example](doc/images/viewer.png "pumexviewer example")
 
 Available command line parameters :
 
@@ -165,8 +187,9 @@ While application is running, you are able to use following keys :
 
 - W, S, A, D - move camera : forward, backward, left, right
 
-Camera rotation may be done by moving a mouse.
+Camera rotation may be done by moving a mouse while holding a left mouse button.
 
 
 
-**Remark** : Pumex is a "work in progress" which means that some elements are not implemented yet ( like push constants for example ) and some may not work properly on every combination of hardware / operating system. At the moment I also have only one monitor on my PC, so I am unable to test Pumex on multiple screens (multiple windows on one screen work like a charm , though ). Moreover I haven't tested Pumex on any AMD graphics card for the same reason.
+**Remark** : Pumex is a "work in progress" which means that some elements are not implemented yet ( like push constants for example ) and some may not work properly on every combination of hardware / operating system. At the moment I also have only one monitor on my PC, so I am unable to test Pumex on multiple screens (multiple windows on one screen work like a charm , though ). Moreover I haven't tested Pumex on any AMD graphics card for the same reason. Pumex API is subject to change.
+
