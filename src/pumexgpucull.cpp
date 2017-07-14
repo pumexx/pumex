@@ -750,9 +750,9 @@ struct GpuCullApplicationData
     textPipeline->depthWriteEnable = VK_FALSE;
     textPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
@@ -875,7 +875,7 @@ struct GpuCullApplicationData
     staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>(buffersAllocator,3);
 
     staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_static_filter_instances.comp.spv")), "main" };
+    staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
 
     staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
     staticFilterDescriptorSet->setSource(0, cameraUbo);
@@ -888,8 +888,8 @@ struct GpuCullApplicationData
     staticRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
     staticRenderPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_static_render.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_static_render.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_render.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_render.frag.spv")), "main" }
     };
     staticRenderPipeline->vertexInput =
     {
@@ -1016,7 +1016,7 @@ struct GpuCullApplicationData
     dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>(buffersAllocator,3);
 
     dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_dynamic_filter_instances.comp.spv")), "main" };
+    dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_filter_instances.comp.spv")), "main" };
 
     dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3 );
     dynamicFilterDescriptorSet->setSource(0, cameraUbo);
@@ -1029,8 +1029,8 @@ struct GpuCullApplicationData
     dynamicRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
     dynamicRenderPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_dynamic_render.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("gpucull_dynamic_render.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_render.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_render.frag.spv")), "main" }
     };
     dynamicRenderPipeline->vertexInput =
     {

@@ -59,9 +59,14 @@ Steps needed to build a library :
 
 2. create solution files for gcc using CMake, choose "Release" configuration type for maximum performance 
 
-3. perform make
+3. perform **make -j4**
 
-4. if example programs have problem with opening shader files, or 3D models - set the **PUMEX_DATA_DIR** environment variable so that it points to a directory with data files, for example :
+4. perform **sudo make install** if necessary. Pumex library instals itself in /usr/local/* directories. On some Linux distributions ( Ubuntu for example ) /usr/local/lib directory is not added to LD_LIBRARY_PATH environment variable. In that case you will see a following error while trying to run one of the example programs :
+   ```pumexviewer: error while loading shared libraries: libpumex.so.1: cannot open shared object file: No such file or directory```
+You need to add /usr/local/lib directory to LD_LIBRARY_PATH to remove this error :
+   ```LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH```
+
+5. if example programs have problem with opening shader files, or 3D models - set the **PUMEX_DATA_DIR** environment variable so that it points to a directory with data files, for example :
 
    ```export PUMEX_DATA_DIR=${HOME}/Dev/pumex/data```
 

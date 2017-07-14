@@ -1,16 +1,19 @@
 cmake_minimum_required(VERSION 3.7.0 FATAL_ERROR)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
-project( Pumex )
-set(Pumex_VERSION_MAJOR 0)
-set(Pumex_VERSION_MINOR 1)
-set(Pumex_VERSION_PATCH 0)
+project( PUMEX_LIB )
+set(PUMEX_VERSION_MAJOR 0)
+set(PUMEX_VERSION_MINOR 1)
+set(PUMEX_VERSION_PATCH 0)
+set(PUMEX_VERSION ${PUMEX_VERSION_MAJOR}.${PUMEX_VERSION_MINOR}.${PUMEX_VERSION_PATCH} )
+set(PUMEX_SOVERSION 1)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules")
 
 configure_file (
   "${PROJECT_SOURCE_DIR}/include/pumex/Version.in"
   "${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h"
   )
-include_directories(include)
+include_directories( ${PROJECT_SOURCE_DIR}/include )
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/include )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -37,10 +40,10 @@ set(GLM_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/glm")
 ExternalProject_Add( glm-external
   PREFIX "${GLM_BUILD_DIR}"
   BINARY_DIR "${GLM_BUILD_DIR}/build"
-  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/glm"
+  STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/glm"
   GIT_REPOSITORY "https://github.com/g-truc/glm.git"
   GIT_TAG "0.9.8"
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/glm"
+  SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/glm"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
@@ -50,7 +53,7 @@ ExternalProject_Add( glm-external
   UPDATE_DISCONNECTED 1
 )
 ExternalProject_Add_Step( glm-external glm-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/glm/glm" "${CMAKE_CURRENT_BINARY_DIR}/include/glm"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/external/glm/glm" "${CMAKE_CURRENT_BINARY_DIR}/include/glm"
   COMMENT "Copying glm headers"
   DEPENDEES install
 )
@@ -59,10 +62,10 @@ set(GLI_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/gli")
 ExternalProject_Add( gli-external
   PREFIX "${GLI_BUILD_DIR}"
   BINARY_DIR "${GLI_BUILD_DIR}/build"
-  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/gli"
+  STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/gli"
   GIT_REPOSITORY "https://github.com/g-truc/gli.git"
   GIT_TAG "0.8.2"
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/gli"
+  SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/gli"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
@@ -72,7 +75,7 @@ ExternalProject_Add( gli-external
   UPDATE_DISCONNECTED 1
 )
 ExternalProject_Add_Step( gli-external gli-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/external/gli/gli" "${CMAKE_CURRENT_BINARY_DIR}/include/gli"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/external/gli/gli" "${CMAKE_CURRENT_BINARY_DIR}/include/gli"
   COMMENT "Copying gli headers"
   DEPENDEES install
 )
@@ -81,10 +84,10 @@ set(ARGS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/args")
 ExternalProject_Add( args-external
   PREFIX "${ARGS_BUILD_DIR}"
   BINARY_DIR "${ARGS_BUILD_DIR}/build"
-  STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/args"
+  STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/args"
   GIT_REPOSITORY "https://github.com/Taywee/args.git"
   GIT_TAG "6.0.4"
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/args"
+  SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/args"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
@@ -94,7 +97,7 @@ ExternalProject_Add( args-external
   UPDATE_DISCONNECTED 1
 )
 ExternalProject_Add_Step( args-external args-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/external/args/args.hxx" "${CMAKE_CURRENT_BINARY_DIR}/include/args.hxx"
+  COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/external/args/args.hxx" "${CMAKE_CURRENT_BINARY_DIR}/include/args.hxx"
   COMMENT "Copying args headers"
   DEPENDEES install
 )
@@ -102,12 +105,12 @@ ExternalProject_Add_Step( args-external args-external-copy-includes
 set( PUMEX_DEPENDENCIES )
 
 if(WIN32)
-  set(ASSIMP_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/assimp)
+  set(ASSIMP_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/assimp)
   set(ASSIMP_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/assimp")
   ExternalProject_Add( assimp-external
     PREFIX "${ASSIMP_BUILD_DIR}"
     BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/assimp"
+    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/assimp"
     GIT_REPOSITORY "https://github.com/assimp/assimp.git"
     GIT_TAG "v3.3.1"
     SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
@@ -139,12 +142,12 @@ else(WIN32)
 endif(WIN32)
 
 if( WIN32 )
-  set(FREETYPE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/freetype )
+  set(FREETYPE_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/freetype )
   set(FREETYPE_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/freetype")
   ExternalProject_Add( freetype-external
     PREFIX "${FREETYPE_BUILD_DIR}"
     BINARY_DIR "${FREETYPE_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/freetype"
+    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/freetype"
     GIT_REPOSITORY "git://git.sv.nongnu.org/freetype/freetype2.git"
     GIT_TAG "VER-2-8"
     SOURCE_DIR "${FREETYPE_SOURCE_DIR}"
@@ -163,12 +166,12 @@ else( WIN32 )
 endif( WIN32 )
 
 if(WIN32)
-  set(TBB_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/tbb)
+  set(TBB_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/tbb)
   set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
   ExternalProject_Add( tbb-external
     PREFIX "${TBB_BUILD_DIR}"
     BINARY_DIR "${TBB_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_SOURCE_DIR}/stamp/tbb"
+    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/tbb"
     GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
     SOURCE_DIR "${TBB_SOURCE_DIR}"
     UPDATE_COMMAND ""
@@ -211,7 +214,7 @@ else(WIN32)
   file(GLOB PUMEX_PLATFORM_SOURCE include/pumex/platform/linux/*.h src/pumex/platform/linux/*.cpp)
 endif(WIN32)
 
-file( GLOB PUMEX_SHADERS data/*.vert data/*.tesc data/*.tese data/*.geom data/*.frag data/*.comp )
+file( GLOB PUMEX_SHADERS data/shaders/*.vert data/shaders/*.tesc data/shaders/*.tese data/shaders/*.geom data/shaders/*.frag data/shaders/*.comp )
 set( PUMEX_SHADERS_COMPILED )
 foreach( _file ${PUMEX_SHADERS} )
   set( _file_out ${_file}.spv )
@@ -224,16 +227,17 @@ endforeach()
 
 add_custom_target (shaders DEPENDS ${PUMEX_SHADERS_COMPILED} SOURCES ${PUMEX_SHADERS})
 
-SET(CMAKE_DEBUG_POSTFIX "d")
-SET(CMAKE_RELEASE_POSTFIX "")
-SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
-SET(CMAKE_MINSIZEREL_POSTFIX "s")
-
 add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
 target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
 target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
 add_dependencies( pumex glm-external gli-external ${PUMEX_DEPENDENCIES} )
+set_target_properties(pumex PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
 target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${Vulkan_LIBRARIES} ${TBB_LIBRARIES} ${ASSIMP_LIBRARIES} ${FREETYPE_LIBRARIES} )
+
+SET(CMAKE_DEBUG_POSTFIX "d")
+SET(CMAKE_RELEASE_POSTFIX "")
+SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
+SET(CMAKE_MINSIZEREL_POSTFIX "s")
 
 MACRO(set_executable_postfixes target)
   set_target_properties(${target} PROPERTIES DEBUG_OUTPUT_NAME "${target}${CMAKE_DEBUG_POSTFIX}")
@@ -262,4 +266,11 @@ add_dependencies( pumexdeferred shaders args-external )
 target_link_libraries( pumexdeferred pumex )
 set_executable_postfixes( pumexdeferred )
 
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
+set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
+
+install( TARGETS pumex pumexviewer pumexcrowd pumexgpucull pumexdeferred ${PUMEX_DEPENDENCIES}
+         ARCHIVE DESTINATION lib 
+         LIBRARY DESTINATION lib 
+         RUNTIME DESTINATION bin )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
+install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION include )

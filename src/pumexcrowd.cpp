@@ -275,11 +275,11 @@ struct CrowdApplicationData
 
     std::vector<std::string> animationFileNames
     {
-      "wmale1_bbox.dae",
-      "wmale1_walk.dae",
-      "wmale1_walk_easy.dae",
-      "wmale1_walk_big_steps.dae",
-      "wmale1_run.dae"
+      "people/wmale1_bbox.dae",
+      "people/wmale1_walk.dae",
+      "people/wmale1_walk_easy.dae",
+      "people/wmale1_walk_big_steps.dae",
+      "people/wmale1_run.dae"
     };
     animationSpeed =  // in meters per sec
     {
@@ -344,18 +344,18 @@ struct CrowdApplicationData
     };
     std::vector<std::string> skeletalModels
     {
-      "wmale1_lod0.dae", "wmale1_lod1.dae", "wmale1_lod2.dae",
-      "wmale2_lod0.dae", "wmale2_lod1.dae", "wmale2_lod2.dae",
-      "wmale3_lod0.dae", "wmale3_lod1.dae", "wmale3_lod2.dae",
-      "wmale1_cloth1.dae", "", "", // well, I don't have LODded cloths :(
-      "wmale1_cloth2.dae", "", "",
-      "wmale1_cloth3.dae", "", "",
-      "wmale2_cloth1.dae", "", "",
-      "wmale2_cloth2.dae", "", "",
-      "wmale2_cloth3.dae", "", "",
-      "wmale3_cloth1.dae", "", "",
-      "wmale3_cloth2.dae", "", "",
-      "wmale3_cloth3.dae", "", ""
+      "people/wmale1_lod0.dae", "people/wmale1_lod1.dae", "people/wmale1_lod2.dae",
+      "people/wmale2_lod0.dae", "people/wmale2_lod1.dae", "people/wmale2_lod2.dae",
+      "people/wmale3_lod0.dae", "people/wmale3_lod1.dae", "people/wmale3_lod2.dae",
+      "people/wmale1_cloth1.dae", "", "", // well, I don't have LODded cloths :(
+      "people/wmale1_cloth2.dae", "", "",
+      "people/wmale1_cloth3.dae", "", "",
+      "people/wmale2_cloth1.dae", "", "",
+      "people/wmale2_cloth2.dae", "", "",
+      "people/wmale2_cloth3.dae", "", "",
+      "people/wmale3_cloth1.dae", "", "",
+      "people/wmale3_cloth2.dae", "", "",
+      "people/wmale3_cloth3.dae", "", ""
     };
     std::vector<pumex::AssetLodDefinition> lodRanges
     {
@@ -374,12 +374,12 @@ struct CrowdApplicationData
    };
     std::multimap<std::string,std::vector<std::vector<std::string>>> materialVariants = 
     {
-      { "wmale1", { { "body_mat", "young_lightskinned_male_diffuse_1.dds" } } },
-      { "wmale1", { { "body_mat", "young_lightskinned_male_diffuse.dds" } } },
-      { "wmale2", { { "body_mat", "young_lightskinned_male_diffuse3_1.dds" } } },
-      { "wmale2", { { "body_mat", "dragon_female_white.dds" } } },
-      { "wmale3", { { "body_mat", "middleage_lightskinned_male_diffuse_1.dds"} } },
-      { "wmale3", { { "body_mat", "ork_texture.dds" } } }
+      { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse_1.dds" } } },
+      { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse.dds" } } },
+      { "wmale2", { { "body_mat", "people/young_lightskinned_male_diffuse3_1.dds" } } },
+      { "wmale2", { { "body_mat", "people/dragon_female_white.dds" } } },
+      { "wmale3", { { "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds"} } },
+      { "wmale3", { { "body_mat", "people/ork_texture.dds" } } }
     };
     std::multimap<std::string, std::vector<std::string>> clothVariants =
     {
@@ -483,8 +483,8 @@ struct CrowdApplicationData
     instancedRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
     instancedRenderPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_instanced_animation.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_instanced_animation.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_instanced_animation.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_instanced_animation.frag.spv")), "main" }
     };
     instancedRenderPipeline->vertexInput =
     {
@@ -522,7 +522,7 @@ struct CrowdApplicationData
     filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
     filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("crowd_filter_instances.comp.spv")), "main" };
+    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
 
     filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
     filterDescriptorSet->setSource(0, cameraUbo);
@@ -618,9 +618,9 @@ struct CrowdApplicationData
     textPipeline->depthWriteEnable = VK_FALSE;
     textPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("text_draw.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 

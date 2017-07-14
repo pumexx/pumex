@@ -26,6 +26,7 @@
 #include <thread>
 #include <condition_variable>
 #include <vector>
+#include <algorithm>
 #include <unordered_map>
 #include <mutex>
 #include <vulkan/vulkan.h>
@@ -85,7 +86,6 @@ public:
   inline VkInstance getInstance() const;
   inline bool terminating() const;
 
-  std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 
   ViewerTraits                        viewerTraits;
   VkInstance                          instance      = VK_NULL_HANDLE;
@@ -109,7 +109,8 @@ public:
   inline HPClock::time_point getUpdateTime() const;          // get the time point of the update
   inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
 
-  inline void addDefaultDirectory(const std::string& directory);
+  inline void addDefaultDirectory(std::string directory);
+  std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 protected:
   void setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
   void cleanupDebugging();
@@ -157,7 +158,7 @@ HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStart
 HPClock::duration   Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
 HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
 HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
-void                Viewer::addDefaultDirectory(const std::string& directory) { defaultDirectories.push_back(directory); }
+void                Viewer::addDefaultDirectory(std::string directory) { std::replace( directory.begin(), directory.end(), '\\', '/'); defaultDirectories.push_back(directory); }
 void                Viewer::doNothing() const               {}
 
 uint32_t   Viewer::getNextUpdateSlot() const

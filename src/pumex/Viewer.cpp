@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 
+#include <algorithm>
 #include <pumex/Viewer.h>
 #include <pumex/utils/Log.h>
 #include <pumex/PhysicalDevice.h>
@@ -70,9 +71,9 @@ Viewer::Viewer(const ViewerTraits& vt)
     do
     {
       const char *begin = currentPos;
-      while (*currentPos != ';' && *currentPos != 0)
+      while (*currentPos != ';' && *currentPos != ':' && *currentPos != 0)
         currentPos++;
-      defaultDirectories.push_back( std::string(begin, currentPos));
+      addDefaultDirectory( std::string(begin, currentPos) );
     } while (*currentPos++ != 0);
   }
 
@@ -81,24 +82,11 @@ Viewer::Viewer(const ViewerTraits& vt)
   if (getcwd(strCurrentPath, MAX_PATH_LENGTH))
   {
     std::string currentDir(strCurrentPath);
-    defaultDirectories.push_back(currentDir);
-#if defined(_WIN32)
-    defaultDirectories.push_back(currentDir + "\\data");
-    defaultDirectories.push_back(currentDir + "\\data\\textures");
-    defaultDirectories.push_back(currentDir + "\\..\\data");
-    defaultDirectories.push_back(currentDir + "\\..\\data\\textures");
-    defaultDirectories.push_back(currentDir + "\\..\\..\\data");
-    defaultDirectories.push_back(currentDir + "\\..\\..\\data\\textures");
-#else
-    defaultDirectories.push_back(currentDir + "/data");
+    addDefaultDirectory(currentDir);
     currentDir = currentDir.substr(0, currentDir.find_last_of("/"));
-    defaultDirectories.push_back(currentDir + "/data");
-    defaultDirectories.push_back(currentDir + "/data/textures");
-    defaultDirectories.push_back(currentDir + "../data");
-    defaultDirectories.push_back(currentDir + "../data/textures");
-    defaultDirectories.push_back(currentDir + "../../data");
-    defaultDirectories.push_back(currentDir + "../../data/textures");
-#endif
+    addDefaultDirectory(currentDir + "/data");
+    addDefaultDirectory(currentDir + "../data");
+    addDefaultDirectory(currentDir + "../../data");
   }
   // register basic directories - executable directory and data directory
   char strExePath[MAX_PATH_LENGTH];
@@ -106,9 +94,8 @@ Viewer::Viewer(const ViewerTraits& vt)
   GetModuleFileNameA(NULL, strExePath, MAX_PATH_LENGTH);
   std::string exeDir = strExePath;
   exeDir = exeDir.substr(0, exeDir.find_last_of("\\"));
-  defaultDirectories.push_back(exeDir);
-  defaultDirectories.push_back(exeDir + "\\data");
-  defaultDirectories.push_back(exeDir + "\\data\\textures");
+  addDefaultDirectory(exeDir);
+  addDefaultDirectory(exeDir + "\\data");
 #else
   {
     char id[MAX_PATH_LENGTH];
@@ -122,10 +109,9 @@ Viewer::Viewer(const ViewerTraits& vt)
   if(!exeDir.empty())
   {
     exeDir = exeDir.substr(0, exeDir.find_last_of("/"));
-    defaultDirectories.push_back(exeDir);
-    defaultDirectories.push_back(exeDir+"/data");
-    defaultDirectories.push_back(exeDir+"/data/textures");
-}
+    addDefaultDirectory(exeDir);
+    addDefaultDirectory(exeDir+"/data");
+  }
 #endif
 
 
@@ -358,9 +344,10 @@ Surface* Viewer::getSurface(uint32_t id)
 std::string Viewer::getFullFilePath(const std::string& shortFileName) const
 {
   struct stat buf;
-  for ( const auto& d : defaultDirectories )
+  for ( auto d : defaultDirectories )
   {
 #if defined(_WIN32)
+    std::replace(d.begin(), d.end(), '/', '\\');
     std::string fullFilePath( d + "\\" + shortFileName );
 #else
     std::string fullFilePath(d + "/" + shortFileName);

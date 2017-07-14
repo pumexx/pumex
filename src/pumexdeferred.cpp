@@ -226,8 +226,8 @@ struct DeferredApplicationData
     gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout, defaultRenderPass, 0);
     gbufferPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_gbuffers.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_gbuffers.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/deferred_gbuffers.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/deferred_gbuffers.frag.spv")), "main" }
     };
     gbufferPipeline->vertexInput =
     {
@@ -261,8 +261,8 @@ struct DeferredApplicationData
     compositePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, compositePipelineLayout, defaultRenderPass, 1);
     compositePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_composite.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("deferred_composite.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/deferred_composite.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/deferred_composite.frag.spv")), "main" }
     };
     compositePipeline->depthTestEnable  = VK_FALSE;
     compositePipeline->depthWriteEnable = VK_FALSE;
@@ -347,9 +347,9 @@ struct DeferredApplicationData
     textPipeline->depthWriteEnable = VK_FALSE;
     textPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("text_draw.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
@@ -883,14 +883,17 @@ int main( int argc, char * argv[] )
     surfaceTraits.setDefaultRenderPass(renderPass);
     surfaceTraits.setFrameBufferImages(frameBufferImages);
 
+    std::string sponzaFileName;
 #if defined(_WIN32)
-    viewer->addDefaultDirectory("..\\data\\sponza");
-    viewer->addDefaultDirectory("..\\..\\data\\sponza");
+    sponzaFileName = "sponza\\sponza.dae";
+//    viewer->addDefaultDirectory("..\\data\\sponza");
+//    viewer->addDefaultDirectory("..\\..\\data\\sponza");
 #else
-    viewer->addDefaultDirectory("../data/sponza");
-    viewer->addDefaultDirectory("../../data/sponza");
+    sponzaFileName = "sponza/sponza.dae";
+//    viewer->addDefaultDirectory("../data/sponza");
+//    viewer->addDefaultDirectory("../../data/sponza");
 #endif
-    std::shared_ptr<DeferredApplicationData> applicationData = std::make_shared<DeferredApplicationData>(viewer, "sponza.dae");
+    std::shared_ptr<DeferredApplicationData> applicationData = std::make_shared<DeferredApplicationData>(viewer, sponzaFileName);
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup();
 

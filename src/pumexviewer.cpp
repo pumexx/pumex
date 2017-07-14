@@ -159,8 +159,8 @@ struct ViewerApplicationData
     pipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout, defaultRenderPass, 0);
     pipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("viewer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("viewer_basic.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.frag.spv")), "main" }
     };
     pipeline->vertexInput =
     {
@@ -177,8 +177,8 @@ struct ViewerApplicationData
     boxPipeline->cullMode     = VK_CULL_MODE_NONE;
     boxPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("viewer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("viewer_basic.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.frag.spv")), "main" }
     };
     boxPipeline->vertexInput =
     {

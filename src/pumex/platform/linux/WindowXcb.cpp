@@ -345,7 +345,8 @@ InputEvent::Key WindowXcb::xcbKeyCodeToPumex(xcb_keycode_t keycode) const
   auto it = xcbKeycodes.find(keycode);
   if(it != xcbKeycodes.end() )
     return it->second;
-  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
+// Line below is handy for recognizing new keycodes.  
+//  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
   return InputEvent::KEY_UNDEFINED;
 }
 
