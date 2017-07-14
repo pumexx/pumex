@@ -268,9 +268,11 @@ set_executable_postfixes( pumexdeferred )
 
 set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
 
-install( TARGETS pumex pumexviewer pumexcrowd pumexgpucull pumexdeferred ${PUMEX_DEPENDENCIES}
+if( NOT WIN32 )
+  install( TARGETS pumex pumexviewer pumexcrowd pumexgpucull pumexdeferred ${PUMEX_DEPENDENCIES}
          ARCHIVE DESTINATION lib 
          LIBRARY DESTINATION lib 
          RUNTIME DESTINATION bin )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
-install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION include )
+  install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
+  install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION include )
+endif( NOT WIN32 )
