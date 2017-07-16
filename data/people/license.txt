@@ -1,0 +1,16 @@
+All human models are created in MakeHuman ( http://www.makehuman.org/ ).
+Cloth models come from MakeHuman cloth collection, or come from MH community page
+( http://www.makehumancommunity.org/ ) and are created by following artists :
+
+- Swimming trunks, Male suit - Mindfront - CC-BY
+- Viking clothes - Aethelraed_Unraed - CC0
+
+Skins used on some of the models are created by following artists :
+
+- Dragon skin - V0rtex - CC0
+- Ork skin - sonntag78 - CC-BY
+
+All animations come from Carnegie-Mellon Graphics Lab Motion Capture Database and have been
+downloaded from http://www.cgspeed.com/ .
+
+Models and animations have been prepared for Pumex using Blender ( https://www.blender.org/ )

@@ -27,7 +27,6 @@
 #include <pumex/Device.h>
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
-#include <pumex/Thread.h>
 #if defined(_WIN32)
   #include <pumex/platform/win32/WindowWin32.h>
   #include <direct.h>
