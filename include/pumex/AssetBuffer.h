@@ -281,7 +281,7 @@ protected:
     PerRenderMaskData() = default;
     PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> allocator)
     {
-      resultsSbo = std::make_shared<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>>(allocator, 1, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+      resultsSbo = std::make_shared<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>>(allocator, 3, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
       offValuesSbo = std::make_shared<pumex::StorageBufferPerSurface<uint32_t>>(allocator, 3);
     }
 
