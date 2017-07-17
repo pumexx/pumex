@@ -11,6 +11,7 @@ The purpose of the **Pumex** library is to create an efficient rendering engine 
 
 
 
+
 ## Instalation on Windows
 
 Elements that are required to install Pumex on Windows :
@@ -81,6 +82,18 @@ Steps needed to build a library :
    ```
    export PUMEX_DATA_DIR=${HOME}/Dev/pumex/data
    ```
+
+
+
+
+## Library documentation
+
+[Detailed description of the library classes may be found here](doc/class_description.md)
+
+API documentation in a form of Doxygen files will be added later.
+
+
+
 
 ## Pumex examples
 
