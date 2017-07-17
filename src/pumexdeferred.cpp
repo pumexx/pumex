@@ -36,10 +36,8 @@
 
 // This example shows how to setup basic deferred renderer with antialiasing.
 
-//#define DEFERRED_MEASURE_TIME 1
-
-const uint32_t MAX_SURFACES = 6;
-const uint32_t MAX_BONES = 511;
+const uint32_t              MAX_SURFACES = 6;
+const uint32_t              MAX_BONES = 511;
 const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_4_BIT;
 
 struct PositionData
@@ -409,9 +407,6 @@ struct DeferredApplicationData
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
-#if defined(DEFERRED_MEASURE_TIME)
-    auto inputStart = pumex::HPClock::now();
-#endif
     std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
 
     std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
@@ -516,11 +511,6 @@ struct DeferredApplicationData
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.cameraDistance = updateData.cameraDistance;
     uData.cameraPosition = updateData.cameraPosition;
-
-#if defined(DEFERRED_MEASURE_TIME)
-    auto inputEnd = pumex::HPClock::now();
-    inputDuration = pumex::inSeconds(inputEnd - inputStart);
-#endif
   }
 
   void update(double timeSinceStart, double updateStep)
@@ -574,10 +564,6 @@ struct DeferredApplicationData
   {
     std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
 
-#if defined(DEFERRED_MEASURE_TIME)
-    auto prepareBuffersStart = pumex::HPClock::now();
-#endif
-
     std::shared_ptr<pumex::Asset> assetX = assetBuffer->getAsset(modelTypeID, 0);
     if (assetX->animations.empty())
       return;
@@ -620,12 +606,6 @@ struct DeferredApplicationData
       positionData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
 
     positionUbo->set(positionData);
-
-#if defined(DEFERRED_MEASURE_TIME)
-    auto prepareBuffersEnd = pumex::HPClock::now();
-    prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
-#endif
-
   }
 
   void draw(std::shared_ptr<pumex::Surface> surface)

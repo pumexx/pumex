@@ -61,9 +61,9 @@ public:
   FrameBufferImages& operator=(const FrameBufferImages&) = delete;
   virtual ~FrameBufferImages();
 
-  void validate(Surface* surface);
-  void reset(Surface* surface);
-  Image* getImage(Surface* surface, uint32_t imageIndex);
+  void                       validate(Surface* surface);
+  void                       reset(Surface* surface);
+  Image*                     getImage(Surface* surface, uint32_t imageIndex);
   FrameBufferImageDefinition getSwapChainDefinition();
 
 
@@ -96,8 +96,8 @@ public:
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   virtual ~FrameBuffer();
 
-  void reset(Surface* surface);
-  void validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
+  void          reset(Surface* surface);
+  void          validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
   VkFramebuffer getFrameBuffer(Surface* surface, uint32_t fbIndex);
 
   std::weak_ptr<RenderPass>         renderPass;

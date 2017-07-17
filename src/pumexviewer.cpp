@@ -33,9 +33,7 @@
 #endif
 #include <args.hxx>
 
-// pumexviewer is a very basic program, that performs textureless rendering of a model provided in a commandline
-
-//#define VIEWER_MEASURE_TIME 1
+// pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a commandline
 
 const uint32_t MAX_BONES = 511;
 
@@ -243,9 +241,6 @@ struct ViewerApplicationData
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
-#if defined(VIEWER_MEASURE_TIME)
-    auto inputStart = pumex::HPClock::now();
-#endif
     std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
 
     std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
@@ -336,11 +331,6 @@ struct ViewerApplicationData
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.cameraDistance = updateData.cameraDistance;
     uData.cameraPosition = updateData.cameraPosition;
-
-#if defined(VIEWER_MEASURE_TIME)
-    auto inputEnd = pumex::HPClock::now();
-    inputDuration = pumex::inSeconds(inputEnd - inputStart);
-#endif
   }
 
   void update(double timeSinceStart, double updateStep)
@@ -389,10 +379,6 @@ struct ViewerApplicationData
 
   void prepareModelForRendering()
   {
-#if defined(VIEWER_MEASURE_TIME)
-    auto prepareBuffersStart = pumex::HPClock::now();
-#endif
-
     std::shared_ptr<pumex::Asset> assetX = assetBuffer->getAsset(modelTypeID, 0);
     if (assetX->animations.empty())
       return;
@@ -435,12 +421,6 @@ struct ViewerApplicationData
       positionData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
 
     positionUbo->set(positionData);
-
-#if defined(VIEWER_MEASURE_TIME)
-    auto prepareBuffersEnd = pumex::HPClock::now();
-    prepareBuffersDuration = pumex::inSeconds(prepareBuffersEnd - prepareBuffersStart);
-#endif
-
   }
 
   void draw(std::shared_ptr<pumex::Surface> surface)

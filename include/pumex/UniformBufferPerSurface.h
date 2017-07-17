@@ -49,15 +49,15 @@ public:
   UniformBufferPerSurface& operator=(const UniformBufferPerSurface&) = delete;
   ~UniformBufferPerSurface();
 
-  inline void set(const T& data);
-  inline void set(Surface* surface, const T& data);
-  inline T    get(Surface* surface) const;
-  void        getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-  void        setDirty();
-  void        validate(Surface* surface);
-  VkBuffer    getBufferHandle(Surface* surface);
+  inline void     set(const T& data);
+  inline void     set(Surface* surface, const T& data);
+  inline T        get(Surface* surface) const;
+  void            getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void            setDirty();
+  void            validate(Surface* surface);
+  VkBuffer        getBufferHandle(Surface* surface);
 
-  inline void setActiveIndex(uint32_t index);
+  inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
 private:

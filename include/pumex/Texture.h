@@ -107,9 +107,9 @@ public:
   inline VkDeviceSize       getMemorySize() const;
   inline const ImageTraits& getImageTraits() const;
 
-  void  getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceLayout& subResLayout) const;
-  void* mapMemory(size_t offset, size_t range, VkMemoryMapFlags flags=0);
-  void  unmapMemory();
+  void                      getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceLayout& subResLayout) const;
+  void*                     mapMemory(size_t offset, size_t range, VkMemoryMapFlags flags=0);
+  void                      unmapMemory();
 
   void setImageLayout(VkImageLayout newLayout);
 

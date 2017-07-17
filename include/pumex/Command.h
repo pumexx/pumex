@@ -82,47 +82,46 @@ public:
   CommandBuffer& operator=(const CommandBuffer&) = delete;
   virtual ~CommandBuffer();
 
-  inline void setActiveIndex(uint32_t index);
+  inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
-  void setDirty(uint32_t index);
-  inline bool isDirty(uint32_t index);
+  void            setDirty(uint32_t index);
+  inline bool     isDirty(uint32_t index);
 
-  void addSource(CommandBufferSource* source);
-  void clearSources();
+  void            addSource(CommandBufferSource* source);
+  void            clearSources();
 
   VkCommandBuffer getHandle() const;
 
-  void cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
-  void cmdEnd();
+  // Vulkan commands
+  void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
+  void            cmdEnd();
 
-  void cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues);
-  void cmdNextSubPass(VkSubpassContents contents) const;
-  void cmdEndRenderPass() const;
+  void            cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues);
+  void            cmdNextSubPass(VkSubpassContents contents) const;
+  void            cmdEndRenderPass() const;
 
-  void cmdSetViewport(uint32_t firstViewport, const std::vector<VkViewport> viewports) const;
-  void cmdSetScissor(uint32_t firstScissor, const std::vector<VkRect2D> scissors) const;
+  void            cmdSetViewport(uint32_t firstViewport, const std::vector<VkViewport> viewports) const;
+  void            cmdSetScissor(uint32_t firstScissor, const std::vector<VkRect2D> scissors) const;
 
-  void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const;
-  void cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
-  void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
-  void cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
-  void cmdBindPipeline(ComputePipeline* pipeline);
-  void cmdBindPipeline(GraphicsPipeline* pipeline);
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets);
-  void cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet);
+  void            cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const;
+  void            cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
+  void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
+  void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
+  void            cmdBindPipeline(ComputePipeline* pipeline);
+  void            cmdBindPipeline(GraphicsPipeline* pipeline);
+  void            cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets);
+  void            cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet);
 
-  void cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const;
-  void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
-  void cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
-  void cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const;
+  void            cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const;
+  void            cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;
+  void            cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
+  void            cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const;
 
-  void cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const;
+  void            cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const;
 
-  void setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const;
-  void setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const;
-
-
+  void            setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const;
+  void            setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const;
 
   // submit queue - no fences and semaphores
   void queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores = {}, const std::vector<VkPipelineStageFlags>& waitStages = {}, const std::vector<VkSemaphore>& signalSemaphores = {}, VkFence fence = VK_NULL_HANDLE) const;
@@ -220,7 +219,5 @@ inline VkClearValue makeDepthStencilClearValue(float depth, uint32_t stencil)
     value.depthStencil.stencil = stencil;
   return value;
 }
-
-
 
 }

@@ -38,7 +38,7 @@
 namespace pumex
 {
 
-// Assimp does not load textures, but only its names and purpose ( diffuse, normal, etc )
+// Assimp does not load textures, but only its names and semantics ( diffuse, normal, etc )
 // TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet
 struct TextureSemantic
 {
@@ -94,18 +94,17 @@ public:
   MaterialSet& operator=(const MaterialSet&) = delete;
   virtual ~MaterialSet();
 
-  bool getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;
-  bool setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, const gli::texture& tex);
+  bool                                      getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;
+  bool                                      setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, const gli::texture& tex);
 
-  void registerMaterials(uint32_t typeID, std::shared_ptr<Asset> asset);
+  void                                      registerMaterials(uint32_t typeID, std::shared_ptr<Asset> asset);
   std::map<TextureSemantic::Type, uint32_t> registerTextures(const Material& mat);
 
-  std::vector<Material> getMaterials(uint32_t typeID) const;
-  uint32_t getMaterialVariantCount(uint32_t typeID) const;
-  void setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
-  void refreshMaterialStructures();
-
-  void validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  std::vector<Material>                     getMaterials(uint32_t typeID) const;
+  uint32_t                                  getMaterialVariantCount(uint32_t typeID) const;
+  void                                      setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
+  void                                      refreshMaterialStructures();
+  void                                      validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
   std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
   std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;

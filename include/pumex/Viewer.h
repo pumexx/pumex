@@ -74,23 +74,35 @@ public:
 
   std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
   std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
-  Device*  getDevice(uint32_t id);
-  Surface* getSurface(uint32_t id);
-  inline uint32_t getNumDevices() const;
-  inline uint32_t getNumSurfaces() const;
+  Device*                    getDevice(uint32_t id);
+  Surface*                   getSurface(uint32_t id);
+  inline uint32_t            getNumDevices() const;
+  inline uint32_t            getNumSurfaces() const;
 
-  void run();
-  void cleanup();
-  void setTerminate();
+  void                       run();
+  void                       cleanup();
 
-  inline VkInstance getInstance() const;
-  inline bool terminating() const;
+  void                       setTerminate();
+  inline bool                terminating() const;
+  inline VkInstance          getInstance() const;
+
+  inline uint32_t            getUpdateIndex() const;
+  inline uint32_t            getRenderIndex() const;
+  inline unsigned long long  getFrameNumber() const;
+
+  inline HPClock::duration   getUpdateDuration() const;      // time of one update ( = 1 / viewerTraits.updatesPerSecond )
+  inline HPClock::time_point getApplicationStartTime() const;// get the time point of the application start
+  inline HPClock::time_point getUpdateTime() const;          // get the time point of the update
+  inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
+
+  inline void                addDefaultDirectory(std::string directory);
+  std::string                getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 
 
-  ViewerTraits                        viewerTraits;
-  VkInstance                          instance      = VK_NULL_HANDLE;
-  std::vector<VkExtensionProperties>  extensionProperties;
-  bool                                viewerTerminate = false;
+  ViewerTraits                                        viewerTraits;
+  VkInstance                                          instance        = VK_NULL_HANDLE;
+  std::vector<VkExtensionProperties>                  extensionProperties;
+  bool                                                viewerTerminate = false;
 
   tbb::flow::graph                                    updateGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg > startUpdateGraph;
@@ -100,24 +112,13 @@ public:
   tbb::flow::continue_node< tbb::flow::continue_msg > startRenderGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg > endRenderGraph;
 
-  inline uint32_t getUpdateIndex() const;
-  inline uint32_t getRenderIndex() const;
-  inline unsigned long long getFrameNumber() const;
-
-  inline HPClock::duration   getUpdateDuration() const;      // time of one update ( = 1 / viewerTraits.updatesPerSecond )
-  inline HPClock::time_point getApplicationStartTime() const;// get the time point of the application start
-  inline HPClock::time_point getUpdateTime() const;          // get the time point of the update
-  inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
-
-  inline void addDefaultDirectory(std::string directory);
-  std::string getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 protected:
-  void setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
-  void cleanupDebugging();
+  void            setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
+  void            cleanupDebugging();
 
   inline uint32_t getNextRenderSlot() const;
   inline uint32_t getNextUpdateSlot() const;
-  inline void doNothing() const;
+  inline void     doNothing() const;
 
   std::vector<std::string>                               defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
   std::vector<std::shared_ptr<PhysicalDevice>>           physicalDevices;
@@ -125,25 +126,25 @@ protected:
   std::unordered_map<uint32_t, std::shared_ptr<Surface>> surfaces;
   std::vector<std::shared_ptr<Window>>                   windows;
 
-  uint32_t                                     nextSurfaceID                 = 0;
-  uint32_t                                     nextDeviceID                  = 0;
-  unsigned long long                           frameNumber                   = 0;
-  HPClock::time_point                          viewerStartTime;
-  HPClock::time_point                          renderStartTime;
-  HPClock::time_point                          updateStartTimes[3];
-  HPClock::duration                            lastRenderDuration;
-  HPClock::duration                            lastUpdateDuration;
+  uint32_t                                               nextSurfaceID                 = 0;
+  uint32_t                                               nextDeviceID                  = 0;
+  unsigned long long                                     frameNumber                   = 0;
+  HPClock::time_point                                    viewerStartTime;
+  HPClock::time_point                                    renderStartTime;
+  HPClock::time_point                                    updateStartTimes[3];
+  HPClock::duration                                      lastRenderDuration;
+  HPClock::duration                                      lastUpdateDuration;
 
-  uint32_t                                     renderIndex                   = 0;
-  uint32_t                                     updateIndex                   = 1;
+  uint32_t                                               renderIndex                   = 0;
+  uint32_t                                               updateIndex                   = 1;
 
-  std::mutex                                   updateMutex;
-  std::condition_variable                      updateConditionVariable;
+  std::mutex                                             updateMutex;
+  std::condition_variable                                updateConditionVariable;
 
-  PFN_vkCreateDebugReportCallbackEXT           pfnCreateDebugReportCallback  = nullptr;
-  PFN_vkDestroyDebugReportCallbackEXT          pfnDestroyDebugReportCallback = nullptr;
-  PFN_vkDebugReportMessageEXT                  pfnDebugReportMessage         = nullptr;
-  VkDebugReportCallbackEXT                     msgCallback;
+  PFN_vkCreateDebugReportCallbackEXT                     pfnCreateDebugReportCallback  = nullptr;
+  PFN_vkDestroyDebugReportCallbackEXT                    pfnDestroyDebugReportCallback = nullptr;
+  PFN_vkDebugReportMessageEXT                            pfnDebugReportMessage         = nullptr;
+  VkDebugReportCallbackEXT                               msgCallback;
 
 };
 

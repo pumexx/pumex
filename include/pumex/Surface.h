@@ -72,15 +72,15 @@ public:
   Surface& operator=(const Surface&) = delete;
   virtual ~Surface();
 
-  void cleanup();
-  void beginFrame();
-  void endFrame();
-  void resizeSurface(uint32_t newWidth, uint32_t newHeight);
+  void            cleanup();
+  void            beginFrame();
+  void            endFrame();
+  void            resizeSurface(uint32_t newWidth, uint32_t newHeight);
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
-  VkFramebuffer getCurrentFrameBuffer();
+  VkFramebuffer   getCurrentFrameBuffer();
 
-  inline void setID(uint32_t newID);
+  inline void     setID(uint32_t newID);
   inline uint32_t getID() const;
 
     

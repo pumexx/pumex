@@ -75,24 +75,17 @@ public:
   ~DeviceMemoryAllocator();
 
 
-  DeviceMemoryBlock allocate(Device* device, VkMemoryRequirements memoryRequirements);
-  void deallocate(VkDevice device, const DeviceMemoryBlock& block);
+  DeviceMemoryBlock            allocate(Device* device, VkMemoryRequirements memoryRequirements);
+  void                         deallocate(VkDevice device, const DeviceMemoryBlock& block);
 
-  void copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags);
-  void bindBufferMemory(Device* device, VkBuffer buffer, VkDeviceSize offset);
-
+  // method that makes vkMapMemory() / memcpy() / vkUnmapMemory() behind a mutex - use it instead of performing is yourself
+  void                         copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags);
+  void                         bindBufferMemory(Device* device, VkBuffer buffer, VkDeviceSize offset);
 
   inline VkMemoryPropertyFlags getMemoryPropertyFlags() const;
   inline VkDeviceSize          getMemorySize() const;
 
-
 protected:
-  VkMemoryPropertyFlags propertyFlags;
-  VkDeviceSize          size;
-  std::unique_ptr<AllocationStrategy> allocationStrategy;
-
-
-  mutable std::mutex                          mutex;
   struct PerDeviceData
   {
     PerDeviceData()
@@ -101,7 +94,11 @@ protected:
     VkDeviceMemory       storageMemory = VK_NULL_HANDLE;
     std::list<FreeBlock> freeBlocks;
   };
+  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  VkMemoryPropertyFlags                       propertyFlags;
+  VkDeviceSize                                size;
+  std::unique_ptr<AllocationStrategy>         allocationStrategy;
 };
 
 VkMemoryPropertyFlags DeviceMemoryAllocator::getMemoryPropertyFlags() const { return propertyFlags; }
@@ -111,8 +108,9 @@ class PUMEX_EXPORT FirstFitAllocationStrategy : public AllocationStrategy
 {
 public:
   FirstFitAllocationStrategy();
+
   DeviceMemoryBlock allocate(VkDeviceMemory storageMemory, std::list<FreeBlock>& freeBlocks, VkMemoryRequirements memoryRequirements) override;
-  void deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) override;
+  void              deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) override;
 };
 
 // OK, last time I read a book about C++ templates about seven years ago, so this code may look ugly in 2017

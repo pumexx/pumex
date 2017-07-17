@@ -40,33 +40,29 @@ public:
   WindowWin32& operator=(const WindowWin32&) = delete;
   virtual ~WindowWin32();
 
-  static void registerWindow(HWND hwnd, WindowWin32* window);
-  static void unregisterWindow(HWND hwnd);
-  static WindowWin32* getWindow(HWND hwnd);
+  static void              registerWindow(HWND hwnd, WindowWin32* window);
+  static void              unregisterWindow(HWND hwnd);
+  static WindowWin32*      getWindow(HWND hwnd);
 
   std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
   
-  static bool checkWindowMessages();
+  static bool              checkWindowMessages();
 
-  LRESULT handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam);
+  LRESULT                  handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam);
 
-  void normalizeMouseCoordinates( float& x, float& y);
+  void                     normalizeMouseCoordinates( float& x, float& y);
   
-  InputEvent::Key win32KeyCodeToPumex(WPARAM keycode) const;
+  InputEvent::Key          win32KeyCodeToPumex(WPARAM keycode) const;
   
 protected:
-  HWND _hwnd              = nullptr;
-  bool swapChainResizable = false;
-  bool sizeMaximized      = false;
-  
-  static std::unordered_map<WPARAM, InputEvent::Key> win32Keycodes;
-  
   static void fillWin32Keycodes();
-  
-  
-  static std::unordered_map<HWND, WindowWin32*> registeredWindows;
 
-  std::set<InputEvent::MouseButton> pressedMouseButtons;
+  HWND                                               _hwnd              = nullptr;
+  bool                                               swapChainResizable = false;
+  bool                                               sizeMaximized      = false;
+  static std::unordered_map<WPARAM, InputEvent::Key> win32Keycodes;
+  static std::unordered_map<HWND, WindowWin32*>      registeredWindows;
+  std::set<InputEvent::MouseButton>                  pressedMouseButtons;
 };
 
 }

@@ -58,8 +58,8 @@ public:
   void                           validate(Surface* surface);
   VkBuffer                       getBufferHandle(Surface* surface);
 
-  inline void setActiveIndex(uint32_t index);
-  inline uint32_t getActiveIndex() const;
+  inline void                    setActiveIndex(uint32_t index);
+  inline uint32_t                getActiveIndex() const;
 
 private:
   struct PerSurfaceData

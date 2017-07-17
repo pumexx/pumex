@@ -56,8 +56,8 @@ public:
   void                           setDirty();
   void                           validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
-  inline void setActiveIndex(uint32_t index);
-  inline uint32_t getActiveIndex() const;
+  inline void                    setActiveIndex(uint32_t index);
+  inline uint32_t                getActiveIndex() const;
 
 private:
   struct PerDeviceData

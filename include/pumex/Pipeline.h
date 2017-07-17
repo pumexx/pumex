@@ -153,7 +153,7 @@ public:
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   virtual ~DescriptorSet();
 
-  inline void setActiveIndex(uint32_t index);
+  inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
   void            validate(Surface* surface);
@@ -162,8 +162,8 @@ public:
   void            setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source);
   void            resetSource(uint32_t binding);
 
-  std::shared_ptr<DescriptorSetLayout>                              layout;
-  std::shared_ptr<DescriptorPool>                                   pool;
+  std::shared_ptr<DescriptorSetLayout> layout;
+  std::shared_ptr<DescriptorPool>      pool;
 protected:
   struct PerSurfaceData
   {
@@ -195,6 +195,7 @@ public:
   PipelineLayout(const PipelineLayout&)            = delete;
   PipelineLayout& operator=(const PipelineLayout&) = delete;
   virtual ~PipelineLayout();
+
   void             validate(Device* device);
   VkPipelineLayout getHandle(VkDevice device) const;
 
@@ -296,7 +297,7 @@ public:
 
   inline bool hasDynamicState(VkDynamicState state) const;
   inline bool hasShaderStage(VkShaderStageFlagBits stage) const;
-  // FIXME : add a bunch of handy functions defining different pipeline aspects
+  // TODO : add a bunch of handy functions defining different pipeline aspects
 
   void       validate(Device* device);
   VkPipeline getHandle(VkDevice device) const;
@@ -344,20 +345,20 @@ public:
   std::vector<VkDynamicState>               dynamicStates; // VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_LINE_WIDTH, VK_DYNAMIC_STATE_DEPTH_BIAS, VK_DYNAMIC_STATE_BLEND_CONSTANTS, VK_DYNAMIC_STATE_DEPTH_BOUNDS, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK, VK_DYNAMIC_STATE_STENCIL_REFERENCE
 
   // multisample support
-  VkSampleCountFlagBits                    rasterizationSamples      = VK_SAMPLE_COUNT_1_BIT;
-  VkBool32                                 sampleShadingEnable       = VK_FALSE;
-  float                                    minSampleShading          = 0.0f;
-  const VkSampleMask*                      pSampleMask               = nullptr;
-  VkBool32                                 alphaToCoverageEnable     = VK_FALSE;
-  VkBool32                                 alphaToOneEnable          = VK_FALSE;
+  VkSampleCountFlagBits                     rasterizationSamples      = VK_SAMPLE_COUNT_1_BIT;
+  VkBool32                                  sampleShadingEnable       = VK_FALSE;
+  float                                     minSampleShading          = 0.0f;
+  const VkSampleMask*                       pSampleMask               = nullptr;
+  VkBool32                                  alphaToCoverageEnable     = VK_FALSE;
+  VkBool32                                  alphaToOneEnable          = VK_FALSE;
 
   // shaderstages
-  std::vector<ShaderStageDefinition>       shaderStages;
+  std::vector<ShaderStageDefinition>        shaderStages;
 protected:
-  std::shared_ptr<PipelineCache>           pipelineCache;
-  std::shared_ptr<PipelineLayout>          pipelineLayout;
-  std::shared_ptr<RenderPass>              renderPass;
-  uint32_t                                 subpass;
+  std::shared_ptr<PipelineCache>            pipelineCache;
+  std::shared_ptr<PipelineLayout>           pipelineLayout;
+  std::shared_ptr<RenderPass>               renderPass;
+  uint32_t                                  subpass;
 
   struct PerDeviceData
   {

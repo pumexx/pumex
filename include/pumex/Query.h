@@ -45,12 +45,11 @@ public:
   QueryPool& operator=(const QueryPool&) = delete;
   virtual ~QueryPool();
 
-  void validate(Surface* surface);
-
-  void reset(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery = 0, uint32_t queryCount = 0);
-  void beginQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags = 0);
-  void endQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query);
-  void queryTimeStamp(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
+  void                  validate(Surface* surface);
+  void                  reset(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t firstQuery = 0, uint32_t queryCount = 0);
+  void                  beginQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkQueryControlFlags controlFlags = 0);
+  void                  endQuery(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query);
+  void                  queryTimeStamp(Surface* surface, std::shared_ptr<CommandBuffer> cmdBuffer, uint32_t query, VkPipelineStageFlagBits pipelineStage);
   std::vector<uint64_t> getResults(Surface* surface, uint32_t firstQuery = 0, uint32_t queryCount = 0, VkQueryResultFlags resultFlags = 0);
 
   VkQueryType                   queryType;

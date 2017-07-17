@@ -73,11 +73,10 @@ public:
   virtual ~Font();
 
   void validate(Device* device, CommandPool* commandPool, VkQueue queue);
-
   void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
 
-  std::shared_ptr<Texture>                  fontTexture;
-  std::vector<GlyphData>                    glyphData;
+  std::shared_ptr<Texture>     fontTexture;
+  std::vector<GlyphData>       glyphData;
 protected:
   size_t getGlyphIndex(wchar_t charCode);
 
@@ -104,13 +103,13 @@ public:
 
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
-  void validate(Surface* surface);
-  void cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer) const;
+  void            validate(Surface* surface);
+  void            cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer) const;
 
-  void setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
-  void removeText(Surface* surface, uint32_t index);
-  void clearTexts();
-  inline void setDirty();
+  void            setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
+  void            removeText(Surface* surface, uint32_t index);
+  void            clearTexts();
+  inline void     setDirty();
 
   std::shared_ptr<GenericBufferPerSurface<std::vector<SymbolData>>> vertexBuffer;
   std::vector<VertexSemantic>                                       textVertexSemantic;
@@ -135,10 +134,10 @@ protected:
   };
 
 
-  mutable std::mutex                       mutex;
-  bool                                     dirty;
-  std::weak_ptr<Font>                      font;
-  std::unordered_map<VkSurfaceKHR,std::shared_ptr<std::vector<SymbolData>>> symbolData;
+  mutable std::mutex                                                                mutex;
+  bool                                                                              dirty;
+  std::weak_ptr<Font>                                                               font;
+  std::unordered_map<VkSurfaceKHR,std::shared_ptr<std::vector<SymbolData>>>         symbolData;
   std::map<TextKey, std::tuple<glm::vec2, glm::vec4, std::wstring>, TextKeyCompare> texts;
 };
 

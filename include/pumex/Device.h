@@ -64,44 +64,43 @@ public:
   std::shared_ptr<CommandBuffer> beginSingleTimeCommands(CommandPool* commandPool);
   void endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue);
 
-  VkQueue getQueue(const QueueTraits& queueTraits, bool reserve = false);
-  void releaseQueue(VkQueue queue);
-  bool getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result);
+  VkQueue                        getQueue(const QueueTraits& queueTraits, bool reserve = false);
+  void                           releaseQueue(VkQueue queue);
+  bool                           getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result);
 
   std::shared_ptr<StagingBuffer> acquireStagingBuffer( void* data, VkDeviceSize size );
-  void releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
-
-  inline void setID(uint32_t newID);
-  inline uint32_t getID() const;
+  void                           releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
+  
+  inline void                    setID(uint32_t newID);
+  inline uint32_t                getID() const;
 
   // debug markers extension stuff - not tested yet
-  void setObjectName(uint64_t object, VkDebugReportObjectTypeEXT objectType, const std::string& name);
-  void setObjectTag(uint64_t object, VkDebugReportObjectTypeEXT objectType, uint64_t name, size_t tagSize, const void* tag);
-  void beginMarkerRegion(VkCommandBuffer cmdbuffer, const std::string& markerName, glm::vec4 color);
-  void insertMarker(VkCommandBuffer cmdbuffer, const std::string& markerName, glm::vec4 color);
-  void endMarkerRegion(VkCommandBuffer cmdBuffer);
-  void setCommandBufferName(VkCommandBuffer cmdBuffer, const std::string& name);
-  void setQueueName(VkQueue queue, const std::string& name);
-  void setImageName(VkImage image, const std::string& name);
-  void setSamplerName(VkSampler sampler, const std::string& name);
-  void setBufferName(VkBuffer buffer, const std::string& name);
-  void setDeviceMemoryName(VkDeviceMemory memory, const std::string& name);
-  void setShaderModuleName(VkShaderModule shaderModule, const std::string& name);
-  void setPipelineName(VkPipeline pipeline, const std::string& name);
-  void setPipelineLayoutName(VkPipelineLayout pipelineLayout, const std::string& name);
-  void setRenderPassName(VkRenderPass renderPass, const std::string& name);
-  void setFramebufferName(VkFramebuffer framebuffer, const std::string& name);
-  void setDescriptorSetLayoutName(VkDescriptorSetLayout descriptorSetLayout, const std::string& name);
-  void setDescriptorSetName(VkDescriptorSet descriptorSet, const std::string& name);
-  void setSemaphoreName(VkSemaphore semaphore, const std::string& name);
-  void setFenceName(VkFence fence, const std::string& name);
-  void setEventName(VkEvent _event, const std::string& name);
+  void                           setObjectName(uint64_t object, VkDebugReportObjectTypeEXT objectType, const std::string& name);
+  void                           setObjectTag(uint64_t object, VkDebugReportObjectTypeEXT objectType, uint64_t name, size_t tagSize, const void* tag);
+  void                           beginMarkerRegion(VkCommandBuffer cmdbuffer, const std::string& markerName, glm::vec4 color);
+  void                           insertMarker(VkCommandBuffer cmdbuffer, const std::string& markerName, glm::vec4 color);
+  void                           endMarkerRegion(VkCommandBuffer cmdBuffer);
+  void                           setCommandBufferName(VkCommandBuffer cmdBuffer, const std::string& name);
+  void                           setQueueName(VkQueue queue, const std::string& name);
+  void                           setImageName(VkImage image, const std::string& name);
+  void                           setSamplerName(VkSampler sampler, const std::string& name);
+  void                           setBufferName(VkBuffer buffer, const std::string& name);
+  void                           setDeviceMemoryName(VkDeviceMemory memory, const std::string& name);
+  void                           setShaderModuleName(VkShaderModule shaderModule, const std::string& name);
+  void                           setPipelineName(VkPipeline pipeline, const std::string& name);
+  void                           setPipelineLayoutName(VkPipelineLayout pipelineLayout, const std::string& name);
+  void                           setRenderPassName(VkRenderPass renderPass, const std::string& name);
+  void                           setFramebufferName(VkFramebuffer framebuffer, const std::string& name);
+  void                           setDescriptorSetLayoutName(VkDescriptorSetLayout descriptorSetLayout, const std::string& name);
+  void                           setDescriptorSetName(VkDescriptorSet descriptorSet, const std::string& name);
+  void                           setSemaphoreName(VkSemaphore semaphore, const std::string& name);
+  void                           setFenceName(VkFence fence, const std::string& name);
+  void                           setEventName(VkEvent _event, const std::string& name);
 
-  std::weak_ptr<Viewer>         viewer;
-  std::weak_ptr<PhysicalDevice> physical;
-  VkDevice                        device             = VK_NULL_HANDLE;
-  
-  bool                            enableDebugMarkers = false;
+  std::weak_ptr<Viewer>          viewer;
+  std::weak_ptr<PhysicalDevice>  physical;
+  VkDevice                       device             = VK_NULL_HANDLE;
+  bool                           enableDebugMarkers = false;
 protected:
   struct Queue
   {

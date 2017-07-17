@@ -48,7 +48,7 @@ class CommandBuffer;
 // Asset's render masks are defined per single geometry. It's in user's responsibility to mark each geometry
 // by its specific render mask ( using geometry name, associated materials, textures and whatever the user finds appropriate ).
 // 
-// To register single object you must define an object type by calling to registerType()
+// To register single object you must define an object type by calling registerType() method
 // Then for that type you register Assets as different LODs. Each asset has skeletons, animations, geometries, materials, textures etc.
 // Materials and textures are treated in different class called MaterialSet.
 // Animations are stored and used by CPU
@@ -72,7 +72,7 @@ class CommandBuffer;
 //
 // Every geometry in AssetBuffer :
 //  - has render mask
-//  - has pointers to vertex and index buffers
+//  - has pointers to vertex and index buffers ( in form of offset/size numbers )
 
 struct PUMEX_EXPORT AssetBufferVertexSemantics
 {
@@ -126,7 +126,6 @@ struct PUMEX_EXPORT AssetGeometryDefinition
   uint32_t indexCount   = 0;
   uint32_t firstIndex   = 0;
   uint32_t vertexOffset = 0;
-//  uint32_t padding      = 0;
 };
 
 struct PUMEX_EXPORT DrawIndexedIndirectCommand
@@ -153,30 +152,29 @@ public:
   AssetBuffer& operator=(const AssetBuffer&) = delete;
   virtual ~AssetBuffer();
 
-  uint32_t registerType(const std::string& typeName, const AssetTypeDefinition& tdef);
-  uint32_t registerObjectLOD( uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef );
-  uint32_t getTypeID(const std::string& typeName) const;
-  std::string getTypeName( uint32_t typeID ) const;
-  uint32_t getLodID(uint32_t typeID, float distance) const;
+  uint32_t               registerType(const std::string& typeName, const AssetTypeDefinition& tdef);
+  uint32_t               registerObjectLOD( uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef );
+  uint32_t               getTypeID(const std::string& typeName) const;
+  std::string            getTypeName( uint32_t typeID ) const;
+  uint32_t               getLodID(uint32_t typeID, float distance) const;
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
-  inline uint32_t getNumTypesID() const;
+  inline uint32_t        getNumTypesID() const;
   
-  inline void setDirty();
-  void validate(Device* device, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
+  inline void            setDirty();
+  void                   validate(Device* device, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
 
-  void cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
-  void cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+  void                   cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
+  void                   cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
 
-  inline uint32_t getNumRenderMasks() const;
+  inline uint32_t        getNumRenderMasks() const;
+
+  void                   prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const;
 
   std::shared_ptr<StorageBuffer<AssetTypeDefinition>>     getTypeBuffer(uint32_t renderMask);
   std::shared_ptr<StorageBuffer<AssetLodDefinition>>      getLodBuffer(uint32_t renderMask);
   std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> getGeomBuffer(uint32_t renderMask);
-  void prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const;
 
 protected:
-  bool                                                  dirty = true;
-
   struct PerRenderMaskData
   {
     PerRenderMaskData() = default;
@@ -236,6 +234,7 @@ protected:
     }
   };
 
+  bool                                            dirty = true;
   mutable std::mutex                              mutex;
   std::map<uint32_t, std::vector<VertexSemantic>> semantics;
   std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
@@ -264,16 +263,16 @@ public:
   AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
   virtual ~AssetBufferInstancedResults();
 
-  void setup();
-  void prepareBuffers(const std::vector<uint32_t>& typeCount);
+  void                                                                               setup();
+  void                                                                               prepareBuffers(const std::vector<uint32_t>& typeCount);
 
   std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
   std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          getOffsetValues(uint32_t renderMask);
   uint32_t                                                                           getDrawCount(uint32_t renderMask);
 
 
-  void setActiveIndex(uint32_t index);
-  void validate(Surface* surface);
+  void                                                                               setActiveIndex(uint32_t index);
+  void                                                                               validate(Surface* surface);
 
 protected:
   struct PerRenderMaskData
@@ -295,7 +294,6 @@ protected:
   std::map<uint32_t, std::vector<VertexSemantic>> semantics;
   std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
   std::weak_ptr<AssetBuffer>                      assetBuffer;
-//  std::weak_ptr<DeviceMemoryAllocator>            buffersAllocator;
 };
 
 }

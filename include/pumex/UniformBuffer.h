@@ -50,13 +50,13 @@ public:
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   ~UniformBuffer();
 
-  inline void set( const T& data );
-  inline T    get() const;
-  void        getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-  void        setDirty();
-  void        validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  inline void     set( const T& data );
+  inline T        get() const;
+  void            getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void            setDirty();
+  void            validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
-  inline void setActiveIndex(uint32_t index);
+  inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
 private:

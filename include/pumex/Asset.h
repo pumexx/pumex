@@ -66,7 +66,7 @@ public:
   void refreshChildren();
 };
 
-// struct defining contents of vertices
+// struct defining contents of a single vertex
 struct PUMEX_EXPORT VertexSemantic
 {
   enum Type { Position, Normal, TexCoord, Color, Tangent, Bitangent, BoneIndex, BoneWeight };
@@ -119,8 +119,8 @@ public:
   std::vector<float> values;
 protected:
   inline uint32_t getOffset(VertexSemantic::Type semanticType, uint32_t channel) const;
+  void            set(const VertexSemantic& semantic, uint32_t channel, float val0, float val1, float val2, float val3);
   std::vector<VertexSemantic> semantic;
-  void set(const VertexSemantic& semantic, uint32_t channel, float val0, float val1, float val2, float val3);
 
   std::vector<uint32_t> positionOffset;
   std::vector<uint32_t> normalOffset;
@@ -224,11 +224,11 @@ struct PUMEX_EXPORT Animation
 class PUMEX_EXPORT Asset
 {
 public:
-  Skeleton                         skeleton;
-  std::vector<Geometry>            geometries;
-  std::vector<Material>            materials;
-  std::vector<Animation>           animations;
-  std::string                      fileName;
+  Skeleton               skeleton;
+  std::vector<Geometry>  geometries;
+  std::vector<Material>  materials;
+  std::vector<Animation> animations;
+  std::string            fileName;
 };
 
 // this is temporary solution for asset loading

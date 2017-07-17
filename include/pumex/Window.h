@@ -138,13 +138,12 @@ public:
   uint32_t newWidth  = 1;
   uint32_t newHeight = 1;
 
-  void pushInputEvent( const InputEvent& event );
+  void                    pushInputEvent( const InputEvent& event );
   std::vector<InputEvent> getInputEvents();
 protected:
-  std::weak_ptr<Viewer>  viewer;
-  std::weak_ptr<Surface> surface;
-
-  mutable std::mutex inputMutex;
+  std::weak_ptr<Viewer>   viewer;
+  std::weak_ptr<Surface>  surface;
+  mutable std::mutex      inputMutex;
   std::vector<InputEvent> inputEvents;
 };
 

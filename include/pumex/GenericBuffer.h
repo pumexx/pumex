@@ -49,12 +49,12 @@ public:
   GenericBuffer& operator=(const GenericBuffer&) = delete;
   ~GenericBuffer();
 
-  void     getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-  void     setDirty();
-  void     validate(Device* device, CommandPool* commandPool, VkQueue queue);
-  VkBuffer getBufferHandle(Device* device);
+  void            getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void            setDirty();
+  void            validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  VkBuffer        getBufferHandle(Device* device);
 
-  inline void setActiveIndex(uint32_t index);
+  inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
 private:

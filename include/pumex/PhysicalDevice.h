@@ -42,8 +42,8 @@ public:
   virtual ~PhysicalDevice();
 
   std::vector<uint32_t> matchingFamilyIndices(const QueueTraits& queueDescription);
-  uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr);
-  bool hasExtension(const char* extensionName);
+  uint32_t              getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr);
+  bool                  hasExtension(const char* extensionName);
 
   // physical device
   VkPhysicalDevice                     physicalDevice        = VK_NULL_HANDLE;
