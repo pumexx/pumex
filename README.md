@@ -10,7 +10,7 @@ The purpose of the **Pumex** library is to create an efficient rendering engine 
 - implements efficient rendering algorithms ( like instanced rendering with vkCmdDrawIndexedIndirect() to draw many objects of different types with one draw call )
 
 
-
+You can follow library development [on Twitter](https://twitter.com/pumex_lib) .
 
 ## Instalation on Windows
 
@@ -48,7 +48,7 @@ Elements that are required to install Pumex on Windows :
 - following libraries
   - [Assimp](https://github.com/assimp/assimp)
   - [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/)
-  - [Fretype2](https://www.freetype.org/)
+  - [Freetype2](https://www.freetype.org/)
 
 You can install above mentioned libraries using this command :
 
@@ -112,6 +112,7 @@ Application that renders a crowd of 500 animated people on one or more windows
 - Skeleton of each model has 53 bones
 - Each body has 3 texture variants
 - Each model has 3 different sets of clothes ( also 3D models ). Each cloth has only 1 LOD.
+- Each model randomly chooses one of four provided animations.
 
 Command line parameters enable us to use one of predefined window configurations :
 
@@ -218,6 +219,21 @@ While application is running, you are able to use following keys :
 - W, S, A, D - move camera : forward, backward, left, right
 
 Camera rotation may be done by moving a mouse while holding a left mouse button.
+
+
+
+## Dependencies
+
+Pumex renderer is dependent on a following set of libraries :
+
+* [Assimp](https://github.com/assimp/assimp) - library that enables Pumex to read different 3D file formats into pumex::Asset object.
+* [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/) - adds modern multithreading infrastructure ( tbb::parallel_for(), tbb::flow::graph )
+* [Freetype2](https://www.freetype.org/) - for rendering freetype fonts to a texture
+* [GLM](http://glm.g-truc.net) - provides math classes and functions that are similar to their GLSL counterparts ( matrices, vectors, etc. )
+* [GLI](http://gli.g-truc.net) - provides classes and functions to load, write and manipulate textures ( currently DDS and KTX texture formats are loaded / written )
+* [args](https://github.com/Taywee/args)  - small header-only library for command line parsing.
+
+On Windows all dependencies are downloaded and built on first Pumex library build. On Linux - first three libraries must be installed using package manager ( see section about installation on Linux ).
 
 
 
