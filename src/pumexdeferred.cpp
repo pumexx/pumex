@@ -635,7 +635,7 @@ struct DeferredApplicationData
     textDescriptorSet->setActiveIndex(activeIndex);
     textDescriptorSet->validate(surfacePtr);
 
-    auto currentCmdBuffer = myCmdBuffer[surfacePtr];
+    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
     if (currentCmdBuffer->isDirty(activeIndex))
     {

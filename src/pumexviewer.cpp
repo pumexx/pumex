@@ -95,7 +95,7 @@ struct ViewerApplicationData
   void setup()
   {
     // alocate 1 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT , 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
@@ -436,7 +436,7 @@ struct ViewerApplicationData
     cameraUbo->validate(surfacePtr);
     positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
 
-    auto currentCmdBuffer = myCmdBuffer[surfacePtr];
+    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
     if (currentCmdBuffer->isDirty(activeIndex))
     {

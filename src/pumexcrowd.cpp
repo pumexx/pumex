@@ -1105,7 +1105,7 @@ struct CrowdApplicationData
     textDescriptorSetSmall->setActiveIndex(activeIndex);
     textDescriptorSetSmall->validate(surfacePtr);
 
-    auto currentCmdBuffer = myCmdBuffer[surfacePtr];
+    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
     if (currentCmdBuffer->isDirty(activeIndex))
     {

@@ -88,7 +88,9 @@ Steps needed to build a library :
 
 ## Library documentation
 
-[Detailed description of the library classes may be found here](doc/class_description.md)
+#### [Detailed description of the library classes](doc/class_description.md)
+
+#### [Anatomy of a simple application ( aka tutorial )](doc/tutorial.md)
 
 API documentation in a form of Doxygen files will be added later.
 
