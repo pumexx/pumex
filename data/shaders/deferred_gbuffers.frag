@@ -45,6 +45,7 @@ void main()
 	vec4 color = texture( textureSamplers[ textureSamplerOffsets[0] + materialData[materialID].diffuseTextureIndex ], inUV );
 	if(color.a<0.5)
 	  discard;
+    color.rgb = pow( color.rgb, vec3(2.2));
     color.a = texture( textureSamplers[ textureSamplerOffsets[1] + materialData[materialID].specularTextureIndex ], inUV ).r;
     outFragColor    = color;
 

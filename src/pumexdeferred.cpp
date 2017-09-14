@@ -280,10 +280,10 @@ struct DeferredApplicationData
 
     lightsSbo = std::make_shared<pumex::StorageBuffer<LightPointData>>(buffersAllocator);
     std::vector<LightPointData> lights;
-    lights.push_back( LightPointData(glm::vec3(-61.78, -14.34, 14.39), glm::vec3(1.0, 1.0, 1.0), glm::vec3(1.0, 0.0, 0.0005)) );
-    lights.push_back( LightPointData(glm::vec3(-61.78, 22.02, 14.39),  glm::vec3(0.9, 0.1, 0.1), glm::vec3(1.0, 0.0, 0.0005)) );
-    lights.push_back( LightPointData(glm::vec3(48.83, 22.02, 14.39),   glm::vec3(0.1, 0.9, 0.1), glm::vec3(1.0, 0.0, 0.0005)) );
-    lights.push_back( LightPointData(glm::vec3(48.83, -14.34, 14.39),  glm::vec3(0.1, 0.1, 0.9), glm::vec3(1.0, 0.0, 0.0005)) );
+    lights.push_back( LightPointData(glm::vec3(-61.78, -14.34, 14.39), glm::vec3(1.0, 1.0, 1.0), glm::vec3(0.0, 0.0, 0.001)) );
+    lights.push_back( LightPointData(glm::vec3(-61.78, 22.02, 14.39),  glm::vec3(0.9, 0.1, 0.1), glm::vec3(0.0, 0.0, 0.001)) );
+    lights.push_back( LightPointData(glm::vec3(48.83, 22.02, 14.39),   glm::vec3(0.1, 0.1, 0.9), glm::vec3(0.0, 0.0, 0.001)) );
+    lights.push_back( LightPointData(glm::vec3(48.83, -14.34, 14.39),  glm::vec3(0.1, 0.9, 0.1), glm::vec3(0.0, 0.0, 0.001)) );
     lightsSbo->set(lights);
 
     input2 = std::make_shared<pumex::InputAttachment>(nullptr, 2);
@@ -823,7 +823,7 @@ int main( int argc, char * argv[] )
       { 1, VK_FORMAT_D24_UNORM_S8_UINT,  SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED,                VK_IMAGE_LAYOUT_UNDEFINED,                0 },
       { 2, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 3, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
-      { 4, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
+      { 4, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 5, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
     };
 
@@ -832,7 +832,11 @@ int main( int argc, char * argv[] )
       { // gbuffers subpass
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         {},
-        { { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },{ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }, { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
+        { 
+          { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
+          { 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }, 
+          { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } 
+        },
         {},
         { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
         {},
@@ -840,7 +844,11 @@ int main( int argc, char * argv[] )
       },
       { // lighting subpass
         VK_PIPELINE_BIND_POINT_GRAPHICS,
-        { { 2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },{ 3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },{ 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } },
+        { 
+          { 2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+          { 3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+          { 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } 
+        },
         { { 5, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
         { { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
         { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
@@ -857,7 +865,7 @@ int main( int argc, char * argv[] )
 
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
     surfaceTraits.setDefaultRenderPass(renderPass);
     surfaceTraits.setFrameBufferImages(frameBufferImages);

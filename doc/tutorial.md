@@ -151,7 +151,7 @@ applicationData->surfaceSetup(surface);
     tbb::flow::make_edge(update, viewer->endUpdateGraph);
 ```
 
-**pumex::Viewer** posseses two tbb::flow::continue_node objects that indicate start and end of the update graph ( pumex::Viewer::startUpdateGraph and  pumex::Viewer::endUpdateGraph ).
+**pumex::Viewer** possesses two tbb::flow::continue_node objects that indicate start and end of the update graph ( pumex::Viewer::startUpdateGraph and  pumex::Viewer::endUpdateGraph ).
 
 We declare the render graph similarly. In our case it also will be very sequential graph :
 
@@ -193,7 +193,7 @@ viewer->cleanup();
 
 ## Basic and compound Pumex objects
 
-Currently Pumes does not posses its won Application object that is present in so many frameworks. It's because - firstly - too much formalism makes experimenting harder. And secondly - not all Vulkan specification has been implemented in Vulkan and therefore - future changes may completely change the idea of single Application object. On the other side - in each Pumex example such object exists and there is a need to have some central object, that stores all data and methods required to implement different rendering algorithms. That's why in this example there exists class named **ViewerApplicationData**, that represents  such need.
+Currently Pumex does not possess its own Application object that is present in so many frameworks. It's because - firstly - too much formalism makes experimenting harder. And secondly - not all Vulkan specification has been implemented in Pumex and therefore - future changes may completely change the idea of single Application object. On the other side - in each Pumex example such object exists and there is a need to have some central object, that stores all data and methods required to implement different rendering algorithms. That's why in this example there exists class named **ViewerApplicationData**, that represents  such need.
 
 Data stored by this class may be categorized in a following way :
 

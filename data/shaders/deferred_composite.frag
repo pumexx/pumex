@@ -52,11 +52,14 @@ void main()
 
     vec3 diffuse        = max(dot(worldNormal, lightDir), 0.0) * color.xyz * lights[i].color.xyz * attenuation;
 
-    vec3 halfwayDir     = normalize(lightDir + viewDir);  
-    vec3 specular       = pow(max(dot(worldNormal, halfwayDir), 0.0), 16.0) * color.a * lights[i].color.xyz * attenuation;
+    vec3 reflectDir     = reflect(-lightDir, worldNormal); 
+    vec3 specular       = pow(max(dot(viewDir, reflectDir), 0.0), 128.0) * color.a * lights[i].color.xyz * attenuation;
 
-    finalColor.xyz += diffuse + specular;
+    finalColor.xyz      += diffuse + specular;
   }
-
-  outColor = finalColor;
+  // Reinhard tone mapping
+  finalColor.xyz = finalColor.xyz / (finalColor.xyz + vec3(1.0));
+  // gamma correction
+  outColor.xyz = pow(finalColor.xyz, vec3(1.0/2.2));
+  outColor.a = finalColor.a;
 }
