@@ -27,7 +27,13 @@ Screenshot from the I3D paper
 http://crytek.com/sites/default/files/20100301_lpv.pdf
 
 May 11, 2017 Pumex modifications :
-Converted bump textures to normal textures.
-Moved mask to alpha channel in diffuse textures.
-Connected proper textures to all materials.
-Converted textures to dds.
+- converted bump textures to normal textures.
+- moved mask to alpha channel in diffuse textures.
+- connected proper textures to all materials.
+- converted textures to dds.
+
+September 28, 2017 Pumex modifications :
+Sponza Palace model has been prepared for physically based rendering :
+- removed specular textures
+- added metallic, roughness and normal textures from www.alexandre-pestana.com
+- converted all textures to dds
