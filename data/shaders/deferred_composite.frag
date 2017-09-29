@@ -125,10 +125,4 @@ void main()
   finalColor = pow(finalColor, vec3(1.0/2.2));
   //output
   outColor = vec4(finalColor,1.0);
-
-//  outColor = vec4(worldNormal, 1.0);
-//  outColor = vec4(albedo, 1.0);
-//  outColor = vec4(metallic, metallic, metallic ,1.0);
-//  outColor = vec4(roughness, roughness, roughness ,1.0);
-//  outColor = vec4(mat3(camera.viewMatrix)*worldPosition,1.0);
 }
