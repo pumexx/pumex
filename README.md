@@ -179,7 +179,9 @@ Camera rotation may be done by moving a mouse while holding a left mouse button.
 
 ### pumexdeferred
 
-Application that makes deferred rendering with multisampling in one window. Famous Sponza Palace model is used as a render scene.
+Application that makes deferred rendering with multisampling in one window. Famous Sponza Palace model is used as a render scene. 
+
+Shaders used in that example realize **physically based rendering** inspired by [learnopengl.com](https://learnopengl.com/#!PBR/Theory)
 
 ![pumexdeferred example](doc/images/deferred.png "pumexdeferred example rendered on one window")
 

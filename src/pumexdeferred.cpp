@@ -57,30 +57,25 @@ struct PositionData
 
 struct MaterialData
 {
-  glm::vec4 ambient;
-  glm::vec4 diffuse;
-  glm::vec4 specular;
-  float     shininess;
-  uint32_t  diffuseTextureIndex  = 0;
-  uint32_t  specularTextureIndex = 0;
-  uint32_t  normalTextureIndex = 0;
+  uint32_t  diffuseTextureIndex   = 0;
+  uint32_t  roughnessTextureIndex = 0;
+  uint32_t  metallicTextureIndex  = 0;
+  uint32_t  normalTextureIndex    = 0;
 
   // two functions that define material parameters according to data from an asset's material 
   void registerProperties(const pumex::Material& material)
   {
-    ambient   = material.getProperty("$clr.ambient", glm::vec4(0, 0, 0, 0));
-    diffuse   = material.getProperty("$clr.diffuse", glm::vec4(1, 1, 1, 1));
-    specular  = material.getProperty("$clr.specular", glm::vec4(0, 0, 0, 0));
-    shininess = material.getProperty("$mat.shininess", glm::vec4(0, 0, 0, 0)).r;
   }
   void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
   {
     auto it = textureIndices.find(pumex::TextureSemantic::Diffuse);
-    diffuseTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
+    diffuseTextureIndex   = (it == textureIndices.end()) ? 0 : it->second;
     it = textureIndices.find(pumex::TextureSemantic::Specular);
-    specularTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
+    roughnessTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
+    it = textureIndices.find(pumex::TextureSemantic::LightMap);
+    metallicTextureIndex  = (it == textureIndices.end()) ? 0 : it->second;
     it = textureIndices.find(pumex::TextureSemantic::Normals);
-    normalTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
+    normalTextureIndex    = (it == textureIndices.end()) ? 0 : it->second;
   }
 };
 
@@ -161,11 +156,12 @@ struct DeferredApplicationData
     std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, requiredSemantic } };
     assetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
 
-    std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 },{ pumex::TextureSemantic::Normals, 2 } };
+    std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 },{ pumex::TextureSemantic::LightMap, 2 },{ pumex::TextureSemantic::Normals, 3 } };
     textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
     textureRegistry->setTargetTextureTraits(0, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(1, pumex::TextureTraits());
     textureRegistry->setTargetTextureTraits(2, pumex::TextureTraits());
+    textureRegistry->setTargetTextureTraits(3, pumex::TextureTraits());
     materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, buffersAllocator, textureSemantic);
 
     pumex::AssetLoaderAssimp loader;
@@ -211,7 +207,7 @@ struct DeferredApplicationData
       { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 6, 72, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
 
@@ -235,6 +231,8 @@ struct DeferredApplicationData
     {
       { VK_FALSE, 0xF },
       { VK_FALSE, 0xF },
+      { VK_FALSE, 0xF },
+      { VK_FALSE, 0xF },
       { VK_FALSE, 0xF }
     };
     gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
@@ -246,7 +244,9 @@ struct DeferredApplicationData
       { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   VK_SHADER_STAGE_FRAGMENT_BIT },
       { 2, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 3, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 4, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 6, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     compositeDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(compositeLayoutBindings);
 
@@ -280,16 +280,17 @@ struct DeferredApplicationData
 
     lightsSbo = std::make_shared<pumex::StorageBuffer<LightPointData>>(buffersAllocator);
     std::vector<LightPointData> lights;
-    lights.push_back( LightPointData(glm::vec3(-61.78, -14.34, 14.39), glm::vec3(1.0, 1.0, 1.0), glm::vec3(0.0, 0.0, 0.001)) );
-    lights.push_back( LightPointData(glm::vec3(-61.78, 22.02, 14.39),  glm::vec3(0.9, 0.1, 0.1), glm::vec3(0.0, 0.0, 0.001)) );
-    lights.push_back( LightPointData(glm::vec3(48.83, 22.02, 14.39),   glm::vec3(0.1, 0.1, 0.9), glm::vec3(0.0, 0.0, 0.001)) );
-    lights.push_back( LightPointData(glm::vec3(48.83, -14.34, 14.39),  glm::vec3(0.1, 0.9, 0.1), glm::vec3(0.0, 0.0, 0.001)) );
+    lights.push_back( LightPointData(glm::vec3(-6.178, -1.434, 1.439), glm::vec3(5.0, 5.0, 5.0), glm::vec3(0.0, 0.0, 1.0)) );
+    lights.push_back( LightPointData(glm::vec3(-6.178, 2.202, 1.439),  glm::vec3(5.0, 0.1, 0.1), glm::vec3(0.0, 0.0, 1.0)) );
+    lights.push_back( LightPointData(glm::vec3(4.883, 2.202, 1.439),   glm::vec3(0.1, 0.1, 5.0), glm::vec3(0.0, 0.0, 1.0)) );
+    lights.push_back( LightPointData(glm::vec3(4.883, -1.434, 1.439),  glm::vec3(0.1, 5.0, 0.1), glm::vec3(0.0, 0.0, 1.0)) );
     lightsSbo->set(lights);
 
     input2 = std::make_shared<pumex::InputAttachment>(nullptr, 2);
     input3 = std::make_shared<pumex::InputAttachment>(nullptr, 3);
     input4 = std::make_shared<pumex::InputAttachment>(nullptr, 4);
-
+    input5 = std::make_shared<pumex::InputAttachment>(nullptr, 5);
+    input6 = std::make_shared<pumex::InputAttachment>(nullptr, 6);
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
@@ -313,6 +314,8 @@ struct DeferredApplicationData
     compositeDescriptorSet->setSource(2, input2);
     compositeDescriptorSet->setSource(3, input3);
     compositeDescriptorSet->setSource(4, input4);
+    compositeDescriptorSet->setSource(5, input5);
+    compositeDescriptorSet->setSource(6, input6);
 
     std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
     fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
@@ -355,9 +358,9 @@ struct DeferredApplicationData
     textDescriptorSet->setSource(0, textCameraUbo);
     textDescriptorSet->setSource(1, fontDefault->fontTexture);
 
-    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
+    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.5f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    updateData.cameraDistance              = 1.0f;
+    updateData.cameraDistance              = 0.6f;
     updateData.leftMouseKeyPressed         = false;
     updateData.rightMouseKeyPressed        = false;
     updateData.moveForward                 = false;
@@ -382,6 +385,8 @@ struct DeferredApplicationData
     input2->validate(surface);
     input3->validate(surface);
     input4->validate(surface);
+    input5->validate(surface);
+    input6->validate(surface);
 
     // loading models
     assetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
@@ -697,6 +702,8 @@ struct DeferredApplicationData
   std::shared_ptr<pumex::InputAttachment>              input2;
   std::shared_ptr<pumex::InputAttachment>              input3;
   std::shared_ptr<pumex::InputAttachment>              input4;
+  std::shared_ptr<pumex::InputAttachment>              input5;
+  std::shared_ptr<pumex::InputAttachment>              input6;
 
   std::shared_ptr<pumex::AssetBuffer>                     assetBuffer;
   std::shared_ptr<pumex::TextureRegistryArrayOfTextures>  textureRegistry;
@@ -783,7 +790,7 @@ int main( int argc, char * argv[] )
   LOG_INFO << std::endl;
 
   const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", enableDebugging, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "Deferred PBR", enableDebugging, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -801,16 +808,21 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {
-      // output image
+      // 0. output image
       { pumex::FrameBufferImageDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
-      // depth
+      // 1. depth
       { pumex::FrameBufferImageDefinition::Depth,     VK_FORMAT_D24_UNORM_S8_UINT,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, SAMPLE_COUNT },
-      // GBuffer : position in world coordinates ( not good for big worlds, btw )
+      // 2. GBuffer : position in world coordinates ( not good for big worlds, btw )
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
-      // GBuffer : normals in world coordinates
+      // 3. GBuffer : normals in world coordinates
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
-      // GBuffer : albedo and specular power ( on alpha channel )
+      // 4. GBuffer : albedo 
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
+      // 5. GBuffer : roughness
+      { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
+      // 6. GBuffer : metallic
+      { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
+      // 7. ???
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT }
     };
     // allocate 256 MB for frame buffers
@@ -823,8 +835,10 @@ int main( int argc, char * argv[] )
       { 1, VK_FORMAT_D24_UNORM_S8_UINT,  SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED,                VK_IMAGE_LAYOUT_UNDEFINED,                0 },
       { 2, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 3, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
-      { 4, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
-      { 5, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
+      { 4, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
+      { 5, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
+      { 6, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
+      { 7, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
     };
 
     std::vector<pumex::SubpassDefinition> renderPassSubpasses = 
@@ -835,7 +849,9 @@ int main( int argc, char * argv[] )
         { 
           { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
           { 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }, 
-          { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } 
+          { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
+          { 5, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
+          { 6, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
         },
         {},
         { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
@@ -847,9 +863,11 @@ int main( int argc, char * argv[] )
         { 
           { 2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
           { 3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-          { 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } 
+          { 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+          { 5, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+          { 6, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
         },
-        { { 5, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
+        { { 7, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
         { { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
         { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
         {},
@@ -865,7 +883,7 @@ int main( int argc, char * argv[] )
 
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
     surfaceTraits.setDefaultRenderPass(renderPass);
     surfaceTraits.setFrameBufferImages(frameBufferImages);

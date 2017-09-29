@@ -14,15 +14,11 @@ layout (location = 4) flat in uint materialID;
 
 struct MaterialData
 {
-  vec4  ambient;
-  vec4  diffuse;
-  vec4  specular;
-  float shininess;
   uint  diffuseTextureIndex;
-  uint  specularTextureIndex;
+  uint  roughnessTextureIndex;
+  uint  metallicTextureIndex;
   uint  normalTextureIndex;
 };
-
 
 layout (std430,binding = 4) readonly buffer MaterialDataSbo
 {
@@ -34,11 +30,13 @@ layout (std430,binding = 5) readonly buffer TextureSamplerOffsets
 	uint textureSamplerOffsets[TextureSemanticCount];
 };
 
-layout (binding = 6) uniform sampler2D textureSamplers[64];
+layout (binding = 6) uniform sampler2D textureSamplers[72];
 
 layout (location = 0) out vec4 outPosition;
-layout (location = 1) out vec4 outNormal;
-layout (location = 2) out vec4 outFragColor;
+layout (location = 1) out vec3 outNormal;
+layout (location = 2) out vec4 outAlbedo;
+layout (location = 3) out vec3 outRoughness;
+layout (location = 4) out vec3 outMetallic;
 
 void main() 
 {
@@ -46,17 +44,18 @@ void main()
 	if(color.a<0.5)
 	  discard;
     color.rgb = pow( color.rgb, vec3(2.2));
-    color.a = texture( textureSamplers[ textureSamplerOffsets[1] + materialData[materialID].specularTextureIndex ], inUV ).r;
-    outFragColor    = color;
+    outAlbedo = color;
 
-    vec3 N        = normalize(inNormal);
-    vec3 T        = normalize(inTangent);
-    vec3 B        = cross(N, T);
-    mat3 TBN      = mat3(T, B, N);
-    outNormal.xyz = texture( textureSamplers[ textureSamplerOffsets[2] + materialData[materialID].normalTextureIndex ], inUV ).xyz;
-    outNormal.xyz = outNormal.xyz * 2.0 - vec3(1.0);
-    outNormal.xyz = TBN * normalize(outNormal.xyz);
-    outNormal     = vec4(outNormal.xyz * 0.5 + 0.5, 0.0);
+    outRoughness = texture( textureSamplers[ textureSamplerOffsets[1] + materialData[materialID].roughnessTextureIndex ], inUV ).rgb;
+    outMetallic  = texture( textureSamplers[ textureSamplerOffsets[2] + materialData[materialID].metallicTextureIndex ], inUV ).rgb;
+
+    vec3 N    = normalize(inNormal);
+    vec3 T    = normalize(inTangent);
+    vec3 B    = -cross(N, T);
+    mat3 TBN  = mat3(T, B, N);
+    outNormal = texture( textureSamplers[ textureSamplerOffsets[3] + materialData[materialID].normalTextureIndex ], inUV ).xyz;
+    outNormal = outNormal * 2.0 - vec3(1.0);
+    outNormal = TBN * normalize(outNormal);
 
     outPosition     = inPosition;
 }

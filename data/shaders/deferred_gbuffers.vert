@@ -64,8 +64,8 @@ void main()
 	gl_Position    = camera.projectionMatrix * camera.viewMatrix * outPosition;
     outPosition    /= outPosition.w;
     mat3 normalMat = mat3(inverse(transpose(modelMatrix)));
-	outNormal      = normalMat * normalize(inNormal);
-	outTangent     = normalMat * normalize(inTangent);
+	outNormal      = normalize(normalMat * inNormal);
+	outTangent     = normalize(normalMat * inTangent);
 	outUV       = inUV.xy;
 	
 	materialID  = materialVariants[materialTypes[object.typeID].variantFirst + 0].materialFirst + uint(inUV.z);
