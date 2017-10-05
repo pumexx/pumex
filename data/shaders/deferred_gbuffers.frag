@@ -35,8 +35,7 @@ layout (binding = 6) uniform sampler2D textureSamplers[72];
 layout (location = 0) out vec4 outPosition;
 layout (location = 1) out vec3 outNormal;
 layout (location = 2) out vec4 outAlbedo;
-layout (location = 3) out vec3 outRoughness;
-layout (location = 4) out vec3 outMetallic;
+layout (location = 3) out vec3 outRoughnessMetallic;
 
 void main() 
 {
@@ -46,8 +45,12 @@ void main()
     color.rgb = pow( color.rgb, vec3(2.2));
     outAlbedo = color;
 
-    outRoughness = texture( textureSamplers[ textureSamplerOffsets[1] + materialData[materialID].roughnessTextureIndex ], inUV ).rgb;
-    outMetallic  = texture( textureSamplers[ textureSamplerOffsets[2] + materialData[materialID].metallicTextureIndex ], inUV ).rgb;
+    outRoughnessMetallic = vec3
+    (
+      texture( textureSamplers[ textureSamplerOffsets[1] + materialData[materialID].roughnessTextureIndex ], inUV ).r,
+      texture( textureSamplers[ textureSamplerOffsets[2] + materialData[materialID].metallicTextureIndex ], inUV ).r,
+      0.0
+    );
 
     vec3 N    = normalize(inNormal);
     vec3 T    = normalize(inTangent);

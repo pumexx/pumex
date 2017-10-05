@@ -28,8 +28,7 @@ layout (std430,binding = 1) readonly buffer Lights
 layout(input_attachment_index = 2, binding = 2) uniform subpassInputMS inPosition;
 layout(input_attachment_index = 3, binding = 3) uniform subpassInputMS inNormal;
 layout(input_attachment_index = 4, binding = 4) uniform subpassInputMS inAlbedo;
-layout(input_attachment_index = 5, binding = 5) uniform subpassInputMS inRoughness;
-layout(input_attachment_index = 6, binding = 6) uniform subpassInputMS inMetallic;
+layout(input_attachment_index = 5, binding = 5) uniform subpassInputMS inRoughnessMetallic;
 
 layout (location = 0) out vec4 outColor;
 
@@ -80,8 +79,9 @@ void main()
   vec3 worldPosition = subpassLoad(inPosition,gl_SampleID).xyz;
   vec3 worldNormal   = subpassLoad(inNormal,gl_SampleID).xyz;
   vec3 albedo        = subpassLoad(inAlbedo,gl_SampleID).rgb;
-  float roughness    = subpassLoad(inRoughness, gl_SampleID).r;
-  float metallic     = subpassLoad(inMetallic, gl_SampleID).r;
+  vec2 roughMetal    = subpassLoad(inRoughnessMetallic, gl_SampleID).rg;
+  float roughness    = roughMetal.r;
+  float metallic     = roughMetal.g;
 
   vec3 viewPosition = camera.viewMatrixInverse[3].xyz / camera.viewMatrixInverse[3].w;
   vec3 viewDir      = normalize(viewPosition - worldPosition);

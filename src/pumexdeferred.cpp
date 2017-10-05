@@ -232,7 +232,6 @@ struct DeferredApplicationData
       { VK_FALSE, 0xF },
       { VK_FALSE, 0xF },
       { VK_FALSE, 0xF },
-      { VK_FALSE, 0xF },
       { VK_FALSE, 0xF }
     };
     gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
@@ -245,8 +244,7 @@ struct DeferredApplicationData
       { 2, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 3, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 4, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 5, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     compositeDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(compositeLayoutBindings);
 
@@ -290,7 +288,6 @@ struct DeferredApplicationData
     input3 = std::make_shared<pumex::InputAttachment>(nullptr, 3);
     input4 = std::make_shared<pumex::InputAttachment>(nullptr, 4);
     input5 = std::make_shared<pumex::InputAttachment>(nullptr, 5);
-    input6 = std::make_shared<pumex::InputAttachment>(nullptr, 6);
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
@@ -315,7 +312,6 @@ struct DeferredApplicationData
     compositeDescriptorSet->setSource(3, input3);
     compositeDescriptorSet->setSource(4, input4);
     compositeDescriptorSet->setSource(5, input5);
-    compositeDescriptorSet->setSource(6, input6);
 
     std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
     fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
@@ -386,7 +382,6 @@ struct DeferredApplicationData
     input3->validate(surface);
     input4->validate(surface);
     input5->validate(surface);
-    input6->validate(surface);
 
     // loading models
     assetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
@@ -703,7 +698,6 @@ struct DeferredApplicationData
   std::shared_ptr<pumex::InputAttachment>              input3;
   std::shared_ptr<pumex::InputAttachment>              input4;
   std::shared_ptr<pumex::InputAttachment>              input5;
-  std::shared_ptr<pumex::InputAttachment>              input6;
 
   std::shared_ptr<pumex::AssetBuffer>                     assetBuffer;
   std::shared_ptr<pumex::TextureRegistryArrayOfTextures>  textureRegistry;
@@ -818,11 +812,9 @@ int main( int argc, char * argv[] )
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
       // 4. GBuffer : albedo 
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
-      // 5. GBuffer : roughness
+      // 5. GBuffer : roughness and metallic
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
-      // 6. GBuffer : metallic
-      { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT },
-      // 7. ???
+      // 6. ???
       { pumex::FrameBufferImageDefinition::Color,     VK_FORMAT_B8G8R8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       VK_IMAGE_ASPECT_COLOR_BIT,                               SAMPLE_COUNT }
     };
     // allocate 256 MB for frame buffers
@@ -837,8 +829,7 @@ int main( int argc, char * argv[] )
       { 3, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 4, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 5, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
-      { 6, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
-      { 7, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
+      { 6, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 }
     };
 
     std::vector<pumex::SubpassDefinition> renderPassSubpasses = 
@@ -850,8 +841,7 @@ int main( int argc, char * argv[] )
           { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
           { 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }, 
           { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-          { 5, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-          { 6, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
+          { 5, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
         },
         {},
         { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
@@ -864,10 +854,9 @@ int main( int argc, char * argv[] )
           { 2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
           { 3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
           { 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-          { 5, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-          { 6, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+          { 5, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
         },
-        { { 7, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
+        { { 6, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
         { { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
         { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
         {},
