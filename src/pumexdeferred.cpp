@@ -349,6 +349,7 @@ struct DeferredApplicationData
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    textPipeline->rasterizationSamples = SAMPLE_COUNT;
 
     textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
     textDescriptorSet->setSource(0, textCameraUbo);
@@ -647,7 +648,8 @@ struct DeferredApplicationData
         pumex::makeDepthStencilClearValue(1.0f, 0),                    // depth buffer image
         pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), // position in world coordinates
         pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), // normals in world coordiantes
-        pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // albedo and specular
+        pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // albedo
+        pumex::makeColorClearValue(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)), // roughness and metallic
         pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f))  // lighting pass image
       };
       currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
@@ -750,7 +752,7 @@ struct DeferredApplicationData
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
-  args::ArgumentParser parser("pumex example : deferred rendering with antialiasing");
+  args::ArgumentParser parser("pumex example : deferred rendering with physically based rendering and antialiasing");
   args::HelpFlag       help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
@@ -778,7 +780,7 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  LOG_INFO << "Deferred rendering";
+  LOG_INFO << "Deferred rendering with physically based rendering and antialiasing";
   if (enableDebugging)
     LOG_INFO << " : Vulkan debugging enabled";
   LOG_INFO << std::endl;
@@ -797,7 +799,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering" };
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
@@ -824,7 +826,7 @@ int main( int argc, char * argv[] )
     std::vector<pumex::AttachmentDefinition> renderPassAttachments =
     {
       { 0, VK_FORMAT_B8G8R8A8_UNORM,     VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED,                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,          0 },
-      { 1, VK_FORMAT_D24_UNORM_S8_UINT,  SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED,                VK_IMAGE_LAYOUT_UNDEFINED,                0 },
+      { 1, VK_FORMAT_D24_UNORM_S8_UINT,  SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_STORE,     VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED,                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 2, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 3, VK_FORMAT_R16G16B16A16_SFLOAT,SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
       { 4, VK_FORMAT_B8G8R8A8_UNORM,     SAMPLE_COUNT,          VK_ATTACHMENT_LOAD_OP_CLEAR,     VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0 },
