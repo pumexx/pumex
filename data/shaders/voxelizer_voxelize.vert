@@ -39,7 +39,7 @@ void main()
   mat4 vertexTranslation = object.position * boneTransform;
 
   outNormal   = mat3(inverse(transpose(vertexTranslation))) * inNormal;
-  outColor    = vec3(1.0,1.0,1.0);
+  outColor    = vec3(1.0,1.0,0.0);
   outUV       = inUV;
   // camera.viewMatrix is omitted because it's identity matrix
   outPosition = camera.projectionMatrix * vertexTranslation * vec4(inPos.xyz, 1.0);

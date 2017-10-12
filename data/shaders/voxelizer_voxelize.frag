@@ -17,6 +17,5 @@ void main()
 	vec4 color = vec4(inColor,1);
 
 	vec3 address3D = inPosition * 0.5 + vec3(0.5);
-	ivec3 dim = imageSize(voxelTexture[0]);
     imageStore(voxelTexture[0], ivec3(imageSize(voxelTexture[0]) * address3D), color);
 }

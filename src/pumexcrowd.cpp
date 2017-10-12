@@ -910,7 +910,7 @@ struct CrowdApplicationData
     camera.setTimeSinceStart(renderTime);
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
     cameraUbo->set(surface.get(), camera);
 
     pumex::Camera textCamera;
