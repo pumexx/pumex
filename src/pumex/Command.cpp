@@ -273,6 +273,15 @@ void CommandBuffer::cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image,
   vkCmdCopyBufferToImage(commandBuffer[activeIndex], srcBuffer, image.getImage(), dstImageLayout, regions.size(), regions.data());
 }
 
+void CommandBuffer::cmdClearColorImage(const Image& image, VkImageLayout imageLayout, VkClearValue color, std::vector<VkImageSubresourceRange> subresourceRanges)
+{
+  vkCmdClearColorImage(commandBuffer[activeIndex], image.getImage(), imageLayout, &color.color, subresourceRanges.size(), subresourceRanges.data());
+}
+
+void CommandBuffer::cmdClearDepthStencilImage(const Image& image, VkImageLayout imageLayout, VkClearValue depthStencil, std::vector<VkImageSubresourceRange> subresourceRanges)
+{
+  vkCmdClearDepthStencilImage(commandBuffer[activeIndex], image.getImage(), imageLayout, &depthStencil.depthStencil, subresourceRanges.size(), subresourceRanges.data());
+}
 
 void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const
 {
@@ -281,6 +290,11 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   VkAccessFlags srcAccessMask, dstAccessMask;
   switch (oldImageLayout)
   {
+  case VK_IMAGE_LAYOUT_GENERAL:
+    // actually we don't know the usage of the image
+    srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT;
+    break;
+
   case VK_IMAGE_LAYOUT_UNDEFINED:
     // Image layout is undefined (or does not matter)
     // Only valid as initial layout
@@ -324,6 +338,10 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   // Destination access mask controls the dependency for the new image layout
   switch (newImageLayout)
   {
+  case VK_IMAGE_LAYOUT_GENERAL:
+    // actually we don't know the usage of the image
+    dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT;
+    break;
   case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
     // Image will be used as a transfer destination
     // Make sure any writes to the image have been finished

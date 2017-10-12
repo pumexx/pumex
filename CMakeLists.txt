@@ -266,6 +266,12 @@ add_dependencies( pumexdeferred shaders args-external )
 target_link_libraries( pumexdeferred pumex )
 set_executable_postfixes( pumexdeferred )
 
+add_executable( pumexvoxelizer src/pumexvoxelizer.cpp )
+add_dependencies( pumexvoxelizer shaders args-external )
+target_link_libraries( pumexvoxelizer pumex )
+set_executable_postfixes( pumexvoxelizer )
+
+
 set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
 
 if( NOT WIN32 )
