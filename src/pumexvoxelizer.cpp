@@ -420,7 +420,8 @@ struct VoxelizerApplicationData
     pumex::Camera voxelizeCamera;
     voxelizeCamera.setObserverPosition(realEye);
     voxelizeCamera.setTimeSinceStart(renderTime);
-    voxelizeCamera.setProjectionMatrix(glm::ortho(-1.0f,1.0f,-1.0f,1.0f,-1.0f,-2.0f),true);
+    // near and far values must be mulitiplied by -1
+    voxelizeCamera.setProjectionMatrix(pumex::orthoGL(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, -2.0f),true);
 
     voxelizeCameraUbo->set(surface.get(), voxelizeCamera);
   }

@@ -47,4 +47,20 @@ private:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
+template <typename T>
+glm::tmat4x4<T, glm::defaultp> orthoGL( T left, T right, T bottom, T top,	T zNear, T zFar	)
+{
+  glm::tmat4x4<T, glm::defaultp> Result(1);
+  Result[0][0] = static_cast<T>(2) / (right - left);
+  Result[1][1] = static_cast<T>(2) / (top - bottom);
+  Result[3][0] = - (right + left) / (right - left);
+  Result[3][1] = - (top + bottom) / (top - bottom);
+
+  Result[2][2] = - static_cast<T>(2) / (zFar - zNear);
+  Result[3][2] = - (zFar + zNear) / (zFar - zNear);
+
+  return Result;
+}
+
+
 }
