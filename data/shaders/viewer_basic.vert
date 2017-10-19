@@ -39,15 +39,15 @@ void main()
 	boneTransform     += object.bones[int(inBoneIndex[1])] * inBoneWeight[1];
 	boneTransform     += object.bones[int(inBoneIndex[2])] * inBoneWeight[2];
 	boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];	
-	mat4 vertexTranslation = object.position * boneTransform;
+	mat4 modelMatrix  = object.position * boneTransform;
 
 
-	gl_Position = camera.projectionMatrix * camera.viewMatrix * vertexTranslation * vec4(inPos.xyz, 1.0);
-	outNormal   = mat3(inverse(transpose(vertexTranslation))) * inNormal;
+	gl_Position = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
+	outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;
 	outColor    = vec3(1.0,1.0,1.0);
 	outUV       = inUV;
 	
-    vec4 pos    = camera.viewMatrix * vertexTranslation * vec4(inPos.xyz, 1.0);
+    vec4 pos    = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
     outLightVec = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
     outViewVec  = -pos.xyz;
 }

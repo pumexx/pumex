@@ -25,12 +25,12 @@
 namespace pumex
 {
 
-void addBox(Geometry& geometry, float halfX, float halfY, float halfZ)
+void addBox(Geometry& geometry, float halfX, float halfY, float halfZ, bool drawFrontFace)
 {
-  addBox(geometry, glm::vec3(-halfX, -halfY, -halfZ), glm::vec3(halfX, halfY, halfZ));
+  addBox(geometry, glm::vec3(-halfX, -halfY, -halfZ), glm::vec3(halfX, halfY, halfZ), drawFrontFace);
 }
 
-void addBox(Geometry& geometry, glm::vec3 a, glm::vec3 b)
+void addBox(Geometry& geometry, glm::vec3 a, glm::vec3 b, bool drawFrontFace)
 {
   VertexAccumulator acc(geometry.semantic);
 
@@ -47,7 +47,8 @@ void addBox(Geometry& geometry, glm::vec3 a, glm::vec3 b)
                           0,1,0,   0,0,0,   0,1,1,   0,0,1,
                           0,1,0,   1,1,0,   0,0,0,   1,0,0,
                           0,0,1,   1,0,1,   0,1,1,   1,1,1 };
-  static float n[] = { 0,-1,0,  1,0,0,  0,1,0,  -1,0,0,  0,0,-1,  0,0,1 };
+  static float nf[] = { 0,-1,0,  1,0,0,  0,1,0,  -1,0,0,  0,0,-1,  0,0,1 };
+  static float nb[] = { 0,1,0,  -1,0,0,  0,-1,0,  1,0,0,  0,0,1,  0,0,-1 };
   static float t[] = { 0,0,  1,0,  0,1,  1,1 };
   uint32_t verticesSoFar = geometry.getVertexCount();
 
@@ -57,7 +58,10 @@ void addBox(Geometry& geometry, glm::vec3 a, glm::vec3 b)
     for (uint32_t i = 0; i < 12; i+=3)
     {
       acc.set(VertexSemantic::Position, m[v[12 * wall + i + 0]].x, m[v[12 * wall + i + 1]].y, m[v[12 * wall + i + 2]].z);
-      acc.set(VertexSemantic::Normal, n[3 * wall + 0], n[3 * wall + 1], n[3 * wall + 2]);
+      if (drawFrontFace)
+        acc.set(VertexSemantic::Normal, nf[3 * wall + 0], nf[3 * wall + 1], nf[3 * wall + 2]);
+      else
+        acc.set(VertexSemantic::Normal, nb[3 * wall + 0], nb[3 * wall + 1], nb[3 * wall + 2]);
       acc.set(VertexSemantic::TexCoord, t[2 * i / 3 + 0], t[2 * i / 3 + 1]);
       geometry.pushVertex(acc);
     }
@@ -66,13 +70,26 @@ void addBox(Geometry& geometry, glm::vec3 a, glm::vec3 b)
   //indices
   for (uint32_t wall = 0; wall < 6; ++wall)
   {
-    geometry.indices.push_back(verticesSoFar + wall * 4 + 0);
-    geometry.indices.push_back(verticesSoFar + wall * 4 + 1);
-    geometry.indices.push_back(verticesSoFar + wall * 4 + 2);
+    if (drawFrontFace)
+    {
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 0);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 1);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 2);
 
-    geometry.indices.push_back(verticesSoFar + wall * 4 + 2);
-    geometry.indices.push_back(verticesSoFar + wall * 4 + 1);
-    geometry.indices.push_back(verticesSoFar + wall * 4 + 3);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 2);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 1);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 3);
+    }
+    else
+    {
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 0);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 2);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 1);
+
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 2);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 3);
+      geometry.indices.push_back(verticesSoFar + wall * 4 + 1);
+    }
   }
 }
 

@@ -27,8 +27,8 @@
 namespace pumex
 {
 // collection of methods that create basic geometries
-PUMEX_EXPORT void addBox(Geometry& geometry, float halfX, float halfY, float halfZ);
-PUMEX_EXPORT void addBox(Geometry& geometry, glm::vec3 min, glm::vec3 max);
+PUMEX_EXPORT void addBox(Geometry& geometry, float halfX, float halfY, float halfZ, bool drawFrontFace);
+PUMEX_EXPORT void addBox(Geometry& geometry, glm::vec3 min, glm::vec3 max, bool drawFrontFace);
 
 PUMEX_EXPORT void addSphere(Geometry& geometry, const glm::vec3& origin, float radius, uint32_t numSegments, uint32_t numRows, bool drawFrontFace);
 PUMEX_EXPORT void addCone(Geometry& geometry, const glm::vec3& origin, float radius, float height, uint32_t numSegments, uint32_t numRows, bool createBottom);

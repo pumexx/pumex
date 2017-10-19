@@ -289,7 +289,7 @@ pumex::Asset* createSimpleHouse(float detailRatio, const glm::vec4& buildingColo
   building.name = "building";
   building.semantic = vertexSemantic;
   building.materialIndex = 0;
-  pumex::addBox(building, glm::vec3(-7.5f, -4.5f, 0.0f), glm::vec3(7.5f, 4.5f, 16.0f));
+  pumex::addBox(building, glm::vec3(-7.5f, -4.5f, 0.0f), glm::vec3(7.5f, 4.5f, 16.0f), true);
   result->geometries.push_back(building);
   pumex::Material buildingMaterial;
   buildingMaterial.properties["$clr.ambient"] = 0.1f * buildingColor;
@@ -389,8 +389,8 @@ pumex::Asset* createBlimp(float detailRatio, const glm::vec4& hullColor, const g
   // add gondola
   pumex::addCapsule(hull, glm::vec3(5.5, 0.0, 0.0), 1.0, 6.0, detailRatio * 40, detailRatio * 20, true, true, true);
   // add rudders
-  pumex::addBox(hull, glm::vec3(-4.0, -0.15, -12.0), glm::vec3(4.0, 0.15, -8.0));
-  pumex::addBox(hull, glm::vec3(-0.15, -4.0, -12.0), glm::vec3(0.15, 4.0, -8.0));
+  pumex::addBox(hull, glm::vec3(-4.0, -0.15, -12.0), glm::vec3(4.0, 0.15, -8.0), true);
+  pumex::addBox(hull, glm::vec3(-0.15, -4.0, -12.0), glm::vec3(0.15, 4.0, -8.0), true);
   pumex::transformGeometry(glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0)), hull);
   result->geometries.emplace_back(hull);
 
@@ -439,7 +439,7 @@ pumex::Asset* createCar(float detailRatio, const glm::vec4& hullColor, const glm
   hull.name          = "hull";
   hull.semantic      = vertexSemantic;
   hull.materialIndex = 0;
-  pumex::addBox(hull, glm::vec3(-2.5, -1.5, 0.4), glm::vec3(2.5, 1.5, 2.7));
+  pumex::addBox(hull, glm::vec3(-2.5, -1.5, 0.4), glm::vec3(2.5, 1.5, 2.7), true);
   result->geometries.emplace_back(hull);
 
   pumex::Geometry wheel;
@@ -516,11 +516,11 @@ pumex::Asset* createAirplane(float detailRatio, const glm::vec4& hullColor, cons
   // add main hull
   pumex::addCapsule(hull, glm::vec3(0.0f, 0.0f, 0.0f), 0.8f, 6.0f, detailRatio * 40, detailRatio * 20, true, true, true);
   // add winds
-  pumex::addBox(hull, glm::vec3(0.35, -3.5, 0.5), glm::vec3(0.45, 3.5, 2.1));
-  pumex::addBox(hull, glm::vec3(-1.45, -5.0, 0.6), glm::vec3(-1.35, 5.0, 2.4));
+  pumex::addBox(hull, glm::vec3(0.35, -3.5, 0.5), glm::vec3(0.45, 3.5, 2.1), true);
+  pumex::addBox(hull, glm::vec3(-1.45, -5.0, 0.6), glm::vec3(-1.35, 5.0, 2.4), true);
   // add rudders
-  pumex::addBox(hull, glm::vec3(-1.55, -0.025, -4.4), glm::vec3(-0.05, 0.025, -3.4));
-  pumex::addBox(hull, glm::vec3(-0.225, -2.0, -4.4), glm::vec3(-0.175, 2.0, -3.4));
+  pumex::addBox(hull, glm::vec3(-1.55, -0.025, -4.4), glm::vec3(-0.05, 0.025, -3.4), true);
+  pumex::addBox(hull, glm::vec3(-0.225, -2.0, -4.4), glm::vec3(-0.175, 2.0, -3.4), true);
   pumex::transformGeometry(glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0)), hull);
   result->geometries.emplace_back(hull);
 

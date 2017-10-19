@@ -74,7 +74,7 @@ void main()
     outPositionProjected = finalPosition[i].xy; // FIXME ? - output values do not seem to take dilated triangle into account...
     gl_Position          = finalPosition[i];
     // calculate new xy position ( conservative rasterization )
-    gl_Position.xy       = gl_Position.xy + 3*pixelDiagonal * ( (edges[(i+2)%3].xy/dot(edges[(i+2)%3].xy, edgeNormals[i].xy)) + (edges[i].xy/dot(edges[i].xy,edgeNormals[(i+2)%3].xy)) );
+    gl_Position.xy       = gl_Position.xy + pixelDiagonal * ( (edges[(i+2)%3].xy/dot(edges[(i+2)%3].xy, edgeNormals[i].xy)) + (edges[i].xy/dot(edges[i].xy,edgeNormals[(i+2)%3].xy)) );
     EmitVertex();
   }
   EndPrimitive();

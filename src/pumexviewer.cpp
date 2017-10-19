@@ -119,7 +119,7 @@ struct ViewerApplicationData
     pumex::Geometry boxg;
     boxg.name     = "box";
     boxg.semantic = boxSemantic;
-    pumex::addBox(boxg, bbox.bbMin, bbox.bbMax);
+    pumex::addBox(boxg, bbox.bbMin, bbox.bbMax, true);
     std::shared_ptr<pumex::Asset> boxAsset(pumex::createSimpleAsset(boxg, "root"));
 
     pumex::Geometry cone;
