@@ -5,6 +5,8 @@
 
 #define MAX_BONES 511
 
+const vec3 lightDirection = vec3(0,0,1);
+
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec3 inNormal;
 layout (location = 2) in vec2 inUV;
@@ -26,15 +28,20 @@ layout (binding = 1) uniform PositionSbo
 } object;
 
 layout (location = 0) out vec3 outRayEnd;
-layout (location = 1) out vec3 outEyePosition;
+layout (location = 1) out vec3 outCubePosition;
+layout (location = 2) out vec3 outLightVec;
 
 void main() 
 {
   // mesh that is used on this shader is a box with dimensions (0,0,0)..(1,1,1) and its faces are looking inside
   // it does not use any bones
   mat4 modelMatrix = object.position;
-  outRayEnd        = inPos.xyz;
-  vec4 eyePosition = inverse(camera.viewMatrix * modelMatrix) * vec4(0,0,0,1);
-  outEyePosition   = eyePosition.xyz / eyePosition.w;
+  outRayEnd         = inPos.xyz;
+  vec4 cubePosition = inverse(camera.viewMatrix * modelMatrix) * vec4(0,0,0,1);
+  outCubePosition   = cubePosition.xyz / cubePosition.w;
+
+  vec4 eyePosition = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
+  outLightVec      = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
+
   gl_Position      = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
 }

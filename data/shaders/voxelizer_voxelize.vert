@@ -39,7 +39,7 @@ void main()
   mat4 modelMatrix  = object.position * boneTransform;
 
   outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;
-  outColor    = vec3(1.0,1.0,0.0);
+  outColor    = vec3(0.0,0.0,1.0);
   outUV       = inUV;
   // camera.viewMatrix is omitted because it's identity matrix
   outPosition = camera.projectionMatrix * modelMatrix * vec4(inPos.xyz, 1.0);

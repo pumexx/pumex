@@ -5,6 +5,8 @@
 
 #define MAX_BONES 511
 
+const vec3 lightDirection = vec3(0,0,1);
+
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec3 inNormal;
 layout (location = 2) in vec2 inUV;
@@ -25,8 +27,6 @@ layout (binding = 1) uniform PositionSbo
   mat4  bones[MAX_BONES];
 } object;
 
-const vec3 lightDirection = vec3(0,0,1);
-
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outColor;
 layout (location = 2) out vec2 outUV;
@@ -35,19 +35,18 @@ layout (location = 4) out vec3 outLightVec;
 
 void main() 
 {
-	mat4 boneTransform = object.bones[int(inBoneIndex[0])] * inBoneWeight[0];
-	boneTransform     += object.bones[int(inBoneIndex[1])] * inBoneWeight[1];
-	boneTransform     += object.bones[int(inBoneIndex[2])] * inBoneWeight[2];
-	boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];	
-	mat4 modelMatrix  = object.position * boneTransform;
+  mat4 boneTransform = object.bones[int(inBoneIndex[0])] * inBoneWeight[0];
+  boneTransform     += object.bones[int(inBoneIndex[1])] * inBoneWeight[1];
+  boneTransform     += object.bones[int(inBoneIndex[2])] * inBoneWeight[2];
+  boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];	
+  mat4 modelMatrix  = object.position * boneTransform;
 
+  outNormal        = mat3(inverse(transpose(modelMatrix))) * inNormal;
+  outColor         = vec3(1.0,1.0,1.0);
+  outUV            = inUV;
+  vec4 eyePosition = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
+  outLightVec      = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
+  outViewVec       = -eyePosition.xyz;
 
-	gl_Position = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-	outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;
-	outColor    = vec3(1.0,1.0,1.0);
-	outUV       = inUV;
-	
-    vec4 pos    = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-    outLightVec = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
-    outViewVec  = -pos.xyz;
+  gl_Position = camera.projectionMatrix * eyePosition;
 }

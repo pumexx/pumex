@@ -470,7 +470,7 @@ struct VoxelizerApplicationData
     voxelizeCamera.setObserverPosition(realEye);
     voxelizeCamera.setTimeSinceStart(renderTime);
     // near and far values must be multiplied by -1
-    voxelizeCamera.setProjectionMatrix(pumex::orthoGL(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMax.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMax.y, -1.0f*voxelBoundingBox.bbMin.z, -1.0f*voxelBoundingBox.bbMax.z),true);
+    voxelizeCamera.setProjectionMatrix(pumex::orthoGL(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMax.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMax.y, -1.0f*voxelBoundingBox.bbMin.z, -1.0f*voxelBoundingBox.bbMax.z),false);
 
     voxelizeCameraUbo->set(surface.get(), voxelizeCamera);
   }
@@ -547,12 +547,22 @@ struct VoxelizerApplicationData
 
     if (currentCmdBuffer->isDirty(activeIndex))
     {
-      std::vector<pumex::DescriptorSetValue> clipMapBuffer;
-      clipMap->getDescriptorSetValues(devicePtr->device, 0, clipMapBuffer);
+//      std::vector<pumex::DescriptorSetValue> clipMapBuffer;
+//      clipMap->getDescriptorSetValues(devicePtr->device, 0, clipMapBuffer);
 
       currentCmdBuffer->cmdBegin();
 
 //      currentCmdBuffer->setImageLayout(*clipMap->getHandleImage(devicePtr->device, 0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+      pumex::Image* image = clipMap->getHandleImage(devicePtr->device, 0);
+      VkImageSubresourceRange subRes{};
+      subRes.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+      subRes.baseMipLevel   = 0;
+      subRes.levelCount     = 1;
+      subRes.baseArrayLayer = 0;
+      subRes.layerCount     = 1;
+      std::vector<VkImageSubresourceRange> subResources;
+      subResources.push_back(subRes);
+      currentCmdBuffer->cmdClearColorImage(*image, VK_IMAGE_LAYOUT_GENERAL, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), subResources);
 
       std::vector<VkClearValue> voxelClearValues = { pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)) };
       currentCmdBuffer->cmdBeginRenderPass(surfacePtr, voxelizeRenderPass.get(), voxelizeFrameBuffer.get(), 0, pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE), voxelClearValues);
@@ -579,10 +589,10 @@ struct VoxelizerApplicationData
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, voxelBoxTypeID, 0, 50.0f);
 
       // model render
-      currentCmdBuffer->cmdBindPipeline(pipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
-      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
+//      currentCmdBuffer->cmdBindPipeline(pipeline.get());
+//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
+//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
 
       currentCmdBuffer->cmdEndRenderPass();
       currentCmdBuffer->cmdEnd();

@@ -13,14 +13,14 @@ layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-	vec4 color = vec4(inColor,1);
+  vec4 color = vec4(inColor,1);
 
-	vec3 N        = normalize(inNormal);
-	vec3 L        = normalize(inLightVec);
-	vec3 V        = normalize(inViewVec);
-	vec3 R        = reflect(-L, N);
-	vec3 ambient  = vec3(0.1,0.1,0.1);
-	vec3 diffuse  = max(dot(N, L), 0.0) * vec3(0.9,0.9,0.9);
-	vec3 specular = pow(max(dot(R, V), 0.0), 128.0) * vec3(1,1,1);
-	outFragColor  = vec4(ambient + diffuse * color.rgb + specular, 1.0);
+  vec3 N        = normalize(inNormal);
+  vec3 L        = normalize(inLightVec);
+  vec3 V        = normalize(inViewVec);
+  vec3 R        = reflect(-L, N);
+  vec3 ambient  = vec3(0.1,0.1,0.1);
+  vec3 diffuse  = max(dot(N, L), 0.0) * vec3(0.9,0.9,0.9);
+  vec3 specular = pow(max(dot(R, V), 0.0), 128.0) * vec3(1,1,1);
+  outFragColor  = vec4(ambient + diffuse * color.rgb + specular, 1.0);
 }
