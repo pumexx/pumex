@@ -27,21 +27,24 @@ layout (binding = 1) uniform PositionSbo
   mat4  bones[MAX_BONES];
 } object;
 
-layout (location = 0) out vec3 outRayEnd;
-layout (location = 1) out vec3 outCubePosition;
-layout (location = 2) out vec3 outLightVec;
+layout (location = 0) out vec3 outVolumeRayEnd;              // ray end in volume coordinates
+layout (location = 1) out vec3 outLightVec;
+layout (location = 2) flat out vec3 outVolumeEyePosition;    // eye position in volume coordinates
+layout (location = 3) flat out vec3 outVolumeNearPlaneStart; // near plane start in volume coordinates
+layout (location = 4) flat out vec3 outVolumeNearPlaneNormal;// near plane normal in volume coordinates
 
 void main() 
 {
-  // mesh that is used on this shader is a box with dimensions (0,0,0)..(1,1,1) and its faces are looking inside
-  // it does not use any bones
-  mat4 modelMatrix = object.position;
-  outRayEnd         = inPos.xyz;
-  vec4 cubePosition = inverse(camera.viewMatrix * modelMatrix) * vec4(0,0,0,1);
-  outCubePosition   = cubePosition.xyz / cubePosition.w;
+  // Mesh that is used in this shader is a box with dimensions (0,0,0)..(1,1,1) and its faces are looking inside. It does not use any bones
+  mat4 modelMatrix           = object.position;
+  outVolumeRayEnd            = inPos.xyz;
+  outLightVec                = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
+  vec4 volumeEyePosition     = inverse(camera.viewMatrix * modelMatrix) * vec4(0,0,0,1);
+  outVolumeEyePosition       = volumeEyePosition.xyz / volumeEyePosition.w;
+  vec4 volumeNearPlaneStart  = inverse(camera.projectionMatrix * camera.viewMatrix * modelMatrix) * vec4(0,0,0,1);
+  outVolumeNearPlaneStart    = volumeNearPlaneStart.xyz / volumeNearPlaneStart.w;
+  vec4 volumeNearPlaneNormal = normalize(inverse(camera.projectionMatrix * camera.viewMatrix * modelMatrix) * vec4(0,0,1,1));
+  outVolumeNearPlaneNormal   = volumeNearPlaneNormal.xyz / volumeNearPlaneNormal.w;
 
-  vec4 eyePosition = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-  outLightVec      = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
-
-  gl_Position      = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
+  gl_Position                = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
 }

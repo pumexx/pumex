@@ -92,10 +92,11 @@ struct RenderData
 
 struct VoxelizerApplicationData
 {
-  VoxelizerApplicationData(std::shared_ptr<pumex::Viewer> v, const std::string& mName )
+  VoxelizerApplicationData(std::shared_ptr<pumex::Viewer> v, const std::string& mName, const std::string& aName)
     : viewer{v}
   {
-    modelName = viewer->getFullFilePath(mName);
+    modelName     = viewer->getFullFilePath(mName);
+    animationName = viewer->getFullFilePath(aName);
   }
   void setup()
   {
@@ -113,6 +114,12 @@ struct VoxelizerApplicationData
     pumex::AssetLoaderAssimp loader;
     std::shared_ptr<pumex::Asset> asset(loader.load(modelName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelName);
+    if (!animationName.empty())
+    {
+      std::shared_ptr<pumex::Asset> animAsset(loader.load(animationName, true, requiredSemantic));
+      CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationName);
+      asset->animations = animAsset->animations;
+    }
 
     pumex::BoundingBox bbox;
     if (asset->animations.size() > 0)
@@ -198,8 +205,8 @@ struct VoxelizerApplicationData
     // create pipeline for ray marching
     std::vector<pumex::DescriptorSetLayoutBinding> raymarchLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
       { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     raymarchDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(raymarchLayoutBindings);
@@ -589,10 +596,10 @@ struct VoxelizerApplicationData
       assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, voxelBoxTypeID, 0, 50.0f);
 
       // model render
-//      currentCmdBuffer->cmdBindPipeline(pipeline.get());
-//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
-//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
+      currentCmdBuffer->cmdBindPipeline(pipeline.get());
+      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
+      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
 
       currentCmdBuffer->cmdEndRenderPass();
       currentCmdBuffer->cmdEnd();
@@ -602,6 +609,7 @@ struct VoxelizerApplicationData
 
   std::shared_ptr<pumex::Viewer> viewer;
   std::string modelName;
+  std::string animationName;
   uint32_t    modelTypeID;
   uint32_t    voxelBoxTypeID;
 
@@ -659,6 +667,7 @@ int main( int argc, char * argv[] )
   args::Flag                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::ValueFlag<std::string> modelNameArg(parser, "model", "3D model filename", { 'm' });
+  args::ValueFlag<std::string> animationNameArg(parser, "animation", "3D model with animation", { 'a' });
   try
   {
     parser.ParseCLI(argc, argv);
@@ -690,6 +699,7 @@ int main( int argc, char * argv[] )
     return 1;
   }
   std::string modelFileName = args::get(modelNameArg);
+  std::string animationFileName = args::get(animationNameArg);
   std::string windowName = "Pumex voxelizer : ";
   windowName += modelFileName;
 
@@ -747,7 +757,7 @@ int main( int argc, char * argv[] )
     surfaceTraits.setDefaultRenderPass(renderPass);
     surfaceTraits.setFrameBufferImages(frameBufferImages);
 
-    std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(viewer, modelFileName);
+    std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(viewer, modelFileName, animationFileName);
     applicationData->defaultRenderPass = renderPass;
     applicationData->setup();
 
