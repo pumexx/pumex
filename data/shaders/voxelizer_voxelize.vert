@@ -28,7 +28,6 @@ layout (binding = 1) uniform PositionSbo
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outColor;
 layout (location = 2) out vec2 outUV;
-layout (location = 3) out vec4 outPosition;
 
 void main() 
 {
@@ -42,7 +41,5 @@ void main()
   outColor    = vec3(0.0,0.0,1.0);
   outUV       = inUV;
   // camera.viewMatrix is omitted because it's identity matrix
-  outPosition = camera.projectionMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-	
-  gl_Position = outPosition;
+  gl_Position = camera.projectionMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
 }

@@ -96,7 +96,8 @@ struct VoxelizerApplicationData
     : viewer{v}
   {
     modelName     = viewer->getFullFilePath(mName);
-    animationName = viewer->getFullFilePath(aName);
+    if(!aName.empty())
+      animationName = viewer->getFullFilePath(aName);
   }
   void setup()
   {
