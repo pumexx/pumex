@@ -21,10 +21,178 @@
 //
 
 #include <pumex/RenderPass.h>
+#include <algorithm>
 #include <pumex/Device.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
+
+RenderOperationAttachment::RenderOperationAttachment()
+  : name{ }, operationLayout{ VK_IMAGE_LAYOUT_UNDEFINED }, loadOperation{ loadOpDontCare() }
+{
+
+}
+
+
+RenderOperationAttachment::RenderOperationAttachment(const std::string& n, VkImageLayout l)
+  : name{ n }, operationLayout{ l }, loadOperation{ loadOpDontCare() }
+{
+}
+
+RenderOperationAttachment::RenderOperationAttachment(const std::string& n, VkImageLayout l, LoadOp op)
+  : name{ n }, operationLayout{ l }, loadOperation{ op }
+{
+}
+
+RenderOperation::RenderOperation()
+  : name{ "undefined" }, operationType{ RenderOperation::Graphics }
+{
+
+}
+
+
+RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t)
+  : name{ n }, operationType{ t }
+{
+}
+
+void RenderOperation::addAttachmentInput(const RenderOperationAttachment& opAttachment)
+{
+  inputAttachments[opAttachment.name] = opAttachment;
+}
+void RenderOperation::addAttachmentOutput(const RenderOperationAttachment& opAttachment)
+{
+  outputAttachments[opAttachment.name] = opAttachment;
+}
+
+void RenderOperation::addResolveOutput(const RenderOperationAttachment& opAttachment)
+{
+  resolveAttachments[opAttachment.name] = opAttachment;
+}
+
+void RenderOperation::setDepthOutput(const RenderOperationAttachment& opAttachment)
+{
+  depthAttachment = opAttachment;
+}
+
+RenderWorkflowAttachment::RenderWorkflowAttachment(const std::string& n, AttachmentType at, VkFormat f, VkSampleCountFlagBits s, AttachmentSize st, glm::vec2 is, bool p)
+  : name { n }, attachmentType{ at }, format{ f }, samples{ s }, sizeType{ st }, imageSize{ is }, persistent{ p }
+{
+}
+
+RenderWorkflow::RenderWorkflow(const std::string& n, const std::vector<RenderWorkflowAttachment>& atts)
+  : name{ n }
+{
+  for(auto& s : atts)
+    attachments[s.name] = s;
+}
+
+RenderWorkflow::~RenderWorkflow()
+{
+
+}
+
+RenderOperation& RenderWorkflow::addRenderOperation(const RenderOperation& op)
+{
+  renderOperations[op.name] = op;
+  return renderOperations[op.name];
+}
+
+RenderOperation& RenderWorkflow::getOperation(const std::string& opName)
+{
+  auto it = renderOperations.find(opName);
+  CHECK_LOG_THROW(it == renderOperations.end(), "RenderWorkflow : there is no operation with name " + opName);
+  return it->second;
+}
+
+const RenderOperation& RenderWorkflow::getOperation(const std::string& opName) const
+{
+  auto it = renderOperations.find(opName);
+  CHECK_LOG_THROW(it == renderOperations.end(), "RenderWorkflow : there is no operation with name " + opName);
+  return it->second;
+}
+
+void topologicalSort(std::vector<std::string>& results, const std::vector<std::string>& nodesToSort, const std::unordered_multimap<std::string, std::string>& nodeInputs, const std::unordered_multimap<std::string, std::string>& nodeOutputs)
+{
+  results.clear();
+  // make a copy of parameters
+  std::set<std::string> nodes;
+  for (const auto& n : nodesToSort)
+    nodes.insert(n);
+  auto inputs     = nodeInputs;
+  auto outputs    = nodeOutputs;
+  while (nodes.size() > 0)
+  {
+    uint32_t sortedNodes = 0;
+    for (auto nit = nodes.begin(); nit!=nodes.end(); )
+    {
+      // add to results all nodes that have no inputs
+      auto inputPair = inputs.equal_range(*nit);
+      if (inputPair.first != inputPair.second)
+      {
+        ++nit;
+        continue;
+      }
+      results.push_back(*nit);
+      ++sortedNodes;
+      // remove outputs of nit, but copy it to temporary storage for now
+      auto outputPair = outputs.equal_range(*nit);
+      std::set<std::string> inputsToDelete;
+      for (auto it = outputPair.first; it != outputPair.second; ++it)
+        inputsToDelete.insert(it->second);
+      outputs.erase(outputPair.first, outputPair.second);
+      // ok, now remove all inputs, where name is equal to one of outputs of nit
+      for (auto it = inputs.begin(); it != inputs.end(); )
+      {
+        if (inputsToDelete.find(it->second) != inputsToDelete.end())
+          it = inputs.erase(it);
+        else
+          ++it;
+      }
+      nit = nodes.erase(nit);
+    }
+    CHECK_LOG_THROW(sortedNodes == 0, "topologicalSort : check your workflow for cycles, missing inputs/outputs...");
+  }
+}
+
+void groupOperations(std::vector<std::vector<std::string>>& groupedOperations, const std::vector<std::string>& sortedOperations, const std::unordered_multimap<std::string, std::string>& operationInputs, const std::unordered_multimap<std::string, std::string>& operationOutputs)
+{
+  groupedOperations.clear();
+
+}
+
+
+void RenderWorkflow::compile()
+{
+  std::vector<std::string> operations, sortedOperations;
+  std::unordered_multimap<std::string, std::string> operationInputs, operationOutputs;
+  // fill table with input and output names
+  for (auto opit : renderOperations)
+  {
+    operations.push_back(opit.first);
+    for (auto it : opit.second.inputAttachments)
+      operationInputs.insert( { opit.first, it.first } );
+    for (auto out : opit.second.outputAttachments)
+      operationOutputs.insert( { opit.first, out.first } );
+    for (auto out : opit.second.resolveAttachments)
+      operationOutputs.insert( { opit.first, out.first } );
+    if(!opit.second.depthAttachment.name.empty())
+      operationOutputs.insert( { opit.first, opit.second.depthAttachment.name } );
+  }
+  // sort topologically, so that creation of inputs predates using them as outputs
+  topologicalSort(sortedOperations, operations, operationInputs, operationOutputs);
+  // group operations into render passes
+  std::vector<std::vector<std::string>> groupedOperations;
+  groupOperations(groupedOperations, sortedOperations, operationInputs, operationOutputs);
+
+
+
+}
+
+
+
+
+/***********************/
 
 AttachmentDefinition::AttachmentDefinition(uint32_t id, VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
   : imageDefinitionIndex{ id }, format{ f }, samples{ s }, loadOp { lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }

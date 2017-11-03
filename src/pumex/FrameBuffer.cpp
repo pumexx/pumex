@@ -29,8 +29,8 @@
 namespace pumex
 {
 
-FrameBufferImageDefinition::FrameBufferImageDefinition(Type t, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, bool issd, const glm::vec2& is, const gli::swizzles& sw)
-  : type{ t }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, imageSizeSurfaceDependent{ issd }, imageSize{ is }, swizzles{ sw }
+FrameBufferImageDefinition::FrameBufferImageDefinition(Type t, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, Size st, const glm::vec2& is, const gli::swizzles& sw)
+  : type{ t }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, sizeType{ st }, imageSize{ is }, swizzles{ sw }
 {
 }
 
@@ -61,17 +61,22 @@ void FrameBufferImages::validate(Surface* surface)
     if (definition.type == FrameBufferImageDefinition::SwapChain)
       continue;
     VkExtent3D imSize;
-    if (definition.imageSizeSurfaceDependent)
+    switch (definition.sizeType)
+    {
+    case FrameBufferImageDefinition::SurfaceDependent:
     {
       imSize.width  = surface->swapChainSize.width  * definition.imageSize.x;
       imSize.height = surface->swapChainSize.height * definition.imageSize.y;
       imSize.depth  = 1;
+      break;
     }
-    else
+    case FrameBufferImageDefinition::Absolute:
     {
       imSize.width  = definition.imageSize.x;
       imSize.height = definition.imageSize.y;
       imSize.depth  = 1;
+      break;
+    }
     }
     ImageTraits imageTraits(definition.usage, definition.format, imSize, false, 1, 1,
       definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,

@@ -34,6 +34,112 @@ namespace pumex
 
 class Device;
 
+struct PUMEX_EXPORT LoadOp
+{
+  enum Type { Load, Clear, DontCare };
+  LoadOp() = delete;
+  LoadOp(Type lType, const glm::vec4& color)
+    : loadType{ lType }, clearColor{ color }
+  {
+  }
+
+  Type loadType;
+  glm::vec4 clearColor;
+};
+
+inline LoadOp loadOpLoad();
+inline LoadOp loadOpClear(const glm::vec4& color = glm::vec4(0.0f));
+inline LoadOp loadOpDontCare();
+
+struct PUMEX_EXPORT StoreOp
+{
+  enum Type { Store, DontCare };
+  StoreOp() = delete;
+  StoreOp(Type sType)
+    : storeType{ sType }
+  {
+  }
+  Type storeType;
+};
+
+inline StoreOp storeOpStore();
+inline StoreOp storeOpDontCare();
+
+class PUMEX_EXPORT RenderOperationAttachment
+{
+public:
+  RenderOperationAttachment();
+  RenderOperationAttachment(const std::string& name, VkImageLayout operationLayout);
+  RenderOperationAttachment(const std::string& name, VkImageLayout operationLayout, LoadOp loadOperation);
+
+  std::string   name;
+  VkImageLayout operationLayout;
+  LoadOp        loadOperation;
+};
+
+class PUMEX_EXPORT RenderOperation
+{
+public:
+  enum Type { Graphics, Compute };
+  RenderOperation();
+  RenderOperation(const std::string& name, Type operationType);
+
+  void addAttachmentInput(const RenderOperationAttachment& roAttachment);
+  void addAttachmentOutput(const RenderOperationAttachment& attachmentConfig);
+  void addResolveOutput(const RenderOperationAttachment& attachmentConfig);
+  void setDepthOutput(const RenderOperationAttachment& attachmentConfig);
+
+  std::string                                                name;
+  Type                                                       operationType;
+  std::unordered_map<std::string, RenderOperationAttachment> inputAttachments;
+  std::unordered_map<std::string, RenderOperationAttachment> outputAttachments;
+  std::unordered_map<std::string, RenderOperationAttachment> resolveAttachments;
+  RenderOperationAttachment                                  depthAttachment;
+  bool                                                       enabled;
+};
+
+enum AttachmentType { atSurface, atColor, atDepth };
+enum AttachmentSize { asAbsolute, asSurfaceDependent };
+
+class PUMEX_EXPORT RenderWorkflowAttachment
+{
+public:
+  RenderWorkflowAttachment() = default;
+  RenderWorkflowAttachment(const std::string& name, AttachmentType attachmentType, VkFormat format, VkSampleCountFlagBits samples, AttachmentSize sizeType, glm::vec2 imageSize, bool persistent);
+
+  std::string           name;
+  AttachmentType        attachmentType;
+  VkFormat              format;
+  VkSampleCountFlagBits samples;
+  AttachmentSize        sizeType;
+  glm::vec2             imageSize;
+  bool                  persistent;
+};
+
+class PUMEX_EXPORT RenderWorkflow
+{
+public:
+  RenderWorkflow()                                 = delete;
+  explicit RenderWorkflow(const std::string& name, const std::vector<RenderWorkflowAttachment>& attachments);
+  RenderWorkflow(const RenderWorkflow&)            = delete;
+  RenderWorkflow& operator=(const RenderWorkflow&) = delete;
+  ~RenderWorkflow();
+
+  RenderOperation&       addRenderOperation(const RenderOperation& op);
+  inline RenderOperation&       getOperation(const std::string& opName);
+  inline const RenderOperation& getOperation(const std::string& opName) const;
+  //  void buildRenderPasses();
+  void compile();
+//  void createFrameBuffer();
+
+  std::string                                               name;
+  std::unordered_map<std::string, RenderWorkflowAttachment> attachments;
+  std::unordered_map<std::string, RenderOperation>          renderOperations;
+};
+
+
+/***************************/
+
 // VkAttachmentDescription wrapper
 struct PUMEX_EXPORT AttachmentDefinition
 {
@@ -119,5 +225,12 @@ protected:
   mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
+
+LoadOp  loadOpLoad()                        { return LoadOp(LoadOp::Load, glm::vec4(0.0f)); }
+LoadOp  loadOpClear(const glm::vec4& color) { return LoadOp(LoadOp::Clear, color); }
+LoadOp  loadOpDontCare()                    { return LoadOp(LoadOp::DontCare, glm::vec4(0.0f));}
+StoreOp storeOpStore()                      { return StoreOp(StoreOp::Store); }
+StoreOp storeOpDontCare()                   { return StoreOp(StoreOp::DontCare); }
+
 	
 }

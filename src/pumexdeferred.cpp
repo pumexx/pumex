@@ -802,6 +802,36 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
+    std::vector<pumex::RenderWorkflowAttachment> workflowAttachments = 
+    {
+      { "position", pumex::atColor,   VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), false },
+      { "normal",   pumex::atColor,   VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), false },
+      { "albedo",   pumex::atColor,   VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), false },
+      { "pbr",      pumex::atColor,   VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), false },
+      { "depth",    pumex::atDepth,   VK_FORMAT_D24_UNORM_S8_UINT,   VK_SAMPLE_COUNT_4_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), false },
+      { "resolve",  pumex::atColor,   VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), false },
+      { "color",    pumex::atSurface, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::asSurfaceDependent, glm::vec2(1.0f,1.0f), true }
+    };
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", workflowAttachments);
+
+    auto& gBufferOp = workflow->addRenderOperation({ "gbuffer", pumex::RenderOperation::Graphics });
+    gBufferOp.addAttachmentOutput({ "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) });
+    gBufferOp.addAttachmentOutput({ "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)) });
+    gBufferOp.addAttachmentOutput({ "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)) });
+    gBufferOp.addAttachmentOutput({ "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)) });
+    gBufferOp.setDepthOutput(     { "depth",    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) });
+
+    auto& lightingOp = workflow->addRenderOperation({ "lighting", pumex::RenderOperation::Graphics });
+    lightingOp.addAttachmentInput( { "position", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+    lightingOp.addAttachmentInput( { "normals",  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+    lightingOp.addAttachmentInput( { "albedo",   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+    lightingOp.addAttachmentInput( { "pbr",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+    lightingOp.addResolveOutput(   { "resolve",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare() });
+    lightingOp.addAttachmentOutput({ "color",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare() });
+
+    // testing
+    workflow->compile();
+
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {
       // 0. output image

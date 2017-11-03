@@ -408,7 +408,7 @@ void CommandBuffer::queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& w
 }
 
 PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask)
-  : mType(Memory)
+  : mType{ Memory }
 {
   memoryBarrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
   memoryBarrier.pNext         = nullptr;
@@ -417,7 +417,7 @@ PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstA
 }
 
 PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size)
-  : mType(Buffer)
+  : mType{ Buffer }
 {
   bufferBarrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
   bufferBarrier.pNext               = nullptr;
@@ -431,7 +431,7 @@ PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstA
 }
 
 PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkDescriptorBufferInfo bufferInfo)
-  : mType(Buffer)
+  : mType{ Buffer }
 {
   bufferBarrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
   bufferBarrier.pNext               = nullptr;
@@ -446,7 +446,7 @@ PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstA
 
 
 PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImage image, VkImageSubresourceRange subresourceRange)
-  : mType(Image)
+  : mType{ Image }
 {
   imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   imageBarrier.pNext               = nullptr;

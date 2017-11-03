@@ -38,16 +38,19 @@ namespace pumex
 class Surface;
 class Image;
 
+
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
   enum Type { SwapChain, Depth, Color };
-  FrameBufferImageDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, bool imageSizeSurfaceDependentconst = true, const glm::vec2& imageSize = glm::vec2(1.0f,1.0f), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  enum Size { Absolute, SurfaceDependent };
+
+  FrameBufferImageDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, Size sizeType = SurfaceDependent, const glm::vec2& imageSize = glm::vec2(1.0f,1.0f), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
   Type                  type;
   VkFormat              format;
   VkImageUsageFlags     usage;
   VkImageAspectFlags    aspectMask;
   VkSampleCountFlagBits samples;
-  bool                  imageSizeSurfaceDependent;
+  Size                  sizeType;
   glm::vec2             imageSize;
   gli::swizzles         swizzles;
 };
