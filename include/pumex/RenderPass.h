@@ -65,14 +65,48 @@ struct PUMEX_EXPORT StoreOp
 inline StoreOp storeOpStore();
 inline StoreOp storeOpDontCare();
 
-class PUMEX_EXPORT RenderOperationAttachment
+enum AttachmentType { atSurface, atColor, atDepth };
+enum AttachmentSize { asUndefined, asAbsolute, asSurfaceDependent };
+
+class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
-  RenderOperationAttachment();
-  RenderOperationAttachment(const std::string& name, VkImageLayout operationLayout);
-  RenderOperationAttachment(const std::string& name, VkImageLayout operationLayout, LoadOp loadOperation);
+  enum MetaType { Undefined, Attachment, Image, Buffer };
+  RenderWorkflowResourceType();
+  RenderWorkflowResourceType(const std::string& typeName, VkFormat format, VkSampleCountFlagBits samples, bool persistent, AttachmentType attachmentType, AttachmentSize sizeType, glm::vec2 imageSize);
+
+  MetaType              metaType;
+  std::string           typeName;
+  VkFormat              format;
+  VkSampleCountFlagBits samples;
+  bool                  persistent;
+
+  struct AttachmentData
+  {
+    AttachmentData(AttachmentType at, AttachmentSize st, glm::vec2 is)
+      :attachmentType{ at }, sizeType{ st }, imageSize{ is }
+    {
+    }
+    AttachmentType        attachmentType;
+    AttachmentSize        sizeType;
+    glm::vec2             imageSize;
+  };
+
+  union
+  {
+    AttachmentData attachment;
+  };
+};
+
+class PUMEX_EXPORT WorkflowResource
+{
+public:
+  WorkflowResource();
+  WorkflowResource(const std::string& name, const std::string& typeName, VkImageLayout operationLayout);
+  WorkflowResource(const std::string& name, const std::string& typeName, VkImageLayout operationLayout, LoadOp loadOperation);
 
   std::string   name;
+  std::string   typeName;
   VkImageLayout operationLayout;
   LoadOp        loadOperation;
 };
@@ -81,60 +115,72 @@ class PUMEX_EXPORT RenderOperation
 {
 public:
   enum Type { Graphics, Compute };
+  enum IOType { AttachmentInput = 1, AttachmentOutput = 2, AttachmentResolveOutput = 4, AttachmentDepthOutput = 8, 
+    AllAttachments = (AttachmentInput | AttachmentOutput | AttachmentResolveOutput | AttachmentDepthOutput), 
+    AllInputs  = (AttachmentInput),
+    AllOutputs = (AttachmentOutput | AttachmentResolveOutput | AttachmentDepthOutput),
+    AllInputsOutputs = ( AllInputs | AllOutputs ) };
   RenderOperation();
   RenderOperation(const std::string& name, Type operationType);
 
-  void addAttachmentInput(const RenderOperationAttachment& roAttachment);
-  void addAttachmentOutput(const RenderOperationAttachment& attachmentConfig);
-  void addResolveOutput(const RenderOperationAttachment& attachmentConfig);
-  void setDepthOutput(const RenderOperationAttachment& attachmentConfig);
+  void addAttachmentInput(const WorkflowResource& roAttachment);
+  void addAttachmentOutput(const WorkflowResource& attachmentConfig);
+  void addAttachmentResolveOutput(const WorkflowResource& attachmentConfig);
+  void setAttachmentDepthOutput(const WorkflowResource& attachmentConfig);
 
-  std::string                                                name;
-  Type                                                       operationType;
-  std::unordered_map<std::string, RenderOperationAttachment> inputAttachments;
-  std::unordered_map<std::string, RenderOperationAttachment> outputAttachments;
-  std::unordered_map<std::string, RenderOperationAttachment> resolveAttachments;
-  RenderOperationAttachment                                  depthAttachment;
-  bool                                                       enabled;
+  std::vector<const WorkflowResource*> getInputsOutputs(IOType ioTypes) const;
+
+  std::string                                       name;
+  Type                                              operationType;
+  std::unordered_map<std::string, WorkflowResource> inputAttachments;
+  std::unordered_map<std::string, WorkflowResource> outputAttachments;
+  std::unordered_map<std::string, WorkflowResource> resolveAttachments;
+  WorkflowResource                                  depthAttachment;
+  bool                                              enabled;
 };
 
-enum AttachmentType { atSurface, atColor, atDepth };
-enum AttachmentSize { asAbsolute, asSurfaceDependent };
+class PUMEX_EXPORT RenderWorkflow;
 
-class PUMEX_EXPORT RenderWorkflowAttachment
+class PUMEX_EXPORT RenderWorkflowCompiler
 {
 public:
-  RenderWorkflowAttachment() = default;
-  RenderWorkflowAttachment(const std::string& name, AttachmentType attachmentType, VkFormat format, VkSampleCountFlagBits samples, AttachmentSize sizeType, glm::vec2 imageSize, bool persistent);
-
-  std::string           name;
-  AttachmentType        attachmentType;
-  VkFormat              format;
-  VkSampleCountFlagBits samples;
-  AttachmentSize        sizeType;
-  glm::vec2             imageSize;
-  bool                  persistent;
+  virtual void compile(RenderWorkflow& workflow) = 0;
 };
 
 class PUMEX_EXPORT RenderWorkflow
 {
 public:
   RenderWorkflow()                                 = delete;
-  explicit RenderWorkflow(const std::string& name, const std::vector<RenderWorkflowAttachment>& attachments);
-  RenderWorkflow(const RenderWorkflow&)            = delete;
-  RenderWorkflow& operator=(const RenderWorkflow&) = delete;
+  explicit RenderWorkflow(const std::string& name);
+//  RenderWorkflow(const RenderWorkflow&)            = delete;
+//  RenderWorkflow& operator=(const RenderWorkflow&) = delete;
   ~RenderWorkflow();
 
-  RenderOperation&       addRenderOperation(const RenderOperation& op);
-  inline RenderOperation&       getOperation(const std::string& opName);
-  inline const RenderOperation& getOperation(const std::string& opName) const;
-  //  void buildRenderPasses();
-  void compile();
-//  void createFrameBuffer();
+  void                              addResourceType(const RenderWorkflowResourceType& tp);
+  const RenderWorkflowResourceType& getResourceType(const std::string& typeName) const;
 
-  std::string                                               name;
-  std::unordered_map<std::string, RenderWorkflowAttachment> attachments;
-  std::unordered_map<std::string, RenderOperation>          renderOperations;
+  RenderOperation&                  addRenderOperation(const RenderOperation& op);
+  const RenderOperation&            getOperation(const std::string& opName) const;
+
+  void getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes, std::vector<glm::vec2>& imageSizes) const;
+  std::vector<const RenderOperation*> findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const;
+  std::vector<std::string> findFinalOperations() const;
+
+  void compile(RenderWorkflowCompiler* compiler);
+
+  std::string                                                 name;
+  std::unordered_map<std::string, RenderWorkflowResourceType> resourceTypes;
+  std::unordered_map<std::string, RenderOperation>            renderOperations;
+};
+
+class PUMEX_EXPORT StandardRenderWorkflowCompiler : public RenderWorkflowCompiler
+{
+public:
+  void compile(RenderWorkflow& workflow) override;
+private:
+  void                                    verifyOperations(RenderWorkflow& workflow);
+  std::vector<std::string>                scheduleOperations(RenderWorkflow& workflow);
+
 };
 
 
@@ -232,5 +278,4 @@ LoadOp  loadOpDontCare()                    { return LoadOp(LoadOp::DontCare, gl
 StoreOp storeOpStore()                      { return StoreOp(StoreOp::Store); }
 StoreOp storeOpDontCare()                   { return StoreOp(StoreOp::DontCare); }
 
-	
 }
