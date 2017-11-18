@@ -21,6 +21,7 @@
 //
 
 #include <pumex/FrameBuffer.h>
+#include <pumex/RenderPass.h>
 #include <pumex/Texture.h>
 #include <pumex/Surface.h>
 #include <pumex/Command.h>
@@ -29,8 +30,8 @@
 namespace pumex
 {
 
-FrameBufferImageDefinition::FrameBufferImageDefinition(Type t, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, Size st, const glm::vec2& is, const gli::swizzles& sw)
-  : type{ t }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, sizeType{ st }, imageSize{ is }, swizzles{ sw }
+FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, const AttachmentSize& as, const gli::swizzles& sw)
+  : attachmentType{ at }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, attachmentSize{ as }, swizzles{ sw }
 {
 }
 
@@ -58,22 +59,22 @@ void FrameBufferImages::validate(Surface* surface)
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
   {
     FrameBufferImageDefinition& definition = imageDefinitions[i];
-    if (definition.type == FrameBufferImageDefinition::SwapChain)
+    if (definition.attachmentType == atSurface)
       continue;
     VkExtent3D imSize;
-    switch (definition.sizeType)
+    switch (definition.attachmentSize.attachmentSize)
     {
-    case FrameBufferImageDefinition::SurfaceDependent:
+    case astSurfaceDependent:
     {
-      imSize.width  = surface->swapChainSize.width  * definition.imageSize.x;
-      imSize.height = surface->swapChainSize.height * definition.imageSize.y;
+      imSize.width  = surface->swapChainSize.width  * definition.attachmentSize.imageSize.x;
+      imSize.height = surface->swapChainSize.height * definition.attachmentSize.imageSize.y;
       imSize.depth  = 1;
       break;
     }
-    case FrameBufferImageDefinition::Absolute:
+    case astAbsolute:
     {
-      imSize.width  = definition.imageSize.x;
-      imSize.height = definition.imageSize.y;
+      imSize.width  = definition.attachmentSize.imageSize.x;
+      imSize.height = definition.attachmentSize.imageSize.y;
       imSize.depth  = 1;
       break;
     }
@@ -111,9 +112,9 @@ Image* FrameBufferImages::getImage(Surface* surface, uint32_t imageIndex)
 FrameBufferImageDefinition FrameBufferImages::getSwapChainDefinition()
 {
   for (const auto& d : imageDefinitions)
-    if (d.type == FrameBufferImageDefinition::SwapChain)
+    if (d.attachmentType == atSurface)
       return d;
-  return FrameBufferImageDefinition(FrameBufferImageDefinition::SwapChain, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT);
+  return FrameBufferImageDefinition(atSurface, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT);
 }
 
 FrameBuffer::FrameBuffer(std::shared_ptr<RenderPass> rp, std::shared_ptr<FrameBufferImages> fbi)
@@ -162,7 +163,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
   {
     AttachmentDefinition& definition          = rp->attachments[i];
     FrameBufferImageDefinition& fbiDefinition = fbi->imageDefinitions[definition.imageDefinitionIndex];
-    if (fbiDefinition.type == FrameBufferImageDefinition::SwapChain)
+    if (fbiDefinition.attachmentType == atSurface)
     {
       imageViews[i] = VK_NULL_HANDLE;
       continue;
@@ -187,7 +188,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
     {
       AttachmentDefinition& definition          = rp->attachments[j];
       FrameBufferImageDefinition& fbiDefinition = fbi->imageDefinitions[definition.imageDefinitionIndex];
-      if (fbiDefinition.type == FrameBufferImageDefinition::SwapChain)
+      if (fbiDefinition.attachmentType == atSurface)
         imageViews[j] = swapChainImages[i]->getImageView();
     }
 

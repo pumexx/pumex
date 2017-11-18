@@ -27,10 +27,10 @@
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
-#include <pumex/RenderPass.h>
 #include <pumex/Pipeline.h>
 #include <pumex/Command.h>
 #include <pumex/DeviceMemoryAllocator.h>
+#include <pumex/RenderWorkflow.h>
 
 namespace pumex
 {
@@ -41,17 +41,15 @@ class Image;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
-  enum Type { SwapChain, Depth, Color };
-  enum Size { Absolute, SurfaceDependent };
-
-  FrameBufferImageDefinition(Type type, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, Size sizeType = SurfaceDependent, const glm::vec2& imageSize = glm::vec2(1.0f,1.0f), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
-  Type                  type;
+  FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const AttachmentSize& attachmentSize = AttachmentSize(astSurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  AttachmentType        attachmentType;
   VkFormat              format;
   VkImageUsageFlags     usage;
   VkImageAspectFlags    aspectMask;
   VkSampleCountFlagBits samples;
-  Size                  sizeType;
-  glm::vec2             imageSize;
+  AttachmentSize        attachmentSize;
+//  Size                  sizeType;
+//  glm::vec2             imageSize;
   gli::swizzles         swizzles;
 };
 
