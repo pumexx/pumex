@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <pumex/Device.h>
 #include <pumex/utils/Log.h>
+#include <pumex/FrameBuffer.h>
 #include <sstream>
 #include <iterator>
 
@@ -35,10 +36,11 @@ RenderWorkflowResourceType::RenderWorkflowResourceType()
 
 }
 
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, VkFormat f, VkSampleCountFlagBits s, bool p, AttachmentType at, AttachmentSize st, glm::vec2 is)
-  : metaType{ Attachment }, typeName{ tn }, format{ f }, samples{ s }, persistent{ p }, attachment{ at, st, is }
+RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, VkFormat f, VkSampleCountFlagBits s, bool p, AttachmentType at, const AttachmentSize& as)
+  : metaType{ Attachment }, typeName{ tn }, format{ f }, samples{ s }, persistent{ p }, attachment{ at, as }
 {
 }
+
 
 WorkflowResource::WorkflowResource()
   : name{ }, operationLayout{ VK_IMAGE_LAYOUT_UNDEFINED }, loadOperation{ loadOpDontCare() }
@@ -56,15 +58,67 @@ WorkflowResource::WorkflowResource(const std::string& n, const std::string& tn, 
 {
 }
 
-RenderOperation::RenderOperation()
-  : name{ "undefined" }, operationType{ RenderOperation::Graphics }
-{
+//VkImageUsageFlags WorkflowResource::getUsage() const
+//{
+//  switch (metaType)
+//  {
+//  case Attachment:
+//    switch (attachment.attachmentType)
+//    {
+//    case atSurface:
+//    case atColor:
+//      return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+//    case atDepth:
+//      return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+//    }
+//    //      VK_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
+//    //      VK_IMAGE_USAGE_TRANSFER_DST_BIT = 0x00000002,
+//    //      VK_IMAGE_USAGE_SAMPLED_BIT = 0x00000004,
+//    //      VK_IMAGE_USAGE_STORAGE_BIT = 0x00000008,
+//    //      VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT = 0x00000040,
+//    //      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT = 0x00000080,
+//
+//  }
+//}
 
+
+Node::Node()
+{
 }
 
+Node::~Node()
+{
+  parents.clear();
+}
 
-RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t)
-  : name{ n }, operationType{ t }
+ComputeNode::ComputeNode()
+  : Node()
+{
+}
+
+ComputeNode::~ComputeNode()
+{
+}
+
+NodeGroup::NodeGroup()
+{
+}
+
+NodeGroup::~NodeGroup()
+{
+  children.clear();
+}
+
+void NodeGroup::addChild(std::shared_ptr<Node> child)
+{
+}
+
+RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, VkSubpassContents sc)
+  : name{ n }, operationType{ t }, subpassContents{ sc }
+{
+}
+
+RenderOperation::~RenderOperation()
 {
 }
 
@@ -85,6 +139,26 @@ void RenderOperation::addAttachmentResolveOutput(const WorkflowResource& opAttac
 void RenderOperation::setAttachmentDepthOutput(const WorkflowResource& opAttachment)
 {
   depthAttachment = opAttachment;
+}
+
+GraphicsOperation::GraphicsOperation(const std::string& n, VkSubpassContents sc)
+  : RenderOperation(n, RenderOperation::Graphics, sc)
+{
+}
+
+void GraphicsOperation::setNode(std::shared_ptr<Node> node)
+{
+  renderNode = node;
+}
+
+ComputeOperation::ComputeOperation(const std::string& n, VkSubpassContents sc)
+  : RenderOperation(n, RenderOperation::Compute, sc)
+{
+}
+
+void ComputeOperation::setNode(std::shared_ptr<ComputeNode> node)
+{
+  computeNode = node;
 }
 
 std::vector<const WorkflowResource*> RenderOperation::getInputsOutputs(IOType ioTypes) const
@@ -113,8 +187,8 @@ std::vector<const WorkflowResource*> RenderOperation::getInputsOutputs(IOType io
   return results;
 }
 
-RenderWorkflow::RenderWorkflow(const std::string& n)
-  : name{ n }
+RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<pumex::RenderWorkflowCompiler> c)
+  : name{ n }, compiler{ c }
 {
 }
 
@@ -128,12 +202,16 @@ void RenderWorkflow::addResourceType(const RenderWorkflowResourceType& tp)
   resourceTypes[tp.typeName] = tp;
 }
 
-
-RenderOperation& RenderWorkflow::addRenderOperation(const RenderOperation& op)
+void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
 {
-  renderOperations[op.name] = op;
-  return renderOperations[op.name];
+  renderOperations[op->name] = op;
 }
+
+void RenderWorkflow::addQueue(const QueueTraits& qt)
+{
+  queueTraits.push_back(qt);
+}
+
 
 const RenderWorkflowResourceType& RenderWorkflow::getResourceType(const std::string& typeName) const
 {
@@ -142,31 +220,31 @@ const RenderWorkflowResourceType& RenderWorkflow::getResourceType(const std::str
   return it->second;
 }
 
-const RenderOperation& RenderWorkflow::getOperation(const std::string& opName) const
+std::shared_ptr<RenderOperation> RenderWorkflow::getOperation(const std::string& opName) const
 {
   auto it = renderOperations.find(opName);
   CHECK_LOG_THROW(it == renderOperations.end(), "RenderWorkflow : there is no operation with name " + opName);
   return it->second;
 }
 
-void RenderWorkflow::getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes, std::vector<glm::vec2>& imageSizes) const
+
+void RenderWorkflow::getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes) const
 {
   for (auto rit = resources.begin(); rit != resources.end(); ++rit)
   {
     auto& rType = getResourceType((*rit)->typeName);
     if (rType.metaType != RenderWorkflowResourceType::Attachment)
       continue;
-    attachmentSizes.push_back(rType.attachment.sizeType);
-    imageSizes.push_back(rType.attachment.imageSize);
+    attachmentSizes.push_back(rType.attachment.attachmentSize);
   }
 }
 
-std::vector<const RenderOperation*> RenderWorkflow::findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const
+std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const
 {
-  std::vector<const RenderOperation*> results;
+  std::vector<std::shared_ptr<RenderOperation>> results;
   for (auto it = renderOperations.begin(); it != renderOperations.end(); ++it)
   {
-    auto ioObjectsX = it->second.getInputsOutputs(ioTypes);
+    auto ioObjectsX = it->second->getInputsOutputs(ioTypes);
     bool found = false;
     for (auto iit = ioObjects.begin(); iit != ioObjects.end(); ++iit)
     {
@@ -182,21 +260,21 @@ std::vector<const RenderOperation*> RenderWorkflow::findOperations(RenderOperati
         break;
     }
     if (found)
-      results.push_back(&(it->second));
+      results.push_back(it->second);
   }
   return results;
 }
 
-std::vector<std::string> RenderWorkflow::findFinalOperations() const
+std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::findFinalOperations() const
 {
-  std::vector<std::string> finalOperations;
+  std::vector<std::shared_ptr<RenderOperation>> finalOperations;
   for (auto oit = renderOperations.begin(); oit != renderOperations.end(); ++oit )
   {
-    auto outputs = oit->second.getInputsOutputs(RenderOperation::AllOutputs);
+    auto outputs = oit->second->getInputsOutputs(RenderOperation::AllOutputs);
     bool connected = false;
     for (auto iit = renderOperations.begin(); iit != renderOperations.end(); ++iit)
     {
-      auto inputs = iit->second.getInputsOutputs(RenderOperation::AllInputs);
+      auto inputs = iit->second->getInputsOutputs(RenderOperation::AllInputs);
       // check if operation oit has some outputs that are connected to inputs of operation iit
       for (auto ot : outputs)
       {
@@ -215,26 +293,210 @@ std::vector<std::string> RenderWorkflow::findFinalOperations() const
         break;
     }
     if (!connected)
-      finalOperations.push_back(oit->first);
+      finalOperations.push_back(oit->second);
   }
   return finalOperations;
 }
 
-
-
-void RenderWorkflow::compile(RenderWorkflowCompiler* compiler)
+void RenderWorkflow::compile()
 {
   compiler->compile(*this);
 };
+
+void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const RenderWorkflow& workflow)
+{
+  std::unordered_map<int, AttachmentSize> tags;
+  attachmentTag.clear();
+  int currentTag = 0;
+  for (auto opit : workflow.renderOperations)
+  {
+    if (opit.second->operationType != RenderOperation::Graphics)
+    {
+      attachmentTag.insert({ opit.first, currentTag++ });
+      continue;
+    }
+    auto opAttachments = opit.second->getInputsOutputs(RenderOperation::AllAttachments);
+    std::vector<AttachmentSize> attachmentSizes;
+    workflow.getAttachmentSizes(opAttachments, attachmentSizes);
+    // operations have the same sizes - just take the first one
+    AttachmentSize atSize = attachmentSizes.empty() ? AttachmentSize() : attachmentSizes[0];
+    int tagFound = -1;
+    for (auto tit : tags)
+    {
+      if (tit.second == atSize)
+      {
+        tagFound = tit.first;
+        break;
+      }
+    }
+    if (tagFound < 0)
+    {
+      tagFound = currentTag++;
+      tags.insert({ tagFound, atSize });
+    }
+    attachmentTag.insert({ opit.first, tagFound });
+  }
+}
+
+float StandardRenderWorkflowCostCalculator::calculateWorkflowCost(const RenderWorkflow& workflow, const std::vector<std::shared_ptr<RenderOperation>>& operationSchedule) const
+{
+  if (operationSchedule.empty())
+    return 0.0f;
+  float result = 0.0f;
+  int tag = attachmentTag.at(operationSchedule[0]->name);
+  for (int i = 1; i < operationSchedule.size(); ++i)
+  {
+    int newTag = attachmentTag.at(operationSchedule[i]->name);
+    if (newTag != tag)
+      result += 10.0f;
+    tag = newTag;
+  }
+  return result;
+}
+
+// note the lack of references in parameters - workflow is copied here
+std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(RenderWorkflow workflow, std::shared_ptr<RenderOperation> op, StandardRenderWorkflowCostCalculator* costCalculator)
+{
+  if (op.get() != nullptr)
+    workflow.renderOperations.erase(op->name);
+  std::vector<std::shared_ptr<RenderOperation>> finalOperations = workflow.findFinalOperations();
+  std::vector<std::vector<std::shared_ptr<RenderOperation>>> results;
+  std::vector<float> cost;
+  for (const auto& x : finalOperations)
+  {
+    auto xx = recursiveScheduleOperations(workflow, x, costCalculator);
+    if (op.get() != nullptr)
+      xx.push_back(op);
+    cost.push_back(costCalculator->calculateWorkflowCost(workflow, xx));
+    results.push_back(xx);
+  }
+  if (results.empty())
+  {
+    std::vector<std::shared_ptr<RenderOperation>> res;
+    if (op.get() != nullptr)
+      res.push_back(op);
+    return res;
+  }
+  // return a result with lowest cost
+  auto minit = std::min_element(cost.begin(), cost.end());
+  auto i = std::distance(cost.begin(), minit);
+  return results[i];
+}
 
 void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
 {
   // verify operations
   verifyOperations(workflow);
 
-  // build a vector storing proper sequence of operations
-  std::vector<std::string> operations = scheduleOperations(workflow);
+  // build a vector storing proper sequence of operations - FIXME : IT ONLY WORKS FOR ONE QUEUE NOW.
+  // TARGET FOR THE FUTURE  : build as many operation sequences as there is queues, take VkQueueFlags into consideration
+  // ( be aware that scheduling algorithms may be NP-complete ). Also maintain proper synchronization between queues ( events, semaphores )
 
+  // build sequence of render operations
+  costCalculator.tagOperationByAttachmentType(workflow);
+
+  // FIXME : this should be a loop creating series of command sequences for each existing VkQueue, 
+  // but for now we just create a single command sequence for one queue
+  std::vector<std::vector<std::shared_ptr<RenderCommandSequence>>> newCommandSequences;
+
+  std::vector<const WorkflowResource*> resources;
+  std::unordered_map<std::string, glm::uvec3> resourceOpRange;
+  {
+    // FIXME : IT ONLY GENERATES ONE SEQUENCE NOW, ALSO IGNORES TYPE OF THE QUEUE
+    auto operationSequence = recursiveScheduleOperations(workflow, nullptr, &costCalculator);
+
+    // store info about all resources
+    uint32_t opSeqIndex = 0;
+    collectResources(operationSequence, opSeqIndex, resources, resourceOpRange);
+
+
+    // construct render command sequencess ( render passes, compute passes, we don't use events and semaphores yet - these things are for multiqueue operations )
+    std::vector<std::shared_ptr<RenderCommandSequence>> thisCommandSequence = createCommandSequence(operationSequence);
+
+    newCommandSequences.push_back(thisCommandSequence);
+  }
+
+  // find resources that may be aliased by existing resources
+  auto resourceRemap = shrinkResources(workflow, resources, resourceOpRange);
+  std::vector<const WorkflowResource*> activeResources;
+  for (auto resource : resources)
+  {
+    if (resourceRemap.at(resource->name) == resource->name)
+      activeResources.push_back(resource);
+  }
+  std::unordered_map<std::string, uint32_t> activeResourceIndex;
+  for (uint32_t i = 0; i < activeResources.size(); ++i)
+  {
+    activeResourceIndex.insert({ activeResources[i]->name, i });
+    for (auto rm : resourceRemap)
+    {
+      if(rm.second == activeResources[i]->name)
+        activeResourceIndex.insert({ rm.first, i });
+    }
+  }
+
+  std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions;
+  for (uint32_t i = 0; i < activeResources.size(); ++i)
+  {
+    const WorkflowResource* res = activeResources[i];
+    auto resType = workflow.getResourceType(res->typeName);
+    frameBufferDefinitions.push_back(pumex::FrameBufferImageDefinition(
+      resType.attachment.attachmentType,
+      resType.format,
+      0,
+      getAspectMask(resType.attachment.attachmentType),
+      resType.samples,
+      resType.attachment.attachmentSize.attachmentType,
+      resType.attachment.attachmentSize.imageSize,
+      resType.attachment.swizzles
+    ));
+
+  }
+
+  std::vector<VkImageUsageFlags> usage(activeResources.size());
+  std::fill(usage.begin(), usage.end(), 0);
+
+  // We have render passes and all knowledge about resources. It's time to create framebuffers for them.
+  // We choose to create one framebuffer for each command sequence
+  // (im?)possible alternative : create framebuffer for each of the render passes ( what about compute passes ? )
+  std::vector<std::shared_ptr<pumex::FrameBuffer>> newFrameBuffers;
+
+  for ( auto& commSequences : newCommandSequences )
+  {
+    for (auto& commSeq : commSequences)
+    {
+      switch (commSeq->sequenceType)
+      {
+      case RenderCommandSequence::seqRenderPass:
+      {
+        std::shared_ptr<RenderPass> renderPass = std::dynamic_pointer_cast<RenderPass>(commSeq);
+        for (auto& operation : renderPass->renderOperations)
+        {
+          //mangleOP(operation)
+        }
+        break;
+      }
+      case RenderCommandSequence::seqComputePass:
+      {
+        std::shared_ptr<ComputePass> computePass = std::dynamic_pointer_cast<ComputePass>(commSeq);
+        auto& operation = computePass->computeOperation;
+        //mangleOP(operation)
+        break;
+      }
+      }
+    }
+  }
+
+
+  // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
+  workflow.commandSequences = newCommandSequences;
+  workflow.frameBuffers     = newFrameBuffers;
+
+  // OK, now we have command sequences ( render passes and compute passes with operations defined
+  // We need to build :
+  // - subpasses, attachment definitions and subpass dependencies for render passes
+  // - barriers for compute passes
+  // - frame buffers for render passes ( and compute passes ? )
 }
 
 void StandardRenderWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
@@ -243,14 +505,13 @@ void StandardRenderWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
   // check if all attachments have the same size in each operation
   for (auto it = workflow.renderOperations.cbegin(); it != workflow.renderOperations.end(); ++it)
   {
-    auto opResources = it->second.getInputsOutputs(RenderOperation::AllAttachments);
+    auto opResources = it->second->getInputsOutputs(RenderOperation::AllAttachments);
     std::vector<AttachmentSize> attachmentSizes;
-    std::vector<glm::vec2>      imageSizes;
-    workflow.getAttachmentSizes(opResources, attachmentSizes, imageSizes);
+    workflow.getAttachmentSizes(opResources, attachmentSizes);
     bool sameSize = true;
     for (uint32_t i = 0; i < attachmentSizes.size() - 1; ++i)
     {
-      if (attachmentSizes[i] != attachmentSizes[i + 1] || imageSizes[i] != imageSizes[i + 1])
+      if ( attachmentSizes[i] != attachmentSizes[i + 1] )
       {
         sameSize = false;
         break;
@@ -268,113 +529,121 @@ void StandardRenderWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
   CHECK_LOG_THROW(!results.empty(), "Errors in workflow operations :\n" + results);
 }
 
-struct RenderWorkflowCostCalculator
+void StandardRenderWorkflowCompiler::collectResources(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, uint32_t opSeqIndex, std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange)
 {
-  virtual float calculateWorkflowCost(const RenderWorkflow& workflow, const std::vector<std::string>& operationSchedule) const = 0;
-};
-
-// note the lack of references in parameters - workflow is copied here
-std::vector<std::string> recursiveScheduleOperations(RenderWorkflow workflow, const std::string& op, RenderWorkflowCostCalculator* costCalculator)
-{
-  if(!op.empty())
-    workflow.renderOperations.erase(op);
-  std::vector<std::string> finalOperations = workflow.findFinalOperations();
-  std::vector<std::vector<std::string>> results;
-  std::vector<float> cost;
-  for (const auto& x : finalOperations)
+  for (uint32_t i = 0; i < operationSequence.size(); ++i)
   {
-    auto xx = recursiveScheduleOperations(workflow, x, costCalculator);
-    if(!op.empty())
-      xx.push_back(op);
-    cost.push_back(costCalculator->calculateWorkflowCost(workflow, xx));
-    results.push_back(xx);
-  }
-  if (results.empty())
-  {
-    std::vector<std::string> res;
-    if (!op.empty())
-      res.push_back(op);
-    return res;
-  }
-  // find a result with lowest cost
-  auto minit = std::min_element(cost.begin(), cost.end());
-  auto i = std::distance(cost.begin(), minit);
-  // return it
-  return results[i];
-}
-
-
-struct StandardRenderWorkflowCostCalculator : RenderWorkflowCostCalculator
-{
-  StandardRenderWorkflowCostCalculator(const RenderWorkflow& workflow)
-  {
-    attachmentTag = tagOperationByAttachmentType(workflow);
-  }
-  std::unordered_map<std::string, int> tagOperationByAttachmentType(const RenderWorkflow& workflow)
-  {
-    std::unordered_map<int, std::tuple<AttachmentSize, glm::vec2>> tags;
-    std::unordered_map<std::string, int> attachmentTag;
-    int currentTag = 0;
-    for (auto opit : workflow.renderOperations)
+    auto opResources = operationSequence[i]->getInputsOutputs(RenderOperation::AllAttachments);
+    for (auto resource : opResources)
     {
-      if (opit.second.operationType != RenderOperation::Graphics)
+      // if this is new resource
+      auto it = resources.begin();
+      while (it != resources.end())
       {
-        attachmentTag.insert({ opit.first, currentTag++ });
-        continue;
-      }
-      auto opAttachments = opit.second.getInputsOutputs(RenderOperation::AllAttachments);
-      std::vector<AttachmentSize> attachmentSizes;
-      std::vector<glm::vec2>      imageSizes;
-      workflow.getAttachmentSizes(opAttachments, attachmentSizes, imageSizes);
-      // operations have the same sizes - just take the first one
-      AttachmentSize atSize = attachmentSizes.empty() ? AttachmentSize::asUndefined : attachmentSizes[0];
-      glm::vec2      imSize = imageSizes.empty() ? glm::vec2(0.0) : imageSizes[0];
-      int tagFound = -1;
-      for (auto tit : tags)
-      {
-        if (std::get<0>(tit.second) == atSize && std::get<1>(tit.second) == imSize)
-        {
-          tagFound = tit.first;
+        if ((*it)->name == resource->name)
           break;
-        }
+        ++it;
       }
-      if (tagFound < 0)
+      if (it == resources.end())
       {
-        tagFound = currentTag++;
-        tags.insert({ tagFound,std::make_tuple(atSize,imSize) });
+        resources.push_back(resource);
+        resourceOpRange.insert({ resource->name, glm::uvec3(i,i,opSeqIndex) });
       }
-      attachmentTag.insert({ opit.first, tagFound });
+      else
+      {
+        resourceOpRange[resource->name].y = i;
+      }
     }
-    return attachmentTag;
   }
-
-  float calculateWorkflowCost(const RenderWorkflow& workflow, const std::vector<std::string>& operationSchedule) const override
-  {
-    if (operationSchedule.empty())
-      return 0.0f;
-    float result = 0.0f;
-    int tag = attachmentTag.at(operationSchedule[0]);
-    for (int i = 1; i < operationSchedule.size(); ++i)
-    {
-      int newTag = attachmentTag.at(operationSchedule[i]);
-      if (newTag != tag)
-        result += 10.0f;
-      tag = newTag;
-    }
-    return result;
-  }
-
-  std::unordered_map<std::string, int> attachmentTag;
-};
-
-
-std::vector<std::string> StandardRenderWorkflowCompiler::scheduleOperations(RenderWorkflow& workflow)
-{
-  // build an operator for cost calculations
-  StandardRenderWorkflowCostCalculator costCalculator(workflow);
-
-  return recursiveScheduleOperations(workflow, "", &costCalculator);
 }
+
+std::unordered_map<std::string, std::string> StandardRenderWorkflowCompiler::shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, const std::unordered_map<std::string, glm::uvec3>& resourceOpRange)
+{
+  // Check if we may shrink the number of resources.
+  // Resources are the same when :
+  // - their type is the same
+  // - their use does not overlap
+  std::unordered_map<std::string, std::string> results;
+  for (auto it0 = resources.begin(); it0 != resources.end(); ++it0)
+  {
+    // if current resource is already in results then skip it
+    if (results.find((*it0)->name) != results.end())
+      continue;
+    glm::uvec3 resourceUse0 = resourceOpRange.at((*it0)->name);
+    for (auto it1 = it0+1; it1 != resources.end(); ++it1)
+    {
+      if ((*it1)->typeName != (*it0)->typeName)
+        continue;
+      glm::uvec3 resourceUse1 = resourceOpRange.at((*it1)->name);
+      if (resourceUse0.y >= resourceUse1.x)
+        continue;
+      resourceUse0.y = resourceUse1.y;
+      results.insert( { (*it1)->name,(*it0)->name } );
+    }
+  }
+
+  for (auto it0 = resources.begin(); it0 != resources.end(); ++it0)
+  {
+    bool aliased = false;
+    for (auto it1 = results.begin(); it1 != results.end(); ++it1)
+    {
+      if (it1->first == (*it0)->name)
+      {
+        aliased = true;
+        break;
+      }
+    }
+    if(!aliased)
+      results.insert( { (*it0)->name,(*it0)->name } );
+  }
+
+  return results;
+}
+
+
+
+std::vector<std::shared_ptr<RenderCommandSequence>> StandardRenderWorkflowCompiler::createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence)
+{
+  std::vector<std::shared_ptr<RenderCommandSequence>> results;
+
+  auto it = operationSequence.begin();
+  while (it != operationSequence.end())
+  {
+    int tag = costCalculator.attachmentTag.at((*it)->name);
+    auto bit = it++;
+    while (it != operationSequence.end() && (costCalculator.attachmentTag.at((*it)->name) == tag))
+      ++it;
+    // we have a new set of operations from bit to it
+    switch ((*bit)->operationType)
+    {
+    case RenderOperation::Graphics:
+    {
+      std::shared_ptr<RenderPass> renderPass = std::make_shared<RenderPass>();
+      for (auto xit = bit; xit < it; ++xit)
+        renderPass->renderOperations.push_back(*xit);
+      results.push_back(renderPass);
+      break;
+    }
+    case RenderOperation::Compute:
+    {
+      // there is only one compute operation per compute pass
+      for (auto xit = bit; xit < it; ++xit)
+      {
+        std::shared_ptr<ComputePass> computePass = std::make_shared<ComputePass>();
+        computePass->computeOperation = std::dynamic_pointer_cast<ComputeOperation>(*xit);
+        results.push_back(computePass);
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  return results;
+}
+
+
+/****************************/
 
 AttachmentDefinition::AttachmentDefinition(uint32_t id, VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
   : imageDefinitionIndex{ id }, format{ f }, samples{ s }, loadOp { lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }
@@ -457,8 +726,21 @@ VkSubpassDependency SubpassDependencyDefinition::getDependency() const
   return dep;
 }
 
+RenderCommandSequence::RenderCommandSequence(RenderCommandSequence::SequenceType st)
+  : sequenceType{ st }
+{
+}
+
+
+RenderPass::RenderPass()
+  : RenderCommandSequence(RenderCommandSequence::seqRenderPass)
+{
+
+}
+
+
 RenderPass::RenderPass(const std::vector<AttachmentDefinition>& a, const std::vector<SubpassDefinition>& s, const std::vector<SubpassDependencyDefinition>& d)
-  : attachments(a), subpasses(s), dependencies(d)
+  : RenderCommandSequence(RenderCommandSequence::seqRenderPass), attachments(a), subpasses(s), dependencies(d)
 {
 }
 
@@ -510,4 +792,19 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.renderPass;
+}
+
+void RenderPass::setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions)
+{
+  attachments = attachmentDefinitions;
+}
+
+ComputePass::ComputePass()
+  : RenderCommandSequence(RenderCommandSequence::seqComputePass)
+{
+}
+
+
+void ComputePass::setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions)
+{
 }

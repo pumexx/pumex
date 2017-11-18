@@ -52,6 +52,11 @@ void SurfaceTraits::definePresentationQueue(const QueueTraits& queueTraits)
   presentationQueueTraits = queueTraits;
 }
 
+void SurfaceTraits::setRenderWorkflow(std::shared_ptr<RenderWorkflow> rw)
+{
+  renderWorkflow = rw;
+}
+
 Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
   : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st)
 {

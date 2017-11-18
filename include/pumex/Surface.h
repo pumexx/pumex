@@ -38,6 +38,7 @@ class Window;
 class RenderPass;
 class FrameBuffer;
 class FrameBufferImages;
+class RenderWorkflow;
 class CommandPool;
 class CommandBuffer;
 class Image;
@@ -46,9 +47,12 @@ class Image;
 struct PUMEX_EXPORT SurfaceTraits
 {
   explicit SurfaceTraits(uint32_t imageCount, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
+
   void setDefaultRenderPass(std::shared_ptr<RenderPass> renderPass);
   void setFrameBufferImages(std::shared_ptr<FrameBufferImages> frameBufferImages);
   void definePresentationQueue( const QueueTraits& queueTraits );
+
+  void setRenderWorkflow(std::shared_ptr<RenderWorkflow> renderWorkflow);
 
   uint32_t                           imageCount;
   VkColorSpaceKHR                    imageColorSpace;
@@ -60,6 +64,9 @@ struct PUMEX_EXPORT SurfaceTraits
   QueueTraits                        presentationQueueTraits;
   std::shared_ptr<RenderPass>        defaultRenderPass;
   std::shared_ptr<FrameBufferImages> frameBufferImages;
+
+  std::shared_ptr<RenderWorkflow>    renderWorkflow;
+
 };
 
 // class representing a Vulkan surface
