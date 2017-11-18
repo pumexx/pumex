@@ -34,11 +34,15 @@ namespace pumex
 
 class  Device;
 struct QueueTraits;
+struct SubpassDefinition;
 
 struct PUMEX_EXPORT LoadOp
 {
   enum Type { Load, Clear, DontCare };
-  LoadOp() = delete;
+  LoadOp()
+    : loadType{ DontCare }, clearColor{}
+  {
+  }
   LoadOp(Type lType, const glm::vec4& color)
     : loadType{ lType }, clearColor{ color }
   {
@@ -55,7 +59,10 @@ inline LoadOp loadOpDontCare();
 struct PUMEX_EXPORT StoreOp
 {
   enum Type { Store, DontCare };
-  StoreOp() = delete;
+  StoreOp()
+    : storeType{ DontCare }
+  {
+  }
   StoreOp(Type sType)
     : storeType{ sType }
   {
@@ -68,6 +75,7 @@ inline StoreOp storeOpDontCare();
 
 enum AttachmentType { atUndefined, atSurface, atColor, atDepth, atDepthStencil, atStencil };
 inline VkImageAspectFlags getAspectMask(AttachmentType at);
+inline VkImageUsageFlags  getAttachmentUsage(VkImageLayout imageLayout);
 
 enum AttachmentSizeType { astUndefined, astAbsolute, astSurfaceDependent };
 
@@ -197,6 +205,8 @@ public:
   void setAttachmentDepthOutput(const WorkflowResource& attachmentConfig);
 
   std::vector<const WorkflowResource*> getInputsOutputs(IOType ioTypes) const;
+  SubpassDefinition buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& activeResourceIndex) const;
+
 
   std::string                                       name;
   Type                                              operationType;
@@ -300,7 +310,7 @@ private:
   void                                                verifyOperations(RenderWorkflow& workflow);
   std::vector<std::shared_ptr<RenderCommandSequence>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
   void                                                collectResources(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, uint32_t opSeqIndex, std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange);
-  std::unordered_map<std::string, std::string>        shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, const std::unordered_map<std::string, glm::uvec3>& resourceOpRange);
+  std::unordered_map<std::string, std::string>        shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange);
 
   StandardRenderWorkflowCostCalculator                costCalculator;
 };
@@ -328,6 +338,27 @@ VkImageAspectFlags getAspectMask(AttachmentType at)
   }
   return (VkImageAspectFlags)0;
 }
+
+VkImageUsageFlags  getAttachmentUsage(VkImageLayout il)
+{
+  switch (il)
+  {
+  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:         return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:         return VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+  case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:             return VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+  case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:             return VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+  case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+  case VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR:               return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  case VK_IMAGE_LAYOUT_UNDEFINED:
+  case VK_IMAGE_LAYOUT_GENERAL:
+  case VK_IMAGE_LAYOUT_PREINITIALIZED:
+  default:                                               return (VkImageUsageFlags)0;
+  }
+  return (VkImageUsageFlags)0;
+}
+
 
 
 	

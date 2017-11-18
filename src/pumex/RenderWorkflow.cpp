@@ -188,6 +188,28 @@ std::vector<const WorkflowResource*> RenderOperation::getInputsOutputs(IOType io
   return results;
 }
 
+SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& activeResourceIndex) const
+{
+  // Fun fact : VkSubpassDescription with compute bind point is forbidden by Vulkan spec
+  VkPipelineBindPoint              bindPoint = (operationType == Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
+  std::vector<AttachmentReference> ia;
+  std::vector<AttachmentReference> oa;
+  std::vector<AttachmentReference> ra;
+  AttachmentReference              dsa;
+  std::vector<uint32_t>            pa;
+
+  for (auto it = inputAttachments.begin(); it != inputAttachments.end(); ++it)
+    ia.push_back({ activeResourceIndex.at(it->first), it->second.operationLayout });
+  for (auto it = outputAttachments.begin(); it != outputAttachments.end(); ++it)
+    oa.push_back({ activeResourceIndex.at(it->first), it->second.operationLayout });
+  for (auto it = resolveAttachments.begin(); it != resolveAttachments.end(); ++it)
+    ra.push_back({ activeResourceIndex.at(it->first), it->second.operationLayout });
+  if (!depthAttachment.name.empty())
+    dsa = { activeResourceIndex.at(depthAttachment.name), depthAttachment.operationLayout };
+  return SubpassDefinition(bindPoint, ia, oa, ra, dsa, pa);
+}
+
+
 RenderCommandSequence::RenderCommandSequence(RenderCommandSequence::SequenceType st)
   : sequenceType{ st }
 {
@@ -446,6 +468,7 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
   {
     const WorkflowResource* res = activeResources[i];
     auto resType = workflow.getResourceType(res->typeName);
+
     frameBufferDefinitions.push_back(pumex::FrameBufferImageDefinition(
       resType.attachment.attachmentType,
       resType.format,
@@ -455,17 +478,16 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
       resType.attachment.attachmentSize,
       resType.attachment.swizzles
     ));
-
   }
-
-  std::vector<VkImageUsageFlags> usage(activeResources.size());
-  std::fill(usage.begin(), usage.end(), 0);
+  std::vector<VkImageLayout> lastLayout(frameBufferDefinitions.size());
+  std::fill(lastLayout.begin(), lastLayout.end(), VK_IMAGE_LAYOUT_UNDEFINED);
 
   // We have render passes and all knowledge about resources. It's time to create framebuffers for them.
   // We choose to create one framebuffer for each command sequence
   // (im?)possible alternative : create framebuffer for each of the render passes ( what about compute passes ? )
   std::vector<std::shared_ptr<pumex::FrameBuffer>> newFrameBuffers;
 
+  uint32_t operationIndex = 0;
   for ( auto& commSequences : newCommandSequences )
   {
     for (auto& commSeq : commSequences)
@@ -474,11 +496,75 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
       {
       case RenderCommandSequence::seqRenderPass:
       {
+        // construct subpasses from operations
         std::shared_ptr<RenderPass> renderPass = std::dynamic_pointer_cast<RenderPass>(commSeq);
+        std::vector<LoadOp>        firstLoadOp(frameBufferDefinitions.size());
+        auto beginLayout  = lastLayout;
         for (auto& operation : renderPass->renderOperations)
         {
-          //mangleOP(operation)
+          auto subPassDefinition = operation->buildSubPassDefinition(activeResourceIndex);
+          renderPass->subpasses.push_back(subPassDefinition);
+
+          auto opResources = operation->getInputsOutputs(RenderOperation::AllInputsOutputs);
+          for (auto& opResource : opResources)
+          {
+            uint32_t resIndex = activeResourceIndex[opResource->name];
+
+            lastLayout[resIndex]                   = opResource->operationLayout;
+            frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(opResource->operationLayout);
+            if( firstLoadOp[resIndex].loadType == LoadOp::DontCare )
+              firstLoadOp[resIndex]                = opResource->loadOperation;
+          }
+          operationIndex++;
         }
+
+        // construct render pass attachments
+        std::vector<AttachmentDefinition> attachmentDefinitions;
+        for (uint32_t i = 0; i < activeResources.size(); ++i)
+        {
+          const WorkflowResource* res = activeResources[i];
+          auto resType = workflow.getResourceType(res->typeName);
+
+          bool colorDepthAttachment;
+          bool stencilAttachment;
+          switch (resType.attachment.attachmentType)
+          {
+          case atSurface:
+          case atColor:
+          case atDepth:
+            colorDepthAttachment = true;
+            stencilAttachment    = false;
+            break;
+          case atDepthStencil:
+            colorDepthAttachment = true;
+            stencilAttachment    = true;
+            break;
+          case atStencil:
+            colorDepthAttachment = false;
+            stencilAttachment    = true;
+            break;
+          }
+
+          // resource must be saved when it was tagged as persistent, ot it is a swapchain surface, or it will be used later
+          bool mustSaveResource = resType.persistent || 
+            resType.attachment.attachmentType == atSurface ||
+            resourceOpRange.at(res->name).y > operationIndex;
+
+          attachmentDefinitions.push_back(AttachmentDefinition(
+            i,
+            resType.format,
+            resType.samples,
+            colorDepthAttachment                     ? (VkAttachmentLoadOp)firstLoadOp[i].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE                : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            stencilAttachment                        ? (VkAttachmentLoadOp)firstLoadOp[i].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            stencilAttachment && mustSaveResource    ? VK_ATTACHMENT_STORE_OP_STORE                : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            beginLayout[i],
+            lastLayout[i],
+            0
+          ));
+        }
+        renderPass->attachments = attachmentDefinitions;
+
         break;
       }
       case RenderCommandSequence::seqComputePass:
@@ -491,7 +577,6 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
       }
     }
   }
-
 
   // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
   workflow.commandSequences = newCommandSequences;
@@ -562,7 +647,7 @@ void StandardRenderWorkflowCompiler::collectResources(const std::vector<std::sha
   }
 }
 
-std::unordered_map<std::string, std::string> StandardRenderWorkflowCompiler::shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, const std::unordered_map<std::string, glm::uvec3>& resourceOpRange)
+std::unordered_map<std::string, std::string> StandardRenderWorkflowCompiler::shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange)
 {
   // Check if we may shrink the number of resources.
   // Resources are the same when :
@@ -583,6 +668,8 @@ std::unordered_map<std::string, std::string> StandardRenderWorkflowCompiler::shr
       if (resourceUse0.y >= resourceUse1.x)
         continue;
       resourceUse0.y = resourceUse1.y;
+      resourceOpRange[(*it0)->name] = resourceUse0;
+      resourceOpRange[(*it1)->name] = resourceUse0;
       results.insert( { (*it1)->name,(*it0)->name } );
     }
   }

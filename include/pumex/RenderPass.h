@@ -55,6 +55,7 @@ struct PUMEX_EXPORT AttachmentDefinition
 
 struct PUMEX_EXPORT AttachmentReference
 {
+  AttachmentReference();
   AttachmentReference( uint32_t attachment, VkImageLayout layout );
 
   uint32_t attachment;

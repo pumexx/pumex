@@ -51,6 +51,11 @@ VkAttachmentDescription AttachmentDefinition::getDescription() const
   return desc;
 }
 
+AttachmentReference::AttachmentReference()
+  : attachment{ VK_ATTACHMENT_UNUSED }, layout{ VK_IMAGE_LAYOUT_UNDEFINED }
+{
+}
+
 AttachmentReference::AttachmentReference(uint32_t a, VkImageLayout l)
   : attachment{ a }, layout{ l }
 {
