@@ -802,7 +802,7 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    std::shared_ptr<pumex::StandardRenderWorkflowCompiler> xrwCompiler = std::make_shared<pumex::StandardRenderWorkflowCompiler>();
+    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> xrwCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
 
     std::shared_ptr<pumex::RenderWorkflow> xworkflow = std::make_shared<pumex::RenderWorkflow>("experimental_workflow", xrwCompiler);
       xworkflow->addResourceType({ "vec3_samples" , VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   { pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) } });
@@ -836,7 +836,7 @@ int main( int argc, char * argv[] )
 
     auto opE = std::make_shared<pumex::GraphicsOperation>("E", VK_SUBPASS_CONTENTS_INLINE);
       opE->addAttachmentInput({ "de", "vec3_samples",  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-      opE->addAttachmentOutput({ "out", "surface", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) });
+      opE->addAttachmentOutput({ "out", "surface", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) });
       opE->setNode(std::make_shared<pumex::Node>());
     xworkflow->addRenderOperation(opE);
 
@@ -865,7 +865,7 @@ int main( int argc, char * argv[] )
       lightingOp->addAttachmentInput( { "albedo",   "color_samples", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
       lightingOp->addAttachmentInput( { "pbr",      "color_samples", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
       lightingOp->addAttachmentResolveOutput( { "resolve",  "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare() });
-      lightingOp->addAttachmentOutput({ "color", "surface", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare() });
+      lightingOp->addAttachmentOutput({ "color", "surface", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpDontCare() });
     workflow->addRenderOperation(lightingOp);
 
     // testing

@@ -59,30 +59,6 @@ WorkflowResource::WorkflowResource(const std::string& n, const std::string& tn, 
 {
 }
 
-//VkImageUsageFlags WorkflowResource::getUsage() const
-//{
-//  switch (metaType)
-//  {
-//  case Attachment:
-//    switch (attachment.attachmentType)
-//    {
-//    case atSurface:
-//    case atColor:
-//      return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-//    case atDepth:
-//      return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-//    }
-//    //      VK_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
-//    //      VK_IMAGE_USAGE_TRANSFER_DST_BIT = 0x00000002,
-//    //      VK_IMAGE_USAGE_SAMPLED_BIT = 0x00000004,
-//    //      VK_IMAGE_USAGE_STORAGE_BIT = 0x00000008,
-//    //      VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT = 0x00000040,
-//    //      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT = 0x00000080,
-//
-//  }
-//}
-
-
 Node::Node()
 {
 }
@@ -210,8 +186,8 @@ SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_m
 }
 
 
-RenderCommandSequence::RenderCommandSequence(RenderCommandSequence::SequenceType st)
-  : sequenceType{ st }
+RenderCommand::RenderCommand(RenderCommand::CommandType ct)
+  : commandType{ ct }
 {
 }
 
@@ -411,58 +387,47 @@ std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(Render
   return results[i];
 }
 
-void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
+void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
 {
   // verify operations
   verifyOperations(workflow);
 
-  // build a vector storing proper sequence of operations - FIXME : IT ONLY WORKS FOR ONE QUEUE NOW.
-  // TARGET FOR THE FUTURE  : build as many operation sequences as there is queues, take VkQueueFlags into consideration
-  // ( be aware that scheduling algorithms may be NP-complete ). Also maintain proper synchronization between queues ( events, semaphores )
-
-  // build sequence of render operations
+  // each compute operation gets its own tag
+  // all graphics operations with the same attachment size get the same tag
+  // two graphics operations with different attachment size get different tag
   costCalculator.tagOperationByAttachmentType(workflow);
 
-  // FIXME : this should be a loop creating series of command sequences for each existing VkQueue, 
-  // but for now we just create a single command sequence for one queue
-  std::vector<std::vector<std::shared_ptr<RenderCommandSequence>>> newCommandSequences;
+  // resourceOperationRange defines first and last use of a resource
+  std::unordered_map<std::string, glm::uvec3> resourceOperationRange;
+  // activeResources is a final list of resources used
+  std::vector<const WorkflowResource*>        activeResources;
+  // activeResourceIndex remaps resource name to its index in activeResources
+  std::unordered_map<std::string, uint32_t>   activeResourceIndex;
 
-  std::vector<const WorkflowResource*> resources;
-  std::unordered_map<std::string, glm::uvec3> resourceOpRange;
+  // Build a vector storing proper sequence of operations - FIXME : IT ONLY WORKS FOR ONE QUEUE NOW.
+  // TARGET FOR THE FUTURE  : build as many operation sequences as there is queues, take VkQueueFlags into consideration
+  // ( be aware that scheduling algorithms may be NP-complete ). Also maintain proper synchronization between queues ( events, semaphores )
+  std::vector<std::vector<std::shared_ptr<RenderOperation>>> operationSequences;
+
   {
-    // FIXME : IT ONLY GENERATES ONE SEQUENCE NOW, ALSO IGNORES TYPE OF THE QUEUE
-    auto operationSequence = recursiveScheduleOperations(workflow, nullptr, &costCalculator);
+    std::vector<const WorkflowResource*> resources;
 
-    // store info about all resources
-    uint32_t opSeqIndex = 0;
-    collectResources(operationSequence, opSeqIndex, resources, resourceOpRange);
-
-
-    // construct render command sequencess ( render passes, compute passes, we don't use events and semaphores yet - these things are for multiqueue operations )
-    std::vector<std::shared_ptr<RenderCommandSequence>> thisCommandSequence = createCommandSequence(operationSequence);
-
-    newCommandSequences.push_back(thisCommandSequence);
-  }
-
-  // find resources that may be aliased by existing resources
-  auto resourceRemap = shrinkResources(workflow, resources, resourceOpRange);
-  std::vector<const WorkflowResource*> activeResources;
-  for (auto resource : resources)
-  {
-    if (resourceRemap.at(resource->name) == resource->name)
-      activeResources.push_back(resource);
-  }
-  std::unordered_map<std::string, uint32_t> activeResourceIndex;
-  for (uint32_t i = 0; i < activeResources.size(); ++i)
-  {
-    activeResourceIndex.insert({ activeResources[i]->name, i });
-    for (auto rm : resourceRemap)
+    // FIXME : this should be a loop creating series of command sequences for each existing VkQueue, 
+    // but for now we just create a single command sequence for one queue
     {
-      if(rm.second == activeResources[i]->name)
-        activeResourceIndex.insert({ rm.first, i });
+      // FIXME : IT ONLY GENERATES ONE SEQUENCE NOW, ALSO IGNORES TYPE OF THE QUEUE
+      auto operationSequence = recursiveScheduleOperations(workflow, nullptr, &costCalculator);
+
+      // store info about all resources used in an operation sequence
+      uint32_t opSeqIndex = 0;
+      collectResources(operationSequence, opSeqIndex, resources, resourceOperationRange);
+      operationSequences.push_back(operationSequence);
     }
+    // find resources that may be aliased by existing resources
+    shrinkResources(workflow, resources, activeResources, resourceOperationRange, activeResourceIndex);
   }
 
+  // create frame buffer definitions for all attachments
   std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions;
   for (uint32_t i = 0; i < activeResources.size(); ++i)
   {
@@ -479,44 +444,109 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
       resType.attachment.swizzles
     ));
   }
-  std::vector<VkImageLayout> lastLayout(frameBufferDefinitions.size());
-  std::fill(lastLayout.begin(), lastLayout.end(), VK_IMAGE_LAYOUT_UNDEFINED);
 
-  // We have render passes and all knowledge about resources. It's time to create framebuffers for them.
-  // We choose to create one framebuffer for each command sequence
-  // (im?)possible alternative : create framebuffer for each of the render passes ( what about compute passes ? )
-  std::vector<std::shared_ptr<pumex::FrameBuffer>> newFrameBuffers;
+  std::vector<std::vector<std::shared_ptr<RenderCommand>>> newCommandSequences;
+
+  // construct render command sequencess ( render passes, compute passes, we don't use events and semaphores yet - these things are for multiqueue operations )
+  for( auto& operationSequence : operationSequences )
+  {
+    std::vector<std::shared_ptr<RenderCommand>> commandSequence = createCommandSequence(operationSequence);
+    newCommandSequences.push_back(commandSequence);
+  }
 
   uint32_t operationIndex = 0;
-  for ( auto& commSequences : newCommandSequences )
+  for ( auto& commandSequence : newCommandSequences )
   {
-    for (auto& commSeq : commSequences)
+    std::vector<VkImageLayout> lastLayout(frameBufferDefinitions.size());
+    std::fill(lastLayout.begin(), lastLayout.end(), VK_IMAGE_LAYOUT_UNDEFINED);
+
+    for (auto& command : commandSequence)
     {
-      switch (commSeq->sequenceType)
+      switch (command->commandType)
       {
-      case RenderCommandSequence::seqRenderPass:
+      case RenderCommand::commRenderPass:
       {
-        // construct subpasses from operations
-        std::shared_ptr<RenderPass> renderPass = std::dynamic_pointer_cast<RenderPass>(commSeq);
-        std::vector<LoadOp>        firstLoadOp(frameBufferDefinitions.size());
-        auto beginLayout  = lastLayout;
+        // construct subpasses and subpass dependencies from operations
+        std::shared_ptr<RenderPass>              renderPass = std::dynamic_pointer_cast<RenderPass>(command);
+        std::vector<LoadOp>                      firstLoadOp(frameBufferDefinitions.size());
+        std::vector<SubpassDependencyDefinition> subpassDependencies;
+        auto                                     beginLayout  = lastLayout;
+        uint32_t                                 passOperationIndex = 0;
+        // a list of outputs modified in a current render pass along with the passOperationIndex in which modifications took place
+        std::unordered_map<std::string, uint32_t> modifiedOutputs;
+
         for (auto& operation : renderPass->renderOperations)
         {
           auto subPassDefinition = operation->buildSubPassDefinition(activeResourceIndex);
           renderPass->subpasses.push_back(subPassDefinition);
+// default first dependency as defined by the specification - we don't want to use it
+//          SubpassDependencyDefinition dependency{ VK_SUBPASS_EXTERNAL, 0, 
+//            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+//            0, VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 
+//            0 }; // VK_DEPENDENCY_BY_REGION_BIT
 
-          auto opResources = operation->getInputsOutputs(RenderOperation::AllInputsOutputs);
-          for (auto& opResource : opResources)
+          auto inputResources = operation->getInputsOutputs(RenderOperation::AllInputs);
+          for (auto& inputResource : inputResources)
           {
-            uint32_t resIndex = activeResourceIndex[opResource->name];
+            uint32_t resIndex = activeResourceIndex[inputResource->name];
+            // if this input was generated outside of render pass...
+            uint32_t srcSubpass = VK_SUBPASS_EXTERNAL;
+            auto it = modifiedOutputs.find(inputResource->name);
+            if (it != modifiedOutputs.end())
+              srcSubpass = it->second;
+            // find subpass dependency that matches one with srcSubpass == srcSubpass and dstSubpass == passOperationIndex
+            auto dep = std::find_if(subpassDependencies.begin(), subpassDependencies.end(), [srcSubpass, passOperationIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpass && sd.dstSubpass == passOperationIndex; });
+            if (dep == subpassDependencies.end())
+              dep = subpassDependencies.insert(subpassDependencies.end(), SubpassDependencyDefinition(srcSubpass, passOperationIndex, 0, 0, 0, 0, 0));
+            // add correct flags to the dependency
+            dep->srcStageMask  |= 0;
+            dep->dstStageMask  |= 0;
+            dep->srcAccessMask |= 0;
+            dep->dstAccessMask |= 0;
+            dep->dependencyFlags |= 0; // dependency by region !!!
 
-            lastLayout[resIndex]                   = opResource->operationLayout;
-            frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(opResource->operationLayout);
+            lastLayout[resIndex]                   = inputResource->operationLayout;
+            frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(inputResource->operationLayout);
             if( firstLoadOp[resIndex].loadType == LoadOp::DontCare )
-              firstLoadOp[resIndex]                = opResource->loadOperation;
+              firstLoadOp[resIndex]                = loadOpLoad();
           }
+
+          auto outputResources = operation->getInputsOutputs(RenderOperation::AllOutputs);
+          for (auto& outputResource : outputResources)
+          {
+            uint32_t resIndex = activeResourceIndex[outputResource->name];
+            modifiedOutputs[outputResource->name] = passOperationIndex;
+
+            lastLayout[resIndex] = outputResource->operationLayout;
+            frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(outputResource->operationLayout);
+            if (firstLoadOp[resIndex].loadType == LoadOp::DontCare)
+              firstLoadOp[resIndex] = outputResource->loadOperation;
+          }
+
           operationIndex++;
+          passOperationIndex++;
         }
+        // check if there exist any subpass dependency that has srcSubpass == VK_SUBPASS_EXTERNAL and dstSubpass == 0
+        auto dep = std::find_if(subpassDependencies.begin(), subpassDependencies.end(), [](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == VK_SUBPASS_EXTERNAL && sd.dstSubpass == 0; });
+        // if not - add default one, that is empty
+        if (dep == subpassDependencies.end())
+        {
+          SubpassDependencyDefinition introDependency{ VK_SUBPASS_EXTERNAL, 0,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+            0, 0, 
+            0 }; // VK_DEPENDENCY_BY_REGION_BIT
+          subpassDependencies.push_back(introDependency);
+        }
+
+        // add outro dependency
+        // FIXME : this should take into consideration only attachments that will be used in a future
+        // now it adds DEFAULT dependency ( as declared in Vulkan specification ) that produces too much burden
+        SubpassDependencyDefinition outroDependency{ (uint32_t)renderPass->renderOperations.size()-1, VK_SUBPASS_EXTERNAL,
+          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
+          VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0, 
+          0 }; // VK_DEPENDENCY_BY_REGION_BIT
+        subpassDependencies.push_back(outroDependency);
+        renderPass->dependencies = subpassDependencies;
 
         // construct render pass attachments
         std::vector<AttachmentDefinition> attachmentDefinitions;
@@ -548,7 +578,7 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
           // resource must be saved when it was tagged as persistent, ot it is a swapchain surface, or it will be used later
           bool mustSaveResource = resType.persistent || 
             resType.attachment.attachmentType == atSurface ||
-            resourceOpRange.at(res->name).y > operationIndex;
+            resourceOperationRange.at(res->name).y > operationIndex;
 
           attachmentDefinitions.push_back(AttachmentDefinition(
             i,
@@ -567,9 +597,9 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
 
         break;
       }
-      case RenderCommandSequence::seqComputePass:
+      case RenderCommand::commComputePass:
       {
-        std::shared_ptr<ComputePass> computePass = std::dynamic_pointer_cast<ComputePass>(commSeq);
+        std::shared_ptr<ComputePass> computePass = std::dynamic_pointer_cast<ComputePass>(command);
         auto& operation = computePass->computeOperation;
         //mangleOP(operation)
         break;
@@ -577,19 +607,14 @@ void StandardRenderWorkflowCompiler::compile(RenderWorkflow& workflow)
       }
     }
   }
+  std::vector<std::shared_ptr<pumex::FrameBuffer>> newFrameBuffers;
 
   // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
   workflow.commandSequences = newCommandSequences;
   workflow.frameBuffers     = newFrameBuffers;
-
-  // OK, now we have command sequences ( render passes and compute passes with operations defined
-  // We need to build :
-  // - subpasses, attachment definitions and subpass dependencies for render passes
-  // - barriers for compute passes
-  // - frame buffers for render passes ( and compute passes ? )
 }
 
-void StandardRenderWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
+void SingleQueueWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
 {
   std::ostringstream os;
   // check if all attachments have the same size in each operation
@@ -619,7 +644,7 @@ void StandardRenderWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
   CHECK_LOG_THROW(!results.empty(), "Errors in workflow operations :\n" + results);
 }
 
-void StandardRenderWorkflowCompiler::collectResources(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, uint32_t opSeqIndex, std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange)
+void SingleQueueWorkflowCompiler::collectResources(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, uint32_t opSeqIndex, std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOperationRange)
 {
   for (uint32_t i = 0; i < operationSequence.size(); ++i)
   {
@@ -637,47 +662,47 @@ void StandardRenderWorkflowCompiler::collectResources(const std::vector<std::sha
       if (it == resources.end())
       {
         resources.push_back(resource);
-        resourceOpRange.insert({ resource->name, glm::uvec3(i,i,opSeqIndex) });
+        resourceOperationRange.insert({ resource->name, glm::uvec3(i,i,opSeqIndex) });
       }
       else
       {
-        resourceOpRange[resource->name].y = i;
+        resourceOperationRange[resource->name].y = i;
       }
     }
   }
 }
 
-std::unordered_map<std::string, std::string> StandardRenderWorkflowCompiler::shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange)
+void SingleQueueWorkflowCompiler::shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::vector<const WorkflowResource*>& newResources, std::unordered_map<std::string, glm::uvec3>& resourceOperationRange, std::unordered_map<std::string, uint32_t>& activeResourceIndex)
 {
   // Check if we may shrink the number of resources.
   // Resources are the same when :
   // - their type is the same
   // - their use does not overlap
-  std::unordered_map<std::string, std::string> results;
+  std::unordered_map<std::string, std::string> resourceRemap;
   for (auto it0 = resources.begin(); it0 != resources.end(); ++it0)
   {
     // if current resource is already in results then skip it
-    if (results.find((*it0)->name) != results.end())
+    if (resourceRemap.find((*it0)->name) != resourceRemap.end())
       continue;
-    glm::uvec3 resourceUse0 = resourceOpRange.at((*it0)->name);
+    glm::uvec3 resourceUse0 = resourceOperationRange.at((*it0)->name);
     for (auto it1 = it0+1; it1 != resources.end(); ++it1)
     {
       if ((*it1)->typeName != (*it0)->typeName)
         continue;
-      glm::uvec3 resourceUse1 = resourceOpRange.at((*it1)->name);
+      glm::uvec3 resourceUse1 = resourceOperationRange.at((*it1)->name);
       if (resourceUse0.y >= resourceUse1.x)
         continue;
       resourceUse0.y = resourceUse1.y;
-      resourceOpRange[(*it0)->name] = resourceUse0;
-      resourceOpRange[(*it1)->name] = resourceUse0;
-      results.insert( { (*it1)->name,(*it0)->name } );
+      resourceOperationRange[(*it0)->name] = resourceUse0;
+      resourceOperationRange[(*it1)->name] = resourceUse0;
+      resourceRemap.insert( { (*it1)->name,(*it0)->name } );
     }
   }
 
   for (auto it0 = resources.begin(); it0 != resources.end(); ++it0)
   {
     bool aliased = false;
-    for (auto it1 = results.begin(); it1 != results.end(); ++it1)
+    for (auto it1 = resourceRemap.begin(); it1 != resourceRemap.end(); ++it1)
     {
       if (it1->first == (*it0)->name)
       {
@@ -686,17 +711,30 @@ std::unordered_map<std::string, std::string> StandardRenderWorkflowCompiler::shr
       }
     }
     if(!aliased)
-      results.insert( { (*it0)->name,(*it0)->name } );
+      resourceRemap.insert( { (*it0)->name,(*it0)->name } );
   }
 
-  return results;
+  for (auto resource : resources)
+  {
+    if (resourceRemap.at(resource->name) == resource->name)
+      newResources.push_back(resource);
+  }
+  for (uint32_t i = 0; i < newResources.size(); ++i)
+  {
+    activeResourceIndex.insert({ newResources[i]->name, i });
+    for (auto rm : resourceRemap)
+    {
+      if (rm.second == newResources[i]->name)
+        activeResourceIndex.insert({ rm.first, i });
+    }
+  }
 }
 
 
 
-std::vector<std::shared_ptr<RenderCommandSequence>> StandardRenderWorkflowCompiler::createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence)
+std::vector<std::shared_ptr<RenderCommand>> SingleQueueWorkflowCompiler::createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence)
 {
-  std::vector<std::shared_ptr<RenderCommandSequence>> results;
+  std::vector<std::shared_ptr<RenderCommand>> results;
 
   auto it = operationSequence.begin();
   while (it != operationSequence.end())

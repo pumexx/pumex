@@ -118,13 +118,13 @@ VkSubpassDependency SubpassDependencyDefinition::getDependency() const
 }
 
 RenderPass::RenderPass()
-  : RenderCommandSequence(RenderCommandSequence::seqRenderPass)
+  : RenderCommand(RenderCommand::commRenderPass)
 {
 
 }
 
 RenderPass::RenderPass(const std::vector<AttachmentDefinition>& a, const std::vector<SubpassDefinition>& s, const std::vector<SubpassDependencyDefinition>& d)
-  : RenderCommandSequence(RenderCommandSequence::seqRenderPass), attachments(a), subpasses(s), dependencies(d)
+  : RenderCommand(RenderCommand::commRenderPass), attachments(a), subpasses(s), dependencies(d)
 {
 }
 
@@ -184,7 +184,7 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
 //}
 
 ComputePass::ComputePass()
-  : RenderCommandSequence(RenderCommandSequence::seqComputePass)
+  : RenderCommand(RenderCommand::commComputePass)
 {
 }
 

@@ -96,7 +96,7 @@ struct PUMEX_EXPORT SubpassDependencyDefinition
 };
 
 // class representing Vulkan graphics render pass along with its attachments, subpasses and dependencies
-class PUMEX_EXPORT RenderPass : public RenderCommandSequence
+class PUMEX_EXPORT RenderPass : public RenderCommand
 {
 public:
   RenderPass();
@@ -128,7 +128,7 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-class ComputePass : public RenderCommandSequence
+class ComputePass : public RenderCommand
 {
 public:
   explicit ComputePass();

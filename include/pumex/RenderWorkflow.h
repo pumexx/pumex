@@ -147,8 +147,6 @@ public:
   WorkflowResource(const std::string& name, const std::string& typeName, VkImageLayout operationLayout);
   WorkflowResource(const std::string& name, const std::string& typeName, VkImageLayout operationLayout, LoadOp loadOperation);
 
-//  VkImageUsageFlags    getUsage() const;
-
   std::string   name;
   std::string   typeName;
   VkImageLayout operationLayout; // attachments only
@@ -250,14 +248,14 @@ public:
 };
 
 // really - I don't have idea how to name this crucial class :(
-class PUMEX_EXPORT RenderCommandSequence : public CommandBufferSource
+class PUMEX_EXPORT RenderCommand : public CommandBufferSource
 {
 public:
-  enum SequenceType{seqRenderPass, seqComputePass};
-  RenderCommandSequence(SequenceType sequenceType);
+  enum CommandType{commRenderPass, commComputePass};
+  RenderCommand(CommandType commandType);
 //  virtual void setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions) = 0;
 
-  SequenceType sequenceType;
+  CommandType commandType;
 };
 
 class PUMEX_EXPORT RenderWorkflow
@@ -287,7 +285,7 @@ public:
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>> renderOperations;
 
   std::vector<QueueTraits>                                          queueTraits;
-  std::vector<std::vector<std::shared_ptr<RenderCommandSequence>>>  commandSequences;
+  std::vector<std::vector<std::shared_ptr<RenderCommand>>>  commandSequences;
   std::vector<std::shared_ptr<pumex::FrameBuffer>>                  frameBuffers;
 };
 
@@ -302,15 +300,15 @@ struct StandardRenderWorkflowCostCalculator
   std::unordered_map<std::string, int> attachmentTag;
 };
 
-class PUMEX_EXPORT StandardRenderWorkflowCompiler : public RenderWorkflowCompiler
+class PUMEX_EXPORT SingleQueueWorkflowCompiler : public RenderWorkflowCompiler
 {
 public:
   void compile(RenderWorkflow& workflow) override;
 private:
   void                                                verifyOperations(RenderWorkflow& workflow);
-  std::vector<std::shared_ptr<RenderCommandSequence>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
+  std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
   void                                                collectResources(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, uint32_t opSeqIndex, std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange);
-  std::unordered_map<std::string, std::string>        shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange);
+  void                                                shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::vector<const WorkflowResource*>& newResources, std::unordered_map<std::string, glm::uvec3>& resourceOperationRange, std::unordered_map<std::string, uint32_t>& activeResourceIndex);
 
   StandardRenderWorkflowCostCalculator                costCalculator;
 };
