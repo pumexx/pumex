@@ -380,11 +380,40 @@ VkImageUsageFlags  getAttachmentUsage(VkImageLayout il)
 
 void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask)
 {
-
+  switch (generatingTransition->layout)
+  {
+  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+    srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+    srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+  }
+  switch (consumingTransition->layout)
+  {
+  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+    dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; break;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+    dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; break;
+    
+  }
 }
 
 void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask)
 {
+  switch (generatingTransition->layout)
+  {
+  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+    srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+    srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; break;
+  }
+  switch (consumingTransition->layout)
+  {
+  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+    dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT; break;
+  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+    dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT; break;
+
+  }
 
 }
 

@@ -840,36 +840,33 @@ int main( int argc, char * argv[] )
 //      opE->setNode(std::make_shared<pumex::Node>());
 //    xworkflow->addRenderOperation(opE);
 
-
     xworkflow->compile();
 
-    //std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", xrwCompiler);
-    //  workflow->addResourceType({ "vec3_samples" , VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   { pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) } });
-    //  workflow->addResourceType({ "color_samples", VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   { pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) } });
-    //  workflow->addResourceType({ "depth_samples", VK_FORMAT_D24_UNORM_S8_UINT,   VK_SAMPLE_COUNT_4_BIT, false, pumex::atDepth,   { pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) } });
-    //  workflow->addResourceType({ "resolve",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, false, pumex::atColor,   { pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) } });
-    //  workflow->addResourceType({ "surface",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, true,  pumex::atSurface, { pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) } });
-    //  workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", xrwCompiler);
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", VK_FORMAT_D24_UNORM_S8_UINT,   VK_SAMPLE_COUNT_4_BIT, false, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, true,  pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
 
-    //auto gBufferOp = std::make_shared<pumex::GraphicsOperation>("gbuffer", VK_SUBPASS_CONTENTS_INLINE);
-    //  gBufferOp->addAttachmentOutput({ "position", "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) });
-    //  gBufferOp->addAttachmentOutput({ "normals",  "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)) });
-    //  gBufferOp->addAttachmentOutput({ "albedo",   "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)) });
-    //  gBufferOp->addAttachmentOutput({ "pbr",      "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)) });
-    //  gBufferOp->setAttachmentDepthOutput( { "depth", "depth_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) });
-    //workflow->addRenderOperation(gBufferOp);
+    workflow->addRenderOperation(std::make_shared<pumex::GraphicsOperation>("gbuffer", VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS));
+      workflow->addAttachmentOutput     ("gbuffer", "position", "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "normals",  "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "albedo",   "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "pbr",      "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentDepthOutput("gbuffer", "depth",    "depth_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
 
-    //auto lightingOp = std::make_shared<pumex::GraphicsOperation>("lighting", VK_SUBPASS_CONTENTS_INLINE);
-    //  lightingOp->addAttachmentInput( { "position", "vec3_samples",  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-    //  lightingOp->addAttachmentInput( { "normals",  "vec3_samples",  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-    //  lightingOp->addAttachmentInput( { "albedo",   "color_samples", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-    //  lightingOp->addAttachmentInput( { "pbr",      "color_samples", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-    //  lightingOp->addAttachmentResolveOutput( { "resolve",  "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare() });
-    //  lightingOp->addAttachmentOutput({ "color", "surface", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpDontCare() });
-    //workflow->addRenderOperation(lightingOp);
+    workflow->addRenderOperation(std::make_shared<pumex::GraphicsOperation>("lighting", VK_SUBPASS_CONTENTS_INLINE));
+     workflow->addAttachmentInput        ("lighting", "position", "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+     workflow->addAttachmentInput        ("lighting", "normals",  "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+     workflow->addAttachmentInput        ("lighting", "albedo",   "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+     workflow->addAttachmentInput        ("lighting", "pbr",      "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+     workflow->addAttachmentOutput       ("lighting", "color",    "surface",           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpDontCare());
+     workflow->addAttachmentResolveOutput("lighting", "resolve",  "resolve", "color",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
 
-    //// testing
-    //workflow->compile();
+   //// testing
+   workflow->compile();
 
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {

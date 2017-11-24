@@ -179,7 +179,6 @@ std::shared_ptr<RenderWorkflowResourceType> RenderWorkflow::getResourceType(cons
   return it->second;
 }
 
-
 void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
 {
   op->setRenderWorkflow(shared_from_this());
@@ -233,7 +232,23 @@ void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::s
 
 void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp)
 {
+  auto operation = getRenderOperation(opName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
+  if (resIt == resources.end())
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+  {
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+    // resource may only have one transition with output type
+  }
+  auto resolveIt = resources.find(resourceSource);
+  CHECK_LOG_THROW(resolveIt == resources.end(), "RenderWorkflow : added pointer no to nonexisting resolve resource")
 
+  // FIXME : additional checks
+  std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp);
+  resourceTransition->resolveResource = resolveIt->second;
+  transitions.push_back(resourceTransition);
 }
 
 void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
