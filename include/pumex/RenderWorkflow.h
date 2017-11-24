@@ -112,7 +112,7 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
-  RenderWorkflowResourceType();
+//  RenderWorkflowResourceType();
   RenderWorkflowResourceType(const std::string& typeName, VkFormat format, VkSampleCountFlagBits samples, bool persistent, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
 
   MetaType              metaType;
@@ -143,14 +143,10 @@ public:
 class PUMEX_EXPORT WorkflowResource
 {
 public:
-  WorkflowResource();
-  WorkflowResource(const std::string& name, const std::string& typeName, VkImageLayout operationLayout);
-  WorkflowResource(const std::string& name, const std::string& typeName, VkImageLayout operationLayout, LoadOp loadOperation);
+  WorkflowResource(const std::string& name, std::shared_ptr<RenderWorkflowResourceType> resourceType);
 
-  std::string   name;
-  std::string   typeName;
-  VkImageLayout operationLayout; // attachments only
-  LoadOp        loadOperation;   // attachments only, and maybe images...
+  std::string                                 name;
+  std::shared_ptr<RenderWorkflowResourceType> resourceType;
 };
 
 class NodeGroup;
@@ -184,36 +180,25 @@ protected:
   std::vector<std::shared_ptr<Node>> children;
 };
 
+class PUMEX_EXPORT RenderWorkflow;
+
 class PUMEX_EXPORT RenderOperation
 {
 public:
   enum Type { Graphics, Compute };
-  enum IOType { AttachmentInput = 1, AttachmentOutput = 2, AttachmentResolveOutput = 4, AttachmentDepthOutput = 8, 
-    AllAttachments = (AttachmentInput | AttachmentOutput | AttachmentResolveOutput | AttachmentDepthOutput), 
-    AllInputs  = (AttachmentInput),
-    AllOutputs = (AttachmentOutput | AttachmentResolveOutput | AttachmentDepthOutput),
-    AllInputsOutputs = ( AllInputs | AllOutputs ) };
 
   RenderOperation(const std::string& name, Type operationType, VkSubpassContents subpassContents);
   virtual ~RenderOperation();
 
-  void addAttachmentInput(const WorkflowResource& roAttachment);
-  void addAttachmentOutput(const WorkflowResource& attachmentConfig);
-  void addAttachmentResolveOutput(const WorkflowResource& attachmentConfig);
-  void setAttachmentDepthOutput(const WorkflowResource& attachmentConfig);
+  void setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
 
-  std::vector<const WorkflowResource*> getInputsOutputs(IOType ioTypes) const;
-  SubpassDefinition buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& activeResourceIndex) const;
+  SubpassDefinition buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& resourceIndex) const;
 
 
   std::string                                       name;
   Type                                              operationType;
   VkSubpassContents                                 subpassContents;
-
-  std::unordered_map<std::string, WorkflowResource> inputAttachments;
-  std::unordered_map<std::string, WorkflowResource> outputAttachments;
-  std::unordered_map<std::string, WorkflowResource> resolveAttachments;
-  WorkflowResource                                  depthAttachment;
+  std::weak_ptr<RenderWorkflow>                     renderWorkflow;
 
   bool                                              enabled; // not implemented
 };
@@ -238,8 +223,31 @@ public:
   std::shared_ptr<ComputeNode>                       computeNode;
 };
 
+enum ResourceTransitionType 
+{
+  rttAttachmentInput         = 1, 
+  rttAttachmentOutput        = 2,
+  rttAttachmentResolveOutput = 4,
+  rttAttachmentDepthOutput   = 8,
+  rttAllAttachments          = (rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput),
+  rttAllInputs               = (rttAttachmentInput),
+  rttAllOutputs              = (rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput),
+  rttAllInputsOutputs        = (rttAllInputs | rttAllOutputs)
+};
 
-class PUMEX_EXPORT RenderWorkflow;
+
+class PUMEX_EXPORT ResourceTransition
+{
+public:
+  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load);
+  std::shared_ptr<RenderOperation>  operation;
+  std::shared_ptr<WorkflowResource> resource;
+  ResourceTransitionType            transitionType;
+  std::shared_ptr<WorkflowResource> resolveResource;
+  VkImageLayout                     layout;
+  LoadOp                            load;
+};
+
 
 class PUMEX_EXPORT RenderWorkflowCompiler
 {
@@ -258,41 +266,57 @@ public:
   CommandType commandType;
 };
 
-class PUMEX_EXPORT RenderWorkflow
+class PUMEX_EXPORT RenderWorkflow : public std::enable_shared_from_this<RenderWorkflow>
 {
 public:
   RenderWorkflow()                                 = delete;
   explicit RenderWorkflow(const std::string& name, std::shared_ptr<pumex::RenderWorkflowCompiler> compiler);
   ~RenderWorkflow();
 
-  void                              addResourceType(const RenderWorkflowResourceType& tp);
-  const RenderWorkflowResourceType& getResourceType(const std::string& typeName) const;
+  void                                        addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
+  std::shared_ptr<RenderWorkflowResourceType> getResourceType(const std::string& typeName) const;
 
-  void                              addRenderOperation(std::shared_ptr<RenderOperation> op);
-  std::shared_ptr<RenderOperation>  getOperation(const std::string& opName) const;
+  void                                        addRenderOperation(std::shared_ptr<RenderOperation> op);
+  std::shared_ptr<RenderOperation>            getRenderOperation(const std::string& opName) const;
 
-  void                              addQueue(const QueueTraits& queueTraits);
+  std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
 
-  void getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes) const;
-  std::vector<std::shared_ptr<RenderOperation>> findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const;
-  std::vector<std::shared_ptr<RenderOperation>> findFinalOperations() const;
+  void addAttachmentInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout);
+  void addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
+  void addAttachmentResolveOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
+  void addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
+
+  std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionType transitionTypes) const;
+  std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionType transitionTypes) const;
+
+  std::vector<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName);
+  std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName);
+
+
+  void                                             addQueue(const QueueTraits& queueTraits);
+
+//  void getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes) const;
+//  std::vector<std::shared_ptr<RenderOperation>> findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const;
+//  std::vector<std::shared_ptr<RenderOperation>> findFinalOperations() const;
 
   void compile();
 
-  std::string                                                       name;
-  std::shared_ptr<pumex::RenderWorkflowCompiler>                    compiler;
-  std::unordered_map<std::string, RenderWorkflowResourceType>       resourceTypes;
-  std::unordered_map<std::string, std::shared_ptr<RenderOperation>> renderOperations;
+  std::string                                                                  name;
+  std::shared_ptr<pumex::RenderWorkflowCompiler>                               compiler;
+  std::unordered_map<std::string, std::shared_ptr<RenderWorkflowResourceType>> resourceTypes;
+  std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
+  std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
+  std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
 
-  std::vector<QueueTraits>                                          queueTraits;
-  std::vector<std::vector<std::shared_ptr<RenderCommand>>>  commandSequences;
-  std::vector<std::shared_ptr<pumex::FrameBuffer>>                  frameBuffers;
+  std::vector<QueueTraits>                                                     queueTraits;
+  std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;
+  std::vector<std::shared_ptr<pumex::FrameBuffer>>                             frameBuffers;
 };
 
 // This is the first implementation of workflow compiler
 // It only uses one queue to do the job
 
-struct StandardRenderWorkflowCostCalculator
+struct PUMEX_EXPORT StandardRenderWorkflowCostCalculator
 {
   void  tagOperationByAttachmentType(const RenderWorkflow& workflow);
   float calculateWorkflowCost(const RenderWorkflow& workflow, const std::vector<std::shared_ptr<RenderOperation>>& operationSchedule) const;
@@ -305,10 +329,9 @@ class PUMEX_EXPORT SingleQueueWorkflowCompiler : public RenderWorkflowCompiler
 public:
   void compile(RenderWorkflow& workflow) override;
 private:
-  void                                                verifyOperations(RenderWorkflow& workflow);
+  void                                        verifyOperations(RenderWorkflow& workflow);
+  void                                        collectResources(RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
   std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
-  void                                                collectResources(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, uint32_t opSeqIndex, std::vector<const WorkflowResource*>& resources, std::unordered_map<std::string, glm::uvec3>& resourceOpRange);
-  void                                                shrinkResources(RenderWorkflow& workflow, const std::vector<const WorkflowResource*>& resources, std::vector<const WorkflowResource*>& newResources, std::unordered_map<std::string, glm::uvec3>& resourceOperationRange, std::unordered_map<std::string, uint32_t>& activeResourceIndex);
 
   StandardRenderWorkflowCostCalculator                costCalculator;
 };
