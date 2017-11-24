@@ -31,12 +31,6 @@
 
 using namespace pumex;
 
-//RenderWorkflowResourceType::RenderWorkflowResourceType()
-//  : metaType{ Undefined }, typeName{}, format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, persistent{ false }
-//{
-//
-//}
-
 RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, VkFormat f, VkSampleCountFlagBits s, bool p, AttachmentType at, const AttachmentSize& as)
   : metaType{ Attachment }, typeName{ tn }, format{ f }, samples{ s }, persistent{ p }, attachment{ at, as }
 {
@@ -211,8 +205,8 @@ std::shared_ptr<WorkflowResource> RenderWorkflow::getResource(const std::string&
 void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout)
 {
   auto operation = getRenderOperation(opName);
-  auto resType = getResourceType(resourceType);
-  auto resIt = resources.find(resourceName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
   if (resIt == resources.end())
     resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
   else
@@ -224,8 +218,8 @@ void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::st
 void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
-  auto resType = getResourceType(resourceType);
-  auto resIt = resources.find(resourceName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
   if (resIt == resources.end())
     resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
   else
@@ -244,6 +238,18 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
 
 void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
 {
+  auto operation = getRenderOperation(opName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
+  if (resIt == resources.end())
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+  {
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+    // resource may only have one transition with output type
+  }
+  // FIXME : additional checks
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthOutput, layout, loadOp));
 
 }
 
@@ -300,77 +306,6 @@ void RenderWorkflow::addQueue(const QueueTraits& qt)
 {
   queueTraits.push_back(qt);
 }
-
-
-//void RenderWorkflow::getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes) const
-//{
-//  for (auto rit = resources.begin(); rit != resources.end(); ++rit)
-//  {
-//    auto& rType = getResourceType((*rit)->typeName);
-//    if (rType.metaType != RenderWorkflowResourceType::Attachment)
-//      continue;
-//    attachmentSizes.push_back(rType.attachment.attachmentSize);
-//  }
-//}
-
-//std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const
-//{
-//  std::vector<std::shared_ptr<RenderOperation>> results;
-//  for (auto it = renderOperations.begin(); it != renderOperations.end(); ++it)
-//  {
-//    auto ioObjectsX = it->second->getInputsOutputs(ioTypes);
-//    bool found = false;
-//    for (auto iit = ioObjects.begin(); iit != ioObjects.end(); ++iit)
-//    {
-//      for (auto xit = ioObjectsX.begin(); xit != ioObjectsX.end(); ++xit)
-//      {
-//        if ((*iit)->name == (*xit)->name)
-//        {
-//          found = true;
-//          break;
-//        }
-//      }
-//      if (found)
-//        break;
-//    }
-//    if (found)
-//      results.push_back(it->second);
-//  }
-//  return results;
-//}
-
-//std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::findFinalOperations() const
-//{
-//  std::vector<std::shared_ptr<RenderOperation>> finalOperations;
-//  for (auto oit = renderOperations.begin(); oit != renderOperations.end(); ++oit )
-//  {
-//    auto outputs = oit->second->getInputsOutputs(RenderOperation::AllOutputs);
-//    bool connected = false;
-//    for (auto iit = renderOperations.begin(); iit != renderOperations.end(); ++iit)
-//    {
-//      auto inputs = iit->second->getInputsOutputs(RenderOperation::AllInputs);
-//      // check if operation oit has some outputs that are connected to inputs of operation iit
-//      for (auto ot : outputs)
-//      {
-//        for (auto it : inputs)
-//        {
-//          if (ot->name == it->name)
-//          {
-//            connected = true;
-//            break;
-//          }
-//        }
-//        if (connected)
-//          break;
-//      }
-//      if (connected)
-//        break;
-//    }
-//    if (!connected)
-//      finalOperations.push_back(oit->second);
-//  }
-//  return finalOperations;
-//}
 
 void RenderWorkflow::compile()
 {
@@ -554,6 +489,32 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
         // a list of outputs modified in a current render pass along with the passOperationIndex in which modifications took place
         std::unordered_map<std::string, uint32_t> modifiedOutputs;
 
+        // collect a set of operations that are run after current render pass
+        std::set<std::string> resourcesUsedAfterRenderPass;
+        for (auto& operation : renderPass->renderOperations)
+        {
+          auto nextOperations = workflow.getNextOperations(operation->name);
+          while (!nextOperations.empty())
+          {
+            std::set<std::shared_ptr<RenderOperation>> laterOperations;
+            for (auto nextOperation : nextOperations)
+            {
+              if (std::find(renderPass->renderOperations.begin(), renderPass->renderOperations.end(), nextOperation) == renderPass->renderOperations.end())
+              {
+                auto inputTransitions = workflow.getOperationIO(nextOperation->name, rttAllInputs);
+                for (auto inputTransition : inputTransitions)
+                  resourcesUsedAfterRenderPass.insert(inputTransition->resource->name);
+                auto laterOps = workflow.getNextOperations(nextOperation->name);
+                for (auto lop : laterOps)
+                  laterOperations.insert(lop);
+              }
+            }
+            nextOperations.clear();
+            std::copy(laterOperations.begin(), laterOperations.end(), std::back_inserter(nextOperations));
+          }
+        }
+
+        // build subpasses, attachment definitions, dependencies, pipeline barriers and events
         for (auto& operation : renderPass->renderOperations)
         {
           auto subPassDefinition = operation->buildSubPassDefinition(resourceIndex);
@@ -568,6 +529,14 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
           auto inputTransitions = workflow.getOperationIO(operation->name, rttAllInputs);
           for (auto inputTransition : inputTransitions)
           {
+            // find operation that generated this input
+            auto generateTransitions = workflow.getResourceIO(inputTransition->resource->name, rttAllOutputs);
+            std::shared_ptr<ResourceTransition> generatingTransition;
+            for (auto gen : generateTransitions)
+            {
+              if (gen->resource == inputTransition->resource)
+                generatingTransition = gen;
+            }
             uint32_t resIndex = resourceIndex[inputTransition->resource->name];
             // if this input was generated outside of render pass...
             uint32_t srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -579,16 +548,24 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
             if (dep == subpassDependencies.end())
               dep = subpassDependencies.insert(subpassDependencies.end(), SubpassDependencyDefinition(srcSubpass, passOperationIndex, 0, 0, 0, 0, 0));
             // add correct flags to the dependency
-            dep->srcStageMask  |= 0;
-            dep->dstStageMask  |= 0;
-            dep->srcAccessMask |= 0;
-            dep->dstAccessMask |= 0;
-            dep->dependencyFlags |= 0; // dependency by region !!!
+            VkPipelineStageFlags    srcStageMask = 0, dstStageMask = 0;
+            VkAccessFlags           srcAccessMask = 0, dstAccessMask = 0;
+            getPipelineStageMasks(generatingTransition, inputTransition, srcStageMask, dstStageMask);
+            getAccessMasks(generatingTransition, inputTransition, srcAccessMask, dstAccessMask);
+            dep->srcStageMask  |= srcStageMask;
+            dep->dstStageMask  |= dstStageMask;
+            dep->srcAccessMask |= srcAccessMask;
+            dep->dstAccessMask |= dstAccessMask;
+            // if input resource is an attachment - set VK_DEPENDENCY_BY_REGION_BIT ( FIXME ?!? )
+            if( inputTransition->resource->resourceType->metaType == RenderWorkflowResourceType::Attachment )
+              dep->dependencyFlags |= VK_DEPENDENCY_BY_REGION_BIT;
 
             lastLayout[resIndex]                   = inputTransition->layout;
             frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(inputTransition->layout);
             if( firstLoadOp[resIndex].loadType == LoadOp::DontCare )
               firstLoadOp[resIndex]                = loadOpLoad();
+
+            // FIXME : if generating transition and input transition point to operations in different queues, then we need to add synchronizing EVENT
           }
 
           auto outputTransitions = workflow.getOperationIO(operation->name, rttAllOutputs);
@@ -655,11 +632,11 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
             break;
           }
 
-          // Resource must be saved when it was tagged as persistent, ot it is a swapchain surface
-          // or it will be used later - not examined atm
+          // Resource must be saved when it was tagged as persistent, ot it is a swapchain surface  or it will be used later
           // FIXME : resource will be used later if any of its subsequent uses has loadOpLoad or it is used as input - THESE CONDITIONS ARE NOT EXAMINED AT THE MOMENT
-          bool mustSaveResource = resType->persistent || resType->attachment.attachmentType == atSurface;
-//          ||            resourceOperationRange.at(res->name).y > operationIndex;
+          bool mustSaveResource = resType->persistent ||
+            resType->attachment.attachmentType == atSurface ||
+            resourcesUsedAfterRenderPass.find(res->name) != resourcesUsedAfterRenderPass.end();
 
           attachmentDefinitions.push_back(AttachmentDefinition(
             i,

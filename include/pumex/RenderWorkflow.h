@@ -112,7 +112,6 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
-//  RenderWorkflowResourceType();
   RenderWorkflowResourceType(const std::string& typeName, VkFormat format, VkSampleCountFlagBits samples, bool persistent, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
 
   MetaType              metaType;
@@ -248,6 +247,9 @@ public:
   LoadOp                            load;
 };
 
+inline void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask);
+inline void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask);
+
 
 class PUMEX_EXPORT RenderWorkflowCompiler
 {
@@ -293,11 +295,7 @@ public:
   std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName);
 
 
-  void                                             addQueue(const QueueTraits& queueTraits);
-
-//  void getAttachmentSizes(const std::vector<const WorkflowResource*>& resources, std::vector<AttachmentSize>& attachmentSizes) const;
-//  std::vector<std::shared_ptr<RenderOperation>> findOperations(RenderOperation::IOType ioTypes, const std::vector<const WorkflowResource*>& ioObjects) const;
-//  std::vector<std::shared_ptr<RenderOperation>> findFinalOperations() const;
+  void addQueue(const QueueTraits& queueTraits);
 
   void compile();
 
@@ -379,6 +377,17 @@ VkImageUsageFlags  getAttachmentUsage(VkImageLayout il)
   }
   return (VkImageUsageFlags)0;
 }
+
+void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask)
+{
+
+}
+
+void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask)
+{
+
+}
+
 
 
 
