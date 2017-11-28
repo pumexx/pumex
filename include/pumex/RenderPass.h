@@ -105,6 +105,7 @@ public:
   RenderPass& operator=(const RenderPass&) = delete;
   ~RenderPass();
 
+  void updateOperations(UpdateVisitor& updateVisitor) override;
 
   void         validate(Device* device);
   VkRenderPass getHandle(VkDevice device) const;
@@ -133,6 +134,7 @@ class ComputePass : public RenderCommand
 public:
   explicit ComputePass();
 //  void setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions) override;
+  void updateOperations(UpdateVisitor& updateVisitor) override;
 
   std::shared_ptr<ComputeOperation> computeOperation;
 protected:

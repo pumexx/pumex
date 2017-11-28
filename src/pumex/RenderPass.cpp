@@ -27,6 +27,8 @@
 #include <pumex/Device.h>
 #include <pumex/utils/Log.h>
 #include <pumex/FrameBuffer.h>
+#include <pumex/RenderWorkflow.h>
+#include <pumex/Node.h>
 
 using namespace pumex;
 
@@ -178,17 +180,22 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
   return pddit->second.renderPass;
 }
 
-//void RenderPass::setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions)
-//{
-//  attachments = attachmentDefinitions;
-//}
+void RenderPass::updateOperations(UpdateVisitor& updateVisitor)
+{
+  for (auto operation : renderOperations)
+  {
+    std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(operation);
+    op->renderNode->apply(updateVisitor);
+  }
+}
+
 
 ComputePass::ComputePass()
   : RenderCommand(RenderCommand::commComputePass)
 {
 }
 
+void ComputePass::updateOperations(UpdateVisitor& updateVisitor)
+{
 
-//void ComputePass::setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions)
-//{
-//}
+}

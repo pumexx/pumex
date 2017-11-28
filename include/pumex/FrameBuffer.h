@@ -48,8 +48,6 @@ struct PUMEX_EXPORT FrameBufferImageDefinition
   VkImageAspectFlags    aspectMask;
   VkSampleCountFlagBits samples;
   AttachmentSize        attachmentSize;
-//  Size                  sizeType;
-//  glm::vec2             imageSize;
   gli::swizzles         swizzles;
 };
 

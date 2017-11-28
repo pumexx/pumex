@@ -35,6 +35,12 @@ namespace pumex
 class  Device;
 struct QueueTraits;
 struct SubpassDefinition;
+class DeviceMemoryAllocator;
+class FrameBuffer;
+class FrameBufferImages;
+class Node;
+class ComputeNode;
+class UpdateVisitor;
 
 struct PUMEX_EXPORT LoadOp
 {
@@ -148,37 +154,6 @@ public:
   std::shared_ptr<RenderWorkflowResourceType> resourceType;
 };
 
-class NodeGroup;
-
-class PUMEX_EXPORT Node
-{
-public:
-  Node();
-  virtual ~Node();
-protected:
-  std::vector<std::weak_ptr<NodeGroup>> parents;
-};
-
-class PUMEX_EXPORT ComputeNode : public Node
-{
-public:
-  ComputeNode();
-  virtual ~ComputeNode();
-
-};
-
-class PUMEX_EXPORT NodeGroup : public Node
-{
-public:
-  NodeGroup();
-  virtual ~NodeGroup();
-
-  void addChild(std::shared_ptr<Node> child);
-
-protected:
-  std::vector<std::shared_ptr<Node>> children;
-};
-
 class PUMEX_EXPORT RenderWorkflow;
 
 class PUMEX_EXPORT RenderOperation
@@ -234,7 +209,6 @@ enum ResourceTransitionType
   rttAllInputsOutputs        = (rttAllInputs | rttAllOutputs)
 };
 
-
 class PUMEX_EXPORT ResourceTransition
 {
 public:
@@ -263,8 +237,8 @@ class PUMEX_EXPORT RenderCommand : public CommandBufferSource
 public:
   enum CommandType{commRenderPass, commComputePass};
   RenderCommand(CommandType commandType);
-//  virtual void setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions) = 0;
 
+  virtual void updateOperations(UpdateVisitor& updateVisitor) = 0;
   CommandType commandType;
 };
 
@@ -272,7 +246,7 @@ class PUMEX_EXPORT RenderWorkflow : public std::enable_shared_from_this<RenderWo
 {
 public:
   RenderWorkflow()                                 = delete;
-  explicit RenderWorkflow(const std::string& name, std::shared_ptr<pumex::RenderWorkflowCompiler> compiler);
+  explicit RenderWorkflow(const std::string& name, std::shared_ptr<pumex::RenderWorkflowCompiler> compiler, std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator);
   ~RenderWorkflow();
 
   void                                        addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
@@ -280,6 +254,9 @@ public:
 
   void                                        addRenderOperation(std::shared_ptr<RenderOperation> op);
   std::shared_ptr<RenderOperation>            getRenderOperation(const std::string& opName) const;
+
+  void                                        setOperationNode(const std::string& opName, std::shared_ptr<Node> node);
+  std::shared_ptr<Node>                       getOperationNode(const std::string& opName);
 
   std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
 
@@ -291,11 +268,12 @@ public:
   std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionType transitionTypes) const;
   std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionType transitionTypes) const;
 
-  std::vector<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName);
-  std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName);
+  std::vector<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName) const;
+  std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName) const;
 
 
-  void addQueue(const QueueTraits& queueTraits);
+  void        addQueue(const QueueTraits& queueTraits);
+  QueueTraits getPresentationQueue() const;
 
   void compile();
 
@@ -306,9 +284,13 @@ public:
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
 
-  std::vector<QueueTraits>                                                     queueTraits;
   std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;
-  std::vector<std::shared_ptr<pumex::FrameBuffer>>                             frameBuffers;
+  std::shared_ptr<DeviceMemoryAllocator>                                       frameBufferAllocator;
+  std::shared_ptr<FrameBufferImages>                                           frameBufferImages;
+  std::shared_ptr<FrameBuffer>                                                 frameBuffer;
+  std::vector<QueueTraits>                                                     queueTraits;
+  uint32_t                                                                     presentationQueueIndex = 0;
+  bool                                                                         dirty = true;
 };
 
 // This is the first implementation of workflow compiler
@@ -327,11 +309,11 @@ class PUMEX_EXPORT SingleQueueWorkflowCompiler : public RenderWorkflowCompiler
 public:
   void compile(RenderWorkflow& workflow) override;
 private:
-  void                                        verifyOperations(RenderWorkflow& workflow);
-  void                                        collectResources(RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
+  void                                        verifyOperations(const RenderWorkflow& workflow);
+  void                                        collectResources(const RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
   std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
 
-  StandardRenderWorkflowCostCalculator                costCalculator;
+  StandardRenderWorkflowCostCalculator        costCalculator;
 };
 
 LoadOp             loadOpLoad()                        { return LoadOp(LoadOp::Load, glm::vec4(0.0f)); }
@@ -339,6 +321,7 @@ LoadOp             loadOpClear(const glm::vec4& color) { return LoadOp(LoadOp::C
 LoadOp             loadOpDontCare()                    { return LoadOp(LoadOp::DontCare, glm::vec4(0.0f));}
 StoreOp            storeOpStore()                      { return StoreOp(StoreOp::Store); }
 StoreOp            storeOpDontCare()                   { return StoreOp(StoreOp::DontCare); }
+
 VkImageAspectFlags getAspectMask(AttachmentType at)
 {
   switch (at)

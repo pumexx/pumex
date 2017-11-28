@@ -48,10 +48,6 @@ struct PUMEX_EXPORT SurfaceTraits
 {
   explicit SurfaceTraits(uint32_t imageCount, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
 
-  void setDefaultRenderPass(std::shared_ptr<RenderPass> renderPass);
-  void setFrameBufferImages(std::shared_ptr<FrameBufferImages> frameBufferImages);
-  void definePresentationQueue( const QueueTraits& queueTraits );
-
   void setRenderWorkflow(std::shared_ptr<RenderWorkflow> renderWorkflow);
 
   uint32_t                           imageCount;
@@ -60,10 +56,6 @@ struct PUMEX_EXPORT SurfaceTraits
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
-
-  QueueTraits                        presentationQueueTraits;
-  std::shared_ptr<RenderPass>        defaultRenderPass;
-  std::shared_ptr<FrameBufferImages> frameBufferImages;
 
   std::shared_ptr<RenderWorkflow>    renderWorkflow;
 
@@ -81,11 +73,12 @@ public:
 
   void            cleanup();
   void            beginFrame();
+  void            update();
+  void            draw();
   void            endFrame();
   void            resizeSurface(uint32_t newWidth, uint32_t newHeight);
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
-  VkFramebuffer   getCurrentFrameBuffer();
 
   inline void     setID(uint32_t newID);
   inline uint32_t getID() const;
@@ -97,6 +90,7 @@ public:
 
   VkSurfaceKHR                        surface                      = VK_NULL_HANDLE;
   SurfaceTraits                       surfaceTraits;
+  std::shared_ptr<RenderWorkflow>     renderWorkflow;
   VkSurfaceCapabilitiesKHR            surfaceCapabilities;
   std::vector<VkPresentModeKHR>       presentModes;
   std::vector<VkSurfaceFormatKHR>     surfaceFormats;
@@ -111,14 +105,10 @@ public:
   uint32_t                            swapChainImageIndex          = 0;
   std::vector<std::unique_ptr<Image>> swapChainImages;
 
-  std::unique_ptr<FrameBuffer>        frameBuffer;
-
   VkSemaphore                         imageAvailableSemaphore      = VK_NULL_HANDLE;
   VkSemaphore                         renderCompleteSemaphore      = VK_NULL_HANDLE;
   ActionQueue                         actions;
 
-  std::shared_ptr<RenderPass>         defaultRenderPass;
-  std::shared_ptr<FrameBufferImages>  frameBufferImages;
 protected:
   uint32_t                            id                           = 0;
   VkSwapchainKHR                      swapChain                    = VK_NULL_HANDLE;

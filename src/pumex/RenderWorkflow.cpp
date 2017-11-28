@@ -25,9 +25,11 @@
 #include <sstream>
 #include <iterator>
 #include <pumex/Device.h>
-#include <pumex/utils/Log.h>
+#include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderPass.h>
+#include <pumex/Node.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
@@ -42,36 +44,6 @@ WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<RenderW
 {
 }
 
-Node::Node()
-{
-}
-
-Node::~Node()
-{
-  parents.clear();
-}
-
-ComputeNode::ComputeNode()
-  : Node()
-{
-}
-
-ComputeNode::~ComputeNode()
-{
-}
-
-NodeGroup::NodeGroup()
-{
-}
-
-NodeGroup::~NodeGroup()
-{
-  children.clear();
-}
-
-void NodeGroup::addChild(std::shared_ptr<Node> child)
-{
-}
 
 RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, VkSubpassContents sc)
   : name{ n }, operationType{ t }, subpassContents{ sc }
@@ -157,8 +129,8 @@ RenderCommand::RenderCommand(RenderCommand::CommandType ct)
 {
 }
 
-RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<pumex::RenderWorkflowCompiler> c)
-  : name{ n }, compiler{ c }
+RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<pumex::RenderWorkflowCompiler> c, std::shared_ptr<pumex::DeviceMemoryAllocator> fba)
+  : name{ n }, compiler{ c }, frameBufferAllocator{ fba }
 {
 }
 
@@ -170,6 +142,7 @@ RenderWorkflow::~RenderWorkflow()
 void RenderWorkflow::addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp)
 {
   resourceTypes[tp->typeName] = tp;
+  dirty = true;
 }
 
 std::shared_ptr<RenderWorkflowResourceType> RenderWorkflow::getResourceType(const std::string& typeName) const
@@ -183,8 +156,8 @@ void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
 {
   op->setRenderWorkflow(shared_from_this());
   renderOperations[op->name] = op;
+  dirty = true;
 }
-
 
 std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::string& opName) const
 {
@@ -193,13 +166,25 @@ std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::s
   return it->second;
 }
 
+void RenderWorkflow::setOperationNode(const std::string& opName, std::shared_ptr<Node> node)
+{
+  std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(getRenderOperation(opName));
+  op->setNode(node);
+  dirty = true;
+}
+
+std::shared_ptr<Node> RenderWorkflow::getOperationNode(const std::string& opName)
+{
+  std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(getRenderOperation(opName));
+  return op->renderNode;
+}
+
 std::shared_ptr<WorkflowResource> RenderWorkflow::getResource(const std::string& resourceName) const
 {
   auto it = resources.find(resourceName);
   CHECK_LOG_THROW(it == resources.end(), "RenderWorkflow : there is no resource with name " + resourceName);
   return it->second;
 }
-
 
 void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout)
 {
@@ -212,6 +197,7 @@ void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::st
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentInput, layout, loadOpLoad()));
+  dirty = true;
 }
 
 void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
@@ -228,6 +214,7 @@ void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::s
   }
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp));
+  dirty = true;
 }
 
 void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp)
@@ -249,6 +236,7 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
   std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp);
   resourceTransition->resolveResource = resolveIt->second;
   transitions.push_back(resourceTransition);
+  dirty = true;
 }
 
 void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
@@ -265,10 +253,10 @@ void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const s
   }
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthOutput, layout, loadOp));
-
+  dirty = true;
 }
 
-std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getPreviousOperations(const std::string& opName)
+std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getPreviousOperations(const std::string& opName) const
 {
   auto opTransitions = getOperationIO(opName, rttAllInputs);
 
@@ -283,7 +271,7 @@ std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getPreviousOperati
   return previousOperations;
 }
 
-std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getNextOperations(const std::string& opName)
+std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getNextOperations(const std::string& opName) const
 {
   auto opTransitions = getOperationIO(opName, rttAllOutputs);
 
@@ -297,7 +285,6 @@ std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getNextOperations(
   }
   return previousOperations;
 }
-
 
 std::vector<std::shared_ptr<ResourceTransition>> RenderWorkflow::getOperationIO(const std::string& opName, ResourceTransitionType transitionTypes) const
 {
@@ -320,11 +307,19 @@ std::vector<std::shared_ptr<ResourceTransition>> RenderWorkflow::getResourceIO(c
 void RenderWorkflow::addQueue(const QueueTraits& qt)
 {
   queueTraits.push_back(qt);
+  dirty = true;
+}
+
+QueueTraits RenderWorkflow::getPresentationQueue() const
+{
+  return queueTraits[presentationQueueIndex];
 }
 
 void RenderWorkflow::compile()
 {
-  compiler->compile(*this);
+  if(dirty)
+    compiler->compile(*this);
+  dirty = false;
 };
 
 void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const RenderWorkflow& workflow)
@@ -455,8 +450,6 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
   std::unordered_map<std::string, uint32_t>      resourceIndex;
   collectResources(workflow, resourceVector, resourceIndex);
 
-  std::unordered_map<std::string, uint32_t>      resourceIndexs;
-
   // FIXME : resource vector has ALL inputs - we only need attachments to create framebuffer
   std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions;
   for (uint32_t i = 0; i < resourceVector.size(); ++i)
@@ -483,7 +476,11 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
     newCommandSequences.push_back(commandSequence);
   }
 
+  uint32_t sequenceIndex = 0;
+  uint32_t presentationQueueIndex = 0;
   uint32_t operationIndex = 0;
+  std::shared_ptr<RenderPass> outputRenderPass;
+
   for ( auto& commandSequence : newCommandSequences )
   {
     std::vector<VkImageLayout> lastLayout(frameBufferDefinitions.size());
@@ -593,6 +590,13 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
             frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(outputTransition->layout);
             if (firstLoadOp[resIndex].loadType == LoadOp::DontCare)
               firstLoadOp[resIndex] = outputTransition->load;
+
+            // look for render pass that produces swapchain image
+            if (outputTransition->resource->resourceType->attachment.attachmentType == atSurface)
+            {
+              outputRenderPass       = renderPass;
+              presentationQueueIndex = sequenceIndex;
+            }
           }
 
           operationIndex++;
@@ -679,15 +683,20 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
       }
       }
     }
+    sequenceIndex++;
   }
-  std::vector<std::shared_ptr<pumex::FrameBuffer>> newFrameBuffers;
+  // create frame buffers. Only one is created now
+  std::shared_ptr<FrameBufferImages> fbi = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
+  std::shared_ptr<FrameBuffer> frameBuffer = std::make_shared<FrameBuffer>(outputRenderPass, fbi);
 
   // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
-  workflow.commandSequences = newCommandSequences;
-  workflow.frameBuffers     = newFrameBuffers;
+  workflow.commandSequences       = newCommandSequences;
+  workflow.presentationQueueIndex = presentationQueueIndex;
+  workflow.frameBufferImages      = fbi;
+  workflow.frameBuffer            = frameBuffer;
 }
 
-void SingleQueueWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
+void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflow)
 {
   std::ostringstream os;
   // check if all attachments have the same size in each operation
@@ -725,7 +734,7 @@ void SingleQueueWorkflowCompiler::verifyOperations(RenderWorkflow& workflow)
   CHECK_LOG_THROW(!results.empty(), "Errors in workflow operations :\n" + results);
 }
 
-void SingleQueueWorkflowCompiler::collectResources(RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string,uint32_t>& resourceIndex)
+void SingleQueueWorkflowCompiler::collectResources(const RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string,uint32_t>& resourceIndex)
 {
   std::list<std::shared_ptr<RenderOperation>>       nextOperations;
   std::map<std::shared_ptr<WorkflowResource>, bool> resourcesGenerated;

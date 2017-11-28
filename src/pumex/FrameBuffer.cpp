@@ -252,8 +252,8 @@ void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t inde
   }
   else
   {
-    std::shared_ptr<RenderPass> rp         = s->frameBuffer->renderPass.lock();
-    std::shared_ptr<FrameBufferImages> fbi = s->frameBuffer->frameBufferImages.lock();
+    std::shared_ptr<RenderPass> rp         = s->renderWorkflow->frameBuffer->renderPass.lock();
+    std::shared_ptr<FrameBufferImages> fbi = s->renderWorkflow->frameBuffer->frameBufferImages.lock();
     uint32_t actualIndex = rp->attachments[frameBufferIndex].imageDefinitionIndex;
     values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s.get(), frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
   }

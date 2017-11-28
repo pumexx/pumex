@@ -26,6 +26,7 @@
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
+#include <pumex/Node.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Texture.h>
@@ -33,23 +34,8 @@
 using namespace pumex;
 
 SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkPresentModeKHR  spm, VkSurfaceTransformFlagBitsKHR pt, VkCompositeAlphaFlagBitsKHR ca)
-  : imageCount{ ic }, imageColorSpace{ ics }, imageArrayLayers{ ial }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }, presentationQueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0, { 0.5f } }
+  : imageCount{ ic }, imageColorSpace{ ics }, imageArrayLayers{ ial }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }
 {
-}
-
-void SurfaceTraits::setDefaultRenderPass(std::shared_ptr<RenderPass> rp)
-{
-  defaultRenderPass = rp;
-}
-
-void SurfaceTraits::setFrameBufferImages(std::shared_ptr<FrameBufferImages> fbi)
-{
-  frameBufferImages = fbi;
-}
-
-void SurfaceTraits::definePresentationQueue(const QueueTraits& queueTraits)
-{
-  presentationQueueTraits = queueTraits;
 }
 
 void SurfaceTraits::setRenderWorkflow(std::shared_ptr<RenderWorkflow> rw)
@@ -58,7 +44,7 @@ void SurfaceTraits::setRenderWorkflow(std::shared_ptr<RenderWorkflow> rw)
 }
 
 Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
-  : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st)
+  : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st), renderWorkflow(st.renderWorkflow)
 {
   auto deviceSh = device.lock();
   VkPhysicalDevice phDev = deviceSh->physical.lock()->physicalDevice;
@@ -84,7 +70,7 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
     VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceSupportKHR(phDev, i, surface, &supportsPresent[i]), "failed vkGetPhysicalDeviceSurfaceSupportKHR for family " << i );
 
   // get the main queue
-  presentationQueue = deviceSh->getQueue(surfaceTraits.presentationQueueTraits, true);
+  presentationQueue = deviceSh->getQueue(renderWorkflow->getPresentationQueue(), true);
   CHECK_LOG_THROW( presentationQueue == VK_NULL_HANDLE, "Cannot get the presentation queue for this surface" );
   auto pp = std::tie(presentationQueueFamilyIndex, presentationQueueIndex);
   CHECK_LOG_THROW( (!deviceSh->getQueueIndices(presentationQueue, pp)), "Could not get data for (device, surface, familyIndex, index)" );
@@ -105,14 +91,6 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
   // Create a semaphore used to synchronize command submission
   // Ensures that the image is not presented until all commands have been sumbitted and executed
   VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &renderCompleteSemaphore), "Could not create render complete semaphore");
-
-  // define default render pass
-  defaultRenderPass = surfaceTraits.defaultRenderPass;
-  frameBufferImages = surfaceTraits.frameBufferImages;
-
-  defaultRenderPass->validate(deviceSh.get());
-
-  frameBuffer = std::make_unique<FrameBuffer>(defaultRenderPass, frameBufferImages);
 
   // define presentation command buffers
   for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
@@ -136,8 +114,8 @@ void Surface::cleanup()
   VkDevice dev = device.lock()->device;
   if (swapChain != VK_NULL_HANDLE)
   {
-    frameBuffer->reset(this);
-    frameBufferImages->reset(this);
+    renderWorkflow->frameBuffer->reset(this);
+    renderWorkflow->frameBufferImages->reset(this);
     swapChainImages.clear();
     vkDestroySwapchainKHR(dev, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
@@ -147,7 +125,6 @@ void Surface::cleanup()
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
     prePresentCmdBuffers.clear();
-    defaultRenderPass = nullptr;
     vkDestroySemaphore(dev, renderCompleteSemaphore, nullptr);
     vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
     commandPool = nullptr;
@@ -169,7 +146,7 @@ void Surface::createSwapChain()
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   VkSwapchainKHR oldSwapChain = swapChain;
 
-  FrameBufferImageDefinition swapChainDefinition = frameBufferImages->getSwapChainDefinition();
+  FrameBufferImageDefinition swapChainDefinition = renderWorkflow->frameBufferImages->getSwapChainDefinition();
 
   VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -193,8 +170,8 @@ void Surface::createSwapChain()
   // remove old swap chain and all images
   if (oldSwapChain != VK_NULL_HANDLE)
   {
-    frameBuffer->reset(this);
-    frameBufferImages->reset(this);
+    renderWorkflow->frameBuffer->reset(this);
+    renderWorkflow->frameBufferImages->reset(this);
     swapChainImages.clear();
     vkDestroySwapchainKHR(vkDevice, oldSwapChain, nullptr);
   }
@@ -207,8 +184,8 @@ void Surface::createSwapChain()
   for (uint32_t i = 0; i < imageCount; i++)
     swapChainImages.push_back(std::make_unique<Image>(deviceSh.get(), images[i], swapChainDefinition.format, 1, 1, swapChainDefinition.aspectMask, VK_IMAGE_VIEW_TYPE_2D, swapChainDefinition.swizzles));
 
-  frameBufferImages->validate(this);
-  frameBuffer->validate(this, swapChainImages);
+  renderWorkflow->frameBufferImages->validate(this);
+  renderWorkflow->frameBuffer->validate(this, swapChainImages);
 
   // define prepresentation command buffers
   prePresentCmdBuffers.resize(swapChainImages.size());
@@ -234,6 +211,19 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
 
+void Surface::update()
+{
+  UpdateVisitor updateVisitor(this);
+  for (auto commandSequence : renderWorkflow->commandSequences)
+    for( auto command : commandSequence )
+      command->updateOperations(updateVisitor);
+}
+
+void Surface::draw()
+{
+}
+
+
 void Surface::endFrame()
 {
   auto deviceSh = device.lock();
@@ -254,11 +244,6 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
 {
   swapChainSize = VkExtent2D{ newWidth, newHeight };
   createSwapChain();
-}
-
-VkFramebuffer Surface::getCurrentFrameBuffer() 
-{ 
-  return frameBuffer->getFrameBuffer(this, swapChainImageIndex); 
 }
 
 
