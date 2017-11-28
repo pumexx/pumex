@@ -211,9 +211,9 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
 
-void Surface::update()
+void Surface::gpuUpdate()
 {
-  UpdateVisitor updateVisitor(this);
+  GPUUpdateVisitor updateVisitor(this);
   for (auto commandSequence : renderWorkflow->commandSequences)
     for( auto command : commandSequence )
       command->updateOperations(updateVisitor);
@@ -221,6 +221,7 @@ void Surface::update()
 
 void Surface::draw()
 {
+
 }
 
 

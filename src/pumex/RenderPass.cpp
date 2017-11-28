@@ -180,12 +180,12 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
   return pddit->second.renderPass;
 }
 
-void RenderPass::updateOperations(UpdateVisitor& updateVisitor)
+void RenderPass::updateOperations(GPUUpdateVisitor& updateVisitor)
 {
   for (auto operation : renderOperations)
   {
     std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(operation);
-    op->renderNode->apply(updateVisitor);
+    op->renderNode->accept(updateVisitor);
   }
 }
 
@@ -195,7 +195,7 @@ ComputePass::ComputePass()
 {
 }
 
-void ComputePass::updateOperations(UpdateVisitor& updateVisitor)
+void ComputePass::updateOperations(GPUUpdateVisitor& updateVisitor)
 {
-
+  computeOperation->computeNode->accept(updateVisitor);
 }

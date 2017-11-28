@@ -263,16 +263,16 @@ public:
   AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
   virtual ~AssetBufferInstancedResults();
 
-  void                                                                               setup();
-  void                                                                               prepareBuffers(const std::vector<uint32_t>& typeCount);
+  void                                                                 setup();
+  void                                                                 prepareBuffers(const std::vector<uint32_t>& typeCount);
 
-  std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
-  std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          getOffsetValues(uint32_t renderMask);
-  uint32_t                                                                           getDrawCount(uint32_t renderMask);
+  std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
+  std::shared_ptr<StorageBufferPerSurface<uint32_t>>                   getOffsetValues(uint32_t renderMask);
+  uint32_t                                                             getDrawCount(uint32_t renderMask);
 
 
-  void                                                                               setActiveIndex(uint32_t index);
-  void                                                                               validate(Surface* surface);
+  void                                                                 setActiveIndex(uint32_t index);
+  void                                                                 validate(Surface* surface);
 
 protected:
   struct PerRenderMaskData
@@ -280,14 +280,14 @@ protected:
     PerRenderMaskData() = default;
     PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> allocator)
     {
-      resultsSbo = std::make_shared<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>>(allocator, 3, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-      offValuesSbo = std::make_shared<pumex::StorageBufferPerSurface<uint32_t>>(allocator, 3);
+      resultsSbo = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, 3, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+      offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator, 3);
     }
 
-    std::vector<pumex::DrawIndexedIndirectCommand>                                     initialResultValues;
-    std::vector<uint32_t>                                                              resultsGeomToType;
-    std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> resultsSbo;
-    std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>>                          offValuesSbo;
+    std::vector<DrawIndexedIndirectCommand>                              initialResultValues;
+    std::vector<uint32_t>                                                resultsGeomToType;
+    std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> resultsSbo;
+    std::shared_ptr<StorageBufferPerSurface<uint32_t>>                   offValuesSbo;
   };
 
   mutable std::mutex                              mutex;

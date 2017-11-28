@@ -40,7 +40,7 @@ class FrameBuffer;
 class FrameBufferImages;
 class Node;
 class ComputeNode;
-class UpdateVisitor;
+class GPUUpdateVisitor;
 
 struct PUMEX_EXPORT LoadOp
 {
@@ -238,7 +238,7 @@ public:
   enum CommandType{commRenderPass, commComputePass};
   RenderCommand(CommandType commandType);
 
-  virtual void updateOperations(UpdateVisitor& updateVisitor) = 0;
+  virtual void updateOperations(GPUUpdateVisitor& updateVisitor) = 0;
   CommandType commandType;
 };
 
@@ -246,7 +246,7 @@ class PUMEX_EXPORT RenderWorkflow : public std::enable_shared_from_this<RenderWo
 {
 public:
   RenderWorkflow()                                 = delete;
-  explicit RenderWorkflow(const std::string& name, std::shared_ptr<pumex::RenderWorkflowCompiler> compiler, std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator);
+  explicit RenderWorkflow(const std::string& name, std::shared_ptr<RenderWorkflowCompiler> compiler, std::shared_ptr<DeviceMemoryAllocator> frameBufferAllocator);
   ~RenderWorkflow();
 
   void                                        addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
@@ -278,7 +278,7 @@ public:
   void compile();
 
   std::string                                                                  name;
-  std::shared_ptr<pumex::RenderWorkflowCompiler>                               compiler;
+  std::shared_ptr<RenderWorkflowCompiler>                                      compiler;
   std::unordered_map<std::string, std::shared_ptr<RenderWorkflowResourceType>> resourceTypes;
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;

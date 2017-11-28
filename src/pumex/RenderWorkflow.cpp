@@ -59,7 +59,6 @@ void RenderOperation::setRenderWorkflow ( std::shared_ptr<RenderWorkflow> rw )
   renderWorkflow = rw;
 }
 
-
 GraphicsOperation::GraphicsOperation(const std::string& n, VkSubpassContents sc)
   : RenderOperation(n, RenderOperation::Graphics, sc)
 {
@@ -129,7 +128,7 @@ RenderCommand::RenderCommand(RenderCommand::CommandType ct)
 {
 }
 
-RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<pumex::RenderWorkflowCompiler> c, std::shared_ptr<pumex::DeviceMemoryAllocator> fba)
+RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<RenderWorkflowCompiler> c, std::shared_ptr<DeviceMemoryAllocator> fba)
   : name{ n }, compiler{ c }, frameBufferAllocator{ fba }
 {
 }
@@ -451,12 +450,12 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
   collectResources(workflow, resourceVector, resourceIndex);
 
   // FIXME : resource vector has ALL inputs - we only need attachments to create framebuffer
-  std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions;
+  std::vector<FrameBufferImageDefinition> frameBufferDefinitions;
   for (uint32_t i = 0; i < resourceVector.size(); ++i)
   {
     auto resourceType = resourceVector[i]->resourceType;
 
-    frameBufferDefinitions.push_back(pumex::FrameBufferImageDefinition(
+    frameBufferDefinitions.push_back(FrameBufferImageDefinition(
       resourceType->attachment.attachmentType,
       resourceType->format,
       0,
@@ -686,7 +685,7 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
     sequenceIndex++;
   }
   // create frame buffers. Only one is created now
-  std::shared_ptr<FrameBufferImages> fbi = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
+  std::shared_ptr<FrameBufferImages> fbi = std::make_shared<FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
   std::shared_ptr<FrameBuffer> frameBuffer = std::make_shared<FrameBuffer>(outputRenderPass, fbi);
 
   // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?

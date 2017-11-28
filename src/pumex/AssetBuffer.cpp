@@ -365,7 +365,7 @@ void AssetBufferInstancedResults::prepareBuffers(const std::vector<uint32_t>& ty
     for (uint32_t i = 0; i < rmData.resultsGeomToType.size(); ++i)
       offsets.push_back(typeCount[rmData.resultsGeomToType[i]]);
 
-    std::vector<pumex::DrawIndexedIndirectCommand> results = rmData.initialResultValues;
+    std::vector<DrawIndexedIndirectCommand> results = rmData.initialResultValues;
     uint32_t offsetSum = 0;
     for (uint32_t i = 0; i < offsets.size(); ++i)
     {
@@ -379,7 +379,7 @@ void AssetBufferInstancedResults::prepareBuffers(const std::vector<uint32_t>& ty
   }
 }
 
-std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
+std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
@@ -387,7 +387,7 @@ std::shared_ptr<pumex::StorageBufferPerSurface<pumex::DrawIndexedIndirectCommand
   return it->second.resultsSbo;
 }
 
-std::shared_ptr<pumex::StorageBufferPerSurface<uint32_t>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
+std::shared_ptr<StorageBufferPerSurface<uint32_t>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);

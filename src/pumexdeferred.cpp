@@ -976,11 +976,13 @@ int main( int argc, char * argv[] )
     tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
     { 
       applicationData->prepareCameraForRendering(surface); 
+      surface->gpuUpdate();
       surface->beginFrame(); 
     });
     tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
     { 
-      applicationData->draw(surface); 
+      surface->draw();
+//      applicationData->draw(surface); 
     });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
     { 

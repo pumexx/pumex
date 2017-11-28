@@ -73,7 +73,7 @@ public:
 
   void            cleanup();
   void            beginFrame();
-  void            update();
+  void            gpuUpdate();
   void            draw();
   void            endFrame();
   void            resizeSurface(uint32_t newWidth, uint32_t newHeight);

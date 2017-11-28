@@ -33,8 +33,8 @@ if (fullFontFileName.empty())
   // file not exists
 }
 
-std::shared_ptr<pumex::Font> font = std::make_shared<pumex::Font>(fullFontFileName, 12, glm::vec2( 2048,2048 ), allocator );
-std::shared_ptr<pumex::Text> text = std::make_shared<pumex::Text>( font, glm::vec3(1.0f,0.0f,0.0f), glm::vec2(0,100), L"Napis jakiœ" );
+std::shared_ptr<Font> font = std::make_shared<Font>(fullFontFileName, 12, glm::vec2( 2048,2048 ), allocator );
+std::shared_ptr<Text> text = std::make_shared<Text>( font, glm::vec3(1.0f,0.0f,0.0f), glm::vec2(0,100), L"Napis jakiœ" );
 text->setText(L"Napis inny");
 text->validate(device);
 
@@ -60,7 +60,7 @@ Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::weak_p
   fontCount++;
 
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);
-  fontTexture   = std::make_shared<Texture>(gli::texture(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1), pumex::TextureTraits(), textureAllocator);
+  fontTexture   = std::make_shared<Texture>(gli::texture(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1), TextureTraits(), textureAllocator);
   fontTexture->texture->clear<gli::u8>(0);
   fontTexture2d = gli::texture2d( (*(fontTexture->texture.get())) );
 
@@ -160,7 +160,7 @@ Text::Text(std::weak_ptr<Font> f, std::weak_ptr<DeviceMemoryAllocator> ba)
   : dirty{ true }, font{ f }
 {
   vertexBuffer = std::make_shared<GenericBufferPerSurface<std::vector<SymbolData>>>(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, ba, 3);
-  textVertexSemantic = { { pumex::VertexSemantic::Position, 4 },{ pumex::VertexSemantic::TexCoord, 4 } , { pumex::VertexSemantic::Color, 4 } };
+  textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
 }
 
 Text::~Text()

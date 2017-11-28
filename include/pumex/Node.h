@@ -31,18 +31,31 @@ namespace pumex
 class Device;
 class Surface;
 
-class NodeGroup;
+class Group;
 class NodeVisitor;
 
-class PUMEX_EXPORT Node
+class PUMEX_EXPORT Node : public std::enable_shared_from_this<Node>
 {
 public:
   Node();
   virtual ~Node();
 
-  virtual void apply( NodeVisitor& visitor ) = 0;
+  inline void     setMask(uint32_t mask);
+  inline uint32_t getMask();
+
+  virtual void accept( NodeVisitor& visitor );
+
+  virtual void traverse(NodeVisitor& visitor);
+  virtual void ascend(NodeVisitor& nv);
+
+  void addParent(std::shared_ptr<Group> parent);
+  void removeParent(std::shared_ptr<Group> parent);
+
+  void dirtyBound();
 protected:
-  std::vector<std::weak_ptr<NodeGroup>> parents;
+  uint32_t                          mask = 0xFFFFFFFF;
+  std::vector<std::weak_ptr<Group>> parents;
+  bool                              boundDirty = true;
 };
 
 class PUMEX_EXPORT ComputeNode : public Node
@@ -53,36 +66,71 @@ public:
 
 };
 
-class PUMEX_EXPORT NodeGroup : public Node
+class PUMEX_EXPORT Group : public Node
 {
-public:
-  NodeGroup();
-  virtual ~NodeGroup();
-
-  void addChild(std::shared_ptr<Node> child);
-
 protected:
   std::vector<std::shared_ptr<Node>> children;
+public:
+  Group();
+  virtual ~Group();
+
+  void traverse(NodeVisitor& visitor) override;
+
+
+  virtual void addChild(std::shared_ptr<Node> child);
+  virtual bool removeChild(std::shared_ptr<Node> child);
+
+  inline decltype(children.begin())  childrenBegin()       { return children.begin(); }
+  inline decltype(children.end())    childrenEnd()         { return children.end(); }
+  inline decltype(children.cbegin()) childrenBegin() const { return children.cbegin(); }
+  inline decltype(children.cend())   childrenEnd() const   { return children.cend(); }
+
 };
 
 class PUMEX_EXPORT NodeVisitor
 {
 public:
-  NodeVisitor();
+  enum TraversalMode { None, Parents, AllChildren, ActiveChildren };
+
+  NodeVisitor(TraversalMode traversalMode = None);
+
+  inline void     setMask(uint32_t mask);
+  inline uint32_t getMask();
+
+  inline void push(Node* node);
+  inline void pop();
+
+  void traverse(Node& node);
+
+  virtual void apply(Node& node);
+  virtual void apply(ComputeNode& node);
+  virtual void apply(Group& node);
+
+
+protected:
+  uint32_t           mask = 0xFFFFFFFF;
+  TraversalMode      traversalMode;
+  std::vector<Node*> nodePath;
 };
 
-class PUMEX_EXPORT UpdateVisitor : public NodeVisitor
+class PUMEX_EXPORT GPUUpdateVisitor : public NodeVisitor
 {
 public:
-  UpdateVisitor(Surface* surface);
+  GPUUpdateVisitor(Surface* surface);
 
   Surface* surface;
   Device*  device;
   VkDevice vkDevice;
   uint32_t imageIndex;
   uint32_t imageCount;
-
 };
+
+void     Node::setMask(uint32_t m)        { mask = m; }
+uint32_t Node::getMask()                  { return mask; }
+void     NodeVisitor::setMask(uint32_t m) { mask = m; }
+uint32_t NodeVisitor::getMask()           { return mask; }
+void     NodeVisitor::push(Node* node)    { nodePath.push_back(node); }
+void     NodeVisitor::pop()               { nodePath.pop_back(); }
 
 
 }
