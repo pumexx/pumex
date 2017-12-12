@@ -161,7 +161,7 @@ void Image::setImageLayout(VkImageLayout newLayout)
 }
 
 Texture::Texture(const gli::texture& tex, const TextureTraits& tr, std::weak_ptr<DeviceMemoryAllocator> a)
-  : traits{ tr }, allocator{ a }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, traits{ tr }, allocator{ a }
 {
   texture = std::make_shared<gli::texture>(tex);
 }
@@ -337,7 +337,6 @@ void Texture::setLayer(uint32_t layer, const gli::texture& tex)
 
   for (uint32_t level = texture->base_level(); level < texture->levels(); ++level)
     memcpy(texture->data(layer, 0, level), tex.data(0, 0, level), tex.size(level));
-
 }
 
 VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)

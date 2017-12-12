@@ -190,6 +190,13 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
   imageInfo.imageLayout = imageLayout;
 }
 
+DescriptorSetSource::DescriptorSetSource(VkDescriptorType dt)
+  : descriptorType{ dt }
+{
+
+}
+
+
 DescriptorSetSource::~DescriptorSetSource()
 {
 }
@@ -698,7 +705,7 @@ void GraphicsPipeline::validate(Device* device)
     pipelineCI.pDepthStencilState              = &depthStencilState;
     pipelineCI.pDynamicState                   = &dynamicState;
   VK_CHECK_LOG_THROW(vkCreateGraphicsPipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create graphics pipeline");
-  notifyCommandBuffers();
+//  notifyCommandBuffers();
   pddit->second.dirty = false;
 }
 
@@ -752,7 +759,7 @@ void ComputePipeline::validate(Device* device)
     pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();//"main";
 
   VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create compute pipeline");
-  notifyCommandBuffers();
+//  notifyCommandBuffers();
   pddit->second.dirty = false;
 }
 

@@ -314,7 +314,7 @@ std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, cons
   return device;
 }
 
-std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const pumex::SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
   std::shared_ptr<Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
   surface->setID(nextSurfaceID);

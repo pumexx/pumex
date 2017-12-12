@@ -86,13 +86,13 @@ private:
 
 template <typename T>
 UniformBuffer<T>::UniformBuffer(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : uboData(), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, uboData(), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
 template <typename T>
 UniformBuffer<T>::UniformBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : uboData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, uboData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 

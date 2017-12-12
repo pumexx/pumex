@@ -26,7 +26,7 @@
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
-#include <pumex/Node.h>
+#include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Texture.h>
@@ -92,9 +92,9 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
   // Ensures that the image is not presented until all commands have been sumbitted and executed
   VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &renderCompleteSemaphore), "Could not create render complete semaphore");
 
-  // define presentation command buffers
-  for (uint32_t i = 0; i < surfaceTraits.imageCount; ++i)
-    prePresentCmdBuffers.push_back(std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(),commandPool.get()));
+  // define presentation and primary command buffers
+  presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPool.get(), surfaceTraits.imageCount);
+  primaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPool.get(), surfaceTraits.imageCount);
 
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -124,7 +124,8 @@ void Surface::cleanup()
   {
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
-    prePresentCmdBuffers.clear();
+    presentCommandBuffer = nullptr;
+    primaryCommandBuffer = nullptr;
     vkDestroySemaphore(dev, renderCompleteSemaphore, nullptr);
     vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
     commandPool = nullptr;
@@ -188,14 +189,14 @@ void Surface::createSwapChain()
   renderWorkflow->frameBuffer->validate(this, swapChainImages);
 
   // define prepresentation command buffers
-  prePresentCmdBuffers.resize(swapChainImages.size());
   for (uint32_t i = 0; i < swapChainImages.size(); ++i)
   {
     // dummy image barrier
-    prePresentCmdBuffers[i]->cmdBegin();
+    presentCommandBuffer->setActiveIndex(i);
+    presentCommandBuffer->cmdBegin();
     PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[i]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-    prePresentCmdBuffers[i]->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
-    prePresentCmdBuffers[i]->cmdEnd();
+    presentCommandBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
+    presentCommandBuffer->cmdEnd();
   }
 
 }
@@ -211,17 +212,36 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
 
-void Surface::gpuUpdate()
+void Surface::validateGPUData()
 {
-  GPUUpdateVisitor updateVisitor(this);
+  ValidateGPUVisitor validateVisitor(this);
   for (auto commandSequence : renderWorkflow->commandSequences)
     for( auto command : commandSequence )
-      command->updateOperations(updateVisitor);
+      command->validateGPUData(validateVisitor);
 }
+
+void Surface::buildPrimaryCommandBuffer()
+{
+  primaryCommandBuffer->setActiveIndex(swapChainImageIndex);
+  if (primaryCommandBuffer->isDirty(swapChainImageIndex))
+  {
+    BuildCommandBufferVisitor cbVisitor(this, primaryCommandBuffer.get());
+
+    primaryCommandBuffer->cmdBegin();
+
+    for (auto commandSequence : renderWorkflow->commandSequences)
+      for (auto command : commandSequence)
+        command->buildCommandBuffer(cbVisitor);
+
+    primaryCommandBuffer->cmdEnd();
+  }
+}
+
 
 void Surface::draw()
 {
-
+  primaryCommandBuffer->setActiveIndex(swapChainImageIndex);
+  primaryCommandBuffer->queueSubmit(presentationQueue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { renderCompleteSemaphore }, VK_NULL_HANDLE);
 }
 
 
@@ -229,7 +249,8 @@ void Surface::endFrame()
 {
   auto deviceSh = device.lock();
   // Submit pre present dummy image barrier so that we are able to signal a fence
-  prePresentCmdBuffers[swapChainImageIndex]->queueSubmit(presentationQueue, {}, {}, {}, waitFences[swapChainImageIndex]);
+  presentCommandBuffer->setActiveIndex(swapChainImageIndex);
+  presentCommandBuffer->queueSubmit(presentationQueue, {}, {}, {}, waitFences[swapChainImageIndex]);
 
   VkPresentInfoKHR presentInfo{};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -246,7 +267,3 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
   swapChainSize = VkExtent2D{ newWidth, newHeight };
   createSwapChain();
 }
-
-
-
-

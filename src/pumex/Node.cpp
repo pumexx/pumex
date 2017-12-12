@@ -20,8 +20,8 @@
 // SOFTWARE.
 //
 #include <pumex/Node.h>
+#include <pumex/NodeVisitor.h>
 #include <algorithm>
-#include <pumex/Surface.h>
 
 using namespace pumex;
 
@@ -98,8 +98,8 @@ Group::~Group()
 
 void Group::traverse(NodeVisitor& visitor)
 {
-  for (auto it = childrenBegin(); it != childrenEnd(); ++it)
-    (*it)->accept(visitor);
+  for (auto child : *this)
+    child->accept(visitor);
 }
 
 void Group::addChild(std::shared_ptr<Node> child)
@@ -118,40 +118,5 @@ bool Group::removeChild(std::shared_ptr<Node> child)
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   dirtyBound();
   return true;
-}
-
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
-{
-}
-
-void NodeVisitor::traverse(Node& node)
-{
-  if ( traversalMode == Parents) 
-    node.ascend(*this);
-  else if ( traversalMode != None) 
-    node.traverse(*this);
-}
-
-void NodeVisitor::apply(Node& node)
-{
-  traverse(node);
-}
-
-void NodeVisitor::apply(ComputeNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-
-void NodeVisitor::apply(Group& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-
-GPUUpdateVisitor::GPUUpdateVisitor(Surface* s)
-  : NodeVisitor{ AllChildren }, surface { s }, device{ s->device.lock().get() }, vkDevice{ device->device }, imageIndex{ s->getImageIndex() }, imageCount{ s->getImageCount() }
-{
 }
 

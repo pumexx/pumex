@@ -86,13 +86,13 @@ private:
 
 template <typename T>
 StorageBuffer<T>::StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
 template <typename T>
 StorageBuffer<T>::StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : storageData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, storageData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 

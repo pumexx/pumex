@@ -28,6 +28,7 @@
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 #include <pumex/Command.h>
+#include <pumex/Node.h>
 
 namespace pumex
 {
@@ -114,7 +115,9 @@ class DescriptorSet;
 class PUMEX_EXPORT DescriptorSetSource
 {
 public:
+  DescriptorSetSource(VkDescriptorType descriptorType);
   virtual ~DescriptorSetSource();
+
   virtual void addDescriptorSet(DescriptorSet* descriptorSet);
   virtual void removeDescriptorSet(DescriptorSet* descriptorSet);
   virtual void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
@@ -126,6 +129,7 @@ public:
   virtual void notifyDescriptorSets();
 protected:
   std::set<DescriptorSet*> descriptorSets;
+  VkDescriptorType         descriptorType;
 };
 
 // class not used ATM, but I will leave it for now
@@ -286,7 +290,7 @@ struct PUMEX_EXPORT ShaderStageDefinition
   std::string                   entryPoint = "main";
 };
 
-class PUMEX_EXPORT GraphicsPipeline : public CommandBufferSource
+class PUMEX_EXPORT GraphicsPipeline : public Group
 {
 public:
   GraphicsPipeline()                                   = delete;
@@ -370,7 +374,7 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-class PUMEX_EXPORT ComputePipeline : public CommandBufferSource
+class PUMEX_EXPORT ComputePipeline : public Group
 {
 public:
   ComputePipeline()                                  = delete;

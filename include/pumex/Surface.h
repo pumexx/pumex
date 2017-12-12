@@ -73,7 +73,8 @@ public:
 
   void            cleanup();
   void            beginFrame();
-  void            gpuUpdate();
+  void            validateGPUData();
+  void            buildPrimaryCommandBuffer();
   void            draw();
   void            endFrame();
   void            resizeSurface(uint32_t newWidth, uint32_t newHeight);
@@ -113,7 +114,8 @@ protected:
   uint32_t                            id                           = 0;
   VkSwapchainKHR                      swapChain                    = VK_NULL_HANDLE;
   std::vector<VkFence>                waitFences;
-  std::vector<std::shared_ptr<CommandBuffer>> prePresentCmdBuffers;
+  std::shared_ptr<CommandBuffer>      primaryCommandBuffer;
+  std::shared_ptr<CommandBuffer>      presentCommandBuffer;
 
 protected:
   void createSwapChain();

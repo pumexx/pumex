@@ -40,7 +40,8 @@ class FrameBuffer;
 class FrameBufferImages;
 class Node;
 class ComputeNode;
-class GPUUpdateVisitor;
+class ValidateGPUVisitor;
+class BuildCommandBufferVisitor;
 
 struct PUMEX_EXPORT LoadOp
 {
@@ -168,33 +169,16 @@ public:
 
   SubpassDefinition buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& resourceIndex) const;
 
+  void setSceneNode(std::shared_ptr<Node> node);
+
 
   std::string                                       name;
   Type                                              operationType;
   VkSubpassContents                                 subpassContents;
   std::weak_ptr<RenderWorkflow>                     renderWorkflow;
+  std::shared_ptr<Node>                             sceneNode;
 
   bool                                              enabled; // not implemented
-};
-
-class PUMEX_EXPORT GraphicsOperation : public RenderOperation
-{
-public:
-  GraphicsOperation(const std::string& name, VkSubpassContents subpassContents);
-
-  void setNode(std::shared_ptr<Node> node);
-
-  std::shared_ptr<Node>                             renderNode;
-};
-
-class PUMEX_EXPORT ComputeOperation : public RenderOperation
-{
-public:
-  ComputeOperation(const std::string& name, VkSubpassContents subpassContents);
-
-  void setNode(std::shared_ptr<ComputeNode> node);
-
-  std::shared_ptr<ComputeNode>                       computeNode;
 };
 
 enum ResourceTransitionType 
@@ -238,7 +222,9 @@ public:
   enum CommandType{commRenderPass, commComputePass};
   RenderCommand(CommandType commandType);
 
-  virtual void updateOperations(GPUUpdateVisitor& updateVisitor) = 0;
+  virtual void validateGPUData(ValidateGPUVisitor& updateVisitor) = 0;
+  virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
+
   CommandType commandType;
 };
 
@@ -255,10 +241,11 @@ public:
   void                                        addRenderOperation(std::shared_ptr<RenderOperation> op);
   std::shared_ptr<RenderOperation>            getRenderOperation(const std::string& opName) const;
 
-  void                                        setOperationNode(const std::string& opName, std::shared_ptr<Node> node);
-  std::shared_ptr<Node>                       getOperationNode(const std::string& opName);
+  void                                        setSceneNode(const std::string& opName, std::shared_ptr<Node> node);
+  std::shared_ptr<Node>                       getSceneNode(const std::string& opName);
 
   std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
+  uint32_t                                    getResourceIndex(const std::string& resourceName) const;
 
   void addAttachmentInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout);
   void addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
@@ -276,21 +263,26 @@ public:
   QueueTraits getPresentationQueue() const;
 
   void compile();
+  void setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, const std::unordered_map<std::string, uint32_t> newResourceIndex, uint32_t newPresentationQueueIndex);
 
+  // data provided by user during workflow setup
   std::string                                                                  name;
   std::shared_ptr<RenderWorkflowCompiler>                                      compiler;
   std::unordered_map<std::string, std::shared_ptr<RenderWorkflowResourceType>> resourceTypes;
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
+  std::vector<QueueTraits>                                                     queueTraits;
 
+  bool                                                                         dirty = true;
+
+  // data created during workflow compilation
   std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;
   std::shared_ptr<DeviceMemoryAllocator>                                       frameBufferAllocator;
   std::shared_ptr<FrameBufferImages>                                           frameBufferImages;
   std::shared_ptr<FrameBuffer>                                                 frameBuffer;
-  std::vector<QueueTraits>                                                     queueTraits;
+  std::unordered_map<std::string, uint32_t>                                    resourceIndex;
   uint32_t                                                                     presentationQueueIndex = 0;
-  bool                                                                         dirty = true;
 };
 
 // This is the first implementation of workflow compiler
@@ -399,9 +391,5 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
   }
 
 }
-
-
-
-
 	
 }

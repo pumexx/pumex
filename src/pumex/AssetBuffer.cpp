@@ -426,5 +426,4 @@ void AssetBufferInstancedResults::validate(Surface* surface)
 }
 
 
-
 }

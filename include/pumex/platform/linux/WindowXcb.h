@@ -43,7 +43,7 @@ public:
   static void unregisterWindow(xcb_window_t windowID);
   static WindowXcb* getWindow(xcb_window_t windowID);
   
-  std::shared_ptr<pumex::Surface> createSurface(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits) override;
+  std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
   
   static bool checkWindowMessages(); 
   
@@ -54,7 +54,7 @@ public:
   float lastMouseX = 0.0f;
   float lastMouseY = 0.0f;
   bool  resizeCalled = false;
-  pumex::HPClock::time_point lastResizeTimePoint;
+  HPClock::time_point lastResizeTimePoint;
 protected:
   xcb_screen_t* screen      = nullptr;
   xcb_window_t  window      = 0;

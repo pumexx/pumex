@@ -130,7 +130,7 @@ void CommandBuffer::cmdEnd()
   dirty[activeIndex] = false;
 }
 
-void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues)
+void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
 {
   addSource(renderPass);
   addSource(frameBuffer);
@@ -141,7 +141,7 @@ void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass,
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
     renderPassBeginInfo.framebuffer     = frameBuffer->getFrameBuffer(surface,imageIndex);
-  vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, subpassContents);
 }
 
 void CommandBuffer::cmdNextSubPass(VkSubpassContents contents) const
@@ -218,13 +218,13 @@ void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const 
 
 void CommandBuffer::cmdBindPipeline(ComputePipeline* pipeline)
 {
-  addSource(pipeline);
+//  addSource(pipeline);
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandle(device));
 }
 
 void CommandBuffer::cmdBindPipeline(GraphicsPipeline* pipeline)
 {
-  addSource(pipeline);
+//  addSource(pipeline);
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
 }
 

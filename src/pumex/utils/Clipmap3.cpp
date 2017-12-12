@@ -27,7 +27,7 @@ namespace pumex
 {
 
 Clipmap3::Clipmap3(uint32_t tq, uint32_t ts, VkClearValue iv, const ImageTraits& it, const TextureTraits& tt, std::weak_ptr<DeviceMemoryAllocator> al)
-  : textureQuantity{ tq }, textureSize{ ts }, imageTraits { it }, textureTraits{ tt }, allocator{ al }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, textureQuantity{ tq }, textureSize{ ts }, imageTraits { it }, textureTraits{ tt }, allocator{ al }
 {
   initValue = iv;
 }

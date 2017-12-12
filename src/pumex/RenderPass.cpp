@@ -26,9 +26,10 @@
 #include <iterator>
 #include <pumex/Device.h>
 #include <pumex/utils/Log.h>
+#include <pumex/Surface.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderWorkflow.h>
-#include <pumex/Node.h>
+#include <pumex/RenderVisitors.h>
 
 using namespace pumex;
 
@@ -125,10 +126,10 @@ RenderPass::RenderPass()
 
 }
 
-RenderPass::RenderPass(const std::vector<AttachmentDefinition>& a, const std::vector<SubpassDefinition>& s, const std::vector<SubpassDependencyDefinition>& d)
-  : RenderCommand(RenderCommand::commRenderPass), attachments(a), subpasses(s), dependencies(d)
-{
-}
+//RenderPass::RenderPass(const std::vector<AttachmentDefinition>& a, const std::vector<SubpassDefinition>& s, const std::vector<SubpassDependencyDefinition>& d)
+//  : RenderCommand(RenderCommand::commRenderPass), attachments(a), subpasses(s), dependencies(d)
+//{
+//}
 
 RenderPass::~RenderPass()
 {
@@ -180,22 +181,68 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
   return pddit->second.renderPass;
 }
 
-void RenderPass::updateOperations(GPUUpdateVisitor& updateVisitor)
+void RenderPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 {
+  validateVisitor.renderContext.setRenderPass(this);
+  uint32_t subpassIndex = 0;
   for (auto operation : renderOperations)
   {
-    std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(operation);
-    op->renderNode->accept(updateVisitor);
+    validateVisitor.renderContext.setSubpassIndex(subpassIndex);
+    operation->sceneNode->accept(validateVisitor);
+    subpassIndex++;
   }
+  validateVisitor.renderContext.setRenderPass(NULL);
+  validateVisitor.renderContext.setSubpassIndex(0);
 }
 
+void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
+{
+  commandVisitor.commandBuffer->cmdBeginRenderPass
+  (
+    commandVisitor.renderContext.surface,
+    commandVisitor.renderContext.renderPass,
+    commandVisitor.renderContext.surface->renderWorkflow->frameBuffer.get(),
+    commandVisitor.renderContext.imageIndex,
+    makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height),
+    clearValues,
+    renderOperations[0]->subpassContents
+  );
+
+  commandVisitor.renderContext.setRenderPass(this);
+
+  for (uint32_t subpassIndex = 0; subpassIndex < renderOperations.size(); ++subpassIndex)
+  {
+    commandVisitor.renderContext.setSubpassIndex(subpassIndex);
+    if (renderOperations[subpassIndex]->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
+    {
+      renderOperations[subpassIndex]->sceneNode->accept(commandVisitor);
+    }
+    else
+    {
+      // FIXME : execute secondary command buffer
+    }
+    if (subpassIndex < renderOperations.size()-1)
+    {
+      commandVisitor.commandBuffer->cmdNextSubPass(renderOperations[subpassIndex + 1]->subpassContents);
+    }
+  }
+  commandVisitor.commandBuffer->cmdEndRenderPass();
+  commandVisitor.renderContext.setRenderPass(NULL);
+  commandVisitor.renderContext.setSubpassIndex(0);
+}
 
 ComputePass::ComputePass()
   : RenderCommand(RenderCommand::commComputePass)
 {
 }
 
-void ComputePass::updateOperations(GPUUpdateVisitor& updateVisitor)
+void ComputePass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 {
-  computeOperation->computeNode->accept(updateVisitor);
+  computeOperation->sceneNode->accept(validateVisitor);
 }
+
+void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
+{
+  computeOperation->sceneNode->accept(commandVisitor);
+}
+

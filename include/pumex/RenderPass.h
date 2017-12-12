@@ -100,23 +100,22 @@ class PUMEX_EXPORT RenderPass : public RenderCommand
 {
 public:
   RenderPass();
-  explicit RenderPass(const std::vector<AttachmentDefinition>& attachments, const std::vector<SubpassDefinition>& subpasses, const std::vector<SubpassDependencyDefinition>& dependencies = std::vector<SubpassDependencyDefinition>());
+//  explicit RenderPass(const std::vector<AttachmentDefinition>& attachments, const std::vector<SubpassDefinition>& subpasses, const std::vector<SubpassDependencyDefinition>& dependencies = std::vector<SubpassDependencyDefinition>());
   RenderPass(const RenderPass&)            = delete;
   RenderPass& operator=(const RenderPass&) = delete;
   ~RenderPass();
 
-  void updateOperations(GPUUpdateVisitor& updateVisitor) override;
+  void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
+  void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
   void         validate(Device* device);
   VkRenderPass getHandle(VkDevice device) const;
 
-//  void setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions) override;
-
   std::vector<AttachmentDefinition>        attachments;
   std::vector<SubpassDefinition>           subpasses;
   std::vector<SubpassDependencyDefinition> dependencies;
+  std::vector<VkClearValue>                clearValues;
 
-  // render passes
   std::vector<std::shared_ptr<RenderOperation>> renderOperations;
 protected:
   struct PerDeviceData
@@ -133,10 +132,11 @@ class ComputePass : public RenderCommand
 {
 public:
   explicit ComputePass();
-//  void setAttachmentDefinitions(const std::vector<AttachmentDefinition>& attachmentDefinitions) override;
-  void updateOperations(GPUUpdateVisitor& updateVisitor) override;
 
-  std::shared_ptr<ComputeOperation> computeOperation;
+  void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
+  void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
+
+  std::shared_ptr<RenderOperation> computeOperation;
 protected:
   struct PerDeviceData
   {

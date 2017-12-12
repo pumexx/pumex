@@ -95,7 +95,7 @@ private:
 
 template <typename T>
 StorageBufferPerSurface<T>::StorageBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, allocator { a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 

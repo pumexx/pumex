@@ -22,15 +22,11 @@
 #pragma once
 #include <vector>
 #include <memory>
-#include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 
 namespace pumex
 {
-
-class Device;
-class Surface;
-
+	
 class Group;
 class NodeVisitor;
 
@@ -40,8 +36,11 @@ public:
   Node();
   virtual ~Node();
 
-  inline void     setMask(uint32_t mask);
-  inline uint32_t getMask();
+  inline void        setMask(uint32_t mask);
+  inline uint32_t    getMask();
+
+  inline void        setName(const std::string& name);
+  inline std::string getName();
 
   virtual void accept( NodeVisitor& visitor );
 
@@ -55,6 +54,7 @@ public:
 protected:
   uint32_t                          mask = 0xFFFFFFFF;
   std::vector<std::weak_ptr<Group>> parents;
+  std::string                       name;
   bool                              boundDirty = true;
 };
 
@@ -76,61 +76,25 @@ public:
 
   void traverse(NodeVisitor& visitor) override;
 
+  virtual void                  addChild(std::shared_ptr<Node> child);
+  virtual bool                  removeChild(std::shared_ptr<Node> child);
 
-  virtual void addChild(std::shared_ptr<Node> child);
-  virtual bool removeChild(std::shared_ptr<Node> child);
+  inline uint32_t               getNumChildren();
+  inline std::shared_ptr<Node>  getChild(uint32_t childIndex);
 
-  inline decltype(children.begin())  childrenBegin()       { return children.begin(); }
-  inline decltype(children.end())    childrenEnd()         { return children.end(); }
-  inline decltype(children.cbegin()) childrenBegin() const { return children.cbegin(); }
-  inline decltype(children.cend())   childrenEnd() const   { return children.cend(); }
+  inline decltype(children.begin())  begin()       { return children.begin(); }
+  inline decltype(children.end())    end()         { return children.end(); }
+  inline decltype(children.cbegin()) begin() const { return children.cbegin(); }
+  inline decltype(children.cend())   end() const   { return children.cend(); }
 
 };
 
-class PUMEX_EXPORT NodeVisitor
-{
-public:
-  enum TraversalMode { None, Parents, AllChildren, ActiveChildren };
+void                  Node::setMask(uint32_t m)            { mask = m; }
+uint32_t              Node::getMask()                      { return mask; }
+void                  Node::setName(const std::string& n)  { name = n; }
+std::string           Node::getName()                      { return name; }
 
-  NodeVisitor(TraversalMode traversalMode = None);
-
-  inline void     setMask(uint32_t mask);
-  inline uint32_t getMask();
-
-  inline void push(Node* node);
-  inline void pop();
-
-  void traverse(Node& node);
-
-  virtual void apply(Node& node);
-  virtual void apply(ComputeNode& node);
-  virtual void apply(Group& node);
-
-
-protected:
-  uint32_t           mask = 0xFFFFFFFF;
-  TraversalMode      traversalMode;
-  std::vector<Node*> nodePath;
-};
-
-class PUMEX_EXPORT GPUUpdateVisitor : public NodeVisitor
-{
-public:
-  GPUUpdateVisitor(Surface* surface);
-
-  Surface* surface;
-  Device*  device;
-  VkDevice vkDevice;
-  uint32_t imageIndex;
-  uint32_t imageCount;
-};
-
-void     Node::setMask(uint32_t m)        { mask = m; }
-uint32_t Node::getMask()                  { return mask; }
-void     NodeVisitor::setMask(uint32_t m) { mask = m; }
-uint32_t NodeVisitor::getMask()           { return mask; }
-void     NodeVisitor::push(Node* node)    { nodePath.push_back(node); }
-void     NodeVisitor::pop()               { nodePath.pop_back(); }
-
+uint32_t              Group::getNumChildren()              { return children.size(); }
+std::shared_ptr<Node> Group::getChild(uint32_t childIndex) { return children[childIndex]; }
 
 }

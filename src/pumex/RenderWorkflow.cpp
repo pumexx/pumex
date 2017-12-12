@@ -59,24 +59,9 @@ void RenderOperation::setRenderWorkflow ( std::shared_ptr<RenderWorkflow> rw )
   renderWorkflow = rw;
 }
 
-GraphicsOperation::GraphicsOperation(const std::string& n, VkSubpassContents sc)
-  : RenderOperation(n, RenderOperation::Graphics, sc)
+void RenderOperation::setSceneNode(std::shared_ptr<Node> node)
 {
-}
-
-void GraphicsOperation::setNode(std::shared_ptr<Node> node)
-{
-  renderNode = node;
-}
-
-ComputeOperation::ComputeOperation(const std::string& n, VkSubpassContents sc)
-  : RenderOperation(n, RenderOperation::Compute, sc)
-{
-}
-
-void ComputeOperation::setNode(std::shared_ptr<ComputeNode> node)
-{
-  computeNode = node;
+  sceneNode = node;
 }
 
 SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& resourceIndex) const
@@ -165,17 +150,15 @@ std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::s
   return it->second;
 }
 
-void RenderWorkflow::setOperationNode(const std::string& opName, std::shared_ptr<Node> node)
+void RenderWorkflow::setSceneNode(const std::string& opName, std::shared_ptr<Node> node)
 {
-  std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(getRenderOperation(opName));
-  op->setNode(node);
+  getRenderOperation(opName)->sceneNode = node;
   dirty = true;
 }
 
-std::shared_ptr<Node> RenderWorkflow::getOperationNode(const std::string& opName)
+std::shared_ptr<Node> RenderWorkflow::getSceneNode(const std::string& opName)
 {
-  std::shared_ptr<GraphicsOperation> op = std::dynamic_pointer_cast<GraphicsOperation>(getRenderOperation(opName));
-  return op->renderNode;
+  return getRenderOperation(opName)->sceneNode;
 }
 
 std::shared_ptr<WorkflowResource> RenderWorkflow::getResource(const std::string& resourceName) const
@@ -184,6 +167,14 @@ std::shared_ptr<WorkflowResource> RenderWorkflow::getResource(const std::string&
   CHECK_LOG_THROW(it == resources.end(), "RenderWorkflow : there is no resource with name " + resourceName);
   return it->second;
 }
+
+uint32_t RenderWorkflow::getResourceIndex(const std::string& resourceName) const
+{
+  auto it = resourceIndex.find(resourceName);
+  CHECK_LOG_THROW(it == resourceIndex.end(), "RenderWorkflow : there is no resource with name " + resourceName);
+  return it->second;
+}
+
 
 void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout)
 {
@@ -320,6 +311,17 @@ void RenderWorkflow::compile()
     compiler->compile(*this);
   dirty = false;
 };
+
+void RenderWorkflow::setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, const std::unordered_map<std::string, uint32_t> newResourceIndex, uint32_t newPresentationQueueIndex)
+{
+  // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
+  commandSequences       = newCommandSequences;
+  frameBufferImages      = newFrameBufferImages;
+  frameBuffer            = newFrameBuffer;
+  resourceIndex          = newResourceIndex;
+  presentationQueueIndex = newPresentationQueueIndex;
+}
+
 
 void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const RenderWorkflow& workflow)
 {
@@ -625,6 +627,7 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
 
         // construct render pass attachments
         std::vector<AttachmentDefinition> attachmentDefinitions;
+        std::vector<VkClearValue> clearValues;
         for (uint32_t i = 0; i < resourceVector.size(); ++i)
         {
           auto res = resourceVector[i];
@@ -668,8 +671,23 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
             lastLayout[i],
             0
           ));
+
+          // calculate clear values
+          switch (resType->attachment.attachmentType)
+          {
+          case atSurface:
+          case atColor:
+            clearValues.push_back( makeColorClearValue(firstLoadOp[i].clearColor) );
+            break;
+          case atDepth:
+          case atDepthStencil:
+          case atStencil:
+            clearValues.push_back(makeDepthStencilClearValue(firstLoadOp[i].clearColor.x, firstLoadOp[i].clearColor.y));
+            break;
+          }
         }
         renderPass->attachments = attachmentDefinitions;
+        renderPass->clearValues = clearValues;
 
         break;
       }
@@ -688,11 +706,7 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
   std::shared_ptr<FrameBufferImages> fbi = std::make_shared<FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
   std::shared_ptr<FrameBuffer> frameBuffer = std::make_shared<FrameBuffer>(outputRenderPass, fbi);
 
-  // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
-  workflow.commandSequences       = newCommandSequences;
-  workflow.presentationQueueIndex = presentationQueueIndex;
-  workflow.frameBufferImages      = fbi;
-  workflow.frameBuffer            = frameBuffer;
+  workflow.setOutputData(newCommandSequences, fbi, frameBuffer, resourceIndex, presentationQueueIndex);
 }
 
 void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflow)
@@ -905,7 +919,7 @@ std::vector<std::shared_ptr<RenderCommand>> SingleQueueWorkflowCompiler::createC
       for (auto xit = bit; xit < it; ++xit)
       {
         std::shared_ptr<ComputePass> computePass = std::make_shared<ComputePass>();
-        computePass->computeOperation = std::dynamic_pointer_cast<ComputeOperation>(*xit);
+        computePass->computeOperation = *xit;
         results.push_back(computePass);
       }
       break;

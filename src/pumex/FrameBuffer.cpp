@@ -219,7 +219,7 @@ VkFramebuffer FrameBuffer::getFrameBuffer(Surface* surface, uint32_t fbIndex)
 }
 
 InputAttachment::InputAttachment(std::shared_ptr<FrameBuffer> fb, uint32_t fbi)
-  : frameBuffer{ fb }, frameBufferIndex{ fbi }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT }, frameBuffer{ fb }, frameBufferIndex{ fbi }
 {
 }
 

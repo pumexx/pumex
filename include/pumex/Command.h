@@ -97,7 +97,7 @@ public:
   void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
   void            cmdEnd();
 
-  void            cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues);
+  void            cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
   void            cmdNextSubPass(VkSubpassContents contents) const;
   void            cmdEndRenderPass() const;
 

@@ -84,7 +84,7 @@ private:
 
 template <typename T>
 GenericBuffer<T>::GenericBuffer(VkBufferUsageFlagBits u, std::shared_ptr<T> d, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac)
-  : usage{ u }, data{ d }, allocator { a }, activeCount{ ac }
+  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, usage { u }, data{ d }, allocator{ a }, activeCount{ ac }
 {
 }
 

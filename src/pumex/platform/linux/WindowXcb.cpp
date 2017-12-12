@@ -154,7 +154,7 @@ WindowXcb::~WindowXcb()
   }
 }
 
-std::shared_ptr<pumex::Surface> WindowXcb::createSurface(std::shared_ptr<pumex::Viewer> v, std::shared_ptr<pumex::Device> device, const pumex::SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> WindowXcb::createSurface(std::shared_ptr<Viewer> v, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
   VkSurfaceKHR vkSurface;
   VkXcbSurfaceCreateInfoKHR surfaceCreateInfo{};
@@ -163,7 +163,7 @@ std::shared_ptr<pumex::Surface> WindowXcb::createSurface(std::shared_ptr<pumex::
     surfaceCreateInfo.window     = window;
   VK_CHECK_LOG_THROW(vkCreateXcbSurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
 
-  std::shared_ptr<pumex::Surface> result = std::make_shared<pumex::Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
+  std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
   // create swapchain
   result->resizeSurface(width, height);
 
@@ -196,7 +196,7 @@ WindowXcb* WindowXcb::getWindow(xcb_window_t windowID)
 
 bool WindowXcb::checkWindowMessages()
 {
-  auto timeNow = pumex::HPClock::now();
+  auto timeNow = HPClock::now();
   xcb_generic_event_t *event;
   while ((event = xcb_poll_for_event(connection)))
   {
@@ -324,7 +324,7 @@ bool WindowXcb::checkWindowMessages()
       continue;
     win.second->lastResizeTimePoint = timeNow;
     auto surf                      = win.second->surface.lock();
-    surf->actions.addAction(std::bind(&pumex::Surface::resizeSurface, surf, win.second->newWidth, win.second->newHeight));
+    surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, win.second->newWidth, win.second->newHeight));
     win.second->width               = win.second->newWidth;
     win.second->height              = win.second->newHeight;
   }
