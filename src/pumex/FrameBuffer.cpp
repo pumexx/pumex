@@ -25,6 +25,7 @@
 #include <pumex/Texture.h>
 #include <pumex/Surface.h>
 #include <pumex/Command.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex
@@ -219,7 +220,7 @@ VkFramebuffer FrameBuffer::getFrameBuffer(Surface* surface, uint32_t fbIndex)
 }
 
 InputAttachment::InputAttachment(std::shared_ptr<FrameBuffer> fb, uint32_t fbi)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT }, frameBuffer{ fb }, frameBufferIndex{ fbi }
+  : frameBuffer{ fb }, frameBufferIndex{ fbi }
 {
 }
 
@@ -235,10 +236,10 @@ void InputAttachment::validate(std::weak_ptr<Surface> surface)
   pddit->second.dirty = false;
 }
 
-void InputAttachment::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void InputAttachment::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface);
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     return;
   std::shared_ptr<Surface>     s = pddit->second.surface.lock();

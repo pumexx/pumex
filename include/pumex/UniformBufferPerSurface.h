@@ -40,7 +40,7 @@ namespace pumex
 {
 
 template <typename T>
-class UniformBufferPerSurface : public DescriptorSetSource
+class UniformBufferPerSurface : public Resource
 {
 public:
   UniformBufferPerSurface()                                          = delete;
@@ -52,7 +52,7 @@ public:
   inline void     set(const T& data);
   inline void     set(Surface* surface, const T& data);
   inline T        get(Surface* surface) const;
-  void            getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
   void            setDirty();
   void            validate(Surface* surface);
   VkBuffer        getBufferHandle(Surface* surface);
@@ -93,7 +93,7 @@ private:
 
 template <typename T>
 UniformBufferPerSurface<T>::UniformBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
@@ -145,13 +145,13 @@ T UniformBufferPerSurface<T>::get(Surface* surface) const
 }
 
 template <typename T>
-void UniformBufferPerSurface<T>::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void UniformBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface);
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(pddit == perSurfaceData.end(), "UniformBufferPerSurface<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[index % activeCount], 0, sizeof(T)));
+  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)));
 }
 
 template <typename T>
@@ -189,7 +189,7 @@ void UniformBufferPerSurface<T>::validate(Surface* surface)
     CHECK_LOG_THROW(it->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
     alloc->bindBufferMemory(devicePtr, it->second.uboBuffer[activeIndex], it->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptorSets();
+    notifyDescriptors();
   }
   if (memoryIsLocal)
   {

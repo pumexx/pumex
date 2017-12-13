@@ -130,7 +130,7 @@ protected:
 // Uses gli::texture to hold texture on CPU
 // Texture may contain usual textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
 // Class stores information about images per device. Additionally it also stores a VkSampler
-class PUMEX_EXPORT Texture : public DescriptorSetSource
+class PUMEX_EXPORT Texture : public Resource
 {
 public:
   Texture()                          = delete;
@@ -144,7 +144,7 @@ public:
   Image*    getHandleImage(VkDevice device) const;
   VkSampler getHandleSampler(VkDevice device) const;
   void      validate(Device* device, CommandPool* commandPool, VkQueue queue);
-  void      getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
   void setLayer(uint32_t layer, const gli::texture& tex);
 

@@ -23,32 +23,12 @@
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/NodeVisitor.h>
+#include <pumex/RenderContext.h>
 
 namespace pumex
 {
 	
-class Surface;
-class Device;	
-class RenderPass;
 class CommandBuffer;
-
-struct RenderContext
-{
-  RenderContext(Surface* surface);
-
-  inline void setRenderPass(RenderPass* renderPass);
-  inline void setSubpassIndex(uint32_t subpassIndex);
-
-  Surface*   surface       = nullptr;
-  Device*    device        = nullptr;
-  VkDevice   vkDevice      = VK_NULL_HANDLE;
-  uint32_t   imageIndex    = 0;
-  uint32_t   imageCount    = 1;
-
-  // elements of the context that may change during visitor work
-  RenderPass* renderPass   = nullptr;
-  uint32_t    subpassIndex = 0;
-};
 
 // visitor that sends all dirty data to gpu ( descriptor sets, buffers, pipelines, etc ).
 class PUMEX_EXPORT ValidateGPUVisitor : public NodeVisitor
@@ -58,7 +38,6 @@ public:
 
   void apply(Group& node) override;
 
-  // elements of the context that are constant through visitor work
   RenderContext renderContext;
 };
 

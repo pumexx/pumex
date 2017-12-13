@@ -40,7 +40,7 @@ namespace pumex
 {
 
 template <typename T>
-class GenericBuffer : public DescriptorSetSource, public CommandBufferSource
+class GenericBuffer : public Resource, public CommandBufferSource
 {
 public:
   GenericBuffer()                                = delete;
@@ -49,7 +49,7 @@ public:
   GenericBuffer& operator=(const GenericBuffer&) = delete;
   ~GenericBuffer();
 
-  void            getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
   void            setDirty();
   void            validate(Device* device, CommandPool* commandPool, VkQueue queue);
   VkBuffer        getBufferHandle(Device* device);
@@ -84,7 +84,7 @@ private:
 
 template <typename T>
 GenericBuffer<T>::GenericBuffer(VkBufferUsageFlagBits u, std::shared_ptr<T> d, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, usage { u }, data{ d }, allocator{ a }, activeCount{ ac }
+  : usage { u }, data{ d }, allocator{ a }, activeCount{ ac }
 {
 }
 
@@ -105,13 +105,13 @@ GenericBuffer<T>::~GenericBuffer()
 
 
 template <typename T>
-void GenericBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void GenericBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "GenericBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.buffer[index % activeCount], 0, uglyGetSize(*data) ));
+  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*data) ));
 }
 
 template <typename T>
@@ -156,7 +156,7 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
     alloc->bindBufferMemory(device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptorSets();
+    notifyDescriptors();
     notifyCommandBuffers(activeIndex);
   }
   if ( uglyGetSize(*data) > 0)

@@ -20,17 +20,9 @@
 // SOFTWARE.
 //
 #include <pumex/RenderVisitors.h>
-#include <pumex/Device.h>
-#include <pumex/Surface.h>
-#include <pumex/RenderPass.h>
+#include <pumex/AssetBufferNode.h>
 
 using namespace pumex;
-
-RenderContext::RenderContext(Surface* s)
-  : surface { s }, device{ s->device.lock().get() }, vkDevice{ device->device }, 
-    imageIndex{ s->getImageIndex() }, imageCount{ s->getImageCount() }, renderPass{ NULL }, subpassIndex{ 0 }
-{
-}
 
 ValidateGPUVisitor::ValidateGPUVisitor(Surface* s)
   : NodeVisitor{ AllChildren }, renderContext(s)

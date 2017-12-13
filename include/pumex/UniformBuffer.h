@@ -40,7 +40,7 @@ namespace pumex
 {
 
 template <typename T>
-class UniformBuffer : public DescriptorSetSource
+class UniformBuffer : public Resource
 {
 public:
   UniformBuffer()                                = delete;
@@ -52,7 +52,7 @@ public:
 
   inline void     set( const T& data );
   inline T        get() const;
-  void            getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
   void            setDirty();
   void            validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
@@ -86,13 +86,13 @@ private:
 
 template <typename T>
 UniformBuffer<T>::UniformBuffer(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, uboData(), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : uboData(), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
 template <typename T>
 UniformBuffer<T>::UniformBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, uboData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : uboData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
@@ -126,13 +126,13 @@ T UniformBuffer<T>::get() const
 }
 
 template <typename T>
-void UniformBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void UniformBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "UniformBuffer<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[index % activeCount], 0, sizeof(T)));
+  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)));
 }
 
 template <typename T>
@@ -169,7 +169,7 @@ void UniformBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
     alloc->bindBufferMemory(device, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptorSets();
+    notifyDescriptors();
   }
   if (memoryIsLocal)
   {

@@ -29,3 +29,9 @@ AssetBufferNode::AssetBufferNode(std::shared_ptr<AssetBuffer> ab, std::shared_pt
 {
 
 }
+
+AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, uint32_t rm, uint32_t vb)
+  : asset{ a }, renderMask{ rm }, vertexBinding{ vb }
+{
+
+}

@@ -24,6 +24,7 @@
 #include <pumex/Device.h>
 #include <pumex/Command.h>
 #include <pumex/PhysicalDevice.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
@@ -161,7 +162,7 @@ void Image::setImageLayout(VkImageLayout newLayout)
 }
 
 Texture::Texture(const gli::texture& tex, const TextureTraits& tr, std::weak_ptr<DeviceMemoryAllocator> a)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, traits{ tr }, allocator{ a }
+  : traits{ tr }, allocator{ a }
 {
   texture = std::make_shared<gli::texture>(tex);
 }
@@ -319,10 +320,10 @@ void Texture::validate(Device* device, CommandPool* commandPool, VkQueue queue)
   pddit->second.dirty = false;
 }
 
-void Texture::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void Texture::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Texture::getDescriptorSetValue : texture was not validated");
 
   values.push_back( DescriptorSetValue(pddit->second.sampler, pddit->second.image->getImageView(), pddit->second.image->getImageLayout()) );

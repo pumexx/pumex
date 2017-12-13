@@ -117,13 +117,13 @@ protected:
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 
-class PUMEX_EXPORT InputAttachment : public DescriptorSetSource
+class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
   InputAttachment(std::shared_ptr<FrameBuffer> frameBuffer, uint32_t frameBufferIndex);
 
   void validate(std::weak_ptr<Surface> surface);
-  void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 protected:
   std::weak_ptr<FrameBuffer> frameBuffer;
   uint32_t frameBufferIndex;

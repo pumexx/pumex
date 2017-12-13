@@ -67,6 +67,21 @@ void Node::removeParent(std::shared_ptr<Group> parent)
     parents.erase(it);
 }
 
+void Node::setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet)
+{
+  descriptorSets[index] = descriptorSet;
+  descriptorSet->addNode(shared_from_this());
+}
+
+void Node::resetDescriptorSet(uint32_t index)
+{
+  auto it = descriptorSets.find(index);
+  if (it == descriptorSets.end())
+    return;
+  it->second->removeNode(shared_from_this());
+  descriptorSets.erase(it);
+}
+
 void Node::dirtyBound()
 {
   if (!boundDirty)
@@ -77,6 +92,15 @@ void Node::dirtyBound()
   }
 }
 
+void Node::setDirty()
+{
+  if (!dirty)
+  {
+    dirty = true;
+    for (auto parent : parents)
+      parent.lock()->setDirty();
+  }
+}
 
 ComputeNode::ComputeNode()
   : Node()
@@ -114,8 +138,8 @@ bool Group::removeChild(std::shared_ptr<Node> child)
   auto it = std::find(children.begin(), children.end(), child);
   if (it == children.end())
     return false;
-  children.erase(it);
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
+  children.erase(it);
   dirtyBound();
   return true;
 }

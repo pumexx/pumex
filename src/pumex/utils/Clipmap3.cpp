@@ -21,13 +21,14 @@
 //
 
 #include <pumex/utils/Clipmap3.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex
 {
 
 Clipmap3::Clipmap3(uint32_t tq, uint32_t ts, VkClearValue iv, const ImageTraits& it, const TextureTraits& tt, std::weak_ptr<DeviceMemoryAllocator> al)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, textureQuantity{ tq }, textureSize{ ts }, imageTraits { it }, textureTraits{ tt }, allocator{ al }
+  : textureQuantity{ tq }, textureSize{ ts }, imageTraits { it }, textureTraits{ tt }, allocator{ al }
 {
   initValue = iv;
 }
@@ -116,10 +117,10 @@ void Clipmap3::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 
 }
 
-void Clipmap3::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void Clipmap3::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "Clipmap3::getDescriptorSetValue : texture was not validated");
 
   for (uint32_t i = 0; i<pddit->second.images.size(); ++i)

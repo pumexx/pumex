@@ -31,6 +31,7 @@
 #include <pumex/Device.h>
 #include <pumex/Command.h>
 #include <pumex/Pipeline.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
@@ -40,7 +41,7 @@ namespace pumex
 {
 
 template <typename T>
-class StorageBuffer : public DescriptorSetSource
+class StorageBuffer : public Resource
 {
 public:
   StorageBuffer()                                = delete;
@@ -52,7 +53,7 @@ public:
 
   inline void                    set(const std::vector<T>& data);
   inline const std::vector<T>&   get() const;
-  void                           getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void                           getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
   void                           setDirty();
   void                           validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
@@ -86,13 +87,13 @@ private:
 
 template <typename T>
 StorageBuffer<T>::StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
 template <typename T>
 StorageBuffer<T>::StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, storageData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
+  : storageData(data), allocator{ a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
@@ -132,13 +133,13 @@ const std::vector<T>& StorageBuffer<T>::get() const
 }
 
 template <typename T>
-void StorageBuffer<T>::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void StorageBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "StorageBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
-  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[index % activeCount], 0, sizeof(T) * storageData.size()));
+  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T) * storageData.size()));
 }
 
 template <typename T>
@@ -182,7 +183,7 @@ void StorageBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
     alloc->bindBufferMemory(device, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptorSets();
+    notifyDescriptors();
   }
   if (storageData.size() > 0)
   {

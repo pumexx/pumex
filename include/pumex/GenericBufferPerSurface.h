@@ -41,7 +41,7 @@ namespace pumex
 {
 
 template <typename T>
-class GenericBufferPerSurface : public DescriptorSetSource, public CommandBufferSource
+class GenericBufferPerSurface : public Resource, public CommandBufferSource
 {
 public:
   GenericBufferPerSurface()                                          = delete;
@@ -53,7 +53,7 @@ public:
   inline void               set(std::shared_ptr<T> data);
   inline                    void set(Surface* surface, std::shared_ptr<T>);
   inline std::shared_ptr<T> get(Surface* surface) const;
-  void                      getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void                      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
   void                      setDirty();
   void                      validate(Surface* surface);
   VkBuffer                  getBufferHandle(Surface* surface);
@@ -94,7 +94,7 @@ private:
 
 template <typename T>
 GenericBufferPerSurface<T>::GenericBufferPerSurface(VkBufferUsageFlagBits u, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_SAMPLER }, usage{ u }, allocator { a }, activeCount{ ac }
+  : usage{ u }, allocator { a }, activeCount{ ac }
 {
 }
 
@@ -143,13 +143,13 @@ std::shared_ptr<T> GenericBufferPerSurface<T>::get(Surface* surface) const
 }
 
 template <typename T>
-void GenericBufferPerSurface<T>::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void GenericBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface);
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(pddit == perSurfaceData.end(), "GenericBufferPerSurface<T>::getDescriptorSetValues() : generic buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.buffer[index % activeCount], 0, uglyGetSize(*(pddit->second.data))));
+  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*(pddit->second.data))));
 }
 
 template <typename T>
@@ -195,7 +195,7 @@ void GenericBufferPerSurface<T>::validate(Surface* surface)
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
     alloc->bindBufferMemory(devicePtr, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptorSets();
+    notifyDescriptors();
     notifyCommandBuffers(activeIndex);
   }
   if ( uglyGetSize(*(pddit->second.data)) > 0)

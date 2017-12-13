@@ -23,10 +23,11 @@
 #include <pumex/Export.h>
 #include <pumex/Node.h>
 #include <pumex/Pipeline.h>
-#include <pumex/AssetBufferNode.h>
 
 namespace pumex
 {
+
+class AssetBufferNode;
 
 class PUMEX_EXPORT NodeVisitor
 {

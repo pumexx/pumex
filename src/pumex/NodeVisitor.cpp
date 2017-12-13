@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 #include <pumex/NodeVisitor.h>
+#include <pumex/AssetBufferNode.h>
 
 using namespace pumex;
 

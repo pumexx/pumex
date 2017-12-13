@@ -111,16 +111,16 @@ public:
   MaterialSet& operator=(const MaterialSet&) = delete;
   virtual ~MaterialSet();
 
-  bool                                      getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;
-  bool                                      setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, const gli::texture& tex);
+  bool                                         getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;
+  bool                                         setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, const gli::texture& tex);
 
-  void                                      registerMaterials(uint32_t typeID, std::shared_ptr<Asset> asset);
-  void                                      setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
+  void                                         registerMaterials(uint32_t typeID, std::shared_ptr<Asset> asset);
+  void                                         setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
 
-  std::vector<Material>                     getMaterials(uint32_t typeID) const;
-  uint32_t                                  getMaterialVariantCount(uint32_t typeID) const;
-  void                                      refreshMaterialStructures();
-  void                                      validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  std::vector<Material>                        getMaterials(uint32_t typeID) const;
+  uint32_t                                     getMaterialVariantCount(uint32_t typeID) const;
+  void                                         refreshMaterialStructures();
+  void                                         validate(Device* device, CommandPool* commandPool, VkQueue queue);
 
   std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
   std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
@@ -180,23 +180,23 @@ protected:
 class PUMEX_EXPORT TextureRegistryTextureArray : public TextureRegistryBase
 {
 public:
-  void                     setTargetTexture(uint32_t slotIndex, std::shared_ptr<Texture> texture);
-  std::shared_ptr<Texture> getTargetTexture(uint32_t slotIndex);
+  void                                         setTargetTexture(uint32_t slotIndex, std::shared_ptr<Texture> texture);
+  std::shared_ptr<Texture>                     getTargetTexture(uint32_t slotIndex);
 
-  void                     refreshStructures() override;
-  void                     validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
-  void                     setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
+  void                                         refreshStructures() override;
+  void                                         validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
+  void                                         setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
   std::map<uint32_t, std::shared_ptr<Texture>> textures;
 };
 
 class TextureRegistryArrayOfTextures;
 
-class PUMEX_EXPORT ArrayOfTexturesDescriptorSetSource : public DescriptorSetSource
+class PUMEX_EXPORT ArrayOfTexturesDescriptorSetSource : public Resource
 {
 public:
   ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o);
-  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 private:
   TextureRegistryArrayOfTextures* owner;
 };
@@ -206,14 +206,14 @@ class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
 public:
   TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc);
   
-  void                                                setTargetTextureTraits(uint32_t slotIndex, const TextureTraits& textureTrait);
-  std::shared_ptr<ArrayOfTexturesDescriptorSetSource> getTextureSamplerDescriptorSetSource();
+  void                                                      setTargetTextureTraits(uint32_t slotIndex, const TextureTraits& textureTrait);
+  std::shared_ptr<ArrayOfTexturesDescriptorSetSource>       getTextureSamplerDescriptorSetSource();
 
-  void                                                refreshStructures() override;
-  void                                                validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
-  void                                                setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
+  void                                                      refreshStructures() override;
+  void                                                      validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
+  void                                                      setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
-  std::shared_ptr<StorageBuffer<uint32_t>>                         textureSamplerOffsets;
+  std::shared_ptr<StorageBuffer<uint32_t>>                  textureSamplerOffsets;
   friend class ArrayOfTexturesDescriptorSetSource;
 protected:
   std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;

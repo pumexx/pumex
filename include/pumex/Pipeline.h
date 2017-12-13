@@ -36,6 +36,7 @@ namespace pumex
 class Device;
 class Surface;
 class RenderPass;
+class RenderContext;
 
 // A set of classes implementing different Vulkan pipeline elements
 
@@ -110,44 +111,38 @@ struct PUMEX_EXPORT DescriptorSetValue
   };
 };
 
+class Descriptor;
 class DescriptorSet;
 
-class PUMEX_EXPORT DescriptorSetSource
+class PUMEX_EXPORT Resource
 {
 public:
-  DescriptorSetSource(VkDescriptorType descriptorType);
-  virtual ~DescriptorSetSource();
+  virtual ~Resource();
 
-  virtual void addDescriptorSet(DescriptorSet* descriptorSet);
-  virtual void removeDescriptorSet(DescriptorSet* descriptorSet);
-  virtual void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
-  {
-  }
-  virtual void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
-  {
-  }
-  virtual void notifyDescriptorSets();
+  void addDescriptor(std::shared_ptr<Descriptor> descriptor);
+  void removeDescriptor(std::shared_ptr<Descriptor> descriptor);
+  void notifyDescriptors();
+
+  virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
+  virtual void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const = 0;
 protected:
-  std::set<DescriptorSet*> descriptorSets;
-  VkDescriptorType         descriptorType;
+  std::vector<std::weak_ptr<Descriptor>> descriptors;
 };
 
-// class not used ATM, but I will leave it for now
-//class PUMEX_EXPORT DescriptorSetSourceArray : public DescriptorSetSource
-//{
-//public:
-//  DescriptorSetSourceArray() = default;
-//  void addSource(std::shared_ptr<DescriptorSetSource> source);
-//  void addDescriptorSet(DescriptorSet* descriptorSet) override;
-//  void removeDescriptorSet(DescriptorSet* descriptorSet) override;
-//
-//  void getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-//  void getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
-//
-//  void notifyDescriptorSets() override;
-//protected:
-//  std::vector<std::shared_ptr<DescriptorSetSource>> sources;
-//};
+
+class PUMEX_EXPORT Descriptor : public std::enable_shared_from_this<Descriptor>
+{
+public:
+  Descriptor(std::shared_ptr<DescriptorSet> owner, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
+  ~Descriptor();
+
+  void setDirty();
+
+  std::weak_ptr<DescriptorSet> owner;
+  std::shared_ptr<Resource>    resource;
+  VkDescriptorType             descriptorType;
+};
+
 
 class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {
@@ -160,11 +155,16 @@ public:
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
-  void            validate(Surface* surface);
+  void            validate(const RenderContext& renderContext);
   VkDescriptorSet getHandle(VkSurfaceKHR surface) const;
   void            setDirty();
-  void            setSource(uint32_t binding, std::shared_ptr<DescriptorSetSource> source);
-  void            resetSource(uint32_t binding);
+  void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
+  void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource);
+  void            resetDescriptor(uint32_t binding);
+
+  void            addNode(std::shared_ptr<Node> node);
+  void            removeNode(std::shared_ptr<Node> node);
+  void            notifyNodes();
 
   std::shared_ptr<DescriptorSetLayout> layout;
   std::shared_ptr<DescriptorPool>      pool;
@@ -182,11 +182,12 @@ protected:
     VkDevice                     device;
   };
 
-  mutable std::mutex                                                 mutex;
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData>                   perSurfaceData;
-  std::unordered_map<uint32_t, std::shared_ptr<DescriptorSetSource>> sources; // descriptor set owns the buffers, images and whatnot
-  uint32_t                                                           activeCount;
-  uint32_t                                                           activeIndex = 0;
+  mutable std::mutex                                        mutex;
+  std::unordered_map<VkSurfaceKHR, PerSurfaceData>          perSurfaceData;
+  std::unordered_map<uint32_t, std::shared_ptr<Descriptor>> descriptors; // descriptor set indirectly owns buffers, images and whatnot
+  std::vector<std::weak_ptr<Node>>                          nodeOwners;
+  uint32_t                                                  activeCount;
+  uint32_t                                                  activeIndex = 0;
 };
 
 void DescriptorSet::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }

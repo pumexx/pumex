@@ -168,7 +168,7 @@ struct PUMEX_EXPORT PipelineBarrier
 // Some classes used by CommandBuffer may change their internal values so that the CommandBuffer must be rebuilt
 // Such classes should inherit from CommandBufferSource
 
-class PUMEX_EXPORT CommandBufferSource
+class PUMEX_EXPORT CommandBufferSource : public std::enable_shared_from_this<CommandBufferSource>
 {
 public:
   virtual ~CommandBufferSource();

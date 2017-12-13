@@ -240,11 +240,11 @@ void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerI
 }
 
 ArrayOfTexturesDescriptorSetSource::ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER }, owner{ o }
+  : owner{ o }
 {
 }
 
-void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   CHECK_LOG_THROW(owner == nullptr, "ArrayOfTexturesDescriptorSetSource::getDescriptorSetValue() : owner not defined");
   values.reserve(values.size() + owner->textureSamplersQuantity);
@@ -254,7 +254,7 @@ void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(VkDevice device,
     if (it == owner->textures.end())
       continue;
     for (auto tx : it->second)
-      tx->getDescriptorSetValues(device, index, values);
+      tx->getDescriptorSetValues(renderContext, values);
   }
 }
 
@@ -308,7 +308,7 @@ void TextureRegistryArrayOfTextures::validate(Device* device, CommandPool* comma
   textureSamplerOffsets->validate(device, commandPool, queue);
 
   if (textureSamplerDescriptorSetSource.get() != nullptr)
-    textureSamplerDescriptorSetSource->notifyDescriptorSets();
+    textureSamplerDescriptorSetSource->notifyDescriptors();
 }
 
 void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)

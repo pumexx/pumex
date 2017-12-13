@@ -41,7 +41,7 @@ namespace pumex
 {
 
 template <typename T>
-class StorageBufferPerSurface : public DescriptorSetSource
+class StorageBufferPerSurface : public Resource
 {
 public:
   StorageBufferPerSurface()                                          = delete;
@@ -53,7 +53,7 @@ public:
   inline void                    set(const std::vector<T>& data);
   inline void                    set(Surface* surface, const std::vector<T>& data);
   inline const std::vector<T>&   get(Surface* surface);
-  void                           getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void                           getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
   void                           setDirty();
   void                           validate(Surface* surface);
   VkBuffer                       getBufferHandle(Surface* surface);
@@ -95,7 +95,7 @@ private:
 
 template <typename T>
 StorageBufferPerSurface<T>::StorageBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac, VkBufferUsageFlagBits af)
-  : DescriptorSetSource{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, allocator { a }, additionalFlags{ af }, activeCount{ ac }
+  : allocator { a }, additionalFlags{ af }, activeCount{ ac }
 {
 }
 
@@ -153,13 +153,13 @@ const std::vector<T>& StorageBufferPerSurface<T>::get(Surface* surface)
 }
 
 template <typename T>
-void StorageBufferPerSurface<T>::getDescriptorSetValues(VkSurfaceKHR surface, uint32_t index, std::vector<DescriptorSetValue>& values) const
+void StorageBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface);
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(pddit == perSurfaceData.end(), "StorageBufferPerSurface<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[index % activeCount], 0, sizeof(T)*pddit->second.storageData.size()));
+  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)*pddit->second.storageData.size()));
 }
 
 template <typename T>
@@ -206,7 +206,7 @@ void StorageBufferPerSurface<T>::validate(Surface* surface)
     CHECK_LOG_THROW(it->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
     alloc->bindBufferMemory(devicePtr, it->second.storageBuffer[activeIndex], it->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptorSets();
+    notifyDescriptors();
   }
   if (it->second.storageData.size() > 0)
   {

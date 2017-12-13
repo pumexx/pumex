@@ -12,7 +12,7 @@ namespace pumex
 class Device;
 class CommandPool;
 
-class PUMEX_EXPORT Clipmap3 : public DescriptorSetSource
+class PUMEX_EXPORT Clipmap3 : public Resource
 {
 public:
   Clipmap3()                           = delete;
@@ -24,7 +24,7 @@ public:
 
   Image*    getHandleImage(VkDevice device, uint32_t layer) const;
   void      validate(Device* device, CommandPool* commandPool, VkQueue queue);
-  void      getDescriptorSetValues(VkDevice device, uint32_t index, std::vector<DescriptorSetValue>& values) const override;
+  void      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
 protected:
   uint32_t                             textureQuantity;

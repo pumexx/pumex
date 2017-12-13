@@ -218,21 +218,21 @@ struct DeferredApplicationData
     positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData, buffersAllocator);
 
     gbufferDescriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
-    gbufferDescriptorSet->setSource(0, cameraUbo);
-    gbufferDescriptorSet->setSource(1, positionUbo);
-    gbufferDescriptorSet->setSource(2, materialSet->typeDefinitionSbo);
-    gbufferDescriptorSet->setSource(3, materialSet->materialVariantSbo);
-    gbufferDescriptorSet->setSource(4, materialSet->materialDefinitionSbo);
-    gbufferDescriptorSet->setSource(5, textureRegistry->textureSamplerOffsets);
-    gbufferDescriptorSet->setSource(6, textureRegistry->getTextureSamplerDescriptorSetSource());
+    gbufferDescriptorSet->setDescriptor(0, cameraUbo);
+    gbufferDescriptorSet->setDescriptor(1, positionUbo);
+    gbufferDescriptorSet->setDescriptor(2, materialSet->typeDefinitionSbo);
+    gbufferDescriptorSet->setDescriptor(3, materialSet->materialVariantSbo);
+    gbufferDescriptorSet->setDescriptor(4, materialSet->materialDefinitionSbo);
+    gbufferDescriptorSet->setDescriptor(5, textureRegistry->textureSamplerOffsets);
+    gbufferDescriptorSet->setDescriptor(6, textureRegistry->getTextureSamplerDescriptorSetSource());
 
     compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
-    compositeDescriptorSet->setSource(0, cameraUbo);
-    compositeDescriptorSet->setSource(1, lightsSbo);
-    compositeDescriptorSet->setSource(2, input2);
-    compositeDescriptorSet->setSource(3, input3);
-    compositeDescriptorSet->setSource(4, input4);
-    compositeDescriptorSet->setSource(5, input5);
+    compositeDescriptorSet->setDescriptor(0, cameraUbo);
+    compositeDescriptorSet->setDescriptor(1, lightsSbo);
+    compositeDescriptorSet->setDescriptor(2, input2);
+    compositeDescriptorSet->setDescriptor(3, input3);
+    compositeDescriptorSet->setDescriptor(4, input4);
+    compositeDescriptorSet->setDescriptor(5, input5);
 
     std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
     fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
@@ -273,8 +273,8 @@ struct DeferredApplicationData
     textPipeline->rasterizationSamples = SAMPLE_COUNT;
 
     textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSet->setSource(0, textCameraUbo);
-    textDescriptorSet->setSource(1, fontDefault->fontTexture);
+    textDescriptorSet->setDescriptor(0, textCameraUbo);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.5f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);

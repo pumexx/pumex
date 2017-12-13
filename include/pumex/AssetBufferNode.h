@@ -39,4 +39,15 @@ public:
   uint32_t                     vertexBinding;
 };
 
+class PUMEX_EXPORT AssetNode : public Node
+{
+public:
+  AssetNode(std::shared_ptr<pumex::Asset> asset, uint32_t renderMask, uint32_t vertexBinding);
+
+  std::shared_ptr<pumex::Asset> asset;
+  uint32_t                      renderMask;
+  uint32_t                      vertexBinding;
+};
+
+
 }
