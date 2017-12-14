@@ -28,6 +28,7 @@
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/Command.h>
+#include <pumex/RenderContext.h>
 #include <pumex/RenderWorkflow.h>
 
 namespace pumex
@@ -108,7 +109,7 @@ public:
   void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
-  void         validate(Device* device);
+  void         validate(const RenderContext& renderContext);
   VkRenderPass getHandle(VkDevice device) const;
 
   std::vector<AttachmentDefinition>        attachments;

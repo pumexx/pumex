@@ -123,7 +123,7 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
   return std::shared_ptr<Asset>();
 }
 
-void AssetBuffer::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void AssetBuffer::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   if (dirty)
@@ -209,11 +209,11 @@ void AssetBuffer::validate(Device* device, CommandPool* commandPool, VkQueue que
   }
   for (auto& prm : perRenderMaskData)
   {
-    prm.second.vertexBuffer->validate(device, commandPool, queue);
-    prm.second.indexBuffer->validate(device, commandPool, queue);
-    prm.second.typeBuffer->validate(device, commandPool, queue);
-    prm.second.lodBuffer->validate(device, commandPool, queue);
-    prm.second.geomBuffer->validate(device, commandPool, queue);
+    prm.second.vertexBuffer->validate(renderContext);
+    prm.second.indexBuffer->validate(renderContext);
+    prm.second.typeBuffer->validate(renderContext);
+    prm.second.lodBuffer->validate(renderContext);
+    prm.second.geomBuffer->validate(renderContext);
   }
 }
 
@@ -415,13 +415,13 @@ void AssetBufferInstancedResults::setActiveIndex(uint32_t index)
   }
 }
 
-void AssetBufferInstancedResults::validate(Surface* surface)
+void AssetBufferInstancedResults::validate(const RenderContext& renderContext)
 {
   for (auto& prm : perRenderMaskData)
   {
     PerRenderMaskData& rmData = prm.second;
-    rmData.resultsSbo->validate(surface);
-    rmData.offValuesSbo->validate(surface);
+    rmData.resultsSbo->validate(renderContext);
+    rmData.offValuesSbo->validate(renderContext);
   }
 }
 

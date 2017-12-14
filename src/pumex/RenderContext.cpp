@@ -20,38 +20,17 @@
 // SOFTWARE.
 //
 
-#include <pumex/AssetBuffer.h>
-#include <pumex/MaterialSet.h>
-#include <pumex/Export.h>
-#include <pumex/Node.h>
+#include <pumex/RenderContext.h>
+#include <pumex/Device.h>
+#include <pumex/Surface.h>
+#include <pumex/Command.h>
+#include <pumex/RenderPass.h>
 
-namespace pumex
+using namespace pumex;
+
+RenderContext::RenderContext(Surface* s)
+  : surface { s }, vkSurface{ s->surface }, commandPool{ s->commandPool.get() }, presentationQueue{s->presentationQueue},
+    device{ s->device.lock().get() }, vkDevice{ device->device },
+    activeIndex{ s->getImageIndex() }, imageCount{ s->getImageCount() }
 {
-	
-class PUMEX_EXPORT AssetBufferNode : public Group
-{
-public:
-  AssetBufferNode(std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<MaterialSet> materialSet, uint32_t renderMask, uint32_t vertexBinding);
-
-  void validate(const RenderContext& renderContext) override;
-
-  std::shared_ptr<AssetBuffer> assetBuffer;
-  std::shared_ptr<MaterialSet> materialSet;
-  uint32_t                     renderMask;
-  uint32_t                     vertexBinding;
-};
-
-class PUMEX_EXPORT AssetNode : public Node
-{
-public:
-  AssetNode(std::shared_ptr<pumex::Asset> asset, uint32_t renderMask, uint32_t vertexBinding);
-
-  void validate(const RenderContext& renderContext) override;
-
-  std::shared_ptr<pumex::Asset> asset;
-  uint32_t                      renderMask;
-  uint32_t                      vertexBinding;
-};
-
-
 }

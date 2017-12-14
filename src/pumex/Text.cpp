@@ -60,7 +60,7 @@ Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::weak_p
   fontCount++;
 
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);
-  fontTexture   = std::make_shared<Texture>(gli::texture(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1), TextureTraits(), textureAllocator);
+  fontTexture   = std::make_shared<Texture>(gli::texture(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1), SamplerTraits(), textureAllocator);
   fontTexture->texture->clear<gli::u8>(0);
   fontTexture2d = gli::texture2d( (*(fontTexture->texture.get())) );
 
@@ -100,9 +100,9 @@ void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color,
 }
 
 
-void Font::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void Font::validate(const RenderContext& renderContext)
 {
-  fontTexture->validate(device, commandPool, queue);
+  fontTexture->validate(renderContext);
 }
 
 

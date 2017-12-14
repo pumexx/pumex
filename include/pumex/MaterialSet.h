@@ -34,11 +34,14 @@
 #include <pumex/Node.h>
 #include <pumex/Device.h>
 #include <pumex/Viewer.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/StorageBuffer.h>
 
 namespace pumex
 {
+
+
 
 // Assimp does not load textures, but only its names and semantics ( diffuse, normal, etc )
 // TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet
@@ -77,7 +80,7 @@ public:
   virtual ~TextureRegistryBase();
 
   virtual void refreshStructures() = 0;
-  virtual void validate(Device* device, CommandPool* commandPool, VkQueue queue) = 0;
+  virtual void validate(const RenderContext& renderContext) = 0;
   virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
 };
 
@@ -92,7 +95,7 @@ public:
   virtual std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const = 0;
   virtual uint32_t                                   getMaterialVariantCount(uint32_t typeID) const = 0;
   virtual void                                       buildTypesAndVariants(std::vector<MaterialTypeDefinition>& typeDefinitions, std::vector<MaterialVariantDefinition>& variantDefinitions) = 0;
-  virtual void                                       validate(Device* device, CommandPool* commandPool, VkQueue queue) = 0;
+  virtual void                                       validate(const RenderContext& renderContext) = 0;
 };
 
 // MaterialSet is the class that stores information about asset materials in a single place both in CPU and in GPU.
@@ -120,7 +123,7 @@ public:
   std::vector<Material>                        getMaterials(uint32_t typeID) const;
   uint32_t                                     getMaterialVariantCount(uint32_t typeID) const;
   void                                         refreshMaterialStructures();
-  void                                         validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  void                                         validate(const RenderContext& renderContext);
 
   std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
   std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
@@ -157,7 +160,7 @@ public:
   std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const override;
   uint32_t                                   getMaterialVariantCount(uint32_t typeID) const override;
   void                                       buildTypesAndVariants(std::vector<MaterialTypeDefinition>& typeDefinitions, std::vector<MaterialVariantDefinition>& variantDefinitions) override;
-  void                                       validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
+  void                                       validate(const RenderContext& renderContext) override;
 protected:
   struct InternalMaterialDefinition
   {
@@ -184,7 +187,7 @@ public:
   std::shared_ptr<Texture>                     getTargetTexture(uint32_t slotIndex);
 
   void                                         refreshStructures() override;
-  void                                         validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
+  void                                         validate(const RenderContext& renderContext) override;
   void                                         setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
   std::map<uint32_t, std::shared_ptr<Texture>> textures;
@@ -196,6 +199,7 @@ class PUMEX_EXPORT ArrayOfTexturesDescriptorSetSource : public Resource
 {
 public:
   ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o);
+  void validate(const RenderContext& renderContext) override;
   void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 private:
   TextureRegistryArrayOfTextures* owner;
@@ -206,11 +210,11 @@ class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
 public:
   TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc);
   
-  void                                                      setTargetTextureTraits(uint32_t slotIndex, const TextureTraits& textureTrait);
+  void                                                      setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait);
   std::shared_ptr<ArrayOfTexturesDescriptorSetSource>       getTextureSamplerDescriptorSetSource();
 
   void                                                      refreshStructures() override;
-  void                                                      validate(Device* device, CommandPool* commandPool, VkQueue queue) override;
+  void                                                      validate(const RenderContext& renderContext) override;
   void                                                      setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
   std::shared_ptr<StorageBuffer<uint32_t>>                  textureSamplerOffsets;
@@ -218,7 +222,7 @@ public:
 protected:
   std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Texture>>> textures;
-  std::map<uint32_t, TextureTraits>                         textureTraits;
+  std::map<uint32_t, SamplerTraits>                         textureTraits;
   uint32_t                                                  textureSamplersQuantity = 0;
   std::shared_ptr<ArrayOfTexturesDescriptorSetSource>       textureSamplerDescriptorSetSource;
 
@@ -231,7 +235,7 @@ public:
   void refreshStructures() override
   {
   }
-  void validate(Device* device, CommandPool* commandPool, VkQueue queue) override
+  void validate(const RenderContext& renderContext) override
   {
   }
   void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
@@ -332,9 +336,9 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
 }
 
 template <typename T>
-void MaterialRegistry<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void MaterialRegistry<T>::validate(const RenderContext& renderContext)
 {
-  materialDefinitionSbo->validate(device, commandPool, queue);
+  materialDefinitionSbo->validate(renderContext);
 }
 
 

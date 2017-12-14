@@ -30,6 +30,7 @@
 #include <pumex/Device.h>
 #include <pumex/Command.h>
 #include <pumex/Pipeline.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
@@ -50,14 +51,17 @@ public:
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   ~UniformBuffer();
 
-  inline void     set( const T& data );
-  inline T        get() const;
-  void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
-  void            setDirty();
-  void            validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  inline void                       set( const T& data );
+  inline T                          get() const;
 
-  inline void     setActiveIndex(uint32_t index);
-  inline uint32_t getActiveIndex() const;
+  std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
+  void                              validate(const RenderContext& renderContext) override;
+  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+
+  void                              setDirty();
+
+  inline void                       setActiveIndex(uint32_t index);
+  inline uint32_t                   getActiveIndex() const;
 
 private:
   struct PerDeviceData
@@ -74,7 +78,6 @@ private:
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
 
-  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   T                                           uboData;
   std::weak_ptr<DeviceMemoryAllocator>        allocator;
@@ -126,6 +129,56 @@ T UniformBuffer<T>::get() const
 }
 
 template <typename T>
+std::pair<bool, VkDescriptorType> UniformBuffer<T>::getDefaultDescriptorType()
+{
+  return{ true, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
+}
+
+template <typename T>
+void UniformBuffer<T>::validate(const RenderContext& renderContext) //Device* device, CommandPool* commandPool, VkQueue queue)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
+  if (pddit == perDeviceData.end())
+    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
+  if (!pddit->second.dirty[activeIndex])
+    return;
+
+  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
+  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  if (pddit->second.uboBuffer[activeIndex] == VK_NULL_HANDLE)
+  {
+    VkBufferCreateInfo bufferCreateInfo{};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
+    bufferCreateInfo.size = std::max<VkDeviceSize>(1, sizeof(T));
+    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.uboBuffer[activeIndex]), "Cannot create buffer");
+    VkMemoryRequirements memReqs;
+    vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.uboBuffer[activeIndex], &memReqs);
+    pddit->second.memoryBlock[activeIndex] = alloc->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
+    alloc->bindBufferMemory(renderContext.device, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
+
+    notifyDescriptors();
+  }
+  if (memoryIsLocal)
+  {
+    std::shared_ptr<StagingBuffer> stagingBuffer = renderContext.device->acquireStagingBuffer(&uboData, sizeof(T));
+    auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
+    VkBufferCopy copyRegion{};
+    copyRegion.size = sizeof(T);
+    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.uboBuffer[activeIndex], copyRegion);
+    renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
+    renderContext.device->releaseStagingBuffer(stagingBuffer);
+  }
+  else
+  {
+    alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, &uboData, sizeof(T), 0);
+  }
+  pddit->second.dirty[activeIndex] = false;
+}
+
+template <typename T>
 void UniformBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -142,50 +195,6 @@ void UniformBuffer<T>::setDirty()
   for (auto& pdd : perDeviceData)
     for (uint32_t i = 0; i<activeCount; ++i)
       pdd.second.dirty[i] = true;
-}
-
-template <typename T>
-void UniformBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
-  if (!pddit->second.dirty[activeIndex])
-    return;
-
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (pddit->second.uboBuffer[activeIndex] == VK_NULL_HANDLE)
-  {
-    VkBufferCreateInfo bufferCreateInfo{};
-      bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-      bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
-      bufferCreateInfo.size  = std::max<VkDeviceSize>(1, sizeof(T));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(device->device, &bufferCreateInfo, nullptr, &pddit->second.uboBuffer[activeIndex]), "Cannot create buffer");
-    VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(device->device, pddit->second.uboBuffer[activeIndex], &memReqs);
-    pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
-    alloc->bindBufferMemory(device, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
-
-    notifyDescriptors();
-  }
-  if (memoryIsLocal)
-  {
-    std::shared_ptr<StagingBuffer> stagingBuffer = device->acquireStagingBuffer(&uboData, sizeof(T));
-    auto staggingCommandBuffer = device->beginSingleTimeCommands(commandPool);
-    VkBufferCopy copyRegion{};
-    copyRegion.size = sizeof(T);
-    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.uboBuffer[activeIndex], copyRegion);
-    device->endSingleTimeCommands(staggingCommandBuffer, queue);
-    device->releaseStagingBuffer(stagingBuffer);
-  }
-  else
-  {
-    alloc->copyToDeviceMemory(device, pddit->second.memoryBlock[activeIndex].alignedOffset, &uboData, sizeof(T), 0);
-  }
-  pddit->second.dirty[activeIndex] = false;
 }
 
 template <typename T>

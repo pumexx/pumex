@@ -32,6 +32,7 @@
 #include <pumex/Surface.h>
 #include <pumex/Command.h>
 #include <pumex/Pipeline.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
@@ -53,9 +54,11 @@ public:
   inline void               set(std::shared_ptr<T> data);
   inline                    void set(Surface* surface, std::shared_ptr<T>);
   inline std::shared_ptr<T> get(Surface* surface) const;
+
+  void                      validate(const RenderContext& renderContext) override;
   void                      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+
   void                      setDirty();
-  void                      validate(Surface* surface);
   VkBuffer                  getBufferHandle(Surface* surface);
 
   inline void               setActiveIndex(uint32_t index);
@@ -83,7 +86,6 @@ private:
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
 
-  mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
   VkBufferUsageFlagBits                            usage;
   std::weak_ptr<DeviceMemoryAllocator>             allocator;
@@ -143,6 +145,62 @@ std::shared_ptr<T> GenericBufferPerSurface<T>::get(Surface* surface) const
 }
 
 template <typename T>
+void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
+  if (pddit == perSurfaceData.end())
+    pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
+  if (!pddit->second.dirty[activeIndex])
+    return;
+  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
+  if (pddit->second.buffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < uglyGetSize(*(pddit->second.data)))
+  {
+    vkDestroyBuffer(pddit->second.device, pddit->second.buffer[activeIndex], nullptr);
+    alloc->deallocate(pddit->second.device, pddit->second.memoryBlock[activeIndex]);
+    pddit->second.buffer[activeIndex] = VK_NULL_HANDLE;
+    pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
+  }
+
+  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  if (pddit->second.buffer[activeIndex] == VK_NULL_HANDLE)
+  {
+    VkBufferCreateInfo bufferCreateInfo{};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.usage = usage | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
+    bufferCreateInfo.size = std::max<VkDeviceSize>(1, uglyGetSize(*(pddit->second.data)));
+    VK_CHECK_LOG_THROW(vkCreateBuffer(pddit->second.device, &bufferCreateInfo, nullptr, &pddit->second.buffer[activeIndex]), "Cannot create buffer");
+    VkMemoryRequirements memReqs;
+    vkGetBufferMemoryRequirements(pddit->second.device, pddit->second.buffer[activeIndex], &memReqs);
+    pddit->second.memoryBlock[activeIndex] = alloc->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
+    alloc->bindBufferMemory(renderContext.device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
+
+    notifyDescriptors();
+    notifyCommandBuffers(activeIndex);
+  }
+  if (uglyGetSize(*(pddit->second.data)) > 0)
+  {
+    if (memoryIsLocal)
+    {
+      std::shared_ptr<StagingBuffer> stagingBuffer = renderContext.device->acquireStagingBuffer(uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)));
+      auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
+      VkBufferCopy copyRegion{};
+      copyRegion.size = uglyGetSize(*(pddit->second.data));
+      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[activeIndex], copyRegion);
+      renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
+      renderContext.device->releaseStagingBuffer(stagingBuffer);
+    }
+    else
+    {
+      alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)), 0);
+    }
+  }
+  pddit->second.dirty[activeIndex] = false;
+}
+
+template <typename T>
 void GenericBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -158,64 +216,6 @@ void GenericBufferPerSurface<T>::setDirty()
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
     pdd.second.setDirty();
-}
-
-template <typename T>
-void GenericBufferPerSurface<T>::validate(Surface* surface)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  Device* devicePtr = surface->device.lock().get();
-  VkDevice device   = devicePtr->device;
-
-  auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == perSurfaceData.end())
-    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount,device) }).first;
-  if (!pddit->second.dirty[activeIndex])
-    return;
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  if (pddit->second.buffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < uglyGetSize(*(pddit->second.data)))
-  {
-    vkDestroyBuffer(pddit->second.device, pddit->second.buffer[activeIndex], nullptr);
-    alloc->deallocate(pddit->second.device, pddit->second.memoryBlock[activeIndex]);
-    pddit->second.buffer[activeIndex]      = VK_NULL_HANDLE;
-    pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
-  }
-
-  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (pddit->second.buffer[activeIndex] == VK_NULL_HANDLE)
-  {
-    VkBufferCreateInfo bufferCreateInfo{};
-      bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-      bufferCreateInfo.usage = usage | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
-      bufferCreateInfo.size  = std::max<VkDeviceSize>(1, uglyGetSize(*(pddit->second.data)));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(pddit->second.device, &bufferCreateInfo, nullptr, &pddit->second.buffer[activeIndex]), "Cannot create buffer");
-    VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(pddit->second.device, pddit->second.buffer[activeIndex], &memReqs);
-    pddit->second.memoryBlock[activeIndex] = alloc->allocate(devicePtr, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
-    alloc->bindBufferMemory(devicePtr, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
-
-    notifyDescriptors();
-    notifyCommandBuffers(activeIndex);
-  }
-  if ( uglyGetSize(*(pddit->second.data)) > 0)
-  {
-    if (memoryIsLocal)
-    {
-      std::shared_ptr<StagingBuffer> stagingBuffer = devicePtr->acquireStagingBuffer( uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)));
-      auto staggingCommandBuffer = devicePtr->beginSingleTimeCommands(surface->commandPool.get());
-      VkBufferCopy copyRegion{};
-      copyRegion.size = uglyGetSize(*(pddit->second.data));
-      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[activeIndex], copyRegion);
-      devicePtr->endSingleTimeCommands(staggingCommandBuffer, surface->presentationQueue);
-      devicePtr->releaseStagingBuffer(stagingBuffer);
-    }
-    else
-    {
-      alloc->copyToDeviceMemory(devicePtr, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)), 0);
-    }
-  }
-  pddit->second.dirty[activeIndex] = false;
 }
 
 template <typename T>

@@ -72,7 +72,7 @@ public:
   Font& operator=(const Font&) = delete;
   virtual ~Font();
 
-  void validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  void validate(const RenderContext& renderContext);
   void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
 
   std::shared_ptr<Texture>     fontTexture;

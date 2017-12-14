@@ -30,8 +30,21 @@ AssetBufferNode::AssetBufferNode(std::shared_ptr<AssetBuffer> ab, std::shared_pt
 
 }
 
+void AssetBufferNode::validate(const RenderContext& renderContext)
+{
+  assetBuffer->validate(renderContext);
+  materialSet->validate(renderContext);
+  Group::validate(renderContext);
+}
+
+
 AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, uint32_t rm, uint32_t vb)
   : asset{ a }, renderMask{ rm }, vertexBinding{ vb }
+{
+
+}
+
+void AssetNode::validate(const RenderContext& renderContext)
 {
 
 }

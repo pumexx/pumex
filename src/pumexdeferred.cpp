@@ -821,10 +821,10 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 },{ pumex::TextureSemantic::LightMap, 2 },{ pumex::TextureSemantic::Normals, 3 } };
     std::shared_ptr<pumex::TextureRegistryArrayOfTextures> textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
-    textureRegistry->setTargetTextureTraits(0, pumex::TextureTraits());
-    textureRegistry->setTargetTextureTraits(1, pumex::TextureTraits());
-    textureRegistry->setTargetTextureTraits(2, pumex::TextureTraits());
-    textureRegistry->setTargetTextureTraits(3, pumex::TextureTraits());
+    textureRegistry->setTargetSamplerTraits(0, pumex::SamplerTraits());
+    textureRegistry->setTargetSamplerTraits(1, pumex::SamplerTraits());
+    textureRegistry->setTargetSamplerTraits(2, pumex::SamplerTraits());
+    textureRegistry->setTargetSamplerTraits(3, pumex::SamplerTraits());
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>();
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 

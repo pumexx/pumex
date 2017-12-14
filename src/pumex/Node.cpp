@@ -21,6 +21,7 @@
 //
 #include <pumex/Node.h>
 #include <pumex/NodeVisitor.h>
+#include <pumex/RenderContext.h>
 #include <algorithm>
 
 using namespace pumex;
@@ -81,6 +82,13 @@ void Node::resetDescriptorSet(uint32_t index)
   it->second->removeNode(shared_from_this());
   descriptorSets.erase(it);
 }
+
+void Node::validate(const RenderContext& renderContext)
+{
+  for (auto& descriptorSet : descriptorSets)
+    descriptorSet.second->validate(renderContext);
+}
+
 
 void Node::dirtyBound()
 {

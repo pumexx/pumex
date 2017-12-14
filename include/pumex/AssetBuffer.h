@@ -161,7 +161,7 @@ public:
   inline uint32_t        getNumTypesID() const;
   
   inline void            setDirty();
-  void                   validate(Device* device, CommandPool* commandPool, VkQueue queue = VK_NULL_HANDLE);
+  void                   validate(const RenderContext& renderContext);
 
   void                   cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
   void                   cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
@@ -272,7 +272,7 @@ public:
 
 
   void                                                                 setActiveIndex(uint32_t index);
-  void                                                                 validate(Surface* surface);
+  void                                                                 validate(const RenderContext& renderContext);
 
 protected:
   struct PerRenderMaskData

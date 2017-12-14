@@ -31,6 +31,7 @@
 #include <pumex/Device.h>
 #include <pumex/Command.h>
 #include <pumex/Pipeline.h>
+#include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
@@ -49,9 +50,10 @@ public:
   GenericBuffer& operator=(const GenericBuffer&) = delete;
   ~GenericBuffer();
 
+  void            validate(const RenderContext& renderContext) override;
   void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+
   void            setDirty();
-  void            validate(Device* device, CommandPool* commandPool, VkQueue queue);
   VkBuffer        getBufferHandle(Device* device);
 
   inline void     setActiveIndex(uint32_t index);
@@ -72,7 +74,6 @@ private:
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
 
-  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   VkBufferUsageFlagBits                       usage;
   std::shared_ptr<T>                          data;
@@ -124,13 +125,13 @@ void GenericBuffer<T>::setDirty()
 }
 
 template <typename T>
-void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void GenericBuffer<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
 
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData(activeCount) }).first;
+    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
   if (!pddit->second.dirty[activeIndex])
     return;
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
@@ -149,12 +150,12 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
       bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
       bufferCreateInfo.usage = usage | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
       bufferCreateInfo.size  = std::max<VkDeviceSize>(1, uglyGetSize(*data));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(device->device, &bufferCreateInfo, nullptr, &pddit->second.buffer[activeIndex]), "Cannot create buffer");
+    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.buffer[activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(device->device, pddit->second.buffer[activeIndex], &memReqs);
-    pddit->second.memoryBlock[activeIndex] = alloc->allocate(device, memReqs);
+    vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.buffer[activeIndex], &memReqs);
+    pddit->second.memoryBlock[activeIndex] = alloc->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
-    alloc->bindBufferMemory(device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
+    alloc->bindBufferMemory(renderContext.device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
     notifyDescriptors();
     notifyCommandBuffers(activeIndex);
@@ -163,17 +164,17 @@ void GenericBuffer<T>::validate(Device* device, CommandPool* commandPool, VkQueu
   {
     if (memoryIsLocal)
     {
-      std::shared_ptr<StagingBuffer> stagingBuffer = device->acquireStagingBuffer( uglyGetPointer(*data), uglyGetSize(*data));
-      auto staggingCommandBuffer = device->beginSingleTimeCommands(commandPool);
+      std::shared_ptr<StagingBuffer> stagingBuffer = renderContext.device->acquireStagingBuffer( uglyGetPointer(*data), uglyGetSize(*data));
+      auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
       VkBufferCopy copyRegion{};
       copyRegion.size = uglyGetSize(*data);
       staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[activeIndex], copyRegion);
-      device->endSingleTimeCommands(staggingCommandBuffer, queue);
-      device->releaseStagingBuffer(stagingBuffer);
+      renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
+      renderContext.device->releaseStagingBuffer(stagingBuffer);
     }
     else
     {
-      alloc->copyToDeviceMemory(device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*data), uglyGetSize(*data), 0);
+      alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*data), uglyGetSize(*data), 0);
     }
   }
   pddit->second.dirty[activeIndex] = false;

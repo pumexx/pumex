@@ -21,7 +21,6 @@
 //
 
 #include <pumex/MaterialSet.h>
-
 using namespace pumex;
 
 
@@ -161,12 +160,12 @@ void MaterialSet::refreshMaterialStructures()
   textureRegistry->refreshStructures();
 }
 
-void MaterialSet::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void MaterialSet::validate(const RenderContext& renderContext)
 {
-  typeDefinitionSbo->validate(device, commandPool, queue);
-  materialVariantSbo->validate(device, commandPool, queue);
-  materialRegistry->validate(device, commandPool, queue);
-  textureRegistry->validate(device, commandPool, queue);
+  typeDefinitionSbo->validate(renderContext);
+  materialVariantSbo->validate(renderContext);
+  materialRegistry->validate(renderContext);
+  textureRegistry->validate(renderContext);
 }
 
 std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Material& mat)
@@ -225,10 +224,10 @@ void TextureRegistryTextureArray::refreshStructures()
 {
 }
 
-void TextureRegistryTextureArray::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void TextureRegistryTextureArray::validate(const RenderContext& renderContext)
 {
   for (auto t : textures)
-    t.second->validate(device, commandPool, queue);
+    t.second->validate(renderContext);
 }
 
 void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
@@ -243,6 +242,20 @@ ArrayOfTexturesDescriptorSetSource::ArrayOfTexturesDescriptorSetSource(TextureRe
   : owner{ o }
 {
 }
+
+void ArrayOfTexturesDescriptorSetSource::validate(const RenderContext& renderContext)
+{
+  CHECK_LOG_THROW(owner == nullptr, "ArrayOfTexturesDescriptorSetSource::getDescriptorSetValue() : owner not defined");
+  for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
+  {
+    auto it = owner->textures.find(i);
+    if (it == owner->textures.end())
+      continue;
+    for (auto tx : it->second)
+      tx->validate(renderContext);
+  }
+}
+
 
 void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
@@ -264,7 +277,7 @@ TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::weak_ptr<Dev
   textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>(allocator);
 }
 
-void TextureRegistryArrayOfTextures::setTargetTextureTraits(uint32_t slotIndex, const TextureTraits& textureTrait)
+void TextureRegistryArrayOfTextures::setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait)
 {
   textureTraits[slotIndex] = textureTrait;
   textures[slotIndex] = std::vector<std::shared_ptr<Texture>>();
@@ -295,7 +308,7 @@ void TextureRegistryArrayOfTextures::refreshStructures()
   textureSamplerOffsets->set(tso);
 }
 
-void TextureRegistryArrayOfTextures::validate(Device* device, CommandPool* commandPool, VkQueue queue)
+void TextureRegistryArrayOfTextures::validate(const RenderContext& renderContext)
 {
   for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
   {
@@ -303,9 +316,9 @@ void TextureRegistryArrayOfTextures::validate(Device* device, CommandPool* comma
     if (it == textures.end())
       continue;
     for (auto tx : it->second)
-      tx->validate(device, commandPool, queue);
+      tx->validate(renderContext);
   }
-  textureSamplerOffsets->validate(device, commandPool, queue);
+  textureSamplerOffsets->validate(renderContext);
 
   if (textureSamplerDescriptorSetSource.get() != nullptr)
     textureSamplerDescriptorSetSource->notifyDescriptors();

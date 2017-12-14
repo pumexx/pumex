@@ -64,10 +64,10 @@ struct PUMEX_EXPORT ImageTraits
 };
 
 // struct describing VkSampler / combined sampler 
-struct PUMEX_EXPORT TextureTraits
+struct PUMEX_EXPORT SamplerTraits
 {
-  explicit TextureTraits() = default;
-  explicit TextureTraits(VkImageUsageFlags usage, bool linearTiling = false, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, VkSamplerMipmapMode mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+  explicit SamplerTraits() = default;
+  explicit SamplerTraits(VkImageUsageFlags usage, bool linearTiling = false, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, VkSamplerMipmapMode mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
     VkSamplerAddressMode addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
     float mipLodBias = 0.0f, VkBool32 anisotropyEnable = VK_TRUE, float maxAnisotropy = 8, VkBool32 compareEnable = false, VkCompareOp compareOp = VK_COMPARE_OP_NEVER, VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VkBool32 unnormalizedCoordinates = false);
 
@@ -126,7 +126,6 @@ protected:
 
 };
 
-
 // Uses gli::texture to hold texture on CPU
 // Texture may contain usual textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
 // Class stores information about images per device. Additionally it also stores a VkSampler
@@ -134,7 +133,10 @@ class PUMEX_EXPORT Texture : public Resource
 {
 public:
   Texture()                          = delete;
-  explicit Texture(const gli::texture& texture, const TextureTraits& traits, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  // create texture and clear it with specific value
+  explicit Texture(const ImageTraits& imageTraits, const SamplerTraits& samplerTraits, VkClearValue initValue, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  // create texture and load it with provided data ( gli::texture )
+  explicit Texture(const gli::texture& texture, const SamplerTraits& samplerTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
 
@@ -143,13 +145,15 @@ public:
   void      setDirty();
   Image*    getHandleImage(VkDevice device) const;
   VkSampler getHandleSampler(VkDevice device) const;
-  void      validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  void      validate(const RenderContext& renderContext) override;
   void      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
   void setLayer(uint32_t layer, const gli::texture& tex);
 
   std::shared_ptr<gli::texture>        texture;
-  TextureTraits                        traits;
+  ImageTraits                          imageTraits;
+  SamplerTraits                        samplerTraits;
+  VkClearValue                         initValue;
   std::weak_ptr<DeviceMemoryAllocator> allocator;
 private:
   struct PerDeviceData
@@ -162,7 +166,6 @@ private:
     std::shared_ptr<Image> image;
     VkSampler              sampler      = VK_NULL_HANDLE;
   };
-  mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
@@ -185,6 +188,7 @@ const ImageTraits&   Image::getImageTraits() const { return imageTraits; }
 // helper functions
 PUMEX_EXPORT VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format);
 PUMEX_EXPORT VkImageViewType vulkanViewTypeFromGliTarget(gli::texture::target_type target);
+PUMEX_EXPORT VkImageType vulkanImageTypeFromTextureExtents(const gli::extent3d& extents);
 PUMEX_EXPORT VkComponentSwizzle vulkanSwizzlesFromGliSwizzles(const gli::swizzle& s);
 PUMEX_EXPORT VkComponentMapping vulkanComponentMappingFromGliComponentMapping(const gli::swizzles& swz);
 	

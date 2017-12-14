@@ -27,7 +27,7 @@
 namespace pumex
 {
 
-Clipmap3::Clipmap3(uint32_t tq, uint32_t ts, VkClearValue iv, const ImageTraits& it, const TextureTraits& tt, std::weak_ptr<DeviceMemoryAllocator> al)
+Clipmap3::Clipmap3(uint32_t tq, uint32_t ts, VkClearValue iv, const ImageTraits& it, const SamplerTraits& tt, std::weak_ptr<DeviceMemoryAllocator> al)
   : textureQuantity{ tq }, textureSize{ ts }, imageTraits { it }, textureTraits{ tt }, allocator{ al }
 {
   initValue = iv;
@@ -111,7 +111,6 @@ void Clipmap3::validate(Device* device, CommandPool* commandPool, VkQueue queue)
       cmdBuffer->cmdClearColorImage(*(pddit->second.images[i].get()), VK_IMAGE_LAYOUT_GENERAL, initValue, subResources);
     else
       cmdBuffer->cmdClearDepthStencilImage(*(pddit->second.images[i].get()), VK_IMAGE_LAYOUT_GENERAL, initValue, subResources);
-//    cmdBuffer->setImageLayout(*(pddit->second.images[i].get()), imageTraits.aspectMask, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   }
   device->endSingleTimeCommands(cmdBuffer, queue);
 

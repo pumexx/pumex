@@ -70,12 +70,12 @@ DescriptorSetLayout::~DescriptorSetLayout()
 }
 
 
-void DescriptorSetLayout::validate(Device* device)
+void DescriptorSetLayout::validate(const RenderContext& renderContext)
 {
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit != perDeviceData.end())
     return;
-  pddit = perDeviceData.insert( {device->device, PerDeviceData()} ).first;
+  pddit = perDeviceData.insert( { renderContext.vkDevice, PerDeviceData()} ).first;
 
   std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
   for ( const auto& b : bindings )
@@ -136,13 +136,13 @@ DescriptorPool::~DescriptorPool()
 }
 
 
-void DescriptorPool::validate(Device* device)
+void DescriptorPool::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit != perDeviceData.end())
     return;
-  pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
 
   std::vector<VkDescriptorPoolSize> poolSizes;
   for (const auto& b : bindings)
@@ -229,6 +229,11 @@ Descriptor::~Descriptor()
   resource->removeDescriptor(shared_from_this());
 }
 
+void Descriptor::validate(const RenderContext& renderContext)
+{
+  resource->validate(renderContext);
+}
+
 void Descriptor::setDirty()
 {
   owner.lock()->setDirty();
@@ -249,12 +254,18 @@ DescriptorSet::~DescriptorSet()
 
 void DescriptorSet::validate( const RenderContext& renderContext )
 {
+  // validate descriptors
+  for (const auto& d : descriptors)
+    d.second->validate(renderContext);
+
+  // now check if descriptor set is dirty
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
   if (!pddit->second.dirty[activeIndex])
     return;
+
   if (pddit->second.descriptorSet[activeIndex] == VK_NULL_HANDLE)
   {
     VkDescriptorSetLayout layoutHandle = layout->getHandle(pddit->second.device);
@@ -387,21 +398,21 @@ PipelineLayout::~PipelineLayout()
 }
 
 
-void PipelineLayout::validate(Device* device)
+void PipelineLayout::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit != perDeviceData.end())
     return;
-  pddit = perDeviceData.insert( {device->device, PerDeviceData()}).first;
+  pddit = perDeviceData.insert( { renderContext.vkDevice, PerDeviceData()}).first;
 
   VkPipelineLayoutCreateInfo pipelineLayoutCI{};
     pipelineLayoutCI.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     std::vector<VkDescriptorSetLayout> descriptors;
     for ( auto dsl : descriptorSetLayouts )
     { 
-      dsl->validate(device);
-      descriptors.push_back(dsl->getHandle(device->device));
+      dsl->validate(renderContext);
+      descriptors.push_back(dsl->getHandle(renderContext.vkDevice));
     }
     pipelineLayoutCI.setLayoutCount = descriptors.size();
     pipelineLayoutCI.pSetLayouts    = descriptors.data();
@@ -428,13 +439,13 @@ PipelineCache::~PipelineCache()
 }
 
 
-void PipelineCache::validate(Device* device)
+void PipelineCache::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit != perDeviceData.end())
     return;
-  pddit = perDeviceData.insert({device->device,PerDeviceData()}).first;
+  pddit = perDeviceData.insert({ renderContext.vkDevice,PerDeviceData()}).first;
 
   VkPipelineCacheCreateInfo pipelineCacheCI{};
     pipelineCacheCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
@@ -470,18 +481,18 @@ ShaderModule::~ShaderModule()
 }
 
 
-void ShaderModule::validate(Device* device)
+void ShaderModule::validate(const RenderContext& renderContext)
 {
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit != perDeviceData.end())
     return;
-  pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+  pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
 
   VkShaderModuleCreateInfo shaderModuleCI{};
     shaderModuleCI.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shaderModuleCI.codeSize = shaderContents.size();
     shaderModuleCI.pCode    = (uint32_t*)shaderContents.data();
-  VK_CHECK_LOG_THROW(vkCreateShaderModule(device->device, &shaderModuleCI, nullptr, &pddit->second.shaderModule), "Cannot create shader module : " << fileName);
+  VK_CHECK_LOG_THROW(vkCreateShaderModule(renderContext.vkDevice, &shaderModuleCI, nullptr, &pddit->second.shaderModule), "Cannot create shader module : " << fileName);
 }
 
 VkShaderModule ShaderModule::getHandle(VkDevice device) const
@@ -492,8 +503,18 @@ VkShaderModule ShaderModule::getHandle(VkDevice device) const
   return pddit->second.shaderModule;
 }
 
-GraphicsPipeline::GraphicsPipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl, std::shared_ptr<RenderPass> rp, uint32_t s)
-  : pipelineCache{ pc }, pipelineLayout{ pl }, renderPass{ rp }, subpass{s}
+Pipeline::Pipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl)
+  : pipelineCache{ pc }, pipelineLayout{ pl }
+{
+}
+
+Pipeline::~Pipeline()
+{
+}
+
+
+GraphicsPipeline::GraphicsPipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl)
+  : Pipeline{ pc, pl }
 {
   front.failOp      = VK_STENCIL_OP_KEEP;
   front.passOp      = VK_STENCIL_OP_KEEP;
@@ -520,12 +541,12 @@ GraphicsPipeline::~GraphicsPipeline()
 }
 
 
-void GraphicsPipeline::validate(Device* device)
+void GraphicsPipeline::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
   if (!pddit->second.dirty)
     return;
   if (pddit->second.pipeline != VK_NULL_HANDLE)
@@ -537,11 +558,11 @@ void GraphicsPipeline::validate(Device* device)
 
   for (const auto& state : shaderStages)
   {
-    state.shaderModule->validate(device);
+    state.shaderModule->validate(renderContext);
     VkPipelineShaderStageCreateInfo shaderStage{};
     shaderStage.sType                          = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStage.stage                          = state.stage;
-    shaderStage.module                         = state.shaderModule->getHandle(device->device);
+    shaderStage.module                         = state.shaderModule->getHandle(renderContext.vkDevice);
     shaderStage.pName                          = state.entryPoint.c_str();//"main";
     shaderStagesCI.push_back(shaderStage);
   }
@@ -653,7 +674,6 @@ void GraphicsPipeline::validate(Device* device)
     depthStencilState.minDepthBounds           = minDepthBounds;
     depthStencilState.maxDepthBounds           = maxDepthBounds;
 
-
   std::vector<VkPipelineColorBlendAttachmentState> vkBlendAttachments;
   for (const auto& b : blendAttachments)
   {
@@ -679,13 +699,12 @@ void GraphicsPipeline::validate(Device* device)
     dynamicState.pDynamicStates                = dynamicStates.data();
     dynamicState.dynamicStateCount             = dynamicStates.size();
 
-  renderPass->validate(device);
-  pipelineLayout->validate(device);
+  pipelineLayout->validate(renderContext);
   VkGraphicsPipelineCreateInfo pipelineCI{};
     pipelineCI.sType                           = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineCI.layout                          = pipelineLayout->getHandle(device->device);
-    pipelineCI.renderPass                      = renderPass->getHandle(device->device);
-    pipelineCI.subpass                         = subpass;
+    pipelineCI.layout                          = pipelineLayout->getHandle(renderContext.vkDevice);
+    pipelineCI.renderPass                      = renderContext.renderPass->getHandle(renderContext.vkDevice);
+    pipelineCI.subpass                         = renderContext.subpassIndex;
     pipelineCI.stageCount                      = shaderStagesCI.size();
     pipelineCI.pStages                         = shaderStagesCI.data();
     pipelineCI.pVertexInputState               = &inputState;
@@ -698,9 +717,10 @@ void GraphicsPipeline::validate(Device* device)
     pipelineCI.pViewportState                  = &viewportState;
     pipelineCI.pDepthStencilState              = &depthStencilState;
     pipelineCI.pDynamicState                   = &dynamicState;
-  VK_CHECK_LOG_THROW(vkCreateGraphicsPipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create graphics pipeline");
+  VK_CHECK_LOG_THROW(vkCreateGraphicsPipelines(pddit->first, pipelineCache->getHandle(renderContext.vkDevice), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create graphics pipeline");
 //  notifyCommandBuffers();
   pddit->second.dirty = false;
+  Pipeline::validate(renderContext);
 }
 
 VkPipeline GraphicsPipeline::getHandle(VkDevice device) const
@@ -720,7 +740,7 @@ void GraphicsPipeline::setDirty()
 }
 
 ComputePipeline::ComputePipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl)
-  : pipelineCache{ pc }, pipelineLayout{ pl }
+  : Pipeline{ pc, pl }
 {
 }
 
@@ -730,31 +750,31 @@ ComputePipeline::~ComputePipeline()
     vkDestroyPipeline(pddit.first, pddit.second.pipeline, nullptr);
 }
 
-
-void ComputePipeline::validate(Device* device)
+void ComputePipeline::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
   if (!pddit->second.dirty)
     return;
   if (pddit->second.pipeline != VK_NULL_HANDLE)
     vkDestroyPipeline(pddit->first, pddit->second.pipeline, nullptr);
 
-  shaderStage.shaderModule->validate(device);
-  pipelineLayout->validate(device);
+  shaderStage.shaderModule->validate(renderContext);
+  pipelineLayout->validate(renderContext);
   VkComputePipelineCreateInfo pipelineCI{};
     pipelineCI.sType        = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    pipelineCI.layout       = pipelineLayout->getHandle(device->device);
+    pipelineCI.layout       = pipelineLayout->getHandle(renderContext.vkDevice);
     pipelineCI.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pipelineCI.stage.stage  = shaderStage.stage;
-    pipelineCI.stage.module = shaderStage.shaderModule->getHandle(device->device);
+    pipelineCI.stage.module = shaderStage.shaderModule->getHandle(renderContext.vkDevice);
     pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();//"main";
 
-  VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->first, pipelineCache->getHandle(device->device), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create compute pipeline");
+  VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->first, pipelineCache->getHandle(renderContext.vkDevice), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create compute pipeline");
 //  notifyCommandBuffers();
   pddit->second.dirty = false;
+  Pipeline::validate(renderContext);
 }
 
 VkPipeline ComputePipeline::getHandle(VkDevice device) const

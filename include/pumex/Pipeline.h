@@ -60,7 +60,7 @@ public:
   DescriptorSetLayout& operator=(const DescriptorSetLayout&) = delete;
   virtual ~DescriptorSetLayout();
 
-  void                  validate(Device* device);
+  void                  validate(const RenderContext& renderContext);
   VkDescriptorSetLayout getHandle(VkDevice device) const;
   VkDescriptorType      getDescriptorType(uint32_t binding) const;
   uint32_t              getDescriptorBindingCount(uint32_t binding) const;
@@ -82,7 +82,7 @@ public:
   DescriptorPool& operator=(const DescriptorPool&) = delete;
   virtual ~DescriptorPool();
 
-  void             validate(Device* device);
+  void             validate(const RenderContext& renderContext);
   VkDescriptorPool getHandle(VkDevice device) const;
 
   uint32_t poolSize;
@@ -124,8 +124,10 @@ public:
   void notifyDescriptors();
 
   virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
+  virtual void validate(const RenderContext& context) = 0;
   virtual void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const = 0;
 protected:
+  mutable std::mutex                     mutex;
   std::vector<std::weak_ptr<Descriptor>> descriptors;
 };
 
@@ -136,6 +138,7 @@ public:
   Descriptor(std::shared_ptr<DescriptorSet> owner, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
   ~Descriptor();
 
+  void validate(const RenderContext& renderContext);
   void setDirty();
 
   std::weak_ptr<DescriptorSet> owner;
@@ -201,7 +204,7 @@ public:
   PipelineLayout& operator=(const PipelineLayout&) = delete;
   virtual ~PipelineLayout();
 
-  void             validate(Device* device);
+  void             validate(const RenderContext& renderContext);
   VkPipelineLayout getHandle(VkDevice device) const;
 
   std::vector<std::shared_ptr<DescriptorSetLayout>> descriptorSetLayouts;
@@ -224,7 +227,7 @@ public:
   PipelineCache& operator=(const PipelineCache&) = delete;
   virtual ~PipelineCache();
 
-  void            validate(Device* device);
+  void            validate(const RenderContext& renderContext);
   VkPipelineCache getHandle(VkDevice device) const;
 
 protected:
@@ -236,6 +239,28 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
+class PUMEX_EXPORT Pipeline : public Group
+{
+public:
+  Pipeline() = delete;
+  explicit Pipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout);
+  virtual ~Pipeline();
+  Pipeline(const Pipeline&) = delete;
+  Pipeline& operator=(const Pipeline&) = delete;
+
+  // FIXME : add descriptor set checking, add dynamic state checking
+
+protected:
+  std::shared_ptr<PipelineCache>    pipelineCache;
+  std::shared_ptr<PipelineLayout>   pipelineLayout;
+
+  struct PerDeviceData
+  {
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    bool       dirty = true;
+  };
+  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+};
 
 // pipeline creation
 struct PUMEX_EXPORT VertexInputDefinition
@@ -268,7 +293,7 @@ public:
   ShaderModule& operator=(const ShaderModule&) = delete;
   virtual ~ShaderModule();
 
-  void           validate(Device* device);
+  void           validate(const RenderContext& renderContext);
   VkShaderModule getHandle(VkDevice device) const;
 
   std::string fileName;
@@ -291,11 +316,11 @@ struct PUMEX_EXPORT ShaderStageDefinition
   std::string                   entryPoint = "main";
 };
 
-class PUMEX_EXPORT GraphicsPipeline : public Group
+class PUMEX_EXPORT GraphicsPipeline : public Pipeline
 {
 public:
   GraphicsPipeline()                                   = delete;
-  explicit GraphicsPipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout, std::shared_ptr<RenderPass> renderPass, uint32_t subpass);
+  explicit GraphicsPipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout);
   GraphicsPipeline(const GraphicsPipeline&)            = delete;
   GraphicsPipeline& operator=(const GraphicsPipeline&) = delete;
   virtual ~GraphicsPipeline();
@@ -304,7 +329,7 @@ public:
   inline bool hasShaderStage(VkShaderStageFlagBits stage) const;
   // TODO : add a bunch of handy functions defining different pipeline aspects
 
-  void       validate(Device* device);
+  void       validate(const RenderContext& renderContext) override;
   VkPipeline getHandle(VkDevice device) const;
   void       setDirty();
 
@@ -359,23 +384,9 @@ public:
 
   // shaderstages
   std::vector<ShaderStageDefinition>        shaderStages;
-protected:
-  std::shared_ptr<PipelineCache>            pipelineCache;
-  std::shared_ptr<PipelineLayout>           pipelineLayout;
-  std::shared_ptr<RenderPass>               renderPass;
-  uint32_t                                  subpass;
-
-  struct PerDeviceData
-  {
-    VkPipeline pipeline = VK_NULL_HANDLE;
-    bool       dirty    = true;
-  };
-
-  mutable std::mutex                          mutex;
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-class PUMEX_EXPORT ComputePipeline : public Group
+class PUMEX_EXPORT ComputePipeline : public Pipeline
 {
 public:
   ComputePipeline()                                  = delete;
@@ -384,24 +395,12 @@ public:
   ComputePipeline& operator=(const ComputePipeline&) = delete;
   virtual ~ComputePipeline();
 
-  void       validate(Device* device);
+  void       validate(const RenderContext& renderContext) override;
   VkPipeline getHandle(VkDevice device) const;
   void       setDirty();
 
   // shader stage
   ShaderStageDefinition             shaderStage;
-protected:
-  std::shared_ptr<PipelineCache>    pipelineCache;
-  std::shared_ptr<PipelineLayout>   pipelineLayout;
-
-  struct PerDeviceData
-  {
-    VkPipeline pipeline = VK_NULL_HANDLE;
-    bool       dirty = true;
-  };
-
-  mutable std::mutex                          mutex;
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
 

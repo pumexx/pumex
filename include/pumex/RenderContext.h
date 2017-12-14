@@ -19,38 +19,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-
-#include <pumex/AssetBuffer.h>
-#include <pumex/MaterialSet.h>
+#pragma once
+#include <vulkan/vulkan.h>
 #include <pumex/Export.h>
-#include <pumex/Node.h>
 
 namespace pumex
 {
-	
-class PUMEX_EXPORT AssetBufferNode : public Group
+
+class Surface;
+class CommandPool;
+class Device;	
+class RenderPass;
+class Pipeline;
+class AssetBufferNode;
+
+class RenderContext
 {
 public:
-  AssetBufferNode(std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<MaterialSet> materialSet, uint32_t renderMask, uint32_t vertexBinding);
+  RenderContext(Surface* surface);
 
-  void validate(const RenderContext& renderContext) override;
+  inline void setRenderPass(RenderPass* renderPass);
+  inline void setSubpassIndex(uint32_t subpassIndex);
 
-  std::shared_ptr<AssetBuffer> assetBuffer;
-  std::shared_ptr<MaterialSet> materialSet;
-  uint32_t                     renderMask;
-  uint32_t                     vertexBinding;
-};
+  // elements of the context that are constant through visitor work
+  Surface*         surface            = nullptr;
+  VkSurfaceKHR     vkSurface          = VK_NULL_HANDLE;
+  CommandPool*     commandPool        = nullptr;
+  VkQueue          presentationQueue  = VK_NULL_HANDLE;
+  Device*          device             = nullptr;
+  VkDevice         vkDevice           = VK_NULL_HANDLE;
+  uint32_t         activeIndex        = 0;
+  uint32_t         imageCount         = 1;
 
-class PUMEX_EXPORT AssetNode : public Node
-{
-public:
-  AssetNode(std::shared_ptr<pumex::Asset> asset, uint32_t renderMask, uint32_t vertexBinding);
-
-  void validate(const RenderContext& renderContext) override;
-
-  std::shared_ptr<pumex::Asset> asset;
-  uint32_t                      renderMask;
-  uint32_t                      vertexBinding;
+  // elements of the context that may change during visitor work
+  RenderPass*      renderPass         = nullptr;
+  uint32_t         subpassIndex       = 0;
+  Pipeline*        currentPipeline    = nullptr; // graphics pipeline or compute pipeline
+  AssetBufferNode* currentAssetBuffer = nullptr; // asset buffer
 };
 
 

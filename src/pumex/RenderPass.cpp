@@ -137,12 +137,12 @@ RenderPass::~RenderPass()
     vkDestroyRenderPass(pddit.first, pddit.second.renderPass, nullptr);
 }
 
-void RenderPass::validate(Device* device)
+void RenderPass::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device->device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
-    pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
+    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
   if (!pddit->second.dirty)
     return;
   if (pddit->second.renderPass != VK_NULL_HANDLE)
@@ -168,7 +168,7 @@ void RenderPass::validate(Device* device)
     renderPassCI.pSubpasses      = subpassDescriptions.data();
     renderPassCI.dependencyCount = dependencyDescriptors.size();
     renderPassCI.pDependencies   = dependencyDescriptors.data();
-  VK_CHECK_LOG_THROW( vkCreateRenderPass(device->device, &renderPassCI, nullptr, &pddit->second.renderPass), "Could not create default render pass" );
+  VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.renderPass), "Could not create default render pass" );
   pddit->second.dirty = false;
 }
 

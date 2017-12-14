@@ -21,8 +21,9 @@
 //
 #pragma once
 #include <vector>
-#include <unordered_map>
 #include <memory>
+#include <unordered_map>
+#include <mutex>
 #include <pumex/Export.h>
 
 namespace pumex
@@ -31,6 +32,7 @@ namespace pumex
 class Group;
 class NodeVisitor;
 class DescriptorSet;
+class RenderContext;
 
 class PUMEX_EXPORT Node : public std::enable_shared_from_this<Node>
 {
@@ -55,9 +57,12 @@ public:
   void setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet);
   void resetDescriptorSet(uint32_t index);
 
+  virtual void validate(const RenderContext& renderContext);
+
   void dirtyBound();
   void setDirty();
 protected:
+  mutable std::mutex                                           mutex;
   uint32_t                                                     mask = 0xFFFFFFFF;
   std::vector<std::weak_ptr<Group>>                            parents;
   std::unordered_map<uint32_t, std::shared_ptr<DescriptorSet>> descriptorSets;
