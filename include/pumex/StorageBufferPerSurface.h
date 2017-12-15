@@ -57,9 +57,9 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
+  void                              invalidate() override;
   void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
-  void                              setDirty();
   VkBuffer                          getBufferHandle(Surface* surface);
 
   inline void                       setActiveIndex(uint32_t index);
@@ -72,18 +72,18 @@ private:
       : device{ d }
     {
       storageData.push_back(T());
-      dirty.resize(ac, true);
+      valid.resize(ac, false);
       storageBuffer.resize(ac, VK_NULL_HANDLE);
       memoryBlock.resize(ac, DeviceMemoryBlock());
     }
-    void setDirty()
+    void invalidate()
     {
-      std::fill(dirty.begin(), dirty.end(), true);
+      std::fill(valid.begin(), valid.end(), false);
     }
 
     std::vector<T>                  storageData;
     VkDevice                        device;
-    std::vector<bool>               dirty;
+    std::vector<bool>               valid;
     std::vector<VkBuffer>           storageBuffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
@@ -130,7 +130,7 @@ void StorageBufferPerSurface<T>::set(const std::vector<T>& data)
       pdd.second.storageData.resize(0);
       pdd.second.storageData.push_back(T());
     }
-    pdd.second.setDirty();
+    pdd.second.invalidate();
   }
 }
 
@@ -142,7 +142,7 @@ void StorageBufferPerSurface<T>::set(Surface* surface, const std::vector<T>& dat
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount, surface->device.lock()->device) }).first;
   it->second.storageData = data;
-  it->second.setDirty();
+  it->second.invalidate();
 }
 
 template <typename T>
@@ -168,7 +168,7 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount, renderContext.vkDevice) }).first;
-  if (!it->second.dirty[activeIndex])
+  if (it->second.valid[activeIndex])
     return;
 
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
@@ -195,7 +195,7 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
     CHECK_LOG_THROW(it->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
     alloc->bindBufferMemory(renderContext.device, it->second.storageBuffer[activeIndex], it->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptors();
+    invalidateCommandBuffers();
   }
   if (it->second.storageData.size() > 0)
   {
@@ -214,7 +214,7 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
       alloc->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[activeIndex].alignedOffset, it->second.storageData.data(), sizeof(T) * it->second.storageData.size(), 0);
     }
   }
-  it->second.dirty[activeIndex] = false;
+  it->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -228,11 +228,12 @@ void StorageBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& ren
 }
 
 template <typename T>
-void StorageBufferPerSurface<T>::setDirty()
+void StorageBufferPerSurface<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
-    pdd.second->setDirty();
+    pdd.second.invalidate();
+  invalidateDescriptors();
 }
 
 template <typename T>

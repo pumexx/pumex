@@ -207,7 +207,6 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
     clearValues,
     renderOperations[0]->subpassContents
   );
-
   commandVisitor.renderContext.setRenderPass(this);
 
   for (uint32_t subpassIndex = 0; subpassIndex < renderOperations.size(); ++subpassIndex)

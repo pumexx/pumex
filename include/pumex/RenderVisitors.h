@@ -36,7 +36,7 @@ class PUMEX_EXPORT ValidateGPUVisitor : public NodeVisitor
 public:
   ValidateGPUVisitor(Surface* surface);
 
-  void apply(Group& node) override;
+  void apply(Node& node) override;
 
   RenderContext renderContext;
 };

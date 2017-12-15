@@ -29,9 +29,9 @@ ValidateGPUVisitor::ValidateGPUVisitor(Surface* s)
 {
 }
 
-
-void ValidateGPUVisitor::apply(Group& node)
+void ValidateGPUVisitor::apply(Node& node)
 {
+  node.validate(renderContext);
   traverse(node);
 }
 

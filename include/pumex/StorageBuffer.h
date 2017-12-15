@@ -56,9 +56,8 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
+  void                              invalidate() override;
   void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
-
-  void                              setDirty();
 
   inline void                       setActiveIndex(uint32_t index);
   inline uint32_t                   getActiveIndex() const;
@@ -68,12 +67,12 @@ private:
   {
     PerDeviceData(uint32_t ac)
     {
-      dirty.resize(ac, true);
+      valid.resize(ac, false);
       storageBuffer.resize(ac, VK_NULL_HANDLE);
       memoryBlock.resize(ac, DeviceMemoryBlock());
     }
 
-    std::vector<bool>               dirty;
+    std::vector<bool>               valid;
     std::vector<VkBuffer>           storageBuffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
@@ -125,7 +124,7 @@ void StorageBuffer<T>::set(const std::vector<T>& data)
     storageData.resize(0);
     storageData.push_back(T());
   }
-  setDirty();
+  invalidate();
 }
 
 template <typename T>
@@ -141,13 +140,13 @@ std::pair<bool, VkDescriptorType> StorageBuffer<T>::getDefaultDescriptorType()
 }
 
 template <typename T>
-void StorageBuffer<T>::validate(const RenderContext& renderContext) //Device* device, CommandPool* commandPool, VkQueue queue)
+void StorageBuffer<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
-  if (!pddit->second.dirty[activeIndex])
+  if (pddit->second.valid[activeIndex])
     return;
 
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
@@ -173,7 +172,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext) //Device* de
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
     alloc->bindBufferMemory(renderContext.device, pddit->second.storageBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptors();
+    invalidateCommandBuffers();
   }
   if (storageData.size() > 0)
   {
@@ -192,7 +191,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext) //Device* de
       alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, storageData.data(), sizeof(T)*storageData.size(), 0);
     }
   }
-  pddit->second.dirty[activeIndex] = false;
+  pddit->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -206,12 +205,13 @@ void StorageBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext
 }
 
 template <typename T>
-void StorageBuffer<T>::setDirty()
+void StorageBuffer<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     for(uint32_t i=0; i<activeCount; ++i)
-      pdd.second.dirty[i] = true;
+      pdd.second.valid[i] = false;
+  invalidateDescriptors();
 }
 
 

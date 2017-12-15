@@ -757,12 +757,12 @@ struct GpuCullApplicationData
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSet->setSource(0, textCameraUbo);
-    textDescriptorSet->setSource(1, fontDefault->fontTexture);
+    textDescriptorSet->setDescriptor(0, textCameraUbo);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
 
     textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSetSmall->setSource(0, textCameraUbo);
-    textDescriptorSetSmall->setSource(1, fontSmall->fontTexture);
+    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
+    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture);
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP, 8 * MAX_SURFACES);
 
@@ -878,12 +878,12 @@ struct GpuCullApplicationData
     staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
 
     staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    staticFilterDescriptorSet->setSource(0, cameraUbo);
-    staticFilterDescriptorSet->setSource(1, staticInstanceSbo);
-    staticFilterDescriptorSet->setSource(2, staticAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    staticFilterDescriptorSet->setSource(3, staticAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    staticFilterDescriptorSet->setSource(4, staticInstancedResults->getResults(MAIN_RENDER_MASK));
-    staticFilterDescriptorSet->setSource(5, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    staticFilterDescriptorSet->setDescriptor(0, cameraUbo);
+    staticFilterDescriptorSet->setDescriptor(1, staticInstanceSbo);
+    staticFilterDescriptorSet->setDescriptor(2, staticAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+    staticFilterDescriptorSet->setDescriptor(3, staticAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+    staticFilterDescriptorSet->setDescriptor(4, staticInstancedResults->getResults(MAIN_RENDER_MASK));
+    staticFilterDescriptorSet->setDescriptor(5, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
 
     staticRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
     staticRenderPipeline->shaderStages =
@@ -902,12 +902,12 @@ struct GpuCullApplicationData
     staticRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
-    staticRenderDescriptorSet->setSource(0, cameraUbo);
-    staticRenderDescriptorSet->setSource(1, staticInstanceSbo);
-    staticRenderDescriptorSet->setSource(2, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    staticRenderDescriptorSet->setSource(3, staticMaterialSet->typeDefinitionSbo);
-    staticRenderDescriptorSet->setSource(4, staticMaterialSet->materialVariantSbo);
-    staticRenderDescriptorSet->setSource(5, staticMaterialSet->materialDefinitionSbo);
+    staticRenderDescriptorSet->setDescriptor(0, cameraUbo);
+    staticRenderDescriptorSet->setDescriptor(1, staticInstanceSbo);
+    staticRenderDescriptorSet->setDescriptor(2, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    staticRenderDescriptorSet->setDescriptor(3, staticMaterialSet->typeDefinitionSbo);
+    staticRenderDescriptorSet->setDescriptor(4, staticMaterialSet->materialVariantSbo);
+    staticRenderDescriptorSet->setDescriptor(5, staticMaterialSet->materialDefinitionSbo);
   }
 
   void createDynamicRendering()
@@ -1019,12 +1019,12 @@ struct GpuCullApplicationData
     dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_filter_instances.comp.spv")), "main" };
 
     dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3 );
-    dynamicFilterDescriptorSet->setSource(0, cameraUbo);
-    dynamicFilterDescriptorSet->setSource(1, dynamicInstanceSbo);
-    dynamicFilterDescriptorSet->setSource(2, dynamicAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    dynamicFilterDescriptorSet->setSource(3, dynamicAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    dynamicFilterDescriptorSet->setSource(4, dynamicInstancedResults->getResults(MAIN_RENDER_MASK));
-    dynamicFilterDescriptorSet->setSource(5, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    dynamicFilterDescriptorSet->setDescriptor(0, cameraUbo);
+    dynamicFilterDescriptorSet->setDescriptor(1, dynamicInstanceSbo);
+    dynamicFilterDescriptorSet->setDescriptor(2, dynamicAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+    dynamicFilterDescriptorSet->setDescriptor(3, dynamicAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+    dynamicFilterDescriptorSet->setDescriptor(4, dynamicInstancedResults->getResults(MAIN_RENDER_MASK));
+    dynamicFilterDescriptorSet->setDescriptor(5, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
 
     dynamicRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
     dynamicRenderPipeline->shaderStages =
@@ -1043,12 +1043,12 @@ struct GpuCullApplicationData
     dynamicRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
-    dynamicRenderDescriptorSet->setSource(0, cameraUbo);
-    dynamicRenderDescriptorSet->setSource(1, dynamicInstanceSbo);
-    dynamicRenderDescriptorSet->setSource(2, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    dynamicRenderDescriptorSet->setSource(3, dynamicMaterialSet->typeDefinitionSbo);
-    dynamicRenderDescriptorSet->setSource(4, dynamicMaterialSet->materialVariantSbo);
-    dynamicRenderDescriptorSet->setSource(5, dynamicMaterialSet->materialDefinitionSbo);
+    dynamicRenderDescriptorSet->setDescriptor(0, cameraUbo);
+    dynamicRenderDescriptorSet->setDescriptor(1, dynamicInstanceSbo);
+    dynamicRenderDescriptorSet->setDescriptor(2, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    dynamicRenderDescriptorSet->setDescriptor(3, dynamicMaterialSet->typeDefinitionSbo);
+    dynamicRenderDescriptorSet->setDescriptor(4, dynamicMaterialSet->materialVariantSbo);
+    dynamicRenderDescriptorSet->setDescriptor(5, dynamicMaterialSet->materialDefinitionSbo);
   }
 
   void surfaceSetup(std::shared_ptr<pumex::Surface> surface)

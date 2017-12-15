@@ -112,7 +112,6 @@ uint32_t MaterialSet::getMaterialVariantCount(uint32_t typeID) const
   return materialRegistry->getMaterialVariantCount(typeID);
 }
 
-
 void MaterialSet::refreshMaterialStructures()
 {
   materialRegistry->buildTypesAndVariants(typeDefinitions, variantDefinitions);
@@ -158,14 +157,6 @@ void MaterialSet::refreshMaterialStructures()
   typeDefinitionSbo->set(typeDefinitions);
   materialVariantSbo->set(variantDefinitions);
   textureRegistry->refreshStructures();
-}
-
-void MaterialSet::validate(const RenderContext& renderContext)
-{
-  typeDefinitionSbo->validate(renderContext);
-  materialVariantSbo->validate(renderContext);
-  materialRegistry->validate(renderContext);
-  textureRegistry->validate(renderContext);
 }
 
 std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Material& mat)
@@ -224,12 +215,6 @@ void TextureRegistryTextureArray::refreshStructures()
 {
 }
 
-void TextureRegistryTextureArray::validate(const RenderContext& renderContext)
-{
-  for (auto t : textures)
-    t.second->validate(renderContext);
-}
-
 void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
 {
   auto it = textures.find(slotIndex);
@@ -238,38 +223,6 @@ void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerI
   it->second->setLayer(layerIndex, tex);
 }
 
-ArrayOfTexturesDescriptorSetSource::ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o)
-  : owner{ o }
-{
-}
-
-void ArrayOfTexturesDescriptorSetSource::validate(const RenderContext& renderContext)
-{
-  CHECK_LOG_THROW(owner == nullptr, "ArrayOfTexturesDescriptorSetSource::getDescriptorSetValue() : owner not defined");
-  for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
-  {
-    auto it = owner->textures.find(i);
-    if (it == owner->textures.end())
-      continue;
-    for (auto tx : it->second)
-      tx->validate(renderContext);
-  }
-}
-
-
-void ArrayOfTexturesDescriptorSetSource::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
-{
-  CHECK_LOG_THROW(owner == nullptr, "ArrayOfTexturesDescriptorSetSource::getDescriptorSetValue() : owner not defined");
-  values.reserve(values.size() + owner->textureSamplersQuantity);
-  for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
-  {
-    auto it = owner->textures.find(i);
-    if (it == owner->textures.end())
-      continue;
-    for (auto tx : it->second)
-      tx->getDescriptorSetValues(renderContext, values);
-  }
-}
 
 TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc)
   : textureAllocator{ textureAlloc }
@@ -283,11 +236,12 @@ void TextureRegistryArrayOfTextures::setTargetSamplerTraits(uint32_t slotIndex, 
   textures[slotIndex] = std::vector<std::shared_ptr<Texture>>();
 }
 
-std::shared_ptr<ArrayOfTexturesDescriptorSetSource> TextureRegistryArrayOfTextures::getTextureSamplerDescriptorSetSource()
+std::vector<std::shared_ptr<Texture>> TextureRegistryArrayOfTextures::getTextures(uint32_t slotIndex)
 {
-  if (textureSamplerDescriptorSetSource.get() == nullptr)
-    textureSamplerDescriptorSetSource = std::make_shared<ArrayOfTexturesDescriptorSetSource>(this);
-  return textureSamplerDescriptorSetSource;
+  auto it = textures.find(slotIndex);
+  if (it == textures.end())
+    return std::vector<std::shared_ptr<Texture>>();
+  return it->second;
 }
 
 void TextureRegistryArrayOfTextures::refreshStructures()
@@ -306,22 +260,6 @@ void TextureRegistryArrayOfTextures::refreshStructures()
   }
   textureSamplersQuantity = textureSum;
   textureSamplerOffsets->set(tso);
-}
-
-void TextureRegistryArrayOfTextures::validate(const RenderContext& renderContext)
-{
-  for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
-  {
-    auto it = textures.find(i);
-    if (it == textures.end())
-      continue;
-    for (auto tx : it->second)
-      tx->validate(renderContext);
-  }
-  textureSamplerOffsets->validate(renderContext);
-
-  if (textureSamplerDescriptorSetSource.get() != nullptr)
-    textureSamplerDescriptorSetSource->notifyDescriptors();
 }
 
 void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)

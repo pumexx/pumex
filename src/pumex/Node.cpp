@@ -87,36 +87,17 @@ void Node::validate(const RenderContext& renderContext)
 {
   for (auto& descriptorSet : descriptorSets)
     descriptorSet.second->validate(renderContext);
+  valid = true;
 }
 
-
-void Node::dirtyBound()
+void Node::invalidate()
 {
-  if (!boundDirty)
+  if (valid)
   {
-    boundDirty = true;
-    for(auto parent : parents)
-      parent.lock()->dirtyBound();
-  }
-}
-
-void Node::setDirty()
-{
-  if (!dirty)
-  {
-    dirty = true;
+    valid = false;
     for (auto parent : parents)
-      parent.lock()->setDirty();
+      parent.lock()->invalidate();
   }
-}
-
-ComputeNode::ComputeNode()
-  : Node()
-{
-}
-
-ComputeNode::~ComputeNode()
-{
 }
 
 Group::Group()
@@ -138,7 +119,7 @@ void Group::addChild(std::shared_ptr<Node> child)
 {
   children.push_back(child);
   child->addParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
-  dirtyBound();
+  invalidate();
 }
 
 bool Group::removeChild(std::shared_ptr<Node> child)
@@ -148,7 +129,7 @@ bool Group::removeChild(std::shared_ptr<Node> child)
     return false;
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   children.erase(it);
-  dirtyBound();
+  invalidate();
   return true;
 }
 

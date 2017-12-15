@@ -133,19 +133,19 @@ class PUMEX_EXPORT Texture : public Resource
 {
 public:
   Texture()                          = delete;
-  // create texture and clear it with specific value
+  // create single texture and clear it with specific value
   explicit Texture(const ImageTraits& imageTraits, const SamplerTraits& samplerTraits, VkClearValue initValue, std::weak_ptr<DeviceMemoryAllocator> allocator);
-  // create texture and load it with provided data ( gli::texture )
+  // create single texture and load it with provided data ( gli::texture )
   explicit Texture(const gli::texture& texture, const SamplerTraits& samplerTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
 
   virtual ~Texture();
 
-  void      setDirty();
   Image*    getHandleImage(VkDevice device) const;
   VkSampler getHandleSampler(VkDevice device) const;
   void      validate(const RenderContext& renderContext) override;
+  void      invalidate() override;
   void      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
   void setLayer(uint32_t layer, const gli::texture& tex);
@@ -162,7 +162,7 @@ private:
     {
     }
 
-    bool                   dirty        = true;
+    bool                   valid        = false;
     std::shared_ptr<Image> image;
     VkSampler              sampler      = VK_NULL_HANDLE;
   };
@@ -186,9 +186,9 @@ const ImageTraits&   Image::getImageTraits() const { return imageTraits; }
 
 
 // helper functions
-PUMEX_EXPORT VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format);
-PUMEX_EXPORT VkImageViewType vulkanViewTypeFromGliTarget(gli::texture::target_type target);
-PUMEX_EXPORT VkImageType vulkanImageTypeFromTextureExtents(const gli::extent3d& extents);
+PUMEX_EXPORT VkFormat           vulkanFormatFromGliFormat(gli::texture::format_type format);
+PUMEX_EXPORT VkImageViewType    vulkanViewTypeFromGliTarget(gli::texture::target_type target);
+PUMEX_EXPORT VkImageType        vulkanImageTypeFromTextureExtents(const gli::extent3d& extents);
 PUMEX_EXPORT VkComponentSwizzle vulkanSwizzlesFromGliSwizzles(const gli::swizzle& s);
 PUMEX_EXPORT VkComponentMapping vulkanComponentMappingFromGliComponentMapping(const gli::swizzles& swz);
 	

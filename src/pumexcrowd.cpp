@@ -497,14 +497,14 @@ struct CrowdApplicationData
     instancedRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
-    instancedRenderDescriptorSet->setSource(0, cameraUbo);
-    instancedRenderDescriptorSet->setSource(1, positionSbo);
-    instancedRenderDescriptorSet->setSource(2, instanceSbo);
-    instancedRenderDescriptorSet->setSource(3, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    instancedRenderDescriptorSet->setSource(4, materialSet->typeDefinitionSbo);
-    instancedRenderDescriptorSet->setSource(5, materialSet->materialVariantSbo);
-    instancedRenderDescriptorSet->setSource(6, materialSet->materialDefinitionSbo);
-    instancedRenderDescriptorSet->setSource(7, textureRegistry->getTargetTexture(0));
+    instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
+    instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
+    instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);
+    instancedRenderDescriptorSet->setDescriptor(3, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    instancedRenderDescriptorSet->setDescriptor(4, materialSet->typeDefinitionSbo);
+    instancedRenderDescriptorSet->setDescriptor(5, materialSet->materialVariantSbo);
+    instancedRenderDescriptorSet->setDescriptor(6, materialSet->materialDefinitionSbo);
+    instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getTargetTexture(0));
 
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
     {
@@ -525,13 +525,13 @@ struct CrowdApplicationData
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
 
     filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    filterDescriptorSet->setSource(0, cameraUbo);
-    filterDescriptorSet->setSource(1, positionSbo);
-    filterDescriptorSet->setSource(2, instanceSbo);
-    filterDescriptorSet->setSource(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setSource(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setSource(5, instancedResults->getResults(MAIN_RENDER_MASK));
-    filterDescriptorSet->setSource(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(0, cameraUbo);
+    filterDescriptorSet->setDescriptor(1, positionSbo);
+    filterDescriptorSet->setDescriptor(2, instanceSbo);
+    filterDescriptorSet->setDescriptor(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(5, instancedResults->getResults(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
 
     timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
 
@@ -625,12 +625,12 @@ struct CrowdApplicationData
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSet->setSource(0, textCameraUbo);
-    textDescriptorSet->setSource(1, fontDefault->fontTexture);
+    textDescriptorSet->setDescriptor(0, textCameraUbo);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
 
     textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSetSmall->setSource(0, textCameraUbo);
-    textDescriptorSetSmall->setSource(1, fontSmall->fontTexture);
+    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
+    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture);
 
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);

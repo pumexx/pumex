@@ -198,8 +198,8 @@ void AssetBuffer::validate(const RenderContext& renderContext)
         }
         assetTypes[t].lodSize = assetLods.size() - assetTypes[t].lodFirst;
       }
-      rmData.vertexBuffer->setDirty();
-      rmData.indexBuffer->setDirty();
+      rmData.vertexBuffer->invalidate();
+      rmData.indexBuffer->invalidate();
       rmData.typeBuffer->set(assetTypes);
       rmData.lodBuffer->set(assetLods);
       rmData.geomBuffer->set(assetGeometries);
@@ -207,14 +207,14 @@ void AssetBuffer::validate(const RenderContext& renderContext)
 
     dirty = false;
   }
-  for (auto& prm : perRenderMaskData)
-  {
-    prm.second.vertexBuffer->validate(renderContext);
-    prm.second.indexBuffer->validate(renderContext);
-    prm.second.typeBuffer->validate(renderContext);
-    prm.second.lodBuffer->validate(renderContext);
-    prm.second.geomBuffer->validate(renderContext);
-  }
+  //for (auto& prm : perRenderMaskData)
+  //{
+  //  prm.second.vertexBuffer->validate(renderContext);
+  //  prm.second.indexBuffer->validate(renderContext);
+  //  prm.second.typeBuffer->validate(renderContext);
+  //  prm.second.lodBuffer->validate(renderContext);
+  //  prm.second.geomBuffer->validate(renderContext);
+  //}
 }
 
 void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const

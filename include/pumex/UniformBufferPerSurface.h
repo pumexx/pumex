@@ -56,9 +56,9 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
+  void                              invalidate() override;
   void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
-  void                              setDirty();
   VkBuffer                          getBufferHandle(Surface* surface);
 
   inline void                       setActiveIndex(uint32_t index);
@@ -70,18 +70,18 @@ private:
     PerSurfaceData(uint32_t ac, VkDevice d)
       : device{ d }
     {
-      dirty.resize(ac, true);
+      valid.resize(ac, false);
       uboBuffer.resize(ac, VK_NULL_HANDLE);
       memoryBlock.resize(ac, DeviceMemoryBlock());
     }
-    void setDirty()
+    void invalidate()
     {
-      std::fill(dirty.begin(), dirty.end(), true);
+      std::fill(valid.begin(), valid.end(), false);
     }
 
     T                               uboData;
     VkDevice                        device;
-    std::vector<bool>               dirty;
+    std::vector<bool>               valid;
     std::vector<VkBuffer>           uboBuffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
@@ -122,7 +122,7 @@ void UniformBufferPerSurface<T>::set(const T& data)
   for (auto& pdd : perSurfaceData)
   {
     pdd.second.uboData = data;
-    pdd.second.setDirty();
+    pdd.second.invalidate();
   }
 }
 
@@ -134,7 +134,7 @@ void UniformBufferPerSurface<T>::set(Surface* surface, const T& data)
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount, surface->device.lock()->device) }).first;
   it->second.uboData = data;
-  it->second.setDirty();
+  it->second.invalidate();
 }
 
 template <typename T>
@@ -162,7 +162,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount, renderContext.vkDevice) }).first;
-  if (!it->second.dirty[activeIndex])
+  if (it->second.valid[activeIndex])
     return;
 
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
@@ -180,7 +180,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
     CHECK_LOG_THROW(it->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
     alloc->bindBufferMemory(renderContext.device, it->second.uboBuffer[activeIndex], it->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptors();
+    invalidateCommandBuffers();
   }
   if (memoryIsLocal)
   {
@@ -196,7 +196,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
   {
     alloc->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[activeIndex].alignedOffset, &it->second.uboData, sizeof(T), 0);
   }
-  it->second.dirty[activeIndex] = false;
+  it->second.valid[activeIndex] = true;
 }
 
 
@@ -211,11 +211,12 @@ void UniformBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& ren
 }
 
 template <typename T>
-void UniformBufferPerSurface<T>::setDirty()
+void UniformBufferPerSurface<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
-    pdd.second->setDirty();
+    pdd.second->invalidate();
+  invalidateDescriptors();
 }
 
 template <typename T>
@@ -227,8 +228,6 @@ VkBuffer UniformBufferPerSurface<T>::getBufferHandle(Surface* surface)
     return VK_NULL_HANDLE;
   return it->second.uboBuffer[activeIndex];
 }
-
-
 
 template <typename T>
 void UniformBufferPerSurface<T>::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }

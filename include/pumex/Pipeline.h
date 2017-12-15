@@ -121,10 +121,12 @@ public:
 
   void addDescriptor(std::shared_ptr<Descriptor> descriptor);
   void removeDescriptor(std::shared_ptr<Descriptor> descriptor);
-  void notifyDescriptors();
+  void invalidateDescriptors();
+  void invalidateCommandBuffers();
 
   virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
   virtual void validate(const RenderContext& context) = 0;
+  virtual void invalidate() = 0;
   virtual void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const = 0;
 protected:
   mutable std::mutex                     mutex;
@@ -136,14 +138,17 @@ class PUMEX_EXPORT Descriptor : public std::enable_shared_from_this<Descriptor>
 {
 public:
   Descriptor(std::shared_ptr<DescriptorSet> owner, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
+  Descriptor(std::shared_ptr<DescriptorSet> owner, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
   ~Descriptor();
 
   void validate(const RenderContext& renderContext);
-  void setDirty();
+  void invalidate();
+  void invalidateCommandBuffers();
+  void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const;
 
-  std::weak_ptr<DescriptorSet> owner;
-  std::shared_ptr<Resource>    resource;
-  VkDescriptorType             descriptorType;
+  std::weak_ptr<DescriptorSet>           owner;
+  std::vector<std::shared_ptr<Resource>> resources;
+  VkDescriptorType                       descriptorType;
 };
 
 
@@ -159,15 +164,17 @@ public:
   inline uint32_t getActiveIndex() const;
 
   void            validate(const RenderContext& renderContext);
+  void            invalidate();
+
   VkDescriptorSet getHandle(VkSurfaceKHR surface) const;
-  void            setDirty();
+  void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
+  void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources);
   void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
   void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource);
   void            resetDescriptor(uint32_t binding);
 
   void            addNode(std::shared_ptr<Node> node);
   void            removeNode(std::shared_ptr<Node> node);
-  void            notifyNodes();
 
   std::shared_ptr<DescriptorSetLayout> layout;
   std::shared_ptr<DescriptorPool>      pool;
@@ -178,10 +185,10 @@ protected:
       : device{ d }
     {
       descriptorSet.resize(ac,VK_NULL_HANDLE);
-      dirty.resize(ac,true);
+      valid.resize(ac,false);
     }
     std::vector<VkDescriptorSet> descriptorSet;
-    std::vector<bool>            dirty;
+    std::vector<bool>            valid;
     VkDevice                     device;
   };
 

@@ -80,7 +80,6 @@ public:
   virtual ~TextureRegistryBase();
 
   virtual void refreshStructures() = 0;
-  virtual void validate(const RenderContext& renderContext) = 0;
   virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
 };
 
@@ -95,7 +94,6 @@ public:
   virtual std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const = 0;
   virtual uint32_t                                   getMaterialVariantCount(uint32_t typeID) const = 0;
   virtual void                                       buildTypesAndVariants(std::vector<MaterialTypeDefinition>& typeDefinitions, std::vector<MaterialVariantDefinition>& variantDefinitions) = 0;
-  virtual void                                       validate(const RenderContext& renderContext) = 0;
 };
 
 // MaterialSet is the class that stores information about asset materials in a single place both in CPU and in GPU.
@@ -123,7 +121,6 @@ public:
   std::vector<Material>                        getMaterials(uint32_t typeID) const;
   uint32_t                                     getMaterialVariantCount(uint32_t typeID) const;
   void                                         refreshMaterialStructures();
-  void                                         validate(const RenderContext& renderContext);
 
   std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
   std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
@@ -160,7 +157,6 @@ public:
   std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const override;
   uint32_t                                   getMaterialVariantCount(uint32_t typeID) const override;
   void                                       buildTypesAndVariants(std::vector<MaterialTypeDefinition>& typeDefinitions, std::vector<MaterialVariantDefinition>& variantDefinitions) override;
-  void                                       validate(const RenderContext& renderContext) override;
 protected:
   struct InternalMaterialDefinition
   {
@@ -187,22 +183,9 @@ public:
   std::shared_ptr<Texture>                     getTargetTexture(uint32_t slotIndex);
 
   void                                         refreshStructures() override;
-  void                                         validate(const RenderContext& renderContext) override;
   void                                         setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
   std::map<uint32_t, std::shared_ptr<Texture>> textures;
-};
-
-class TextureRegistryArrayOfTextures;
-
-class PUMEX_EXPORT ArrayOfTexturesDescriptorSetSource : public Resource
-{
-public:
-  ArrayOfTexturesDescriptorSetSource(TextureRegistryArrayOfTextures* o);
-  void validate(const RenderContext& renderContext) override;
-  void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
-private:
-  TextureRegistryArrayOfTextures* owner;
 };
 
 class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
@@ -211,21 +194,17 @@ public:
   TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc);
   
   void                                                      setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait);
-  std::shared_ptr<ArrayOfTexturesDescriptorSetSource>       getTextureSamplerDescriptorSetSource();
+  std::vector<std::shared_ptr<Texture>>                     getTextures(uint32_t slotIndex);
 
   void                                                      refreshStructures() override;
-  void                                                      validate(const RenderContext& renderContext) override;
   void                                                      setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
   std::shared_ptr<StorageBuffer<uint32_t>>                  textureSamplerOffsets;
-  friend class ArrayOfTexturesDescriptorSetSource;
 protected:
   std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Texture>>> textures;
   std::map<uint32_t, SamplerTraits>                         textureTraits;
   uint32_t                                                  textureSamplersQuantity = 0;
-  std::shared_ptr<ArrayOfTexturesDescriptorSetSource>       textureSamplerDescriptorSetSource;
-
 };
 
 
@@ -233,9 +212,6 @@ class TextureRegistryNull : public TextureRegistryBase
 {
 public:
   void refreshStructures() override
-  {
-  }
-  void validate(const RenderContext& renderContext) override
   {
   }
   void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
@@ -333,12 +309,6 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
     typeDefinitions[t].variantSize = variantDefinitions.size() - typeDefinitions[t].variantFirst;
   }
   materialDefinitionSbo->set(materialDefinitions);
-}
-
-template <typename T>
-void MaterialRegistry<T>::validate(const RenderContext& renderContext)
-{
-  materialDefinitionSbo->validate(renderContext);
 }
 
 

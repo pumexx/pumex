@@ -269,18 +269,18 @@ struct VoxelizerApplicationData
     voxelPositionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(vbData, buffersAllocator);
 
     voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout, voxelizeDescriptorPool);
-    voxelizeDescriptorSet->setSource(0, voxelizeCameraUbo);
-    voxelizeDescriptorSet->setSource(1, positionUbo);
-    voxelizeDescriptorSet->setSource(2, clipMap);
+    voxelizeDescriptorSet->setDescriptor(0, voxelizeCameraUbo);
+    voxelizeDescriptorSet->setDescriptor(1, positionUbo);
+    voxelizeDescriptorSet->setDescriptor(2, clipMap);
 
     raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout, raymarchDescriptorPool);
-    raymarchDescriptorSet->setSource(0, cameraUbo);
-    raymarchDescriptorSet->setSource(1, voxelPositionUbo);
-    raymarchDescriptorSet->setSource(2, clipMap);
+    raymarchDescriptorSet->setDescriptor(0, cameraUbo);
+    raymarchDescriptorSet->setDescriptor(1, voxelPositionUbo);
+    raymarchDescriptorSet->setDescriptor(2, clipMap);
 
     descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    descriptorSet->setSource(0, cameraUbo);
-    descriptorSet->setSource(1, positionUbo);
+    descriptorSet->setDescriptor(0, cameraUbo);
+    descriptorSet->setDescriptor(1, positionUbo);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);

@@ -197,11 +197,11 @@ struct ViewerApplicationData
 
     positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData, buffersAllocator);
     descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    descriptorSet->setSource(0, cameraUbo);
-    descriptorSet->setSource(1, positionUbo);
+    descriptorSet->setDescriptor(0, cameraUbo);
+    descriptorSet->setDescriptor(1, positionUbo);
     boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    boxDescriptorSet->setSource(0, cameraUbo);
-    boxDescriptorSet->setSource(1, positionUbo);
+    boxDescriptorSet->setDescriptor(0, cameraUbo);
+    boxDescriptorSet->setDescriptor(1, positionUbo);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);

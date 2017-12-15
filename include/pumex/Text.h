@@ -143,7 +143,7 @@ protected:
 
 void     Text::setActiveIndex(uint32_t index) { vertexBuffer->setActiveIndex(index); }
 uint32_t Text::getActiveIndex() const         { return vertexBuffer->getActiveIndex(); }
-void     Text::setDirty()                     { dirty = true; vertexBuffer->setDirty(); }
+void     Text::setDirty()                     { dirty = true; vertexBuffer->invalidate(); }
 
 
 }

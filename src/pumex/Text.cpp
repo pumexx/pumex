@@ -105,7 +105,6 @@ void Font::validate(const RenderContext& renderContext)
   fontTexture->validate(renderContext);
 }
 
-
 size_t Font::getGlyphIndex(wchar_t charCode)
 {
   auto it = registeredGlyphs.find(charCode);
@@ -132,7 +131,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
     gli::u8* srcData = fontFace->glyph->bitmap.buffer + fontFace->glyph->bitmap.width * i;
     memcpy(dstData, srcData, fontFace->glyph->bitmap.width);
   }
-  fontTexture->setDirty();
+  fontTexture->invalidate();
   glyphData.emplace_back( GlyphData(
     glm::vec4(
       (float)lastRegisteredPosition.x / (float)textureSize.x,
@@ -192,7 +191,7 @@ void Text::validate(Surface* surface)
       std::tie(startPosition, color, text) = t.second;
       fontPtr->addSymbolData(startPosition, color, text, *(sit->second));
     }
-    vertexBuffer->setDirty();
+    vertexBuffer->invalidate();
     dirty = false;
   }
   vertexBuffer->validate(surface);

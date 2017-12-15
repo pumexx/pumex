@@ -42,12 +42,6 @@ void NodeVisitor::apply(Node& node)
   traverse(node);
 }
 
-void NodeVisitor::apply(ComputeNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-
 void NodeVisitor::apply(Group& node)
 {
   apply(static_cast<Node&>(node));

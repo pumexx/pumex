@@ -203,13 +203,6 @@ Texture::~Texture()
   }
 }
 
-void Texture::setDirty()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
-}
-
 Image* Texture::getHandleImage(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -234,7 +227,7 @@ void Texture::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit->second.valid)
     return;
 
   // Create sampler
@@ -348,7 +341,15 @@ void Texture::validate(const RenderContext& renderContext)
     renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.presentationQueue);
 
   }
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
+}
+
+void Texture::invalidate()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perDeviceData)
+    pdd.second.valid = false;
+  invalidateDescriptors();
 }
 
 void Texture::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const

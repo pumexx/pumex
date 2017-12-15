@@ -207,10 +207,17 @@ void Resource::removeDescriptor(std::shared_ptr<Descriptor> descriptor)
     descriptors.erase(it);
 }
 
-void Resource::notifyDescriptors()
+void Resource::invalidateDescriptors()
+{
+  for (auto ds : descriptors)
+    ds.lock()->invalidate();
+}
+
+
+void Resource::invalidateCommandBuffers()
 {
   for ( auto ds : descriptors )
-    ds.lock()->setDirty();
+    ds.lock()->invalidateCommandBuffers();
 }
 
 std::pair<bool, VkDescriptorType> Resource::getDefaultDescriptorType()
@@ -219,25 +226,50 @@ std::pair<bool, VkDescriptorType> Resource::getDefaultDescriptorType()
 }
 
 Descriptor::Descriptor(std::shared_ptr<DescriptorSet> o, std::shared_ptr<Resource> r, VkDescriptorType dt)
-  : owner{ o }, resource { r }, descriptorType{ dt }
+  : owner{ o }, descriptorType{ dt }
 {
-  resource->addDescriptor(shared_from_this());
+  resources.push_back(r);
+  for( auto res : resources )
+    res->addDescriptor(shared_from_this());
 }
+
+Descriptor::Descriptor(std::shared_ptr<DescriptorSet> o, const std::vector<std::shared_ptr<Resource>>& r, VkDescriptorType dt)
+  : owner{ o }, descriptorType{ dt }
+{
+  resources = r;
+  for (auto res : resources)
+    res->addDescriptor(shared_from_this());
+}
+
 
 Descriptor::~Descriptor()
 {
-  resource->removeDescriptor(shared_from_this());
+  for (auto res : resources)
+    res->removeDescriptor(shared_from_this());
 }
 
 void Descriptor::validate(const RenderContext& renderContext)
 {
-  resource->validate(renderContext);
+  for (auto res : resources)
+    res->validate(renderContext);
 }
 
-void Descriptor::setDirty()
+void Descriptor::invalidate()
 {
-  owner.lock()->setDirty();
+  owner.lock()->invalidate();
 }
+
+void Descriptor::invalidateCommandBuffers()
+{
+  owner.lock()->notifyCommandBuffers();
+}
+
+void Descriptor::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+{
+  for (auto res : resources)
+    res->getDescriptorSetValues(renderContext, values);
+}
+
 
 DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared_ptr<DescriptorPool> p, uint32_t ac)
   : layout{ l }, pool{ p }, activeCount{ ac }
@@ -263,7 +295,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
-  if (!pddit->second.dirty[activeIndex])
+  if (pddit->second.valid[activeIndex])
     return;
 
   if (pddit->second.descriptorSet[activeIndex] == VK_NULL_HANDLE)
@@ -283,7 +315,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
   for (const auto& d : descriptors)
   {
     std::vector<DescriptorSetValue> value;
-    d.second->resource->getDescriptorSetValues(renderContext, value);
+    d.second->getDescriptorSetValues(renderContext, value);
     dsvSize += layout->getDescriptorBindingCount(d.first);
     values.insert({ d.first, value });
   }
@@ -324,7 +356,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
   }
   vkUpdateDescriptorSets(pddit->second.device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
   notifyCommandBuffers(activeIndex);
-  pddit->second.dirty[activeIndex] = false;
+  pddit->second.valid[activeIndex] = true;
 }
 
 VkDescriptorSet DescriptorSet::getHandle(VkSurfaceKHR surface) const
@@ -335,13 +367,31 @@ VkDescriptorSet DescriptorSet::getHandle(VkSurfaceKHR surface) const
   return pddit->second.descriptorSet[activeIndex];
 }
 
-void DescriptorSet::setDirty()
+void DescriptorSet::invalidate()
 {
-  notifyNodes();          // FIXME
-  notifyCommandBuffers(); // FIXME
   for (auto& pdd : perSurfaceData)
-    for(auto&& d : pdd.second.dirty)
-      d = true;
+    for(auto&& v : pdd.second.valid)
+      v = false;
+  for (auto n : nodeOwners)
+    n.lock()->invalidate();
+}
+void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType)
+{
+  CHECK_LOG_THROW(resources.empty(), "setDescriptor got empty vector of resources");
+  CHECK_LOG_THROW(binding >= layout->bindings.size(), "Binding out of bounds");
+  CHECK_LOG_THROW(layout->bindings[binding].descriptorType != descriptorType, "Binding " << binding << " with wrong descriptor type : " << descriptorType << " but should be " << layout->bindings[binding].descriptorType);
+  std::lock_guard<std::mutex> lock(mutex);
+  descriptors.erase(binding);
+  descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resources, descriptorType);
+  invalidate();
+}
+
+void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources)
+{
+  CHECK_LOG_THROW(resources.empty(), "setDescriptor got empty vector of resources");
+  auto defaultType = resources[0]->getDefaultDescriptorType();
+  CHECK_LOG_THROW(!defaultType.first, "Default descriptor type is not defined");
+  setDescriptor(binding, resources, defaultType.second);
 }
 
 void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType)
@@ -351,7 +401,7 @@ void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> re
   std::lock_guard<std::mutex> lock(mutex);
   descriptors.erase(binding);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resource, descriptorType);
-  setDirty();
+  invalidate();
 }
 
 void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource)
@@ -378,13 +428,6 @@ void DescriptorSet::removeNode(std::shared_ptr<Node> node)
   if (it != nodeOwners.end())
     nodeOwners.erase(it);
 }
-
-void DescriptorSet::notifyNodes()
-{
-  for (auto n : nodeOwners)
-    n.lock()->setDirty();
-}
-
 
 
 PipelineLayout::PipelineLayout()

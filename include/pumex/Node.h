@@ -59,25 +59,16 @@ public:
 
   virtual void validate(const RenderContext& renderContext);
 
-  void dirtyBound();
-  void setDirty();
+  void invalidate();
 protected:
   mutable std::mutex                                           mutex;
   uint32_t                                                     mask = 0xFFFFFFFF;
   std::vector<std::weak_ptr<Group>>                            parents;
   std::unordered_map<uint32_t, std::shared_ptr<DescriptorSet>> descriptorSets;
   std::string                                                  name;
-  bool                                                         boundDirty = true;
-  bool                                                         dirty = true;
+  bool                                                         valid = false;
 };
 
-class PUMEX_EXPORT ComputeNode : public Node
-{
-public:
-  ComputeNode();
-  virtual ~ComputeNode();
-
-};
 
 class PUMEX_EXPORT Group : public Node
 {

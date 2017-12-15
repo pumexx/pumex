@@ -748,7 +748,7 @@ int main( int argc, char * argv[] )
      workflow->addAttachmentInput        ("lighting", "normals",  "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
      workflow->addAttachmentInput        ("lighting", "albedo",   "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
      workflow->addAttachmentInput        ("lighting", "pbr",      "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-     workflow->addAttachmentOutput       ("lighting", "color",    "surface",           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpDontCare());
+     workflow->addAttachmentOutput       ("lighting", "color",    "surface",           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,          pumex::loadOpDontCare());
      workflow->addAttachmentResolveOutput("lighting", "resolve",  "resolve", "color",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
 
    // testing
@@ -785,9 +785,9 @@ int main( int argc, char * argv[] )
     auto gbufferPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     gbufferPipelineLayout->descriptorSetLayouts.push_back(gbufferDescriptorSetLayout);
 
-    auto gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout);
-
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::Tangent, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneIndex, 1 },{ pumex::VertexSemantic::BoneWeight, 1 } };
+
+    auto gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout);
 
     gbufferPipeline->shaderStages =
     {
@@ -844,8 +844,8 @@ int main( int argc, char * argv[] )
     pumex::BoundingBox bbox = pumex::calculateBoundingBox(*asset, 1);
 
     uint32_t modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
-    materialSet->registerMaterials(modelTypeID, asset);
     assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
+    materialSet->registerMaterials(modelTypeID, asset);
     materialSet->refreshMaterialStructures();
 
     auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(assetBuffer, materialSet, 1, 0);

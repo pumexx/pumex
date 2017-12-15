@@ -51,9 +51,9 @@ public:
   ~GenericBuffer();
 
   void            validate(const RenderContext& renderContext) override;
+  void            invalidate() override;
   void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
-  void            setDirty();
   VkBuffer        getBufferHandle(Device* device);
 
   inline void     setActiveIndex(uint32_t index);
@@ -64,12 +64,12 @@ private:
   {
     PerDeviceData(uint32_t ac)
     {
-      dirty.resize(ac, true);
+      valid.resize(ac, false);
       buffer.resize(ac, VK_NULL_HANDLE);
       memoryBlock.resize(ac, DeviceMemoryBlock());
     }
 
-    std::vector<bool>               dirty;
+    std::vector<bool>               valid;
     std::vector<VkBuffer>           buffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
@@ -116,12 +116,13 @@ void GenericBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext
 }
 
 template <typename T>
-void GenericBuffer<T>::setDirty()
+void GenericBuffer<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     for (uint32_t i = 0; i<activeCount; ++i)
-      pdd.second.dirty[i] = true;
+      pdd.second.valid[i] = false;
+  invalidateDescriptors();
 }
 
 template <typename T>
@@ -132,7 +133,7 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
-  if (!pddit->second.dirty[activeIndex])
+  if (pddit->second.valid[activeIndex])
     return;
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   if (pddit->second.buffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < uglyGetSize(*data))
@@ -157,8 +158,7 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
     alloc->bindBufferMemory(renderContext.device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptors();
-    notifyCommandBuffers(activeIndex);
+    invalidateCommandBuffers();
   }
   if ( uglyGetSize(*data) > 0)
   {
@@ -177,7 +177,7 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
       alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*data), uglyGetSize(*data), 0);
     }
   }
-  pddit->second.dirty[activeIndex] = false;
+  pddit->second.valid[activeIndex] = true;
 }
 
 template <typename T>

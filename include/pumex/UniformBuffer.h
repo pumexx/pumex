@@ -56,9 +56,8 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
+  void                              invalidate() override;
   void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
-
-  void                              setDirty();
 
   inline void                       setActiveIndex(uint32_t index);
   inline uint32_t                   getActiveIndex() const;
@@ -68,12 +67,12 @@ private:
   {
     PerDeviceData(uint32_t ac)
     {
-      dirty.resize(ac, true);
+      valid.resize(ac, false);
       uboBuffer.resize(ac, VK_NULL_HANDLE);
       memoryBlock.resize(ac, DeviceMemoryBlock());
     }
 
-    std::vector<bool>               dirty;
+    std::vector<bool>               valid;
     std::vector<VkBuffer>           uboBuffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
@@ -119,7 +118,7 @@ template <typename T>
 void UniformBuffer<T>::set(const T& data)
 {
   uboData = data;
-  setDirty();
+  invalidate();
 }
 
 template <typename T>
@@ -135,13 +134,13 @@ std::pair<bool, VkDescriptorType> UniformBuffer<T>::getDefaultDescriptorType()
 }
 
 template <typename T>
-void UniformBuffer<T>::validate(const RenderContext& renderContext) //Device* device, CommandPool* commandPool, VkQueue queue)
+void UniformBuffer<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
-  if (!pddit->second.dirty[activeIndex])
+  if (pddit->second.valid[activeIndex])
     return;
 
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
@@ -158,8 +157,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext) //Device* de
     pddit->second.memoryBlock[activeIndex] = alloc->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
     alloc->bindBufferMemory(renderContext.device, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
-
-    notifyDescriptors();
+    invalidateCommandBuffers();
   }
   if (memoryIsLocal)
   {
@@ -175,7 +173,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext) //Device* de
   {
     alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, &uboData, sizeof(T), 0);
   }
-  pddit->second.dirty[activeIndex] = false;
+  pddit->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -189,12 +187,13 @@ void UniformBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext
 }
 
 template <typename T>
-void UniformBuffer<T>::setDirty()
+void UniformBuffer<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
     for (uint32_t i = 0; i<activeCount; ++i)
-      pdd.second.dirty[i] = true;
+      pdd.second.valid[i] = false;
+  invalidateDescriptors();
 }
 
 template <typename T>

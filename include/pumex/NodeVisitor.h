@@ -45,7 +45,6 @@ public:
   void traverse(Node& node);
 
   virtual void apply(Node& node);
-  virtual void apply(ComputeNode& node);
   virtual void apply(Group& node);
   virtual void apply(GraphicsPipeline& node);
   virtual void apply(ComputePipeline& node);

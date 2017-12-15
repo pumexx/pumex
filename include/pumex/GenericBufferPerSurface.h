@@ -56,9 +56,9 @@ public:
   inline std::shared_ptr<T> get(Surface* surface) const;
 
   void                      validate(const RenderContext& renderContext) override;
+  void                      invalidate() override;
   void                      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
-  void                      setDirty();
   VkBuffer                  getBufferHandle(Surface* surface);
 
   inline void               setActiveIndex(uint32_t index);
@@ -70,18 +70,18 @@ private:
     PerSurfaceData(uint32_t ac, VkDevice d)
       : device{ d }
     {
-      dirty.resize(ac, true);
+      valid.resize(ac, false);
       buffer.resize(ac, VK_NULL_HANDLE);
       memoryBlock.resize(ac, DeviceMemoryBlock());
     }
-    void setDirty()
+    void invalidate()
     {
-      std::fill(dirty.begin(), dirty.end(), true);
+      std::fill(valid.begin(), valid.end(), false);
     }
 
     std::shared_ptr<T>              data;
     VkDevice                        device;
-    std::vector<bool>               dirty;
+    std::vector<bool>               valid;
     std::vector<VkBuffer>           buffer;
     std::vector<DeviceMemoryBlock>  memoryBlock;
   };
@@ -120,8 +120,10 @@ void GenericBufferPerSurface<T>::set(std::shared_ptr<T> data)
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
+  {
     pdd.second.data = data;
-  setDirty();
+    pdd.second.invalidate();
+  }
 }
 
 template <typename T>
@@ -132,7 +134,7 @@ void GenericBufferPerSurface<T>::set(Surface* surface, std::shared_ptr<T> data)
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount,surface->device.lock()->device) }).first;
   pddit->second.data = data;
-  pddit->second.setDirty();
+  pddit->second.invalidate();
 }
 
 template <typename T>
@@ -152,8 +154,9 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
-  if (!pddit->second.dirty[activeIndex])
+  if (pddit->second.valid[activeIndex])
     return;
+
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   if (pddit->second.buffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < uglyGetSize(*(pddit->second.data)))
   {
@@ -177,8 +180,7 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
     CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
     alloc->bindBufferMemory(renderContext.device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
-    notifyDescriptors();
-    notifyCommandBuffers(activeIndex);
+    invalidateCommandBuffers();
   }
   if (uglyGetSize(*(pddit->second.data)) > 0)
   {
@@ -197,7 +199,7 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
       alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)), 0);
     }
   }
-  pddit->second.dirty[activeIndex] = false;
+  pddit->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -211,11 +213,12 @@ void GenericBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& ren
 }
 
 template <typename T>
-void GenericBufferPerSurface<T>::setDirty()
+void GenericBufferPerSurface<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
-    pdd.second.setDirty();
+    pdd.second.invalidate();
+  invalidateDescriptors();
 }
 
 template <typename T>

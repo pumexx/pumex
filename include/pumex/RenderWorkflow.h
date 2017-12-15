@@ -39,7 +39,6 @@ class DeviceMemoryAllocator;
 class FrameBuffer;
 class FrameBufferImages;
 class Node;
-class ComputeNode;
 class ValidateGPUVisitor;
 class BuildCommandBufferVisitor;
 
