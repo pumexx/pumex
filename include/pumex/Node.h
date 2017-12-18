@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <pumex/Export.h>
+#include <pumex/Command.h>
 
 namespace pumex
 {
@@ -34,7 +35,7 @@ class NodeVisitor;
 class DescriptorSet;
 class RenderContext;
 
-class PUMEX_EXPORT Node : public std::enable_shared_from_this<Node>
+class PUMEX_EXPORT Node : public CommandBufferSource
 {
 public:
   Node();
@@ -58,8 +59,8 @@ public:
   void resetDescriptorSet(uint32_t index);
 
   virtual void validate(const RenderContext& renderContext);
-
   void invalidate();
+
 protected:
   mutable std::mutex                                           mutex;
   uint32_t                                                     mask = 0xFFFFFFFF;

@@ -71,7 +71,7 @@ void Node::removeParent(std::shared_ptr<Group> parent)
 void Node::setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet)
 {
   descriptorSets[index] = descriptorSet;
-  descriptorSet->addNode(shared_from_this());
+  descriptorSet->addNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
 }
 
 void Node::resetDescriptorSet(uint32_t index)
@@ -79,7 +79,7 @@ void Node::resetDescriptorSet(uint32_t index)
   auto it = descriptorSets.find(index);
   if (it == descriptorSets.end())
     return;
-  it->second->removeNode(shared_from_this());
+  it->second->removeNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
   descriptorSets.erase(it);
 }
 

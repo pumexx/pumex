@@ -255,6 +255,9 @@ public:
   Pipeline(const Pipeline&) = delete;
   Pipeline& operator=(const Pipeline&) = delete;
 
+  void       internalInvalidate(); // invalidate pipelines
+  VkPipeline getHandle(VkDevice device) const;
+
   // FIXME : add descriptor set checking, add dynamic state checking
 
 protected:
@@ -264,7 +267,7 @@ protected:
   struct PerDeviceData
   {
     VkPipeline pipeline = VK_NULL_HANDLE;
-    bool       dirty = true;
+    bool       valid    = false;
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
@@ -334,11 +337,10 @@ public:
 
   inline bool hasDynamicState(VkDynamicState state) const;
   inline bool hasShaderStage(VkShaderStageFlagBits stage) const;
-  // TODO : add a bunch of handy functions defining different pipeline aspects
+
+  // TODO : add a bunch of handy functions defining different pipeline aspects - these functions must call internalInvalidate()
 
   void       validate(const RenderContext& renderContext) override;
-  VkPipeline getHandle(VkDevice device) const;
-  void       setDirty();
 
   // vertex input state
   std::vector<VertexInputDefinition> vertexInput;
@@ -402,9 +404,9 @@ public:
   ComputePipeline& operator=(const ComputePipeline&) = delete;
   virtual ~ComputePipeline();
 
+  // TODO : add a bunch of handy functions defining different pipeline aspects - these functions must call internalInvalidate()
+
   void       validate(const RenderContext& renderContext) override;
-  VkPipeline getHandle(VkDevice device) const;
-  void       setDirty();
 
   // shader stage
   ShaderStageDefinition             shaderStage;

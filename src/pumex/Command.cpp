@@ -218,13 +218,13 @@ void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const 
 
 void CommandBuffer::cmdBindPipeline(ComputePipeline* pipeline)
 {
-//  addSource(pipeline);
+  addSource(pipeline);
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandle(device));
 }
 
 void CommandBuffer::cmdBindPipeline(GraphicsPipeline* pipeline)
 {
-//  addSource(pipeline);
+  addSource(pipeline);
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
 }
 

@@ -355,8 +355,8 @@ void DescriptorSet::validate( const RenderContext& renderContext )
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
   vkUpdateDescriptorSets(pddit->second.device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
-  notifyCommandBuffers(activeIndex);
   pddit->second.valid[activeIndex] = true;
+  notifyCommandBuffers(activeIndex);
 }
 
 VkDescriptorSet DescriptorSet::getHandle(VkSurfaceKHR surface) const
@@ -555,6 +555,22 @@ Pipeline::~Pipeline()
 {
 }
 
+void Pipeline::internalInvalidate()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perDeviceData)
+    pdd.second.valid = false;
+  invalidate();
+}
+
+VkPipeline Pipeline::getHandle(VkDevice device) const
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perDeviceData.find(device);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.pipeline;
+}
 
 GraphicsPipeline::GraphicsPipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl)
   : Pipeline{ pc, pl }
@@ -590,10 +606,17 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit->second.valid)
+  {
+    Pipeline::validate(renderContext);
     return;
+  }
+
   if (pddit->second.pipeline != VK_NULL_HANDLE)
+  {
     vkDestroyPipeline(pddit->first, pddit->second.pipeline, nullptr);
+    pddit->second.pipeline = VK_NULL_HANDLE;
+  }
 
   std::vector<VkPipelineShaderStageCreateInfo>   shaderStagesCI;
   std::vector<VkVertexInputBindingDescription>   bindingDescriptions;
@@ -761,25 +784,10 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
     pipelineCI.pDepthStencilState              = &depthStencilState;
     pipelineCI.pDynamicState                   = &dynamicState;
   VK_CHECK_LOG_THROW(vkCreateGraphicsPipelines(pddit->first, pipelineCache->getHandle(renderContext.vkDevice), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create graphics pipeline");
-//  notifyCommandBuffers();
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
+  // we have a new graphics pipeline so we must invalidate command buffers
+  notifyCommandBuffers();
   Pipeline::validate(renderContext);
-}
-
-VkPipeline GraphicsPipeline::getHandle(VkDevice device) const
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
-    return VK_NULL_HANDLE;
-  return pddit->second.pipeline;
-}
-
-void GraphicsPipeline::setDirty()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
 ComputePipeline::ComputePipeline(std::shared_ptr<PipelineCache> pc, std::shared_ptr<PipelineLayout> pl)
@@ -799,10 +807,17 @@ void ComputePipeline::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit->second.valid)
+  {
+    Pipeline::validate(renderContext);
     return;
+  }
+
   if (pddit->second.pipeline != VK_NULL_HANDLE)
+  {
     vkDestroyPipeline(pddit->first, pddit->second.pipeline, nullptr);
+    pddit->second.pipeline = VK_NULL_HANDLE;
+  }
 
   shaderStage.shaderModule->validate(renderContext);
   pipelineLayout->validate(renderContext);
@@ -815,24 +830,9 @@ void ComputePipeline::validate(const RenderContext& renderContext)
     pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();//"main";
 
   VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->first, pipelineCache->getHandle(renderContext.vkDevice), 1, &pipelineCI, nullptr, &pddit->second.pipeline), "Cannot create compute pipeline");
-//  notifyCommandBuffers();
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
+  // we have a new compute pipeline so we must invalidate command buffers
+  notifyCommandBuffers();
   Pipeline::validate(renderContext);
-}
-
-VkPipeline ComputePipeline::getHandle(VkDevice device) const
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
-    return VK_NULL_HANDLE;
-  return pddit->second.pipeline;
-}
-
-void ComputePipeline::setDirty()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
-    pdd.second.dirty = true;
 }
 
