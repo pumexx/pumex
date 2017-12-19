@@ -453,10 +453,10 @@ pumex::Asset* createCar(float detailRatio, const glm::vec4& hullColor, const glm
 
   std::vector<std::shared_ptr<pumex::Asset>> wheels = 
   { 
-    std::shared_ptr<pumex::Asset>(pumex::createSimpleAsset(wheel, "wheel0")),
-    std::shared_ptr<pumex::Asset>(pumex::createSimpleAsset(wheel, "wheel1")),
-    std::shared_ptr<pumex::Asset>(pumex::createSimpleAsset(wheel, "wheel2")),
-    std::shared_ptr<pumex::Asset>(pumex::createSimpleAsset(wheel, "wheel3"))
+    pumex::createSimpleAsset(wheel, "wheel0"),
+    pumex::createSimpleAsset(wheel, "wheel1"),
+    pumex::createSimpleAsset(wheel, "wheel2"),
+    pumex::createSimpleAsset(wheel, "wheel3")
   };
   pumex::Material wheelMaterial;
   wheelMaterial.properties["$clr.ambient"] = 0.1f * wheelColor;

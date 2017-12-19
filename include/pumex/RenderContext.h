@@ -42,20 +42,20 @@ public:
   inline void setSubpassIndex(uint32_t subpassIndex);
 
   // elements of the context that are constant through visitor work
-  Surface*         surface            = nullptr;
-  VkSurfaceKHR     vkSurface          = VK_NULL_HANDLE;
-  CommandPool*     commandPool        = nullptr;
-  VkQueue          presentationQueue  = VK_NULL_HANDLE;
-  Device*          device             = nullptr;
-  VkDevice         vkDevice           = VK_NULL_HANDLE;
-  uint32_t         activeIndex        = 0;
-  uint32_t         imageCount         = 1;
+  Surface*         surface                = nullptr;
+  VkSurfaceKHR     vkSurface              = VK_NULL_HANDLE;
+  CommandPool*     commandPool            = nullptr;
+  VkQueue          presentationQueue      = VK_NULL_HANDLE;
+  Device*          device                 = nullptr;
+  VkDevice         vkDevice               = VK_NULL_HANDLE;
+  uint32_t         activeIndex            = 0;
+  uint32_t         imageCount             = 1;
 
   // elements of the context that may change during visitor work
-  RenderPass*      renderPass         = nullptr;
-  uint32_t         subpassIndex       = 0;
-  Pipeline*        currentPipeline    = nullptr; // graphics pipeline or compute pipeline
-  AssetBufferNode* currentAssetBuffer = nullptr; // asset buffer
+  RenderPass*      renderPass             = nullptr;
+  uint32_t         subpassIndex           = 0;
+  Pipeline*        currentPipeline        = nullptr; // graphics pipeline or compute pipeline
+  AssetBufferNode* currentAssetBufferNode = nullptr; // asset buffer
 };
 
 

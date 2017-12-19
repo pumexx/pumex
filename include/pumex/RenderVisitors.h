@@ -49,6 +49,7 @@ public:
   void apply(GraphicsPipeline& node) override;
   void apply(ComputePipeline& node) override;
   void apply(AssetBufferNode& node) override;
+  void apply(AssetBufferDrawObject& node) override;
 
   // elements of the context that are constant through visitor work
   RenderContext renderContext;

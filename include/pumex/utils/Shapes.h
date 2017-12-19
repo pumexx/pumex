@@ -21,6 +21,7 @@
 //
 
 #pragma once
+#include <memory>
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 
@@ -39,6 +40,7 @@ PUMEX_EXPORT void addQuad(Geometry& geometry, const glm::vec3& corner, const glm
 PUMEX_EXPORT void addCylinderBody(Geometry& geometry, const glm::vec3& origin, float radius, float height, uint32_t numSegments, bool drawFrontFace);
 PUMEX_EXPORT void addHalfSphere(Geometry& geometry, const glm::vec3& origin, float radius, unsigned int numSegments, unsigned int numRows, bool top, bool drawFrontFace);
 
-PUMEX_EXPORT Asset* createSimpleAsset( const Geometry& geometry, const std::string rootName );
+PUMEX_EXPORT std::shared_ptr<Asset> createSimpleAsset( const Geometry& geometry, const std::string rootName );
+PUMEX_EXPORT std::shared_ptr<Asset> createFullScreenTriangle();
 
 }

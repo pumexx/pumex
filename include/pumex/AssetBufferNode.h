@@ -41,6 +41,18 @@ public:
   uint32_t                     vertexBinding;
 };
 
+// class that draws single object registered in AssetBufferNode
+class PUMEX_EXPORT AssetBufferDrawObject : public Node
+{
+public:
+  AssetBufferDrawObject(uint32_t typeID, uint32_t firstInstance = 0);
+
+  float getDistanceToViewer() const;
+
+  uint32_t typeID;
+  uint32_t firstInstance;
+};
+
 class PUMEX_EXPORT AssetNode : public Node
 {
 public:

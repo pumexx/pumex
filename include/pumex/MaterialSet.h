@@ -90,7 +90,6 @@ public:
   virtual ~MaterialRegistryBase();
 
   virtual void                                       registerMaterial(uint32_t typeID, uint32_t materialVariant, uint32_t assetIndex, uint32_t materialIndex, const Material& mat, const std::map<TextureSemantic::Type, uint32_t>& registeredTextures) = 0;
-  virtual std::vector<Material>                      getMaterials(uint32_t typeID) const = 0;
   virtual std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const = 0;
   virtual uint32_t                                   getMaterialVariantCount(uint32_t typeID) const = 0;
   virtual void                                       buildTypesAndVariants(std::vector<MaterialTypeDefinition>& typeDefinitions, std::vector<MaterialVariantDefinition>& variantDefinitions) = 0;
@@ -147,13 +146,12 @@ template <typename T>
 class MaterialRegistry : public MaterialRegistryBase
 {
 public:
-  MaterialRegistry();
+  MaterialRegistry(std::weak_ptr<DeviceMemoryAllocator> allocator);
 
   std::vector<T>                             materialDefinitions;
   std::shared_ptr<StorageBuffer<T>>          materialDefinitionSbo;
 
   void                                       registerMaterial(uint32_t typeID, uint32_t materialVariant, uint32_t assetIndex, uint32_t materialIndex, const Material& mat, const std::map<TextureSemantic::Type, uint32_t>& registeredTextures) override;
-  std::vector<Material>                      getMaterials(uint32_t typeID) const override;
   std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const override;
   uint32_t                                   getMaterialVariantCount(uint32_t typeID) const override;
   void                                       buildTypesAndVariants(std::vector<MaterialTypeDefinition>& typeDefinitions, std::vector<MaterialVariantDefinition>& variantDefinitions) override;
@@ -194,7 +192,7 @@ public:
   TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc);
   
   void                                                      setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait);
-  std::vector<std::shared_ptr<Texture>>                     getTextures(uint32_t slotIndex);
+  std::vector<std::shared_ptr<Resource>>                     getTextures(uint32_t slotIndex);
 
   void                                                      refreshStructures() override;
   void                                                      setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
@@ -202,7 +200,7 @@ public:
   std::shared_ptr<StorageBuffer<uint32_t>>                  textureSamplerOffsets;
 protected:
   std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;
-  std::map<uint32_t, std::vector<std::shared_ptr<Texture>>> textures;
+  std::map<uint32_t, std::vector<std::shared_ptr<Resource>>> textures;
   std::map<uint32_t, SamplerTraits>                         textureTraits;
   uint32_t                                                  textureSamplersQuantity = 0;
 };
@@ -220,9 +218,9 @@ public:
 };
 
 template <typename T>
-MaterialRegistry<T>::MaterialRegistry()
+MaterialRegistry<T>::MaterialRegistry(std::weak_ptr<DeviceMemoryAllocator> allocator)
 {
-  materialDefinitionSbo = std::make_shared<StorageBuffer<T>>(a);
+  materialDefinitionSbo = std::make_shared<StorageBuffer<T>>(allocator);
 }
 
 
@@ -231,21 +229,9 @@ void MaterialRegistry<T>::registerMaterial(uint32_t typeID, uint32_t materialVar
 {
   T material;
   material.registerTextures(registeredTextures);
-  material.registerProperties(asset->materials[m]);
-  iMaterialDefinitions.push_back(InternalMaterialDefinition(typeID, 0, assetIndex, m, material));
+  material.registerProperties(mat);
+  iMaterialDefinitions.push_back(InternalMaterialDefinition(typeID, materialVariant, assetIndex, materialIndex, material));
   std::sort(iMaterialDefinitions.begin(), iMaterialDefinitions.end(), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; if (lhs.materialVariant != rhs.materialVariant) return lhs.materialVariant < rhs.materialVariant; if (lhs.assetIndex != rhs.assetIndex) return lhs.assetIndex < rhs.assetIndex; return lhs.materialIndex < rhs.materialIndex; });
-}
-
-template <typename T>
-std::vector<Material> MaterialRegistry<T>::getMaterials(uint32_t typeID) const
-{
-  std::vector<Material> materials;
-  for (auto it = iMaterialDefinitions.begin(), eit = iMaterialDefinitions.end(); it != eit; ++it)
-  {
-    if (it->typeID == typeID && it->materialVariant == 0)
-      materials.push_back(assets[it->assetIndex]->materials[it->materialIndex]);
-  }
-  return materials;
 }
 
 template <typename T>
@@ -284,7 +270,7 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
   variantDefinitions.resize(0);
   materialDefinitions.resize(0);
 
-  for (uint32_t typeIndex = 0; typeIndex < typeDefinitions.size(); ++t)
+  for (uint32_t typeIndex = 0; typeIndex < typeDefinitions.size(); ++typeIndex)
   {
     typeDefinitions[typeIndex].variantFirst = variantDefinitions.size();
     auto typePair = std::equal_range(iMaterialDefinitions.begin(), iMaterialDefinitions.end(), InternalMaterialDefinition(typeIndex, 0, 0, 0, T()), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) {return lhs.typeID < rhs.typeID; });
@@ -306,7 +292,7 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
       variantDefinitions.push_back(varDef);
       variantIndex++;
     }
-    typeDefinitions[t].variantSize = variantDefinitions.size() - typeDefinitions[t].variantFirst;
+    typeDefinitions[typeIndex].variantSize = variantDefinitions.size() - typeDefinitions[typeIndex].variantFirst;
   }
   materialDefinitionSbo->set(materialDefinitions);
 }

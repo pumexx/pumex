@@ -28,7 +28,7 @@ namespace pumex
 {
 
 class AssetBufferNode;
-
+class AssetBufferDrawObject;
 class PUMEX_EXPORT NodeVisitor
 {
 public:
@@ -49,6 +49,7 @@ public:
   virtual void apply(GraphicsPipeline& node);
   virtual void apply(ComputePipeline& node);
   virtual void apply(AssetBufferNode& node);
+  virtual void apply(AssetBufferDrawObject& node);
 
 
 protected:

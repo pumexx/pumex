@@ -298,6 +298,9 @@ void DescriptorSet::validate( const RenderContext& renderContext )
   if (pddit->second.valid[activeIndex])
     return;
 
+  layout->validate(renderContext);
+  pool->validate(renderContext);
+
   if (pddit->second.descriptorSet[activeIndex] == VK_NULL_HANDLE)
   {
     VkDescriptorSetLayout layoutHandle = layout->getHandle(pddit->second.device);
@@ -612,6 +615,9 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
     return;
   }
 
+  pipelineCache->validate(renderContext);
+  pipelineLayout->validate(renderContext);
+
   if (pddit->second.pipeline != VK_NULL_HANDLE)
   {
     vkDestroyPipeline(pddit->first, pddit->second.pipeline, nullptr);
@@ -812,6 +818,9 @@ void ComputePipeline::validate(const RenderContext& renderContext)
     Pipeline::validate(renderContext);
     return;
   }
+
+  pipelineCache->validate(renderContext);
+  pipelineLayout->validate(renderContext);
 
   if (pddit->second.pipeline != VK_NULL_HANDLE)
   {

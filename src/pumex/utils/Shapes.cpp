@@ -570,9 +570,9 @@ void addHalfSphere(Geometry& geometry, const glm::vec3& origin, float radius, un
   }
 }
 
-Asset* createSimpleAsset(const Geometry& geometry, const std::string rootName)
+std::shared_ptr<Asset> createSimpleAsset(const Geometry& geometry, const std::string rootName)
 {
-  Asset* result = new Asset;
+  auto result = std::make_shared<Asset>();
   result->geometries.push_back(geometry);
 
   Skeleton::Bone bone;
@@ -583,5 +583,36 @@ Asset* createSimpleAsset(const Geometry& geometry, const std::string rootName)
   // this asset has material not defined
   return result;
 }
+
+std::shared_ptr<Asset> createFullScreenTriangle()
+{
+  auto result = std::make_shared<Asset>();
+
+  std::vector<VertexSemantic> semantic{ { VertexSemantic::Position, 3 }, { VertexSemantic::TexCoord, 2 } };
+  VertexAccumulator acc(semantic);
+
+  Geometry geometry;
+  geometry.name = "fullscreen_triangle";
+  geometry.semantic = semantic;
+
+  for (uint32_t i = 0; i < 3; ++i)
+  {
+    float x = (i << 1) & 2;
+    float y = i & 2;
+    acc.set(VertexSemantic::Position, x * 2.0f - 1.0f, y * 2.0f - 1.0f);
+    acc.set(VertexSemantic::TexCoord, x, y, 0.0f);
+    geometry.pushVertex(acc);
+    geometry.indices.push_back(i);
+  }
+  result->geometries.push_back(geometry);
+
+  Skeleton::Bone bone;
+  result->skeleton.bones.emplace_back(bone);
+  result->skeleton.boneNames.push_back("root");
+  result->skeleton.invBoneNames.insert({ "root", 0 });
+
+  return result;
+}
+
 
 }

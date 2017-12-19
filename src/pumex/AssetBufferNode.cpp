@@ -37,6 +37,21 @@ void AssetBufferNode::validate(const RenderContext& renderContext)
   Group::validate(renderContext);
 }
 
+AssetBufferDrawObject::AssetBufferDrawObject(uint32_t tid, uint32_t fi)
+  : typeID{ tid }, firstInstance{ fi }
+{
+
+}
+
+float AssetBufferDrawObject::getDistanceToViewer() const
+{
+  // FIXME - we need to pass pumex::Camera object somehow here
+  // For now we will return constant value
+  return 10.0f;
+}
+
+
+
 
 AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, uint32_t rm, uint32_t vb)
   : asset{ a }, renderMask{ rm }, vertexBinding{ vb }

@@ -63,10 +63,17 @@ void BuildCommandBufferVisitor::apply(ComputePipeline& node)
 
 void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 {
-  AssetBufferNode* previous = renderContext.currentAssetBuffer;
-  renderContext.currentAssetBuffer = &node;
+  AssetBufferNode* previous = renderContext.currentAssetBufferNode;
+  renderContext.currentAssetBufferNode = &node;
   node.assetBuffer->cmdBindVertexIndexBuffer(renderContext.device, commandBuffer, node.renderMask, node.vertexBinding);
   traverse(node);
   // FIXME - bind previous ?
-  renderContext.currentAssetBuffer = previous;
+  renderContext.currentAssetBufferNode = previous;
+}
+
+void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
+{
+  if (renderContext.currentAssetBufferNode == nullptr)
+    return;
+  renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObject(renderContext.device, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.typeID, node.firstInstance, node.getDistanceToViewer());
 }

@@ -157,8 +157,6 @@ template <typename T>
 void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex); 
-  Device* devicePtr = surface->device.lock().get();
-  VkDevice device = devicePtr->device;
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount, renderContext.vkDevice) }).first;
@@ -215,7 +213,7 @@ void UniformBufferPerSurface<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
-    pdd.second->invalidate();
+    pdd.second.invalidate();
   invalidateDescriptors();
 }
 

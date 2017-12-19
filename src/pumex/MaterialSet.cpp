@@ -104,8 +104,13 @@ void MaterialSet::setMaterialVariant(uint32_t typeID, uint32_t materialVariant, 
 
 std::vector<Material> MaterialSet::getMaterials(uint32_t typeID) const
 {
-  return materialRegistry->getMaterials(typeID);
+  std::vector<Material> materials;
+  auto materialIndices = materialRegistry->getAssetMaterialIndices(typeID);
+  for (const auto& m : materialIndices)
+    materials.push_back(assets[m.first]->materials[m.second]);
+  return materials;
 }
+
 
 uint32_t MaterialSet::getMaterialVariantCount(uint32_t typeID) const
 {
@@ -233,14 +238,14 @@ TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::weak_ptr<Dev
 void TextureRegistryArrayOfTextures::setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait)
 {
   textureTraits[slotIndex] = textureTrait;
-  textures[slotIndex] = std::vector<std::shared_ptr<Texture>>();
+  textures[slotIndex] = std::vector<std::shared_ptr<Resource>>();
 }
 
-std::vector<std::shared_ptr<Texture>> TextureRegistryArrayOfTextures::getTextures(uint32_t slotIndex)
+std::vector<std::shared_ptr<Resource>> TextureRegistryArrayOfTextures::getTextures(uint32_t slotIndex)
 {
   auto it = textures.find(slotIndex);
   if (it == textures.end())
-    return std::vector<std::shared_ptr<Texture>>();
+    return std::vector<std::shared_ptr<Resource>>();
   return it->second;
 }
 
