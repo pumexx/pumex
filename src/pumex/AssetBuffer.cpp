@@ -217,7 +217,7 @@ void AssetBuffer::validate(const RenderContext& renderContext)
   //}
 }
 
-void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
+void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
@@ -226,8 +226,8 @@ void AssetBuffer::cmdBindVertexIndexBuffer(Device* device, CommandBuffer* comman
     LOG_WARNING << "AssetBuffer::bindVertexIndexBuffer() does not have this render mask defined" << std::endl;
     return;
   }
-  VkBuffer vBuffer = prmit->second.vertexBuffer->getBufferHandle(device);
-  VkBuffer iBuffer = prmit->second.indexBuffer->getBufferHandle(device);
+  VkBuffer vBuffer = prmit->second.vertexBuffer->getBufferHandle(renderContext);
+  VkBuffer iBuffer = prmit->second.indexBuffer->getBufferHandle(renderContext);
   commandBuffer->addSource(prmit->second.vertexBuffer.get());
   commandBuffer->addSource(prmit->second.indexBuffer.get());
   VkDeviceSize offsets = 0;
@@ -401,18 +401,6 @@ uint32_t AssetBufferInstancedResults::getDrawCount(uint32_t renderMask)
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getDrawCount() attempting to get a draw count for nonexisting render mask");
   return it->second.initialResultValues.size();
-}
-
-
-
-void AssetBufferInstancedResults::setActiveIndex(uint32_t index) 
-{ 
-  for (auto& prm : perRenderMaskData)
-  {
-    PerRenderMaskData& rmData = prm.second;
-    rmData.resultsSbo->setActiveIndex(index);
-    rmData.offValuesSbo->setActiveIndex(index);
-  }
 }
 
 void AssetBufferInstancedResults::validate(const RenderContext& renderContext)

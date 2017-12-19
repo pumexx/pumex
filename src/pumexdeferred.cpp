@@ -410,15 +410,12 @@ struct DeferredApplicationData
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
     //fontDefault->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    //textDefault->setActiveIndex(activeIndex);
     //textDefault->validate(surfacePtr);
 
     //textCameraUbo->validate(surfacePtr);
-    //textDescriptorSet->setActiveIndex(activeIndex);
     //textDescriptorSet->validate(surfacePtr);
 
     //auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
-    //currentCmdBuffer->setActiveIndex(activeIndex);
     //if (currentCmdBuffer->isDirty(activeIndex))
     //{
     //  currentCmdBuffer->cmdBegin();

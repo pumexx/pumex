@@ -101,8 +101,6 @@ public:
   Text& operator=(const Text&) = delete;
   virtual ~Text();
 
-  inline void     setActiveIndex(uint32_t index);
-  inline uint32_t getActiveIndex() const;
   void            validate(Surface* surface);
   void            cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer) const;
 
@@ -141,8 +139,6 @@ protected:
   std::map<TextKey, std::tuple<glm::vec2, glm::vec4, std::wstring>, TextKeyCompare> texts;
 };
 
-void     Text::setActiveIndex(uint32_t index) { vertexBuffer->setActiveIndex(index); }
-uint32_t Text::getActiveIndex() const         { return vertexBuffer->getActiveIndex(); }
 void     Text::setDirty()                     { dirty = true; vertexBuffer->invalidate(); }
 
 

@@ -46,7 +46,7 @@ class GenericBufferPerSurface : public Resource, public CommandBufferSource
 {
 public:
   GenericBufferPerSurface()                                          = delete;
-  explicit GenericBufferPerSurface(VkBufferUsageFlagBits usage, std::weak_ptr<DeviceMemoryAllocator> allocator, uint32_t activeCount = 1);
+  explicit GenericBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits usage);
   GenericBufferPerSurface(const GenericBufferPerSurface&)            = delete;
   GenericBufferPerSurface& operator=(const GenericBufferPerSurface&) = delete;
   ~GenericBufferPerSurface();
@@ -59,16 +59,17 @@ public:
   void                      invalidate() override;
   void                      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
-  VkBuffer                  getBufferHandle(Surface* surface);
-
-  inline void               setActiveIndex(uint32_t index);
-  inline uint32_t           getActiveIndex() const;
+  VkBuffer                  getBufferHandle(const RenderContext& renderContext);
 
 private:
   struct PerSurfaceData
   {
     PerSurfaceData(uint32_t ac, VkDevice d)
       : device{ d }
+    {
+      resize(ac);
+    }
+    void resize(uint32_t ac)
     {
       valid.resize(ac, false);
       buffer.resize(ac, VK_NULL_HANDLE);
@@ -87,16 +88,14 @@ private:
   };
 
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  VkBufferUsageFlagBits                            usage;
   std::weak_ptr<DeviceMemoryAllocator>             allocator;
-  uint32_t                                         activeCount;
-  uint32_t                                         activeIndex = 0;
-
+  VkBufferUsageFlagBits                            usage;
+  uint32_t                                         activeCount = 1;
 };
 
 template <typename T>
-GenericBufferPerSurface<T>::GenericBufferPerSurface(VkBufferUsageFlagBits u, std::weak_ptr<DeviceMemoryAllocator> a, uint32_t ac)
-  : usage{ u }, allocator { a }, activeCount{ ac }
+GenericBufferPerSurface<T>::GenericBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits u)
+  : allocator { a }, usage{ u }
 {
 }
 
@@ -107,7 +106,7 @@ GenericBufferPerSurface<T>::~GenericBufferPerSurface()
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perSurfaceData)
   {
-    for (uint32_t i = 0; i < activeCount; ++i)
+    for (uint32_t i = 0; i < pdd.second.buffer.size(); ++i)
     {
       vkDestroyBuffer(pdd.second.device, pdd.second.buffer[i], nullptr);
       alloc->deallocate(pdd.second.device, pdd.second.memoryBlock[i]);
@@ -150,35 +149,40 @@ template <typename T>
 void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-
+  if (renderContext.imageCount > activeCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perSurfaceData)
+      pdd.second.resize(activeCount);
+  }
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
-  if (pddit->second.valid[activeIndex])
+  if (pddit->second.valid[renderContext.activeIndex])
     return;
 
   std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  if (pddit->second.buffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < uglyGetSize(*(pddit->second.data)))
+  if (pddit->second.buffer[renderContext.activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[renderContext.activeIndex].alignedSize < uglyGetSize(*(pddit->second.data)))
   {
-    vkDestroyBuffer(pddit->second.device, pddit->second.buffer[activeIndex], nullptr);
-    alloc->deallocate(pddit->second.device, pddit->second.memoryBlock[activeIndex]);
-    pddit->second.buffer[activeIndex] = VK_NULL_HANDLE;
-    pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
+    vkDestroyBuffer(pddit->second.device, pddit->second.buffer[renderContext.activeIndex], nullptr);
+    alloc->deallocate(pddit->second.device, pddit->second.memoryBlock[renderContext.activeIndex]);
+    pddit->second.buffer[renderContext.activeIndex] = VK_NULL_HANDLE;
+    pddit->second.memoryBlock[renderContext.activeIndex] = DeviceMemoryBlock();
   }
 
   bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (pddit->second.buffer[activeIndex] == VK_NULL_HANDLE)
+  if (pddit->second.buffer[renderContext.activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.usage = usage | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
     bufferCreateInfo.size = std::max<VkDeviceSize>(1, uglyGetSize(*(pddit->second.data)));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(pddit->second.device, &bufferCreateInfo, nullptr, &pddit->second.buffer[activeIndex]), "Cannot create buffer");
+    VK_CHECK_LOG_THROW(vkCreateBuffer(pddit->second.device, &bufferCreateInfo, nullptr, &pddit->second.buffer[renderContext.activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(pddit->second.device, pddit->second.buffer[activeIndex], &memReqs);
-    pddit->second.memoryBlock[activeIndex] = alloc->allocate(renderContext.device, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
-    alloc->bindBufferMemory(renderContext.device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
+    vkGetBufferMemoryRequirements(pddit->second.device, pddit->second.buffer[renderContext.activeIndex], &memReqs);
+    pddit->second.memoryBlock[renderContext.activeIndex] = alloc->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(pddit->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
+    alloc->bindBufferMemory(renderContext.device, pddit->second.buffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
 
     invalidateCommandBuffers();
   }
@@ -190,16 +194,16 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
       auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
       VkBufferCopy copyRegion{};
       copyRegion.size = uglyGetSize(*(pddit->second.data));
-      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[activeIndex], copyRegion);
+      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[renderContext.activeIndex], copyRegion);
       renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
       renderContext.device->releaseStagingBuffer(stagingBuffer);
     }
     else
     {
-      alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)), 0);
+      alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, uglyGetPointer(*(pddit->second.data)), uglyGetSize(*(pddit->second.data)), 0);
     }
   }
-  pddit->second.valid[activeIndex] = true;
+  pddit->second.valid[renderContext.activeIndex] = true;
 }
 
 template <typename T>
@@ -209,7 +213,7 @@ void GenericBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& ren
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(pddit == perSurfaceData.end(), "GenericBufferPerSurface<T>::getDescriptorSetValues() : generic buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*(pddit->second.data))));
+  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex], 0, uglyGetSize(*(pddit->second.data))));
 }
 
 template <typename T>
@@ -222,20 +226,13 @@ void GenericBufferPerSurface<T>::invalidate()
 }
 
 template <typename T>
-VkBuffer GenericBufferPerSurface<T>::getBufferHandle(Surface* surface)
+VkBuffer GenericBufferPerSurface<T>::getBufferHandle(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto it = perSurfaceData.find(surface->surface);
+  auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     return VK_NULL_HANDLE;
-  return it->second.buffer[activeIndex];
+  return it->second.buffer[renderContext.activeIndex];
 }
-
-
-template <typename T>
-void GenericBufferPerSurface<T>::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }
-template <typename T>
-uint32_t GenericBufferPerSurface<T>::getActiveIndex() const { return activeIndex; }
-
 
 }

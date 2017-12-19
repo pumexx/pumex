@@ -163,7 +163,7 @@ public:
   inline void            setDirty();
   void                   validate(const RenderContext& renderContext);
 
-  void                   cmdBindVertexIndexBuffer(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
+  void                   cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
   void                   cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
 
   inline uint32_t        getNumRenderMasks() const;
@@ -182,8 +182,8 @@ protected:
     {
       vertices     = std::make_shared<std::vector<float>>();
       indices      = std::make_shared<std::vector<uint32_t>>();
-      vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices, vertexIndexAllocator);
-      indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices, vertexIndexAllocator);
+      vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+      indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
       typeBuffer   = std::make_shared<StorageBuffer<AssetTypeDefinition>>(bufferAllocator);
       lodBuffer    = std::make_shared<StorageBuffer<AssetLodDefinition>>(bufferAllocator);
@@ -270,8 +270,6 @@ public:
   std::shared_ptr<StorageBufferPerSurface<uint32_t>>                   getOffsetValues(uint32_t renderMask);
   uint32_t                                                             getDrawCount(uint32_t renderMask);
 
-
-  void                                                                 setActiveIndex(uint32_t index);
   void                                                                 validate(const RenderContext& renderContext);
 
 protected:
@@ -280,8 +278,8 @@ protected:
     PerRenderMaskData() = default;
     PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> allocator)
     {
-      resultsSbo = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, 3, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-      offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator, 3);
+      resultsSbo = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+      offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator);
     }
 
     std::vector<DrawIndexedIndirectCommand>                              initialResultValues;

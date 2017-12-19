@@ -158,7 +158,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
 Text::Text(std::weak_ptr<Font> f, std::weak_ptr<DeviceMemoryAllocator> ba)
   : dirty{ true }, font{ f }
 {
-  vertexBuffer = std::make_shared<GenericBufferPerSurface<std::vector<SymbolData>>>(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, ba, 3);
+  vertexBuffer = std::make_shared<GenericBufferPerSurface<std::vector<SymbolData>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
   textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
 }
 
