@@ -20,7 +20,9 @@
 // SOFTWARE.
 //
 #include <pumex/RenderVisitors.h>
+#include <pumex/RenderWorkflow.h>
 #include <pumex/AssetBufferNode.h>
+#include <pumex/Text.h>
 
 using namespace pumex;
 
@@ -41,39 +43,63 @@ BuildCommandBufferVisitor::BuildCommandBufferVisitor(Surface* s, CommandBuffer* 
 
 }
 
+void BuildCommandBufferVisitor::apply(Node& node)
+{
+  applyDescriptorSets(node);
+}
+
 void BuildCommandBufferVisitor::apply(GraphicsPipeline& node)
 {
-  Pipeline* previous = renderContext.currentPipeline;
-  renderContext.currentPipeline = &node;
+  Pipeline* previous = renderContext.setCurrentPipeline(&node);
   commandBuffer->cmdBindPipeline(&node);
+  applyDescriptorSets(node);
   traverse(node);
   // FIXME - bind previous ?
-  renderContext.currentPipeline = previous;
+  renderContext.setCurrentPipeline(previous);
 }
 
 void BuildCommandBufferVisitor::apply(ComputePipeline& node)
 {
-  Pipeline* previous = renderContext.currentPipeline;
-  renderContext.currentPipeline = &node;
+  Pipeline* previous = renderContext.setCurrentPipeline(&node);
   commandBuffer->cmdBindPipeline(&node);
+  applyDescriptorSets(node);
   traverse(node);
   // FIXME - bind previous ?
-  renderContext.currentPipeline = previous;
+  renderContext.setCurrentPipeline(previous);
 }
 
 void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 {
-  AssetBufferNode* previous = renderContext.currentAssetBufferNode;
-  renderContext.currentAssetBufferNode = &node;
+  AssetBufferNode* previous = renderContext.setCurrentAssetBufferNode( &node );
+  applyDescriptorSets(node);
   node.assetBuffer->cmdBindVertexIndexBuffer(renderContext, commandBuffer, node.renderMask, node.vertexBinding);
   traverse(node);
   // FIXME - bind previous ?
-  renderContext.currentAssetBufferNode = previous;
+  renderContext.setCurrentAssetBufferNode(previous);
 }
 
 void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
 {
   if (renderContext.currentAssetBufferNode == nullptr)
     return;
+  applyDescriptorSets(node);
   renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObject(renderContext.device, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.typeID, node.firstInstance, node.getDistanceToViewer());
+}
+
+void BuildCommandBufferVisitor::apply(Text& node)
+{
+  applyDescriptorSets(node);
+  node.cmdDraw(renderContext, commandBuffer);
+}
+
+void BuildCommandBufferVisitor::applyDescriptorSets(Node& node)
+{
+  // FIXME : for now descriptor sets must be set below pipeline in a scene graph
+  // It would be better if descriptor sets are collected and set in a moment of draw.
+  if (renderContext.currentPipeline == nullptr)
+    return;
+  for (auto it = node.descriptorSetBegin(); it != node.descriptorSetEnd(); ++it )
+  {
+    commandBuffer->cmdBindDescriptorSets(renderContext, renderContext.currentPipeline->pipelineLayout.get(), it->first, it->second.get());
+  }
 }

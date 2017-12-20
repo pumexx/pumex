@@ -30,6 +30,7 @@
 #include <glm/glm.hpp>
 #include <gli/texture2d.hpp>
 #include <pumex/Export.h>
+#include <pumex/Node.h>
 #include <pumex/UniformBuffer.h>
 #include <pumex/StorageBuffer.h>
 #include <pumex/GenericBufferPerSurface.h>
@@ -92,22 +93,22 @@ protected:
   glm::uvec2                          lastRegisteredPosition;
 };
 
-class PUMEX_EXPORT Text
+class PUMEX_EXPORT Text : public Node
 {
 public:
   Text()                       = delete;
-  explicit Text(std::weak_ptr<Font> f, std::weak_ptr<DeviceMemoryAllocator> ba);
+  explicit Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba);
   Text(const Text&)            = delete;
   Text& operator=(const Text&) = delete;
   virtual ~Text();
 
-  void            validate(Surface* surface);
-  void            cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer) const;
+  void            validate(const RenderContext& renderContext) override;
+  void            cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
 
   void            setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
   void            removeText(Surface* surface, uint32_t index);
   void            clearTexts();
-  inline void     setDirty();
+  inline void     internalInvalidate();
 
   std::shared_ptr<GenericBufferPerSurface<std::vector<SymbolData>>> vertexBuffer;
   std::vector<VertexSemantic>                                       textVertexSemantic;
@@ -131,15 +132,12 @@ protected:
     }
   };
 
-
-  mutable std::mutex                                                                mutex;
-  bool                                                                              dirty;
-  std::weak_ptr<Font>                                                               font;
+  std::shared_ptr<Font>                                                             font;
   std::unordered_map<VkSurfaceKHR,std::shared_ptr<std::vector<SymbolData>>>         symbolData;
   std::map<TextKey, std::tuple<glm::vec2, glm::vec4, std::wstring>, TextKeyCompare> texts;
 };
 
-void     Text::setDirty()                     { dirty = true; vertexBuffer->invalidate(); }
+void     Text::internalInvalidate()                     { vertexBuffer->invalidate(); invalidate(); }
 
 
 }

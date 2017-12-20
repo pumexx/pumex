@@ -161,48 +161,6 @@ struct DeferredApplicationData
     updateData.moveUp                      = false;
     updateData.moveDown                    = false;
     updateData.moveFast                    = false;
-
-    //std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
-    //fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
-    //textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-
-    //std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
-    //{
-    //  { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-    //  { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    //};
-    //textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    //textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, textLayoutBindings);
-    //// building pipeline layout
-    //textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    //textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
-    //textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 1);
-    //textPipeline->vertexInput =
-    //{
-    //  { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
-    //};
-    //textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    //textPipeline->blendAttachments =
-    //{
-    //  { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    //  VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
-    //  VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
-    //};
-    //textPipeline->depthTestEnable = VK_FALSE;
-    //textPipeline->depthWriteEnable = VK_FALSE;
-    //textPipeline->shaderStages =
-    //{
-    //  { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
-    //  { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
-    //  { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
-    //};
-    //textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    //textPipeline->rasterizationSamples = SAMPLE_COUNT;
-
-    //textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    //textDescriptorSet->setDescriptor(0, textCameraUbo);
-    //textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
-
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -409,73 +367,11 @@ struct DeferredApplicationData
 
   void draw(std::shared_ptr<pumex::Surface> surface)
   {
-    //fontDefault->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    //textDefault->validate(surfacePtr);
-
-    //textCameraUbo->validate(surfacePtr);
-    //textDescriptorSet->validate(surfacePtr);
-
-    //auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
-    //if (currentCmdBuffer->isDirty(activeIndex))
-    //{
-    //  currentCmdBuffer->cmdBegin();
-
-    //  std::vector<VkClearValue> clearValues =
-    //  {
-    //    pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // target image
-    //    pumex::makeDepthStencilClearValue(1.0f, 0),                    // depth buffer image
-    //    pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), // position in world coordinates
-    //    pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), // normals in world coordiantes
-    //    pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), // albedo
-    //    pumex::makeColorClearValue(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)), // roughness and metallic
-    //    pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f))  // lighting pass image
-    //  };
-    //  currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-    //  currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    //  currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-    //  currentCmdBuffer->cmdBindPipeline(gbufferPipeline.get());
-    //  currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, gbufferPipelineLayout.get(), 0, gbufferDescriptorSet.get());
-    //  assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-    //  assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 5000.0f);
-
-    //  currentCmdBuffer->cmdNextSubPass(VK_SUBPASS_CONTENTS_INLINE);
-
-    //  currentCmdBuffer->cmdBindPipeline(compositePipeline.get());
-    //  currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, compositePipelineLayout.get(), 0, compositeDescriptorSet.get());
-    //  assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-    //  assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, squareTypeID, 0, 5000.0f);
-
-    //  currentCmdBuffer->cmdBindPipeline(textPipeline.get());
-    //  currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
-    //  textDefault->cmdDraw(surfacePtr, currentCmdBuffer);
-
-    //  currentCmdBuffer->cmdEndRenderPass();
-    //  currentCmdBuffer->cmdEnd();
-    //}
-    //currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
   }
 
   void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
   {
   }
-
-  UpdateData                                           updateData;
-  std::array<RenderData, 3>                            renderData;
-
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<LightPointData>>          lightsSbo;
-  pumex::HPClock::time_point                                     lastFrameStart;
-
-  //std::shared_ptr<pumex::Font>                            fontDefault;
-  //std::shared_ptr<pumex::Text>                            textDefault;
-  //std::shared_ptr<pumex::DescriptorSetLayout>             textDescriptorSetLayout;
-  //std::shared_ptr<pumex::PipelineLayout>                  textPipelineLayout;
-  //std::shared_ptr<pumex::GraphicsPipeline>                textPipeline;
-  //std::shared_ptr<pumex::DescriptorPool>                  textDescriptorPool;
-  //std::shared_ptr<pumex::DescriptorSet>                   textDescriptorSet;
 
   void fillFPS()
   {
@@ -485,9 +381,18 @@ struct DeferredApplicationData
 
     std::wstringstream stream;
     stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-//    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+    //    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
 
+
+  UpdateData                                           updateData;
+  std::array<RenderData, 3>                            renderData;
+
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
+  std::shared_ptr<pumex::StorageBuffer<LightPointData>>          lightsSbo;
+  pumex::HPClock::time_point                                     lastFrameStart;
 };
 
 int main( int argc, char * argv[] )
@@ -683,7 +588,7 @@ int main( int argc, char * argv[] )
     std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
     modelData.typeID = modelTypeID;
 
-    std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool, 3);
+    std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
     descriptorSet->setDescriptor(0, applicationData->cameraUbo);
     descriptorSet->setDescriptor(1, applicationData->positionUbo);
     descriptorSet->setDescriptor(2, materialSet->typeDefinitionSbo);
@@ -755,6 +660,52 @@ int main( int argc, char * argv[] )
 //    compositeDescriptorSet->setDescriptor(3, input3);
 //    compositeDescriptorSet->setDescriptor(4, input4);
 //    compositeDescriptorSet->setDescriptor(5, input5);
+
+
+    std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
+    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
+    auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+
+    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
+    auto textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, textLayoutBindings);
+    // building pipeline layout
+    auto textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
+    auto textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
+    textPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+    };
+    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    textPipeline->blendAttachments =
+    {
+      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+    };
+    textPipeline->depthTestEnable = VK_FALSE;
+    textPipeline->depthWriteEnable = VK_FALSE;
+    textPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+    };
+    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    textPipeline->rasterizationSamples = SAMPLE_COUNT;
+
+    lightingRoot->addChild(textPipeline);
+    textPipeline->addChild(textDefault);
+
+    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
+    textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
+    textDefault->setDescriptorSet(0, textDescriptorSet);
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {

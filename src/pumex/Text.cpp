@@ -155,8 +155,8 @@ size_t Font::getGlyphIndex(wchar_t charCode)
 }
 
 
-Text::Text(std::weak_ptr<Font> f, std::weak_ptr<DeviceMemoryAllocator> ba)
-  : dirty{ true }, font{ f }
+Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba)
+  : Node(), font{ f }
 {
   vertexBuffer = std::make_shared<GenericBufferPerSurface<std::vector<SymbolData>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
   textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
@@ -166,19 +166,18 @@ Text::~Text()
 {
 }
 
-void Text::validate(Surface* surface)
+void Text::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto sit = symbolData.find(surface->surface);
+  auto sit = symbolData.find(renderContext.vkSurface);
   if (sit == symbolData.end())
   {
-    sit = symbolData.insert({ surface->surface, std::make_shared<std::vector<SymbolData>>() }).first;
-    vertexBuffer->set(surface, sit->second);
+    sit = symbolData.insert({ renderContext.vkSurface, std::make_shared<std::vector<SymbolData>>() }).first;
+    vertexBuffer->set(renderContext.surface, sit->second);
   }
 
-  if (dirty)
+  if (!valid)
   {
-    Font* fontPtr = font.lock().get();
     sit->second->resize(0);
 
     for (const auto& t : texts)
@@ -189,21 +188,21 @@ void Text::validate(Surface* surface)
       glm::vec4    color;
       std::wstring text;
       std::tie(startPosition, color, text) = t.second;
-      fontPtr->addSymbolData(startPosition, color, text, *(sit->second));
+      font->addSymbolData(startPosition, color, text, *(sit->second));
     }
     vertexBuffer->invalidate();
-    dirty = false;
+    valid = true;
   }
-  vertexBuffer->validate(surface);
+  vertexBuffer->validate(renderContext);
 }
 
-void Text::cmdDraw(Surface* surface, std::shared_ptr<CommandBuffer> commandBuffer ) const
+void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto sit = symbolData.find(surface->surface);
+  auto sit = symbolData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(sit == symbolData.end(), "Text::cmdDraw() : text was not validated");
 
-  VkBuffer     vBuffer = vertexBuffer->getBufferHandle(surface);
+  VkBuffer     vBuffer = vertexBuffer->getBufferHandle(renderContext);
   VkDeviceSize offsets = 0;
   commandBuffer->addSource(vertexBuffer.get());
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);
@@ -214,21 +213,21 @@ void Text::setText(Surface* surface, uint32_t index, const glm::vec2& position, 
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts[TextKey(surface->surface,index)] = std::make_tuple(position, color, text);
-  setDirty();
+  internalInvalidate();
 }
 
 void Text::removeText(Surface* surface, uint32_t index)
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts.erase(TextKey(surface->surface, index));
-  setDirty();
+  internalInvalidate();
 }
 
 void Text::clearTexts()
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts.clear();
-  setDirty();
+  internalInvalidate();
 }
 
 

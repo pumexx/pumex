@@ -21,6 +21,7 @@
 //
 #include <pumex/NodeVisitor.h>
 #include <pumex/AssetBufferNode.h>
+#include <pumex/Text.h>
 
 using namespace pumex;
 
@@ -63,6 +64,11 @@ void NodeVisitor::apply(AssetBufferNode& node)
 }
 
 void NodeVisitor::apply(AssetBufferDrawObject& node)
+{
+  apply(static_cast<Node&>(node));
+}
+
+void NodeVisitor::apply(Text& node)
 {
   apply(static_cast<Node&>(node));
 }

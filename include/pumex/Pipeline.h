@@ -155,18 +155,15 @@ public:
 class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {
 public:
-  explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout, std::shared_ptr<DescriptorPool> pool, uint32_t activeCount = 1);
-  DescriptorSet(const DescriptorSet&) = delete;
+  DescriptorSet()                                = delete;
+  explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout, std::shared_ptr<DescriptorPool> pool);
+  DescriptorSet(const DescriptorSet&)            = delete;
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   virtual ~DescriptorSet();
-
-  inline void     setActiveIndex(uint32_t index);
-  inline uint32_t getActiveIndex() const;
 
   void            validate(const RenderContext& renderContext);
   void            invalidate();
 
-  VkDescriptorSet getHandle(VkSurfaceKHR surface) const;
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources);
   void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
@@ -176,6 +173,8 @@ public:
   void            addNode(std::shared_ptr<Node> node);
   void            removeNode(std::shared_ptr<Node> node);
 
+  VkDescriptorSet getHandle(const RenderContext& renderContext) const;
+
   std::shared_ptr<DescriptorSetLayout> layout;
   std::shared_ptr<DescriptorPool>      pool;
 protected:
@@ -183,6 +182,10 @@ protected:
   {
     PerSurfaceData(uint32_t ac, VkDevice d)
       : device{ d }
+    {
+      resize(ac);
+    }
+    void resize(uint32_t ac)
     {
       descriptorSet.resize(ac,VK_NULL_HANDLE);
       valid.resize(ac,false);
@@ -196,12 +199,8 @@ protected:
   std::unordered_map<VkSurfaceKHR, PerSurfaceData>          perSurfaceData;
   std::unordered_map<uint32_t, std::shared_ptr<Descriptor>> descriptors; // descriptor set indirectly owns buffers, images and whatnot
   std::vector<std::weak_ptr<Node>>                          nodeOwners;
-  uint32_t                                                  activeCount;
-  uint32_t                                                  activeIndex = 0;
+  uint32_t                                                  activeCount = 1;
 };
-
-void DescriptorSet::setActiveIndex(uint32_t index) { activeIndex = index % activeCount; }
-uint32_t DescriptorSet::getActiveIndex() const     { return activeIndex; }
 
 class PUMEX_EXPORT PipelineLayout
 {
@@ -260,9 +259,9 @@ public:
 
   // FIXME : add descriptor set checking, add dynamic state checking
 
-protected:
   std::shared_ptr<PipelineCache>    pipelineCache;
   std::shared_ptr<PipelineLayout>   pipelineLayout;
+protected:
 
   struct PerDeviceData
   {

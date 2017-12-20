@@ -188,11 +188,15 @@ void RenderPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
   for (auto operation : renderOperations)
   {
     validateVisitor.renderContext.setSubpassIndex(subpassIndex);
+    validateVisitor.renderContext.setRenderOperation(operation.get());
+
     operation->sceneNode->accept(validateVisitor);
+
     subpassIndex++;
   }
   validateVisitor.renderContext.setRenderPass(NULL);
   validateVisitor.renderContext.setSubpassIndex(0);
+  validateVisitor.renderContext.setRenderOperation(nullptr);
 }
 
 void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
@@ -212,6 +216,7 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
   for (uint32_t subpassIndex = 0; subpassIndex < renderOperations.size(); ++subpassIndex)
   {
     commandVisitor.renderContext.setSubpassIndex(subpassIndex);
+    commandVisitor.renderContext.setRenderOperation(renderOperations[subpassIndex].get());
     if (renderOperations[subpassIndex]->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
     {
       renderOperations[subpassIndex]->sceneNode->accept(commandVisitor);
@@ -228,6 +233,7 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
   commandVisitor.commandBuffer->cmdEndRenderPass();
   commandVisitor.renderContext.setRenderPass(NULL);
   commandVisitor.renderContext.setSubpassIndex(0);
+  commandVisitor.renderContext.setRenderOperation(nullptr);
 }
 
 ComputePass::ComputePass()
@@ -237,11 +243,15 @@ ComputePass::ComputePass()
 
 void ComputePass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 {
+  validateVisitor.renderContext.setRenderOperation(computeOperation.get());
   computeOperation->sceneNode->accept(validateVisitor);
+  validateVisitor.renderContext.setRenderOperation(nullptr);
 }
 
 void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 {
+  commandVisitor.renderContext.setRenderOperation(computeOperation.get());
   computeOperation->sceneNode->accept(commandVisitor);
+  commandVisitor.renderContext.setRenderOperation(nullptr);
 }
 

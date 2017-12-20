@@ -97,6 +97,7 @@ void Node::invalidate()
     valid = false;
     for (auto parent : parents)
       parent.lock()->invalidate();
+    notifyCommandBuffers();
   }
 }
 

@@ -35,6 +35,7 @@ namespace pumex
 
 class Device;
 class Surface;
+class RenderContext;
 class RenderPass;
 class FrameBuffer;
 class ComputePipeline;
@@ -110,8 +111,8 @@ public:
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
   void            cmdBindPipeline(ComputePipeline* pipeline);
   void            cmdBindPipeline(GraphicsPipeline* pipeline);
-  void            cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets);
-  void            cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet);
+  void            cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets);
+  void            cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet);
 
   void            cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const;
   void            cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t vertexOffset, uint32_t firstInstance) const;

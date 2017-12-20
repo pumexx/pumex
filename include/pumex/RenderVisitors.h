@@ -46,18 +46,18 @@ class PUMEX_EXPORT BuildCommandBufferVisitor : public NodeVisitor
 public:
   BuildCommandBufferVisitor(Surface* surface, CommandBuffer* commandBuffer);
 
+  void apply(Node& node) override;
   void apply(GraphicsPipeline& node) override;
   void apply(ComputePipeline& node) override;
   void apply(AssetBufferNode& node) override;
   void apply(AssetBufferDrawObject& node) override;
+  void apply(Text& node) override;
+
+  void applyDescriptorSets(Node& node);
 
   // elements of the context that are constant through visitor work
   RenderContext renderContext;
   CommandBuffer* commandBuffer;
 };
-
-
-void RenderContext::setRenderPass(RenderPass* rp) { renderPass = rp; }
-void RenderContext::setSubpassIndex(uint32_t si) { subpassIndex = si; }
 
 }

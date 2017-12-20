@@ -68,13 +68,16 @@ protected:
   std::unordered_map<uint32_t, std::shared_ptr<DescriptorSet>> descriptorSets;
   std::string                                                  name;
   bool                                                         valid = false;
+public:
+  inline decltype(descriptorSets.begin()) descriptorSetBegin()        { return descriptorSets.begin(); }
+  inline decltype(descriptorSets.end()) descriptorSetEnd()            { return descriptorSets.end(); }
+  inline decltype(descriptorSets.cbegin()) descriptorSetBegin() const { return descriptorSets.cbegin(); }
+  inline decltype(descriptorSets.cend()) descriptorSetEnd() const     { return descriptorSets.cend(); }
 };
 
 
 class PUMEX_EXPORT Group : public Node
 {
-protected:
-  std::vector<std::shared_ptr<Node>> children;
 public:
   Group();
   virtual ~Group();
@@ -87,6 +90,10 @@ public:
   inline uint32_t               getNumChildren();
   inline std::shared_ptr<Node>  getChild(uint32_t childIndex);
 
+protected:
+  std::vector<std::shared_ptr<Node>> children;
+
+public:
   inline decltype(children.begin())  begin()       { return children.begin(); }
   inline decltype(children.end())    end()         { return children.end(); }
   inline decltype(children.cbegin()) begin() const { return children.cbegin(); }

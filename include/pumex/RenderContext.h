@@ -30,16 +30,20 @@ class Surface;
 class CommandPool;
 class Device;	
 class RenderPass;
+class RenderOperation;
 class Pipeline;
 class AssetBufferNode;
 
 class RenderContext
 {
 public:
-  RenderContext(Surface* surface);
+  explicit RenderContext(Surface* surface);
 
-  inline void setRenderPass(RenderPass* renderPass);
-  inline void setSubpassIndex(uint32_t subpassIndex);
+  inline void             setRenderPass(RenderPass* renderPass);
+  inline void             setSubpassIndex(uint32_t subpassIndex);
+  inline void             setRenderOperation(RenderOperation* renderOperation);
+  inline Pipeline*        setCurrentPipeline(Pipeline* pipeline);
+  inline AssetBufferNode* setCurrentAssetBufferNode(AssetBufferNode* assetBufferNode);
 
   // elements of the context that are constant through visitor work
   Surface*         surface                = nullptr;
@@ -54,9 +58,25 @@ public:
   // elements of the context that may change during visitor work
   RenderPass*      renderPass             = nullptr;
   uint32_t         subpassIndex           = 0;
+  RenderOperation* renderOperation        = nullptr;
   Pipeline*        currentPipeline        = nullptr; // graphics pipeline or compute pipeline
   AssetBufferNode* currentAssetBufferNode = nullptr; // asset buffer
 };
 
+void             RenderContext::setRenderPass(RenderPass* rp)           { renderPass = rp; }
+void             RenderContext::setSubpassIndex(uint32_t si)            { subpassIndex = si; }
+void             RenderContext::setRenderOperation(RenderOperation* ro) { renderOperation = ro; }
+Pipeline*        RenderContext::setCurrentPipeline(Pipeline* pipeline) 
+{
+  Pipeline* oldPipeline = currentPipeline;
+  currentPipeline       = pipeline;
+  return oldPipeline;
+}
+AssetBufferNode* RenderContext::setCurrentAssetBufferNode(AssetBufferNode* assetBufferNode)
+{
+  AssetBufferNode* oldAssetBufferNode = currentAssetBufferNode;
+  currentAssetBufferNode = assetBufferNode;
+  return oldAssetBufferNode;
+}
 
 }

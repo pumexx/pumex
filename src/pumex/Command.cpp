@@ -228,22 +228,25 @@ void CommandBuffer::cmdBindPipeline(GraphicsPipeline* pipeline)
   vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets)
+void CommandBuffer::cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets)
 {
+  VkPipelineBindPoint bindPoint = (renderContext.renderOperation->operationType == RenderOperation::Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
+
   std::vector<VkDescriptorSet> descSets;
   for (auto& d : descriptorSets)
   {
     addSource(d);
-    descSets.push_back(d->getHandle(surface->surface));
+    descSets.push_back(d->getHandle(renderContext));
   }
   // TODO : dynamic offset counts
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, descSets.size(), descSets.data(), 0, nullptr);
 }
 
-void CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint bindPoint, Surface* surface, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet)
+void CommandBuffer::cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet)
 {
+  VkPipelineBindPoint bindPoint = (renderContext.renderOperation->operationType == RenderOperation::Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
   addSource(descriptorSet);
-  VkDescriptorSet descSet = descriptorSet->getHandle(surface->surface);
+  VkDescriptorSet descSet = descriptorSet->getHandle(renderContext);
   // TODO : dynamic offset counts
   vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, 1, &descSet, 0, nullptr);
 }

@@ -271,8 +271,8 @@ void Descriptor::getDescriptorSetValues(const RenderContext& renderContext, std:
 }
 
 
-DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared_ptr<DescriptorPool> p, uint32_t ac)
-  : layout{ l }, pool{ p }, activeCount{ ac }
+DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared_ptr<DescriptorPool> p)
+  : layout{ l }, pool{ p }
 {
 }
 
@@ -281,7 +281,7 @@ DescriptorSet::~DescriptorSet()
   descriptors.clear();
 
   for (auto& pddit : perSurfaceData)
-    vkFreeDescriptorSets(pddit.second.device, pool->getHandle(pddit.second.device), activeCount, pddit.second.descriptorSet.data());
+    vkFreeDescriptorSets(pddit.second.device, pool->getHandle(pddit.second.device), pddit.second.descriptorSet.size(), pddit.second.descriptorSet.data());
 }
 
 void DescriptorSet::validate( const RenderContext& renderContext )
@@ -292,16 +292,22 @@ void DescriptorSet::validate( const RenderContext& renderContext )
 
   // now check if descriptor set is dirty
   std::lock_guard<std::mutex> lock(mutex);
+  if (renderContext.imageCount > activeCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perSurfaceData)
+      pdd.second.resize(activeCount);
+  }
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
-  if (pddit->second.valid[activeIndex])
+  if (pddit->second.valid[renderContext.activeIndex])
     return;
 
   layout->validate(renderContext);
   pool->validate(renderContext);
 
-  if (pddit->second.descriptorSet[activeIndex] == VK_NULL_HANDLE)
+  if (pddit->second.descriptorSet[renderContext.activeIndex] == VK_NULL_HANDLE)
   {
     VkDescriptorSetLayout layoutHandle = layout->getHandle(pddit->second.device);
 
@@ -310,7 +316,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
       descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->second.device);
       descriptorSetAinfo.descriptorSetCount = 1;
       descriptorSetAinfo.pSetLayouts        = &layoutHandle;
-    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.descriptorSet[activeIndex]), "Cannot allocate descriptor sets");
+    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.descriptorSet[renderContext.activeIndex]), "Cannot allocate descriptor sets");
   }
 
   std::map<uint32_t, std::vector<DescriptorSetValue>> values;
@@ -333,7 +339,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
       continue;
     VkWriteDescriptorSet writeDescriptorSet{};
       writeDescriptorSet.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-      writeDescriptorSet.dstSet          = pddit->second.descriptorSet[activeIndex];
+      writeDescriptorSet.dstSet          = pddit->second.descriptorSet[renderContext.activeIndex];
       writeDescriptorSet.descriptorType  = layout->getDescriptorType(v.first);
       writeDescriptorSet.dstBinding      = v.first;
       writeDescriptorSet.descriptorCount = layout->getDescriptorBindingCount(v.first);
@@ -358,16 +364,16 @@ void DescriptorSet::validate( const RenderContext& renderContext )
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
   vkUpdateDescriptorSets(pddit->second.device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
-  pddit->second.valid[activeIndex] = true;
-  notifyCommandBuffers(activeIndex);
+  pddit->second.valid[renderContext.activeIndex] = true;
+  notifyCommandBuffers(renderContext.activeIndex);
 }
 
-VkDescriptorSet DescriptorSet::getHandle(VkSurfaceKHR surface) const
+VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) const
 {
-  auto pddit = perSurfaceData.find(surface);
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     return VK_NULL_HANDLE;
-  return pddit->second.descriptorSet[activeIndex];
+  return pddit->second.descriptorSet[renderContext.activeIndex];
 }
 
 void DescriptorSet::invalidate()
@@ -378,6 +384,7 @@ void DescriptorSet::invalidate()
   for (auto n : nodeOwners)
     n.lock()->invalidate();
 }
+
 void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType)
 {
   CHECK_LOG_THROW(resources.empty(), "setDescriptor got empty vector of resources");
@@ -418,6 +425,7 @@ void DescriptorSet::resetDescriptor(uint32_t binding)
 {
   std::lock_guard<std::mutex> lock(mutex);
   descriptors.erase(binding);
+  invalidate();
 }
 
 void DescriptorSet::addNode(std::shared_ptr<Node> node)
