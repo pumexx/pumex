@@ -184,6 +184,7 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
 void RenderPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 {
   validateVisitor.renderContext.setRenderPass(this);
+  validate(validateVisitor.renderContext);
   uint32_t subpassIndex = 0;
   for (auto operation : renderOperations)
   {
@@ -201,6 +202,7 @@ void RenderPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 
 void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 {
+  commandVisitor.renderContext.setRenderPass(this);
   commandVisitor.commandBuffer->cmdBeginRenderPass
   (
     commandVisitor.renderContext.surface,
@@ -211,7 +213,6 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
     clearValues,
     renderOperations[0]->subpassContents
   );
-  commandVisitor.renderContext.setRenderPass(this);
 
   for (uint32_t subpassIndex = 0; subpassIndex < renderOperations.size(); ++subpassIndex)
   {

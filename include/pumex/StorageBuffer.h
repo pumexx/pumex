@@ -82,7 +82,7 @@ private:
   std::vector<T>                              storageData;
   std::weak_ptr<DeviceMemoryAllocator>        allocator;
   VkBufferUsageFlagBits                       additionalFlags;
-  uint32_t                                    activeCount;
+  uint32_t                                    activeCount = 1;
 };
 
 template <typename T>

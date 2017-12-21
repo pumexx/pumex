@@ -600,7 +600,7 @@ std::shared_ptr<Asset> createFullScreenTriangle()
     float x = (i << 1) & 2;
     float y = i & 2;
     acc.set(VertexSemantic::Position, x * 2.0f - 1.0f, y * 2.0f - 1.0f);
-    acc.set(VertexSemantic::TexCoord, x, y, 0.0f);
+    acc.set(VertexSemantic::TexCoord, x, y);
     geometry.pushVertex(acc);
     geometry.indices.push_back(i);
   }

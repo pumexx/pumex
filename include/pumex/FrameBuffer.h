@@ -41,12 +41,13 @@ class Image;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
-  FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const AttachmentSize& attachmentSize = AttachmentSize(astSurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const std::string& name, const AttachmentSize& attachmentSize = AttachmentSize(astSurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
   AttachmentType        attachmentType;
   VkFormat              format;
   VkImageUsageFlags     usage;
   VkImageAspectFlags    aspectMask;
   VkSampleCountFlagBits samples;
+  std::string           name;
   AttachmentSize        attachmentSize;
   gli::swizzles         swizzles;
 };
@@ -99,8 +100,8 @@ public:
   void          validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
   VkFramebuffer getFrameBuffer(Surface* surface, uint32_t fbIndex);
 
-  std::weak_ptr<RenderPass>         renderPass;
-  std::weak_ptr<FrameBufferImages>  frameBufferImages;
+  std::weak_ptr<RenderPass>           renderPass;
+  std::shared_ptr<FrameBufferImages>  frameBufferImages;
 protected:
   struct PerSurfaceData
   {
@@ -120,24 +121,25 @@ protected:
 class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
-  InputAttachment(std::shared_ptr<FrameBuffer> frameBuffer, uint32_t frameBufferIndex);
+  InputAttachment(const std::string& attachmentName);
 
-  void validate(std::weak_ptr<Surface> surface);
-  void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
+  void                              validate(const RenderContext& renderContext) override;
+  void                              invalidate() override;
+  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+
 protected:
-  std::weak_ptr<FrameBuffer> frameBuffer;
-  uint32_t frameBufferIndex;
+  std::string attachmentName;
+//  std::weak_ptr<FrameBuffer> frameBuffer;
+//  uint32_t frameBufferIndex;
 
   struct PerSurfaceData
   {
-    PerSurfaceData(std::weak_ptr<Surface> s)
-      : surface{ s }
+    PerSurfaceData()
     {
     }
-    std::weak_ptr<Surface> surface;
-    bool                   dirty = true;
+    bool valid = false;
   };
-  mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 

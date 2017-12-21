@@ -32,6 +32,7 @@ AssetBufferNode::AssetBufferNode(std::shared_ptr<AssetBuffer> ab, std::shared_pt
 
 void AssetBufferNode::validate(const RenderContext& renderContext)
 {
+//  LOG_ERROR << "AssetBufferNode::validate : " << getName() << std::endl;
   assetBuffer->validate(renderContext);
   materialSet->validate(renderContext);
   Group::validate(renderContext);
@@ -61,5 +62,6 @@ AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, uint32_t rm, uint32_t vb)
 
 void AssetNode::validate(const RenderContext& renderContext)
 {
+//  LOG_ERROR << "AssetNode::validate : " << getName() << std::endl;
 
 }

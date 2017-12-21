@@ -168,6 +168,7 @@ Text::~Text()
 
 void Text::validate(const RenderContext& renderContext)
 {
+//  LOG_ERROR << "Text::validate : " << getName() << std::endl;
   std::lock_guard<std::mutex> lock(mutex);
   auto sit = symbolData.find(renderContext.vkSurface);
   if (sit == symbolData.end())

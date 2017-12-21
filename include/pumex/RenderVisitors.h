@@ -37,6 +37,11 @@ public:
   ValidateGPUVisitor(Surface* surface);
 
   void apply(Node& node) override;
+  void apply(GraphicsPipeline& node) override;
+  void apply(ComputePipeline& node) override;
+  void apply(AssetBufferNode& node) override;
+  void apply(AssetBufferDrawObject& node) override;
+  void apply(Text& node) override;
 
   RenderContext renderContext;
 };

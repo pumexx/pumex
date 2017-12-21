@@ -463,6 +463,7 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
       0,
       getAspectMask(resourceType->attachment.attachmentType),
       resourceType->samples,
+      resourceVector[i]->name,
       resourceType->attachment.attachmentSize,
       resourceType->attachment.swizzles
     ));

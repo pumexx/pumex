@@ -141,6 +141,8 @@ public:
   Descriptor(std::shared_ptr<DescriptorSet> owner, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
   ~Descriptor();
 
+  void registerInResources();
+
   void validate(const RenderContext& renderContext);
   void invalidate();
   void invalidateCommandBuffers();

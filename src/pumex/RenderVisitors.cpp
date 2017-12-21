@@ -33,9 +33,46 @@ ValidateGPUVisitor::ValidateGPUVisitor(Surface* s)
 
 void ValidateGPUVisitor::apply(Node& node)
 {
+  LOG_ERROR << "ValidateGPUVisitor::apply(Node& node) : " << node.getName() << std::endl;
   node.validate(renderContext);
   traverse(node);
 }
+
+void ValidateGPUVisitor::apply(GraphicsPipeline& node)
+{
+  LOG_ERROR << "ValidateGPUVisitor::apply(GraphicsPipeline& node) : " << node.getName() << std::endl;
+  node.validate(renderContext);
+  traverse(node);
+}
+
+void ValidateGPUVisitor::apply(ComputePipeline& node)
+{
+  LOG_ERROR << "ValidateGPUVisitor::apply(ComputePipeline& node) : " << node.getName() << std::endl;
+  node.validate(renderContext);
+  traverse(node);
+}
+
+void ValidateGPUVisitor::apply(AssetBufferNode& node)
+{
+  LOG_ERROR << "ValidateGPUVisitor::apply(AssetBufferNode& node) : " << node.getName() << std::endl;
+  node.validate(renderContext);
+  traverse(node);
+}
+
+void ValidateGPUVisitor::apply(AssetBufferDrawObject& node)
+{
+  LOG_ERROR << "ValidateGPUVisitor::apply(AssetBufferDrawObject& node) : " << node.getName() << std::endl;
+  node.validate(renderContext);
+  traverse(node);
+}
+
+void ValidateGPUVisitor::apply(Text& node)
+{
+  LOG_ERROR << "ValidateGPUVisitor::apply(Text& node) : " << node.getName() << std::endl;
+  node.validate(renderContext);
+  traverse(node);
+}
+
 
 BuildCommandBufferVisitor::BuildCommandBufferVisitor(Surface* s, CommandBuffer* cb)
   : NodeVisitor{ AllChildren }, renderContext(s), commandBuffer{ cb }
@@ -45,11 +82,14 @@ BuildCommandBufferVisitor::BuildCommandBufferVisitor(Surface* s, CommandBuffer* 
 
 void BuildCommandBufferVisitor::apply(Node& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::apply(Node& node) : " << node.getName() << std::endl;
   applyDescriptorSets(node);
+  traverse(node);
 }
 
 void BuildCommandBufferVisitor::apply(GraphicsPipeline& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::apply(GraphicsPipeline& node) : " << node.getName() << std::endl;
   Pipeline* previous = renderContext.setCurrentPipeline(&node);
   commandBuffer->cmdBindPipeline(&node);
   applyDescriptorSets(node);
@@ -60,6 +100,7 @@ void BuildCommandBufferVisitor::apply(GraphicsPipeline& node)
 
 void BuildCommandBufferVisitor::apply(ComputePipeline& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::apply(ComputePipeline& node) : " << node.getName() << std::endl;
   Pipeline* previous = renderContext.setCurrentPipeline(&node);
   commandBuffer->cmdBindPipeline(&node);
   applyDescriptorSets(node);
@@ -70,6 +111,7 @@ void BuildCommandBufferVisitor::apply(ComputePipeline& node)
 
 void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::apply(AssetBufferNode& node) : " << node.getName() << std::endl;
   AssetBufferNode* previous = renderContext.setCurrentAssetBufferNode( &node );
   applyDescriptorSets(node);
   node.assetBuffer->cmdBindVertexIndexBuffer(renderContext, commandBuffer, node.renderMask, node.vertexBinding);
@@ -80,6 +122,7 @@ void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 
 void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node) : " << node.getName() << std::endl;
   if (renderContext.currentAssetBufferNode == nullptr)
     return;
   applyDescriptorSets(node);
@@ -88,12 +131,15 @@ void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
 
 void BuildCommandBufferVisitor::apply(Text& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::apply(Text& node) : " << node.getName() << std::endl;
   applyDescriptorSets(node);
   node.cmdDraw(renderContext, commandBuffer);
+  traverse(node);
 }
 
 void BuildCommandBufferVisitor::applyDescriptorSets(Node& node)
 {
+  LOG_ERROR << "BuildCommandBufferVisitor::applyDescriptorSets(Node& node)" << std::endl;
   // FIXME : for now descriptor sets must be set below pipeline in a scene graph
   // It would be better if descriptor sets are collected and set in a moment of draw.
   if (renderContext.currentPipeline == nullptr)

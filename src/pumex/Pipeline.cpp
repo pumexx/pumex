@@ -229,14 +229,16 @@ Descriptor::Descriptor(std::shared_ptr<DescriptorSet> o, std::shared_ptr<Resourc
   : owner{ o }, descriptorType{ dt }
 {
   resources.push_back(r);
-  for( auto res : resources )
-    res->addDescriptor(shared_from_this());
 }
 
 Descriptor::Descriptor(std::shared_ptr<DescriptorSet> o, const std::vector<std::shared_ptr<Resource>>& r, VkDescriptorType dt)
   : owner{ o }, descriptorType{ dt }
 {
   resources = r;
+}
+
+void Descriptor::registerInResources()
+{
   for (auto res : resources)
     res->addDescriptor(shared_from_this());
 }
@@ -393,6 +395,7 @@ void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::share
   std::lock_guard<std::mutex> lock(mutex);
   descriptors.erase(binding);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resources, descriptorType);
+  descriptors[binding]->registerInResources();
   invalidate();
 }
 
@@ -411,6 +414,7 @@ void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> re
   std::lock_guard<std::mutex> lock(mutex);
   descriptors.erase(binding);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resource, descriptorType);
+  descriptors[binding]->registerInResources();
   invalidate();
 }
 
@@ -613,6 +617,7 @@ GraphicsPipeline::~GraphicsPipeline()
 
 void GraphicsPipeline::validate(const RenderContext& renderContext)
 {
+//  LOG_ERROR << "GraphicsPipeline::validate : " << getName() << std::endl;
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
@@ -817,6 +822,7 @@ ComputePipeline::~ComputePipeline()
 
 void ComputePipeline::validate(const RenderContext& renderContext)
 {
+//  LOG_ERROR << "ComputePipeline::validate : " << getName() << std::endl;
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())

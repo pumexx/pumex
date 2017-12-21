@@ -40,6 +40,7 @@ SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkP
 
 void SurfaceTraits::setRenderWorkflow(std::shared_ptr<RenderWorkflow> rw)
 {
+  rw->compile();
   renderWorkflow = rw;
 }
 

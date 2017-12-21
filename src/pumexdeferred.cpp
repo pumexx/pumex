@@ -468,15 +468,12 @@ int main( int argc, char * argv[] )
       workflow->addAttachmentDepthOutput("gbuffer", "depth",    "depth_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("lighting", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
-     workflow->addAttachmentInput        ("lighting", "position", "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-     workflow->addAttachmentInput        ("lighting", "normals",  "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-     workflow->addAttachmentInput        ("lighting", "albedo",   "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-     workflow->addAttachmentInput        ("lighting", "pbr",      "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-     workflow->addAttachmentOutput       ("lighting", "color",    "surface",           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,          pumex::loadOpDontCare());
-     workflow->addAttachmentResolveOutput("lighting", "resolve",  "resolve", "color",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
-
-    // testing
-    workflow->compile();
+      workflow->addAttachmentInput        ("lighting", "position", "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentInput        ("lighting", "normals",  "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentInput        ("lighting", "albedo",   "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentInput        ("lighting", "pbr",      "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentOutput       ("lighting", "color",    "surface",           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,          pumex::loadOpDontCare());
+      workflow->addAttachmentResolveOutput("lighting", "resolve",  "resolve", "color",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.setRenderWorkflow(workflow);
@@ -487,6 +484,7 @@ int main( int argc, char * argv[] )
     // surface with workflow created - let's define scene graphs for each operation
 
     auto gbufferRoot = std::make_shared<pumex::Group>();
+    gbufferRoot->setName("gbufferRoot");
     workflow->setSceneNode("gbuffer", gbufferRoot);
 
     auto pipelineCache = std::make_shared<pumex::PipelineCache>();
@@ -499,10 +497,10 @@ int main( int argc, char * argv[] )
       { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 72, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 7, 72, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 8, 72, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 9, 72, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 6, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 8, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 9, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
 
@@ -515,6 +513,7 @@ int main( int argc, char * argv[] )
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::Tangent, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneIndex, 1 },{ pumex::VertexSemantic::BoneWeight, 1 } };
 
     auto gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout);
+    gbufferPipeline->setName("gbufferPipeline");
 
     gbufferPipeline->shaderStages =
     {
@@ -578,9 +577,11 @@ int main( int argc, char * argv[] )
     materialSet->refreshMaterialStructures();
 
     auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(assetBuffer, materialSet, 1, 0);
+    assetBufferNode->setName("assetBufferNode");
     gbufferPipeline->addChild(assetBufferNode);
 
     std::shared_ptr<pumex::AssetBufferDrawObject> modelDraw = std::make_shared<pumex::AssetBufferDrawObject>(modelTypeID);
+    modelDraw->setName("modelDraw");
     assetBufferNode->addChild(modelDraw);
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
@@ -595,13 +596,15 @@ int main( int argc, char * argv[] )
     descriptorSet->setDescriptor(3, materialSet->materialVariantSbo);
     descriptorSet->setDescriptor(4, materialRegistry->materialDefinitionSbo);
     descriptorSet->setDescriptor(5, textureRegistry->textureSamplerOffsets);
-    descriptorSet->setDescriptor(6, textureRegistry->getTextures(0));
-    descriptorSet->setDescriptor(7, textureRegistry->getTextures(1));
-    descriptorSet->setDescriptor(8, textureRegistry->getTextures(2));
-    descriptorSet->setDescriptor(9, textureRegistry->getTextures(3));
+    descriptorSet->setDescriptor(6, textureRegistry->getTextures(0), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    descriptorSet->setDescriptor(7, textureRegistry->getTextures(1), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    descriptorSet->setDescriptor(8, textureRegistry->getTextures(2), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    descriptorSet->setDescriptor(9, textureRegistry->getTextures(3), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    modelDraw->setDescriptorSet(0, descriptorSet);
 
 /**********************/
     auto lightingRoot = std::make_shared<pumex::Group>();
+    lightingRoot->setName("lightingRoot");
     workflow->setSceneNode("lighting", lightingRoot);
 
     std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
@@ -624,6 +627,7 @@ int main( int argc, char * argv[] )
     compositePipelineLayout->descriptorSetLayouts.push_back(compositeDescriptorSetLayout);
 
     auto compositePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, compositePipelineLayout);
+    compositePipeline->setName("compositePipeline");
     compositePipeline->shaderStages =
     {
       { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_composite.vert.spv")), "main" },
@@ -646,30 +650,32 @@ int main( int argc, char * argv[] )
     lightingRoot->addChild(compositePipeline);
 
     std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(fullScreenTriangle,1,0);
+    assetNode->setName("assetNode");
     compositePipeline->addChild(assetNode);
 
-//    input2 = std::make_shared<pumex::InputAttachment>(nullptr, 2);
-//    input3 = std::make_shared<pumex::InputAttachment>(nullptr, 3);
-//    input4 = std::make_shared<pumex::InputAttachment>(nullptr, 4);
-//    input5 = std::make_shared<pumex::InputAttachment>(nullptr, 5);
+    auto input2 = std::make_shared<pumex::InputAttachment>("position");
+    auto input3 = std::make_shared<pumex::InputAttachment>("normals");
+    auto input4 = std::make_shared<pumex::InputAttachment>("albedo");
+    auto input5 = std::make_shared<pumex::InputAttachment>("pbr");
 
     auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
     compositeDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
     compositeDescriptorSet->setDescriptor(1, applicationData->lightsSbo);
-//    compositeDescriptorSet->setDescriptor(2, input2);
-//    compositeDescriptorSet->setDescriptor(3, input3);
-//    compositeDescriptorSet->setDescriptor(4, input4);
-//    compositeDescriptorSet->setDescriptor(5, input5);
-
+    compositeDescriptorSet->setDescriptor(2, input2);
+    compositeDescriptorSet->setDescriptor(3, input3);
+    compositeDescriptorSet->setDescriptor(4, input4);
+    compositeDescriptorSet->setDescriptor(5, input5);
+    assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
     auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+    textDefault->setName("textDefault");
 
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 1, 1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
     auto textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, textLayoutBindings);
@@ -677,6 +683,7 @@ int main( int argc, char * argv[] )
     auto textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
     auto textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
+    textPipeline->setName("textPipeline");
     textPipeline->vertexInput =
     {
       { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
@@ -704,7 +711,7 @@ int main( int argc, char * argv[] )
 
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
     textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
-    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)

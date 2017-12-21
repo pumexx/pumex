@@ -31,8 +31,8 @@
 namespace pumex
 {
 
-FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, const AttachmentSize& as, const gli::swizzles& sw)
-  : attachmentType{ at }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, attachmentSize{ as }, swizzles{ sw }
+FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, const std::string& n, const AttachmentSize& as, const gli::swizzles& sw)
+  : attachmentType{ at }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, name{ n }, attachmentSize { as }, swizzles{ sw }
 {
 }
 
@@ -83,7 +83,7 @@ void FrameBufferImages::validate(Surface* surface)
     ImageTraits imageTraits(definition.usage, definition.format, imSize, false, 1, 1,
       definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
-    pddit->second.frameBufferImages[i] = std::make_unique<Image>(surface->device.lock().get(), imageTraits, allocator);
+    pddit->second.frameBufferImages[i] = std::make_shared<Image>(surface->device.lock().get(), imageTraits, allocator);
   }
   pddit->second.dirty = false;
 }
@@ -115,7 +115,7 @@ FrameBufferImageDefinition FrameBufferImages::getSwapChainDefinition()
   for (const auto& d : imageDefinitions)
     if (d.attachmentType == atSurface)
       return d;
-  return FrameBufferImageDefinition(atSurface, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT);
+  return FrameBufferImageDefinition(atSurface, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT, "swapchain");
 }
 
 FrameBuffer::FrameBuffer(std::shared_ptr<RenderPass> rp, std::shared_ptr<FrameBufferImages> fbi)
@@ -149,7 +149,6 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
   std::lock_guard<std::mutex> lock(mutex);
   std::shared_ptr<RenderPass> rp         = renderPass.lock();
   std::shared_ptr<Device> deviceSh       = surface->device.lock();
-  std::shared_ptr<FrameBufferImages> fbi = frameBufferImages.lock();
 
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
@@ -163,7 +162,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
   for (uint32_t i = 0; i < rp->attachments.size(); i++)
   {
     AttachmentDefinition& definition          = rp->attachments[i];
-    FrameBufferImageDefinition& fbiDefinition = fbi->imageDefinitions[definition.imageDefinitionIndex];
+    FrameBufferImageDefinition& fbiDefinition = frameBufferImages->imageDefinitions[definition.imageDefinitionIndex];
     if (fbiDefinition.attachmentType == atSurface)
     {
       imageViews[i] = VK_NULL_HANDLE;
@@ -171,13 +170,13 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
     }
     else
     {
-      imageViews[i] = fbi->getImage(surface, definition.imageDefinitionIndex)->getImageView();
+      imageViews[i] = frameBufferImages->getImage(surface, definition.imageDefinitionIndex)->getImageView();
     }
 
     if (definition.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED)
     {
       auto commandBuffer = deviceSh->beginSingleTimeCommands(surface->commandPool.get());
-      commandBuffer->setImageLayout(*(fbi->getImage(surface, definition.imageDefinitionIndex)), fbiDefinition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
+      commandBuffer->setImageLayout(*(frameBufferImages->getImage(surface, definition.imageDefinitionIndex)), fbiDefinition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
       deviceSh->endSingleTimeCommands(commandBuffer, surface->presentationQueue);
     }
   }
@@ -188,7 +187,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
     for (uint32_t j = 0; j < rp->attachments.size(); j++)
     {
       AttachmentDefinition& definition          = rp->attachments[j];
-      FrameBufferImageDefinition& fbiDefinition = fbi->imageDefinitions[definition.imageDefinitionIndex];
+      FrameBufferImageDefinition& fbiDefinition = frameBufferImages->imageDefinitions[definition.imageDefinitionIndex];
       if (fbiDefinition.attachmentType == atSurface)
         imageViews[j] = swapChainImages[i]->getImageView();
     }
@@ -219,21 +218,34 @@ VkFramebuffer FrameBuffer::getFrameBuffer(Surface* surface, uint32_t fbIndex)
   return pddit->second.frameBuffers[fbIndex];
 }
 
-InputAttachment::InputAttachment(std::shared_ptr<FrameBuffer> fb, uint32_t fbi)
-  : frameBuffer{ fb }, frameBufferIndex{ fbi }
+InputAttachment::InputAttachment(const std::string& an)
+  : attachmentName{ an }
 {
 }
 
-void InputAttachment::validate(std::weak_ptr<Surface> surface)
+std::pair<bool, VkDescriptorType> InputAttachment::getDefaultDescriptorType()
+{
+  return{ true, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT };
+}
+
+
+void InputAttachment::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  std::shared_ptr<Surface> s = surface.lock();
-  auto pddit = perSurfaceData.find(s->surface);
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
-    pddit = perSurfaceData.insert({ s->surface, PerSurfaceData(surface) }).first;
-  if (!pddit->second.dirty)
+    pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData() }).first;
+  if (pddit->second.valid)
     return;
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
+}
+
+void InputAttachment::invalidate()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perSurfaceData)
+    pdd.second.valid = false;
+  invalidateDescriptors();
 }
 
 void InputAttachment::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
@@ -242,22 +254,18 @@ void InputAttachment::getDescriptorSetValues(const RenderContext& renderContext,
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
     return;
-  std::shared_ptr<Surface>     s = pddit->second.surface.lock();
-  std::shared_ptr<FrameBuffer> f = frameBuffer.lock();
-  if (f.get() != nullptr)
+  auto frameBuffer = renderContext.renderOperation->renderWorkflow.lock()->frameBuffer;
+  uint32_t frameBufferIndex = UINT32_MAX;
+  for (uint32_t i = 0; i < frameBuffer->frameBufferImages->imageDefinitions.size(); ++i)
   {
-    std::shared_ptr<RenderPass> rp         = f->renderPass.lock();
-    std::shared_ptr<FrameBufferImages> fbi = f->frameBufferImages.lock();
-    uint32_t actualIndex = rp->attachments[frameBufferIndex].imageDefinitionIndex;
-    values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s.get(), frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    if (frameBuffer->frameBufferImages->imageDefinitions[i].name == attachmentName)
+    {
+      frameBufferIndex = i;
+      break;
+    }
   }
-  else
-  {
-    std::shared_ptr<RenderPass> rp         = s->renderWorkflow->frameBuffer->renderPass.lock();
-    std::shared_ptr<FrameBufferImages> fbi = s->renderWorkflow->frameBuffer->frameBufferImages.lock();
-    uint32_t actualIndex = rp->attachments[frameBufferIndex].imageDefinitionIndex;
-    values.push_back(DescriptorSetValue(VK_NULL_HANDLE, fbi->getImage(s.get(), frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-  }
+  CHECK_LOG_THROW(frameBufferIndex == UINT32_MAX, "Can't find input attachment with name : " << attachmentName);
+  values.push_back(DescriptorSetValue(VK_NULL_HANDLE, frameBuffer->frameBufferImages->getImage(renderContext.surface, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 }
 
 }
