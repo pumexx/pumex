@@ -112,6 +112,17 @@ Group::~Group()
   children.clear();
 }
 
+void Group::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
+}
+
+
 void Group::traverse(NodeVisitor& visitor)
 {
   for (auto child : *this)

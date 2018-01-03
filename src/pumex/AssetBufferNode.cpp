@@ -21,6 +21,7 @@
 //
 
 #include <pumex/AssetBufferNode.h>
+#include <pumex/NodeVisitor.h>
 
 using namespace pumex;
 
@@ -28,6 +29,16 @@ AssetBufferNode::AssetBufferNode(std::shared_ptr<AssetBuffer> ab, std::shared_pt
   : assetBuffer{ ab }, materialSet{ ms }, renderMask { rm }, vertexBinding{ vb }
 {
 
+}
+
+void AssetBufferNode::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
 }
 
 void AssetBufferNode::validate(const RenderContext& renderContext)
@@ -44,6 +55,22 @@ AssetBufferDrawObject::AssetBufferDrawObject(uint32_t tid, uint32_t fi)
 
 }
 
+void AssetBufferDrawObject::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
+}
+
+void AssetBufferDrawObject::validate(const RenderContext& renderContext)
+{
+
+}
+
+
 float AssetBufferDrawObject::getDistanceToViewer() const
 {
   // FIXME - we need to pass pumex::Camera object somehow here
@@ -58,6 +85,16 @@ AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, uint32_t rm, uint32_t vb)
   : asset{ a }, renderMask{ rm }, vertexBinding{ vb }
 {
 
+}
+
+void AssetNode::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
 }
 
 void AssetNode::validate(const RenderContext& renderContext)

@@ -395,9 +395,11 @@ struct DeferredApplicationData
   pumex::HPClock::time_point                                     lastFrameStart;
 };
 
+
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
+
   args::ArgumentParser parser("pumex example : deferred rendering with physically based rendering and antialiasing");
   args::HelpFlag       help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });

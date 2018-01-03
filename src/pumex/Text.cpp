@@ -21,6 +21,7 @@
 //
 
 #include <pumex/Text.h>
+#include <pumex/NodeVisitor.h>
 #include <pumex/Texture.h>
 #include <pumex/utils/Log.h>
 #include <pumex/utils/Shapes.h>
@@ -164,6 +165,16 @@ Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba)
 
 Text::~Text()
 {
+}
+
+void Text::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
 }
 
 void Text::validate(const RenderContext& renderContext)

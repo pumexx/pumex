@@ -49,6 +49,12 @@ MaterialSet::~MaterialSet()
   //      pdd.second.deleteBuffers(pdd.first);
 }
 
+void MaterialSet::validate(const RenderContext& renderContext)
+{
+  // FIXME : missing material set validation
+}
+
+
 bool MaterialSet::getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const
 {
   auto it = textureNames.find(index);

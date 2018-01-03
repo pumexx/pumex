@@ -340,7 +340,7 @@ public:
   inline bool hasShaderStage(VkShaderStageFlagBits stage) const;
 
   // TODO : add a bunch of handy functions defining different pipeline aspects - these functions must call internalInvalidate()
-
+  void       accept(NodeVisitor& visitor) override;
   void       validate(const RenderContext& renderContext) override;
 
   // vertex input state
@@ -406,7 +406,7 @@ public:
   virtual ~ComputePipeline();
 
   // TODO : add a bunch of handy functions defining different pipeline aspects - these functions must call internalInvalidate()
-
+  void       accept(NodeVisitor& visitor) override;
   void       validate(const RenderContext& renderContext) override;
 
   // shader stage

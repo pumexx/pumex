@@ -102,6 +102,7 @@ public:
   Text& operator=(const Text&) = delete;
   virtual ~Text();
 
+  void            accept(NodeVisitor& visitor) override;
   void            validate(const RenderContext& renderContext) override;
   void            cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
 

@@ -102,7 +102,7 @@ public:
 //      void registerProperties(const pumex::Material& material)
 //      void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
 // Check out different MaterialData implementations in examples ( crowd, gpucull and deferred ).
-class PUMEX_EXPORT MaterialSet : public Group
+class PUMEX_EXPORT MaterialSet
 {
 public:
   MaterialSet()                              = delete;
@@ -110,6 +110,8 @@ public:
   MaterialSet(const MaterialSet&)            = delete;
   MaterialSet& operator=(const MaterialSet&) = delete;
   virtual ~MaterialSet();
+
+  void                                         validate(const RenderContext& renderContext);
 
   bool                                         getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;
   bool                                         setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, const gli::texture& tex);

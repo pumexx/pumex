@@ -33,6 +33,7 @@ class PUMEX_EXPORT AssetBufferNode : public Group
 public:
   AssetBufferNode(std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<MaterialSet> materialSet, uint32_t renderMask, uint32_t vertexBinding);
 
+  void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
   std::shared_ptr<AssetBuffer> assetBuffer;
@@ -47,6 +48,9 @@ class PUMEX_EXPORT AssetBufferDrawObject : public Node
 public:
   AssetBufferDrawObject(uint32_t typeID, uint32_t firstInstance = 0);
 
+  void accept(NodeVisitor& visitor) override;
+  void validate(const RenderContext& renderContext) override;
+
   float getDistanceToViewer() const;
 
   uint32_t typeID;
@@ -58,6 +62,7 @@ class PUMEX_EXPORT AssetNode : public Node
 public:
   AssetNode(std::shared_ptr<pumex::Asset> asset, uint32_t renderMask, uint32_t vertexBinding);
 
+  void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
   std::shared_ptr<pumex::Asset> asset;

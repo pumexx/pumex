@@ -21,6 +21,7 @@
 //
 
 #include <pumex/Pipeline.h>
+#include <pumex/NodeVisitor.h>
 #include <pumex/RenderPass.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Device.h>
@@ -614,6 +615,16 @@ GraphicsPipeline::~GraphicsPipeline()
     vkDestroyPipeline(pddit.first, pddit.second.pipeline, nullptr);
 }
 
+void GraphicsPipeline::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
+}
+
 
 void GraphicsPipeline::validate(const RenderContext& renderContext)
 {
@@ -818,6 +829,16 @@ ComputePipeline::~ComputePipeline()
 {
   for (auto& pddit : perDeviceData)
     vkDestroyPipeline(pddit.first, pddit.second.pipeline, nullptr);
+}
+
+void ComputePipeline::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
 }
 
 void ComputePipeline::validate(const RenderContext& renderContext)

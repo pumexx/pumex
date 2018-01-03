@@ -82,6 +82,7 @@ public:
   Group();
   virtual ~Group();
 
+  void accept(NodeVisitor& visitor) override;
   void traverse(NodeVisitor& visitor) override;
 
   virtual void                  addChild(std::shared_ptr<Node> child);
