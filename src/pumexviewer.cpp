@@ -87,121 +87,10 @@ struct RenderData
 
 struct ViewerApplicationData
 {
-  ViewerApplicationData(std::shared_ptr<pumex::Viewer> v, const std::string& mName )
-    : viewer{v}
+  ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
   {
-    modelName = viewer->getFullFilePath(mName);
-  }
-  void setup()
-  {
-    // alocate 1 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT , 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 64 MB for vertex and index buffers
-    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
-    std::vector<pumex::VertexSemantic> requiredSemantic           = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
-    std::vector<pumex::VertexSemantic> boxSemantic                = requiredSemantic;//{ { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 } };
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, requiredSemantic } };
-    std::vector<pumex::AssetBufferVertexSemantics> boxSemantics   = { { 1, boxSemantic } };
-
-    assetBuffer    = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    boxAssetBuffer = std::make_shared<pumex::AssetBuffer>(boxSemantics, buffersAllocator, verticesAllocator);
-    pumex::AssetLoaderAssimp loader;
-    std::shared_ptr<pumex::Asset> asset(loader.load(modelName, false, requiredSemantic));
-    CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelName);
-
-    pumex::BoundingBox bbox;
-    if (asset->animations.size() > 0)
-      bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
-    else
-      bbox = pumex::calculateBoundingBox(*asset,1);
-
-    pumex::Geometry boxg;
-    boxg.name     = "box";
-    boxg.semantic = boxSemantic;
-    pumex::addBox(boxg, bbox.bbMin, bbox.bbMax, true);
-    std::shared_ptr<pumex::Asset> boxAsset(pumex::createSimpleAsset(boxg, "root"));
-
-    pumex::Geometry cone;
-    cone.name     = "cone";
-    cone.semantic = requiredSemantic;
-    pumex::addCone(cone, glm::vec3(0, 0, 0), 0.1f, 0.1f, 16, 8, true);
-    std::shared_ptr<pumex::Asset> testAsset(pumex::createSimpleAsset(cone, "root"));
-
-    pumex::BoundingBox testFigureBbox = pumex::calculateBoundingBox(*testAsset,1);
-
-    modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
-    assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-    boxTypeID = boxAssetBuffer->registerType("objectBox", pumex::AssetTypeDefinition(bbox));
-    boxAssetBuffer->registerObjectLOD(boxTypeID, boxAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-    testFigureTypeID = assetBuffer->registerType("testFigure", pumex::AssetTypeDefinition(testFigureBbox));
-    assetBuffer->registerObjectLOD(testFigureTypeID, testAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-    std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
-    };
-    descriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
-
-    descriptorPool = std::make_shared<pumex::DescriptorPool>(2, layoutBindings);
-
-    // building pipeline layout
-    pipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    pipelineLayout->descriptorSetLayouts.push_back(descriptorSetLayout);
-
-    pipelineCache = std::make_shared<pumex::PipelineCache>();
-
-    pipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout, defaultRenderPass, 0);
-    pipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.frag.spv")), "main" }
-    };
-    pipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
-    };
-    pipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    pipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    boxPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout, defaultRenderPass, 0);
-    boxPipeline->polygonMode  = VK_POLYGON_MODE_LINE;
-    boxPipeline->cullMode     = VK_CULL_MODE_NONE;
-    boxPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.frag.spv")), "main" }
-    };
-    boxPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, boxSemantic }
-    };
-    boxPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    cameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-
-    // is this the fastest way to calculate all global transformations for a model ?
-    std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
-    PositionData modelData;
-    std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
-
-    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData, buffersAllocator);
-    descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    descriptorSet->setDescriptor(0, cameraUbo);
-    descriptorSet->setDescriptor(1, positionUbo);
-    boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    boxDescriptorSet->setDescriptor(0, cameraUbo);
-    boxDescriptorSet->setDescriptor(1, positionUbo);
+    cameraUbo   = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -212,38 +101,15 @@ struct ViewerApplicationData
     updateData.moveBackward                = false;
     updateData.moveLeft                    = false;
     updateData.moveRight                   = false;
-  }
 
-  void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
-  {
-    pumex::Device*      devicePtr      = surface->device.lock().get();
-    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-
-    myCmdBuffer[surface.get()] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
-
-    cameraUbo->validate(surface.get());
-    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-
-    // loading models
-    assetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    boxAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    descriptorSetLayout->validate(devicePtr);
-    descriptorPool->validate(devicePtr);
-    pipelineLayout->validate(devicePtr);
-    pipelineCache->validate(devicePtr);
-    pipeline->validate(devicePtr);
-    boxPipeline->validate(devicePtr);
-
-    // preparing descriptor sets
-    descriptorSet->validate(surface.get());
-    boxDescriptorSet->validate(surface.get());
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
+    std::shared_ptr<pumex::Window> window = surface->window.lock();
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
 
-    std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
+    std::vector<pumex::InputEvent> mouseEvents = window->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
     for (const auto& m : mouseEvents)
     {
@@ -339,6 +205,7 @@ struct ViewerApplicationData
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
     uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
@@ -377,10 +244,9 @@ struct ViewerApplicationData
     cameraUbo->set(surface.get(), camera);
   }
 
-  void prepareModelForRendering()
+  void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Asset> asset)
   {
-    std::shared_ptr<pumex::Asset> assetX = assetBuffer->getAsset(modelTypeID, 0);
-    if (assetX->animations.empty())
+    if (asset->animations.empty())
       return;
 
     uint32_t renderIndex = viewer->getRenderIndex();
@@ -391,8 +257,8 @@ struct ViewerApplicationData
 
 
     PositionData positionData;
-    pumex::Animation& anim = assetX->animations[0];
-    pumex::Skeleton& skel = assetX->skeleton;
+    pumex::Animation& anim = asset->animations[0];
+    pumex::Skeleton& skel = asset->skeleton;
 
     uint32_t numAnimChannels = anim.channels.size();
     uint32_t numSkelBones = skel.bones.size();
@@ -423,74 +289,13 @@ struct ViewerApplicationData
     positionUbo->set(positionData);
   }
 
-  void draw(std::shared_ptr<pumex::Surface> surface)
-  {
-    pumex::Surface*     surfacePtr = surface.get();
-    pumex::Device*      devicePtr = surface->device.lock().get();
-    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-    unsigned long long  frameNumber = surface->viewer.lock()->getFrameNumber();
-    uint32_t            activeIndex = frameNumber % 3;
-    uint32_t            renderWidth = surface->swapChainSize.width;
-    uint32_t            renderHeight = surface->swapChainSize.height;
-
-    cameraUbo->validate(surfacePtr);
-    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-
-    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
-    currentCmdBuffer->setActiveIndex(activeIndex);
-    if (currentCmdBuffer->isDirty(activeIndex))
-    {
-      currentCmdBuffer->cmdBegin();
-
-      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-      currentCmdBuffer->cmdBindPipeline(pipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
-      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, testFigureTypeID, 0, 50.0f);
-
-      currentCmdBuffer->cmdBindPipeline(boxPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, boxDescriptorSet.get());
-      boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, boxTypeID, 0, 50.0f);
-
-      currentCmdBuffer->cmdEndRenderPass();
-      currentCmdBuffer->cmdEnd();
-    }
-    currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
-  }
-
-  std::shared_ptr<pumex::Viewer> viewer;
-  std::string modelName;
-  uint32_t    modelTypeID;
-  uint32_t    boxTypeID;
-  uint32_t    testFigureTypeID;
-
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
 
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
-
-  std::shared_ptr<pumex::AssetBuffer>         assetBuffer;
-  std::shared_ptr<pumex::AssetBuffer>         boxAssetBuffer;
-  std::shared_ptr<pumex::RenderPass>          defaultRenderPass;
-  std::shared_ptr<pumex::DescriptorSetLayout> descriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>      pipelineLayout;
-  std::shared_ptr<pumex::PipelineCache>       pipelineCache;
-  std::shared_ptr<pumex::GraphicsPipeline>    pipeline;
-  std::shared_ptr<pumex::GraphicsPipeline>    boxPipeline;
-  std::shared_ptr<pumex::DescriptorPool>      descriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>       descriptorSet;
-  std::shared_ptr<pumex::DescriptorSet>       boxDescriptorSet;
-
-  std::unordered_map<pumex::Surface*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
+  pumex::HPClock::time_point                                     lastFrameStart;
 };
 
 int main( int argc, char * argv[] )
@@ -543,6 +348,8 @@ int main( int argc, char * argv[] )
   try
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    auto fullModelFileName = viewer->getFullFilePath(modelFileName);
+    CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
 
     std::vector<pumex::QueueTraits> requestQueues = { pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT , 0, { 0.75f } } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -552,49 +359,149 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
-    {
-      { pumex::atSurface, VK_FORMAT_B8G8R8A8_UNORM,    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
-      { pumex::atDepth,   VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_SAMPLE_COUNT_1_BIT }
-    };
-
-    // allocate 16 MB for frame buffers ( actually only depth buffer will be allocated )
+    // alocate 16 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, frameBufferAllocator);
+    // alocate 1 MB for uniform and storage buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
-    std::vector<pumex::AttachmentDefinition> renderPassAttachments =
-    {
-      { 0, VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0 },
-      { 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,         0 }
-    };
+    // create application data
+    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator);
 
-    std::vector<pumex::SubpassDefinition> renderPassSubpasses = 
-    {
-      {
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        {},
-        { { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
-        {},
-        { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
-        {},
-        0
-      }
-    };
-    std::vector<pumex::SubpassDependencyDefinition> renderPassDependencies;
+    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
 
-    std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", workflowCompiler, frameBufferAllocator);
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, false, pumex::atDepth, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface", VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, true, pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
+
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
+      workflow->addAttachmentDepthOutput("rendering", "depth", "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput("rendering", "color", "surface", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpDontCare());
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
-    surfaceTraits.setDefaultRenderPass(renderPass);
-    surfaceTraits.setFrameBufferImages(frameBufferImages);
-
-    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(viewer, modelFileName);
-    applicationData->defaultRenderPass = renderPass;
-    applicationData->setup();
-
+    surfaceTraits.setRenderWorkflow(workflow);
     std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
-    applicationData->surfaceSetup(surface);
+
+    auto renderRoot = std::make_shared<pumex::Group>();
+    renderRoot->setName("renderRoot");
+    workflow->setSceneNode("rendering", renderRoot);
+
+    std::vector<pumex::VertexSemantic>             requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics   = { { 1, requiredSemantic } };
+
+    std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
+    };
+    auto descriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
+
+    auto descriptorPool = std::make_shared<pumex::DescriptorPool>(12, layoutBindings);
+
+    // building pipeline layout
+    auto pipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    pipelineLayout->descriptorSetLayouts.push_back(descriptorSetLayout);
+
+    auto pipelineCache = std::make_shared<pumex::PipelineCache>();
+
+    auto pipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
+    pipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.frag.spv")), "main" }
+    };
+    pipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
+    };
+    pipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF }
+    };
+    pipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    renderRoot->addChild(pipeline);
+
+    auto boxPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
+    boxPipeline->polygonMode = VK_POLYGON_MODE_LINE;
+    boxPipeline->cullMode = VK_CULL_MODE_NONE;
+    boxPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/viewer_basic.frag.spv")), "main" }
+    };
+    boxPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
+    };
+    boxPipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF }
+    };
+    boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    renderRoot->addChild(boxPipeline);
+
+    pumex::AssetLoaderAssimp loader;
+    std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
+    CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
+
+    pumex::BoundingBox bbox;
+    if (asset->animations.size() > 0)
+      bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
+    else
+      bbox = pumex::calculateBoundingBox(*asset, 1);
+
+    pumex::Geometry boxg;
+    boxg.name = "box";
+    boxg.semantic = requiredSemantic;
+    pumex::addBox(boxg, bbox.bbMin, bbox.bbMax, true);
+    std::shared_ptr<pumex::Asset> boxAsset(pumex::createSimpleAsset(boxg, "root"));
+
+    pumex::Geometry cone;
+    cone.name = "cone";
+    cone.semantic = requiredSemantic;
+    pumex::addCone(cone, glm::vec3(0, 0, 0), 0.1f, 0.1f, 16, 8, true);
+    std::shared_ptr<pumex::Asset> testAsset(pumex::createSimpleAsset(cone, "root"));
+
+    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, 1, 0);
+    assetNode->setName("assetNode");
+    pipeline->addChild(assetNode);
+
+    std::shared_ptr<pumex::AssetNode> testAssetNode = std::make_shared<pumex::AssetNode>(testAsset, 1, 0);
+    testAssetNode->setName("testAssetNode");
+    pipeline->addChild(testAssetNode);
+
+    std::shared_ptr<pumex::AssetNode> boxAssetNode = std::make_shared<pumex::AssetNode>(boxAsset, 1, 0);
+    boxAssetNode->setName("boxAssetNode");
+    boxPipeline->addChild(boxAssetNode);
+
+    // is this the fastest way to calculate all global transformations for a model ?
+    std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
+    PositionData modelData;
+    std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
+
+    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
+      descriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      descriptorSet->setDescriptor(1, applicationData->positionUbo);
+    pipeline->setDescriptorSet(0, descriptorSet);
+
+    auto boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
+      boxDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      boxDescriptorSet->setDescriptor(1, applicationData->positionUbo);
+    boxPipeline->setDescriptorSet(0, boxDescriptorSet);
+
+    // missing commands
+    //    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+    //    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+
+    //    assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+    //    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
+    //    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, testFigureTypeID, 0, 50.0f);
+
+    //    boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+    //    boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, boxTypeID, 0, 50.0f);
+
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
@@ -610,9 +517,21 @@ int main( int argc, char * argv[] )
     // Consider make_edge() in render graph :
     // viewer->startRenderGraph should point to all root nodes.
     // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareModelForRendering(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
+    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      applicationData->prepareModelForRendering(viewer, asset);
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    {
+      applicationData->prepareCameraForRendering(surface);
+      surface->beginFrame();
+      surface->validateGPUData(true);
+      surface->buildPrimaryCommandBuffer();
+    });
+    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
+    { 
+      surface->draw();
+    });
     tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
 
     tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);

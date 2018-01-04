@@ -78,7 +78,7 @@ protected:
     }
     VkDevice                             device;
     std::vector<std::shared_ptr<Image>>  frameBufferImages;
-    bool                                 dirty = true;
+    bool                                 valid = false;
   };
 
   mutable std::mutex                               mutex;
@@ -112,7 +112,7 @@ protected:
     }
     VkDevice                            device;
     std::vector<VkFramebuffer>          frameBuffers;
-    bool                                dirty = true;
+    bool                                valid = false;
   };
   mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;

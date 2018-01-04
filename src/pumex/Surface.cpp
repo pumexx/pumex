@@ -186,6 +186,7 @@ void Surface::createSwapChain()
   for (uint32_t i = 0; i < imageCount; i++)
     swapChainImages.push_back(std::make_unique<Image>(deviceSh.get(), images[i], swapChainDefinition.format, 1, 1, swapChainDefinition.aspectMask, VK_IMAGE_VIEW_TYPE_2D, swapChainDefinition.swizzles));
 
+  validateGPUData(false);
   renderWorkflow->frameBufferImages->validate(this);
   renderWorkflow->frameBuffer->validate(this, swapChainImages);
 
@@ -213,9 +214,9 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
 
-void Surface::validateGPUData()
+void Surface::validateGPUData(bool validateRenderGraphs)
 {
-  ValidateGPUVisitor validateVisitor(this);
+  ValidateGPUVisitor validateVisitor(this, validateRenderGraphs);
   for (auto commandSequence : renderWorkflow->commandSequences)
     for( auto command : commandSequence )
       command->validateGPUData(validateVisitor);
@@ -224,7 +225,7 @@ void Surface::validateGPUData()
 void Surface::buildPrimaryCommandBuffer()
 {
   primaryCommandBuffer->setActiveIndex(swapChainImageIndex);
-  if (primaryCommandBuffer->isDirty(swapChainImageIndex))
+  if (!primaryCommandBuffer->isValid(swapChainImageIndex))
   {
     BuildCommandBufferVisitor cbVisitor(this, primaryCommandBuffer.get());
 

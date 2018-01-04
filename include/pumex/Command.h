@@ -86,8 +86,8 @@ public:
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
-  void            setDirty(uint32_t index);
-  inline bool     isDirty(uint32_t index);
+  void            invalidate(uint32_t index);
+  inline bool     isValid(uint32_t index);
 
   void            addSource(CommandBufferSource* source);
   void            clearSources();
@@ -134,7 +134,7 @@ public:
   VkDevice                     device = VK_NULL_HANDLE;
 protected:
   std::vector<VkCommandBuffer>   commandBuffer;
-  std::vector<bool>              dirty;
+  std::vector<bool>              valid;
   mutable std::mutex             mutex;
   std::set<CommandBufferSource*> sources;
   uint32_t                       activeIndex   = 0;
@@ -142,7 +142,7 @@ protected:
 
 void     CommandBuffer::setActiveIndex(uint32_t index) { activeIndex = index % commandBuffer.size(); }
 uint32_t CommandBuffer::getActiveIndex() const         { return activeIndex; }
-bool     CommandBuffer::isDirty(uint32_t index)        { return dirty[index]; }
+bool     CommandBuffer::isValid(uint32_t index)        { return valid[index]; }
 
 // helper class defining pipeline barrier used later in CommandBuffer::cmdPipelineBarrier()
 struct PUMEX_EXPORT PipelineBarrier

@@ -86,7 +86,6 @@ void Node::resetDescriptorSet(uint32_t index)
 
 void Node::validate(const RenderContext& renderContext)
 {
-//  LOG_ERROR << "Node::validate : " << getName() << std::endl;
   for (auto& descriptorSet : descriptorSets)
     descriptorSet.second->validate(renderContext);
   valid = true;

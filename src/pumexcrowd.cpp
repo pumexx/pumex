@@ -1107,7 +1107,7 @@ struct CrowdApplicationData
 
     auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
     currentCmdBuffer->setActiveIndex(activeIndex);
-    if (currentCmdBuffer->isDirty(activeIndex))
+    if (!currentCmdBuffer->isValid(activeIndex))
     {
       currentCmdBuffer->cmdBegin();
       timeStampQueryPool->reset(surfacePtr, currentCmdBuffer, activeIndex * 4, 4);

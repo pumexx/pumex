@@ -77,7 +77,7 @@ CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp
     cmdBufAllocateInfo.level              = bufferLevel;
     cmdBufAllocateInfo.commandBufferCount = cbc;
   VK_CHECK_LOG_THROW(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffer.data()), "failed vkAllocateCommandBuffers");
-  dirty.resize(cbc, true);
+  valid.resize(cbc, false);
 }
 
 CommandBuffer::~CommandBuffer()
@@ -86,12 +86,12 @@ CommandBuffer::~CommandBuffer()
   vkFreeCommandBuffers(device, commandPool->getHandle(device), commandBuffer.size(), commandBuffer.data());
 }
 
-void CommandBuffer::setDirty(uint32_t index) 
+void CommandBuffer::invalidate(uint32_t index) 
 { 
   if (index == UINT32_MAX) 
-    std::fill(dirty.begin(), dirty.end(), true);
+    std::fill(valid.begin(), valid.end(), false);
   else 
-    dirty[index] = true; 
+    valid[index] = true; 
 }
 
 void CommandBuffer::addSource(CommandBufferSource* source)
@@ -127,7 +127,7 @@ void CommandBuffer::cmdBegin(VkCommandBufferUsageFlags usageFlags)
 void CommandBuffer::cmdEnd()
 {
   VK_CHECK_LOG_THROW(vkEndCommandBuffer(commandBuffer[activeIndex]), "failed vkEndCommandBuffer");
-  dirty[activeIndex] = false;
+  valid[activeIndex] = true;
 }
 
 void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
@@ -483,7 +483,7 @@ void CommandBufferSource::notifyCommandBuffers(uint32_t index)
 {
   std::lock_guard<std::mutex> lock(commandMutex);
   for (auto cb : commandBuffers)
-    cb->setDirty(index);
+    cb->invalidate(index);
 }
 
 

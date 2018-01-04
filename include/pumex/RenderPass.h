@@ -122,7 +122,7 @@ protected:
   struct PerDeviceData
   {
     VkRenderPass renderPass = VK_NULL_HANDLE;
-    bool         dirty      = true;
+    bool         valid      = false;
   };
 
   mutable std::mutex                          mutex;
@@ -141,7 +141,7 @@ public:
 protected:
   struct PerDeviceData
   {
-    bool         dirty = true;
+    bool         valid = false;
   };
 
   mutable std::mutex                          mutex;

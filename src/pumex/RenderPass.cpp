@@ -143,7 +143,7 @@ void RenderPass::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
-  if (!pddit->second.dirty)
+  if (pddit->second.valid)
     return;
   if (pddit->second.renderPass != VK_NULL_HANDLE)
     vkDestroyRenderPass(pddit->first, pddit->second.renderPass, nullptr);
@@ -169,7 +169,7 @@ void RenderPass::validate(const RenderContext& renderContext)
     renderPassCI.dependencyCount = dependencyDescriptors.size();
     renderPassCI.pDependencies   = dependencyDescriptors.data();
   VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.renderPass), "Could not create default render pass" );
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
 }
 
 VkRenderPass RenderPass::getHandle(VkDevice device) const
@@ -184,16 +184,19 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
 void RenderPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 {
   validateVisitor.renderContext.setRenderPass(this);
-  validate(validateVisitor.renderContext);
   uint32_t subpassIndex = 0;
-  for (auto operation : renderOperations)
+  validate(validateVisitor.renderContext);
+  if (validateVisitor.validateRenderGraphs)
   {
-    validateVisitor.renderContext.setSubpassIndex(subpassIndex);
-    validateVisitor.renderContext.setRenderOperation(operation.get());
+    for (auto operation : renderOperations)
+    {
+      validateVisitor.renderContext.setSubpassIndex(subpassIndex);
+      validateVisitor.renderContext.setRenderOperation(operation.get());
 
-    operation->sceneNode->accept(validateVisitor);
+      operation->sceneNode->accept(validateVisitor);
 
-    subpassIndex++;
+      subpassIndex++;
+    }
   }
   validateVisitor.renderContext.setRenderPass(NULL);
   validateVisitor.renderContext.setSubpassIndex(0);

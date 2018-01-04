@@ -68,6 +68,11 @@ void NodeVisitor::apply(AssetBufferDrawObject& node)
   apply(static_cast<Node&>(node));
 }
 
+void NodeVisitor::apply(AssetNode& node)
+{
+  apply(static_cast<Node&>(node));
+}
+
 void NodeVisitor::apply(Text& node)
 {
   apply(static_cast<Node&>(node));

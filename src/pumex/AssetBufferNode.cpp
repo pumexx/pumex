@@ -43,9 +43,10 @@ void AssetBufferNode::accept(NodeVisitor& visitor)
 
 void AssetBufferNode::validate(const RenderContext& renderContext)
 {
-//  LOG_ERROR << "AssetBufferNode::validate : " << getName() << std::endl;
-  assetBuffer->validate(renderContext);
-  materialSet->validate(renderContext);
+  if(assetBuffer.get() != nullptr)
+    assetBuffer->validate(renderContext);
+  if (materialSet.get() != nullptr)
+    materialSet->validate(renderContext);
   Group::validate(renderContext);
 }
 
@@ -99,6 +100,5 @@ void AssetNode::accept(NodeVisitor& visitor)
 
 void AssetNode::validate(const RenderContext& renderContext)
 {
-//  LOG_ERROR << "AssetNode::validate : " << getName() << std::endl;
 
 }

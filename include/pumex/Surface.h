@@ -73,7 +73,7 @@ public:
 
   void            cleanup();
   void            beginFrame();
-  void            validateGPUData();
+  void            validateGPUData(bool validateRenderGraphs);
   void            buildPrimaryCommandBuffer();
   void            draw();
   void            endFrame();

@@ -273,7 +273,7 @@ public:
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
   std::vector<QueueTraits>                                                     queueTraits;
 
-  bool                                                                         dirty = true;
+  bool                                                                         valid = false;
 
   // data created during workflow compilation
   std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;

@@ -54,7 +54,7 @@ void FrameBufferImages::validate(Surface* surface)
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device,imageDefinitions.size()) }).first;
-  if (!pddit->second.dirty)
+  if (pddit->second.valid)
     return;
 
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
@@ -85,7 +85,7 @@ void FrameBufferImages::validate(Surface* surface)
       VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
     pddit->second.frameBufferImages[i] = std::make_shared<Image>(surface->device.lock().get(), imageTraits, allocator);
   }
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
 }
 
 void FrameBufferImages::reset(Surface* surface)
@@ -153,7 +153,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
   auto pddit = perSurfaceData.find(surface->surface);
   if (pddit == perSurfaceData.end())
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device, swapChainImages.empty()? 1 : swapChainImages.size() ) }).first;
-  if (!pddit->second.dirty)
+  if (pddit->second.valid)
     return;
 
   // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
@@ -203,7 +203,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
       frameBufferCreateInfo.layers          = 1;
     VK_CHECK_LOG_THROW(vkCreateFramebuffer(deviceSh->device, &frameBufferCreateInfo, nullptr, &pddit->second.frameBuffers[i]), "Could not create frame buffer " << i);
   }
-  pddit->second.dirty = false;
+  pddit->second.valid = true;
   notifyCommandBuffers();
 }
 

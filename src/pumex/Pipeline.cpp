@@ -628,7 +628,6 @@ void GraphicsPipeline::accept(NodeVisitor& visitor)
 
 void GraphicsPipeline::validate(const RenderContext& renderContext)
 {
-//  LOG_ERROR << "GraphicsPipeline::validate : " << getName() << std::endl;
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
@@ -843,7 +842,6 @@ void ComputePipeline::accept(NodeVisitor& visitor)
 
 void ComputePipeline::validate(const RenderContext& renderContext)
 {
-//  LOG_ERROR << "ComputePipeline::validate : " << getName() << std::endl;
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())

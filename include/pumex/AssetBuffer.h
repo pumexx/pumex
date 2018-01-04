@@ -160,7 +160,7 @@ public:
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t        getNumTypesID() const;
   
-  inline void            setDirty();
+  inline void            invalidate();
   void                   validate(const RenderContext& renderContext);
 
   void                   cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
@@ -234,7 +234,7 @@ protected:
     }
   };
 
-  bool                                            dirty = true;
+  bool                                            valid = false;
   mutable std::mutex                              mutex;
   std::map<uint32_t, std::vector<VertexSemantic>> semantics;
   std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
@@ -250,7 +250,7 @@ protected:
 };
 
 uint32_t AssetBuffer::getNumTypesID() const     { return typeNames.size(); }
-void     AssetBuffer::setDirty()                { dirty = true; }
+void     AssetBuffer::invalidate()              { valid = false; }
 uint32_t AssetBuffer::getNumRenderMasks() const { return perRenderMaskData.size(); }
 
 // helper class with buffers storing results of compute shader computations

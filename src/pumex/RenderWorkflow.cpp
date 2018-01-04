@@ -126,7 +126,7 @@ RenderWorkflow::~RenderWorkflow()
 void RenderWorkflow::addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp)
 {
   resourceTypes[tp->typeName] = tp;
-  dirty = true;
+  valid = false;
 }
 
 std::shared_ptr<RenderWorkflowResourceType> RenderWorkflow::getResourceType(const std::string& typeName) const
@@ -140,7 +140,7 @@ void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
 {
   op->setRenderWorkflow(shared_from_this());
   renderOperations[op->name] = op;
-  dirty = true;
+  valid = false;
 }
 
 std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::string& opName) const
@@ -153,7 +153,7 @@ std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::s
 void RenderWorkflow::setSceneNode(const std::string& opName, std::shared_ptr<Node> node)
 {
   getRenderOperation(opName)->sceneNode = node;
-  dirty = true;
+  valid = false;
 }
 
 std::shared_ptr<Node> RenderWorkflow::getSceneNode(const std::string& opName)
@@ -187,7 +187,7 @@ void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::st
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentInput, layout, loadOpLoad()));
-  dirty = true;
+  valid = false;
 }
 
 void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
@@ -204,7 +204,7 @@ void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::s
   }
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp));
-  dirty = true;
+  valid = false;
 }
 
 void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp)
@@ -226,7 +226,7 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
   std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp);
   resourceTransition->resolveResource = resolveIt->second;
   transitions.push_back(resourceTransition);
-  dirty = true;
+  valid = false;
 }
 
 void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp)
@@ -243,7 +243,7 @@ void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const s
   }
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthOutput, layout, loadOp));
-  dirty = true;
+  valid = false;
 }
 
 std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getPreviousOperations(const std::string& opName) const
@@ -297,7 +297,7 @@ std::vector<std::shared_ptr<ResourceTransition>> RenderWorkflow::getResourceIO(c
 void RenderWorkflow::addQueue(const QueueTraits& qt)
 {
   queueTraits.push_back(qt);
-  dirty = true;
+  valid = false;
 }
 
 QueueTraits RenderWorkflow::getPresentationQueue() const
@@ -307,9 +307,9 @@ QueueTraits RenderWorkflow::getPresentationQueue() const
 
 void RenderWorkflow::compile()
 {
-  if(dirty)
+  if(!valid)
     compiler->compile(*this);
-  dirty = false;
+  valid = true;
 };
 
 void RenderWorkflow::setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, const std::unordered_map<std::string, uint32_t> newResourceIndex, uint32_t newPresentationQueueIndex)

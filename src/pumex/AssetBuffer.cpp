@@ -59,7 +59,7 @@ uint32_t AssetBuffer::registerType(const std::string& typeName, const AssetTypeD
   invTypeNames.insert({ typeName, typeID });
   typeDefinitions.push_back(tdef);
   lodDefinitions.push_back(std::vector<AssetLodDefinition>());
-  setDirty();
+  invalidate();
   return typeID;
 }
 
@@ -86,7 +86,7 @@ uint32_t AssetBuffer::registerObjectLOD(uint32_t typeID, std::shared_ptr<Asset> 
 
   for (uint32_t i = 0; i<assets[assetIndex]->geometries.size(); ++i)
     geometryDefinitions.push_back(InternalGeometryDefinition(typeID, lodID, assets[assetIndex]->geometries[i].renderMask, assetIndex, i));
-  setDirty();
+  invalidate();
   return lodID;
 }
 
@@ -126,7 +126,7 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
 void AssetBuffer::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (dirty)
+  if (!valid)
   {
     // divide geometries according to renderMasks
     std::map<uint32_t, std::vector<InternalGeometryDefinition>> geometryDefinitionsByRenderMask;
@@ -204,17 +204,13 @@ void AssetBuffer::validate(const RenderContext& renderContext)
       rmData.lodBuffer->set(assetLods);
       rmData.geomBuffer->set(assetGeometries);
     }
-
-    dirty = false;
+    for (auto& prm : perRenderMaskData)
+    {
+      prm.second.vertexBuffer->validate(renderContext);
+      prm.second.indexBuffer->validate(renderContext);
+    }
+    valid = true;
   }
-  //for (auto& prm : perRenderMaskData)
-  //{
-  //  prm.second.vertexBuffer->validate(renderContext);
-  //  prm.second.indexBuffer->validate(renderContext);
-  //  prm.second.typeBuffer->validate(renderContext);
-  //  prm.second.lodBuffer->validate(renderContext);
-  //  prm.second.geomBuffer->validate(renderContext);
-  //}
 }
 
 void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
