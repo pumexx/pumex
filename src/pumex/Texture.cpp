@@ -43,7 +43,7 @@ SamplerTraits::SamplerTraits(VkImageUsageFlags u, bool lt, VkFilter maf, VkFilte
 {
 }
 
-Image::Image(Device* d, const ImageTraits& it, std::weak_ptr<DeviceMemoryAllocator> a)
+Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a)
   : imageTraits{ it }, device(d->device), allocator{ a }, ownsImage{ true }
 {
   VkImageCreateInfo imageCI{};
@@ -67,8 +67,7 @@ Image::Image(Device* d, const ImageTraits& it, std::weak_ptr<DeviceMemoryAllocat
   VkMemoryRequirements memReqs;
   vkGetImageMemoryRequirements(device, image, &memReqs);
 
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  memoryBlock = alloc->allocate(d, memReqs);
+  memoryBlock = allocator->allocate(d, memReqs);
   CHECK_LOG_THROW(memoryBlock.alignedSize == 0, "Cannot allocate memory for Image");
   VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, memoryBlock.memory, memoryBlock.alignedOffset), "failed vkBindImageMemory");
   
@@ -132,10 +131,7 @@ Image::~Image()
   {
     if (image != VK_NULL_HANDLE)
       vkDestroyImage(device, image, nullptr);
-    if(!allocator.expired())
-      allocator.lock()->deallocate(device, memoryBlock);
-//    if (deviceMemory != VK_NULL_HANDLE)
-//      vkFreeMemory(device, deviceMemory, nullptr);
+    allocator->deallocate(device, memoryBlock);
   }
 }
 
@@ -161,19 +157,19 @@ void Image::setImageLayout(VkImageLayout newLayout)
   imageLayout = newLayout;
 }
 
-Texture::Texture(const ImageTraits& it, const SamplerTraits& st, VkClearValue iv, std::weak_ptr<DeviceMemoryAllocator> a)
+Texture::Texture(const ImageTraits& it, const SamplerTraits& st, VkClearValue iv, std::shared_ptr<DeviceMemoryAllocator> a)
   : imageTraits{ it }, samplerTraits { st }, allocator{ a }
 {
   initValue = iv;
 }
 
-Texture::Texture(const gli::texture& tex, const SamplerTraits& st, std::weak_ptr<DeviceMemoryAllocator> a)
+Texture::Texture(const gli::texture& tex, const SamplerTraits& st, std::shared_ptr<DeviceMemoryAllocator> a)
   : samplerTraits{ st }, allocator{ a }
 {
   texture = std::make_shared<gli::texture>(tex);
 
   auto textureExtents = texture->extent(0);
-  bool memoryIsLocal = ((allocator.lock()->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
   imageTraits.usage          = samplerTraits.usage;
   imageTraits.linearTiling   = false;

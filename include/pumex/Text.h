@@ -68,7 +68,7 @@ class PUMEX_EXPORT Font
 {
 public:
   Font()                       = delete;
-  explicit Font(const std::string& fileName, glm::uvec2 textureSize, uint32_t fontPixelHeight, std::weak_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator);
+  explicit Font(const std::string& fileName, glm::uvec2 textureSize, uint32_t fontPixelHeight, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator);
   Font(const Font&)            = delete;
   Font& operator=(const Font&) = delete;
   virtual ~Font();

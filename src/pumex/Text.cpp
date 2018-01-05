@@ -51,7 +51,7 @@ uint32_t Font::fontCount = 0;
 const uint32_t PUMEX_GLYPH_MARGIN = 4;
 
 
-Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::weak_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator)
+Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator)
   : textureSize{ ts }, fontPixelHeight{ fph }
 {
   std::lock_guard<std::mutex> lock(mutex);

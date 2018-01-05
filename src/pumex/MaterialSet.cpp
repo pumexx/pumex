@@ -33,7 +33,7 @@ MaterialRegistryBase::~MaterialRegistryBase()
 }
 
 
-MaterialSet::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<MaterialRegistryBase> mr, std::shared_ptr<TextureRegistryBase> tr, std::weak_ptr<DeviceMemoryAllocator> a, const std::vector<TextureSemantic>& ts)
+MaterialSet::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<MaterialRegistryBase> mr, std::shared_ptr<TextureRegistryBase> tr, std::shared_ptr<DeviceMemoryAllocator> a, const std::vector<TextureSemantic>& ts)
   : viewer{ v }, materialRegistry{ mr }, textureRegistry { tr }, allocator{ a }, semantics(ts)
 {
   typeDefinitionSbo = std::make_shared<StorageBuffer<MaterialTypeDefinition>>(a);
@@ -235,7 +235,7 @@ void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerI
 }
 
 
-TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc)
+TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc)
   : textureAllocator{ textureAlloc }
 {
   textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>(allocator);

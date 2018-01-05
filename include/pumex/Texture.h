@@ -94,7 +94,7 @@ class PUMEX_EXPORT Image
 public:
   Image()                            = delete;
   // user creates VkImage and assigns memory to it
-  explicit Image(Device* device, const ImageTraits& imageTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  explicit Image(Device* device, const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   // user delivers VkImage, Image does not own it, just creates VkImageView
   explicit Image(Device* device, VkImage image, VkFormat format, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA) );
   Image(const Image&)                = delete;
@@ -115,14 +115,14 @@ public:
 
 
 protected:
-  ImageTraits                          imageTraits;
-  VkDevice                             device       = VK_NULL_HANDLE;
-  std::weak_ptr<DeviceMemoryAllocator> allocator;
-  VkImage                              image        = VK_NULL_HANDLE;
-  DeviceMemoryBlock                    memoryBlock;
-  VkImageView                          imageView    = VK_NULL_HANDLE;
-  VkImageLayout                        imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-  bool                                 ownsImage    = true;
+  ImageTraits                            imageTraits;
+  VkDevice                               device       = VK_NULL_HANDLE;
+  std::shared_ptr<DeviceMemoryAllocator> allocator;
+  VkImage                                image        = VK_NULL_HANDLE;
+  DeviceMemoryBlock                      memoryBlock;
+  VkImageView                            imageView    = VK_NULL_HANDLE;
+  VkImageLayout                          imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+  bool                                   ownsImage    = true;
 
 };
 
@@ -134,9 +134,9 @@ class PUMEX_EXPORT Texture : public Resource
 public:
   Texture()                          = delete;
   // create single texture and clear it with specific value
-  explicit Texture(const ImageTraits& imageTraits, const SamplerTraits& samplerTraits, VkClearValue initValue, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  explicit Texture(const ImageTraits& imageTraits, const SamplerTraits& samplerTraits, VkClearValue initValue, std::shared_ptr<DeviceMemoryAllocator> allocator);
   // create single texture and load it with provided data ( gli::texture )
-  explicit Texture(const gli::texture& texture, const SamplerTraits& samplerTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  explicit Texture(const gli::texture& texture, const SamplerTraits& samplerTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
 
@@ -150,11 +150,11 @@ public:
 
   void setLayer(uint32_t layer, const gli::texture& tex);
 
-  std::shared_ptr<gli::texture>        texture;
-  ImageTraits                          imageTraits;
-  SamplerTraits                        samplerTraits;
-  VkClearValue                         initValue;
-  std::weak_ptr<DeviceMemoryAllocator> allocator;
+  std::shared_ptr<gli::texture>          texture;
+  ImageTraits                            imageTraits;
+  SamplerTraits                          samplerTraits;
+  VkClearValue                           initValue;
+  std::shared_ptr<DeviceMemoryAllocator> allocator;
 private:
   struct PerDeviceData
   {

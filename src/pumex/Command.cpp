@@ -91,7 +91,7 @@ void CommandBuffer::invalidate(uint32_t index)
   if (index == UINT32_MAX) 
     std::fill(valid.begin(), valid.end(), false);
   else 
-    valid[index] = true; 
+    valid[index] = false; 
 }
 
 void CommandBuffer::addSource(CommandBufferSource* source)

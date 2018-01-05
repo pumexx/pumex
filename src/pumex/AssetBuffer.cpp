@@ -32,7 +32,7 @@
 namespace pumex
 {
 
-AssetBuffer::AssetBuffer(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator, std::weak_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
+AssetBuffer::AssetBuffer(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
 {
   for (const auto& vs : vertexSemantics)
   {
@@ -329,7 +329,7 @@ void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, s
   }
 }
 
-AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> ab, std::weak_ptr<DeviceMemoryAllocator> buffersAllocator)
+AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator)
   : assetBuffer{ ab }
 {
   for (const auto& vs : vertexSemantics)

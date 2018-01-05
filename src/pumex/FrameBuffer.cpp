@@ -36,7 +36,7 @@ FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkForm
 {
 }
 
-FrameBufferImages::FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::weak_ptr<DeviceMemoryAllocator> a)
+FrameBufferImages::FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<DeviceMemoryAllocator> a)
   : imageDefinitions(fbid), allocator{ a }
 {
 }

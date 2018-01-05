@@ -45,7 +45,7 @@ class UniformBufferPerSurface : public Resource
 {
 public:
   UniformBufferPerSurface()                                          = delete;
-  explicit UniformBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
+  explicit UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   UniformBufferPerSurface(const UniformBufferPerSurface&)            = delete;
   UniformBufferPerSurface& operator=(const UniformBufferPerSurface&) = delete;
   ~UniformBufferPerSurface();
@@ -87,13 +87,13 @@ private:
   };
 
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  std::weak_ptr<DeviceMemoryAllocator>             allocator;
+  std::shared_ptr<DeviceMemoryAllocator>           allocator;
   VkBufferUsageFlagBits                            additionalFlags;
   uint32_t                                         activeCount = 1;
 };
 
 template <typename T>
-UniformBufferPerSurface<T>::UniformBufferPerSurface(std::weak_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
+UniformBufferPerSurface<T>::UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
   : allocator{ a }, additionalFlags{ af }
 {
 }
@@ -102,13 +102,12 @@ template <typename T>
 UniformBufferPerSurface<T>::~UniformBufferPerSurface()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perSurfaceData)
   {
     for (uint32_t i = 0; i < pdd.second.uboBuffer.size(); ++i)
     {
       vkDestroyBuffer(pdd.second.device, pdd.second.uboBuffer[i], nullptr);
-      alloc->deallocate(pdd.second.device, pdd.second.memoryBlock[i]);
+      allocator->deallocate(pdd.second.device, pdd.second.memoryBlock[i]);
     }
   }
 }
@@ -167,8 +166,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
   if (it->second.valid[renderContext.activeIndex])
     return;
 
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (it->second.uboBuffer[renderContext.activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
@@ -178,9 +176,9 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
     VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &it->second.uboBuffer[renderContext.activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(renderContext.vkDevice, it->second.uboBuffer[renderContext.activeIndex], &memReqs);
-    it->second.memoryBlock[renderContext.activeIndex] = alloc->allocate(renderContext.device, memReqs);
+    it->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(it->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create UBO");
-    alloc->bindBufferMemory(renderContext.device, it->second.uboBuffer[renderContext.activeIndex], it->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    allocator->bindBufferMemory(renderContext.device, it->second.uboBuffer[renderContext.activeIndex], it->second.memoryBlock[renderContext.activeIndex].alignedOffset);
 
     invalidateCommandBuffers();
   }
@@ -196,7 +194,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
   }
   else
   {
-    alloc->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[renderContext.activeIndex].alignedOffset, &it->second.uboData, sizeof(T), 0);
+    allocator->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[renderContext.activeIndex].alignedOffset, &it->second.uboData, sizeof(T), 0);
   }
   it->second.valid[renderContext.activeIndex] = true;
 }

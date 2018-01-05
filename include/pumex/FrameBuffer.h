@@ -56,7 +56,7 @@ class PUMEX_EXPORT FrameBufferImages
 {
 public:
   FrameBufferImages()                                    = delete;
-  explicit FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  explicit FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<DeviceMemoryAllocator> allocator);
   FrameBufferImages(const FrameBufferImages&)            = delete;
   FrameBufferImages& operator=(const FrameBufferImages&) = delete;
   virtual ~FrameBufferImages();
@@ -83,7 +83,7 @@ protected:
 
   mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  std::weak_ptr<DeviceMemoryAllocator>             allocator;
+  std::shared_ptr<DeviceMemoryAllocator>           allocator;
 };
 
 

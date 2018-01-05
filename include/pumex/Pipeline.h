@@ -142,6 +142,7 @@ public:
   ~Descriptor();
 
   void registerInResources();
+  void unregisterFromResources();
 
   void validate(const RenderContext& renderContext);
   void invalidate();

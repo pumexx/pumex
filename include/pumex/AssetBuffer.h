@@ -147,7 +147,7 @@ class PUMEX_EXPORT AssetBuffer
 {
 public:
   AssetBuffer()                              = delete;
-  explicit AssetBuffer(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator, std::weak_ptr<DeviceMemoryAllocator> vertexIndexAllocator);
+  explicit AssetBuffer(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator);
   AssetBuffer(const AssetBuffer&)            = delete;
   AssetBuffer& operator=(const AssetBuffer&) = delete;
   virtual ~AssetBuffer();
@@ -178,7 +178,7 @@ protected:
   struct PerRenderMaskData
   {
     PerRenderMaskData() = default;
-    PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> bufferAllocator, std::weak_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
+    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
     {
       vertices     = std::make_shared<std::vector<float>>();
       indices      = std::make_shared<std::vector<uint32_t>>();
@@ -258,7 +258,7 @@ class PUMEX_EXPORT AssetBufferInstancedResults
 {
 public:
   AssetBufferInstancedResults()                                              = delete;
-  explicit AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> assetBuffer, std::weak_ptr<DeviceMemoryAllocator> buffersAllocator);
+  explicit AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator);
   AssetBufferInstancedResults(const AssetBufferInstancedResults&)            = delete;
   AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
   virtual ~AssetBufferInstancedResults();
@@ -276,7 +276,7 @@ protected:
   struct PerRenderMaskData
   {
     PerRenderMaskData() = default;
-    PerRenderMaskData(std::weak_ptr<DeviceMemoryAllocator> allocator)
+    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator)
     {
       resultsSbo = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
       offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator);

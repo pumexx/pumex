@@ -244,11 +244,14 @@ void Descriptor::registerInResources()
     res->addDescriptor(shared_from_this());
 }
 
-
-Descriptor::~Descriptor()
+void Descriptor::unregisterFromResources()
 {
   for (auto res : resources)
     res->removeDescriptor(shared_from_this());
+}
+
+Descriptor::~Descriptor()
+{
 }
 
 void Descriptor::validate(const RenderContext& renderContext)
@@ -281,6 +284,8 @@ DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared
 
 DescriptorSet::~DescriptorSet()
 {
+  for (auto desc : descriptors)
+    desc.second->unregisterFromResources();
   descriptors.clear();
 
   for (auto& pddit : perSurfaceData)
@@ -393,8 +398,8 @@ void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::share
   CHECK_LOG_THROW(resources.empty(), "setDescriptor got empty vector of resources");
   CHECK_LOG_THROW(binding >= layout->bindings.size(), "Binding out of bounds");
   CHECK_LOG_THROW(layout->bindings[binding].descriptorType != descriptorType, "Binding " << binding << " with wrong descriptor type : " << descriptorType << " but should be " << layout->bindings[binding].descriptorType);
+  resetDescriptor(binding);
   std::lock_guard<std::mutex> lock(mutex);
-  descriptors.erase(binding);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resources, descriptorType);
   descriptors[binding]->registerInResources();
   invalidate();
@@ -412,8 +417,8 @@ void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> re
 {
   CHECK_LOG_THROW(binding >= layout->bindings.size(), "Binding out of bounds");
   CHECK_LOG_THROW(layout->bindings[binding].descriptorType != descriptorType, "Binding " << binding << " with wrong descriptor type : " << descriptorType << " but should be " << layout->bindings[binding].descriptorType);
+  resetDescriptor(binding);
   std::lock_guard<std::mutex> lock(mutex);
-  descriptors.erase(binding);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resource, descriptorType);
   descriptors[binding]->registerInResources();
   invalidate();
@@ -429,7 +434,11 @@ void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> re
 void DescriptorSet::resetDescriptor(uint32_t binding)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  descriptors.erase(binding);
+  if (descriptors.find(binding) != descriptors.end())
+  {
+    descriptors[binding]->unregisterFromResources();
+    descriptors.erase(binding);
+  }
   invalidate();
 }
 

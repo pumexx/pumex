@@ -45,8 +45,8 @@ class StorageBuffer : public Resource
 {
 public:
   StorageBuffer()                                = delete;
-  explicit StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0 );
-  explicit StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
+  explicit StorageBuffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0 );
+  explicit StorageBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   StorageBuffer(const StorageBuffer&)            = delete;
   StorageBuffer& operator=(const StorageBuffer&) = delete;
   ~StorageBuffer();
@@ -80,19 +80,19 @@ private:
 
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   std::vector<T>                              storageData;
-  std::weak_ptr<DeviceMemoryAllocator>        allocator;
+  std::shared_ptr<DeviceMemoryAllocator>      allocator;
   VkBufferUsageFlagBits                       additionalFlags;
   uint32_t                                    activeCount = 1;
 };
 
 template <typename T>
-StorageBuffer<T>::StorageBuffer(std::weak_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
+StorageBuffer<T>::StorageBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
   : allocator{ a }, additionalFlags{ af }
 {
 }
 
 template <typename T>
-StorageBuffer<T>::StorageBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
+StorageBuffer<T>::StorageBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
   : storageData(data), allocator{ a }, additionalFlags{ af }
 {
 }
@@ -101,13 +101,12 @@ template <typename T>
 StorageBuffer<T>::~StorageBuffer()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perDeviceData)
   {
     for (uint32_t i = 0; i < pdd.second.storageBuffer.size(); ++i)
     {
       vkDestroyBuffer(pdd.first, pdd.second.storageBuffer[i], nullptr);
-      alloc->deallocate(pdd.first, pdd.second.memoryBlock[i]);
+      allocator->deallocate(pdd.first, pdd.second.memoryBlock[i]);
     }
   }
 }
@@ -154,16 +153,15 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
   if (pddit->second.valid[renderContext.activeIndex])
     return;
 
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   if (pddit->second.storageBuffer[renderContext.activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[renderContext.activeIndex].alignedSize < sizeof(T)*storageData.size())
   {
     vkDestroyBuffer(pddit->first, pddit->second.storageBuffer[renderContext.activeIndex], nullptr);
-    alloc->deallocate(pddit->first, pddit->second.memoryBlock[renderContext.activeIndex]);
+    allocator->deallocate(pddit->first, pddit->second.memoryBlock[renderContext.activeIndex]);
     pddit->second.storageBuffer[renderContext.activeIndex] = VK_NULL_HANDLE;
     pddit->second.memoryBlock[renderContext.activeIndex] = DeviceMemoryBlock();
   }
 
-  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (pddit->second.storageBuffer[renderContext.activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
@@ -173,9 +171,9 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
     VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.storageBuffer[renderContext.activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.storageBuffer[renderContext.activeIndex], &memReqs);
-    pddit->second.memoryBlock[renderContext.activeIndex] = alloc->allocate(renderContext.device, memReqs);
+    pddit->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create SBO");
-    alloc->bindBufferMemory(renderContext.device, pddit->second.storageBuffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    allocator->bindBufferMemory(renderContext.device, pddit->second.storageBuffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
 
     invalidateCommandBuffers();
   }
@@ -193,7 +191,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
     }
     else
     {
-      alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, storageData.data(), sizeof(T)*storageData.size(), 0);
+      allocator->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, storageData.data(), sizeof(T)*storageData.size(), 0);
     }
   }
   pddit->second.valid[renderContext.activeIndex] = true;

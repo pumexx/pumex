@@ -16,7 +16,7 @@ class PUMEX_EXPORT Clipmap3 : public Resource
 {
 public:
   Clipmap3()                           = delete;
-  explicit Clipmap3( uint32_t textureQuantity, uint32_t textureSize, VkClearValue initValue, const ImageTraits& imageTraits, const SamplerTraits& textureTraits, std::weak_ptr<DeviceMemoryAllocator> allocator);
+  explicit Clipmap3( uint32_t textureQuantity, uint32_t textureSize, VkClearValue initValue, const ImageTraits& imageTraits, const SamplerTraits& textureTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   Clipmap3(const Clipmap3&)            = delete;
   Clipmap3& operator=(const Clipmap3&) = delete;
 
@@ -32,7 +32,7 @@ protected:
   VkClearValue                         initValue;
   ImageTraits                          imageTraits;
   SamplerTraits                        textureTraits;
-  std::weak_ptr<DeviceMemoryAllocator> allocator;
+  std::shared_ptr<DeviceMemoryAllocator> allocator;
 private:
   struct PerDeviceData
   {

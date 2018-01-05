@@ -106,7 +106,7 @@ class PUMEX_EXPORT MaterialSet
 {
 public:
   MaterialSet()                              = delete;
-  explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<MaterialRegistryBase> materialRegistry, std::shared_ptr<TextureRegistryBase> textureRegistry, std::weak_ptr<DeviceMemoryAllocator> allocator, const std::vector<TextureSemantic>& textureSemantic);
+  explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<MaterialRegistryBase> materialRegistry, std::shared_ptr<TextureRegistryBase> textureRegistry, std::shared_ptr<DeviceMemoryAllocator> allocator, const std::vector<TextureSemantic>& textureSemantic);
   MaterialSet(const MaterialSet&)            = delete;
   MaterialSet& operator=(const MaterialSet&) = delete;
   virtual ~MaterialSet();
@@ -133,7 +133,7 @@ private:
   std::weak_ptr<Viewer>                        viewer;
   std::shared_ptr<MaterialRegistryBase>        materialRegistry;
   std::shared_ptr<TextureRegistryBase>         textureRegistry;
-  std::weak_ptr<DeviceMemoryAllocator>         allocator;
+  std::shared_ptr<DeviceMemoryAllocator>       allocator;
   std::vector<TextureSemantic>                 semantics;
   std::map<uint32_t, std::vector<std::string>> textureNames;
   std::vector<std::shared_ptr<Asset>>          assets; // material set owns assets
@@ -148,7 +148,7 @@ template <typename T>
 class MaterialRegistry : public MaterialRegistryBase
 {
 public:
-  MaterialRegistry(std::weak_ptr<DeviceMemoryAllocator> allocator);
+  MaterialRegistry(std::shared_ptr<DeviceMemoryAllocator> allocator);
 
   std::vector<T>                             materialDefinitions;
   std::shared_ptr<StorageBuffer<T>>          materialDefinitionSbo;
@@ -191,20 +191,20 @@ public:
 class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
 {
 public:
-  TextureRegistryArrayOfTextures(std::weak_ptr<DeviceMemoryAllocator> allocator, std::weak_ptr<DeviceMemoryAllocator> textureAlloc);
+  TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc);
   
-  void                                                      setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait);
+  void                                                       setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait);
   std::vector<std::shared_ptr<Resource>>                     getTextures(uint32_t slotIndex);
 
-  void                                                      refreshStructures() override;
-  void                                                      setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
+  void                                                       refreshStructures() override;
+  void                                                       setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
-  std::shared_ptr<StorageBuffer<uint32_t>>                  textureSamplerOffsets;
+  std::shared_ptr<StorageBuffer<uint32_t>>                   textureSamplerOffsets;
 protected:
-  std::weak_ptr<DeviceMemoryAllocator>                      textureAllocator;
+  std::shared_ptr<DeviceMemoryAllocator>                     textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Resource>>> textures;
-  std::map<uint32_t, SamplerTraits>                         textureTraits;
-  uint32_t                                                  textureSamplersQuantity = 0;
+  std::map<uint32_t, SamplerTraits>                          textureTraits;
+  uint32_t                                                   textureSamplersQuantity = 0;
 };
 
 
@@ -220,7 +220,7 @@ public:
 };
 
 template <typename T>
-MaterialRegistry<T>::MaterialRegistry(std::weak_ptr<DeviceMemoryAllocator> allocator)
+MaterialRegistry<T>::MaterialRegistry(std::shared_ptr<DeviceMemoryAllocator> allocator)
 {
   materialDefinitionSbo = std::make_shared<StorageBuffer<T>>(allocator);
 }

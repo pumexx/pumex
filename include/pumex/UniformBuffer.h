@@ -45,8 +45,8 @@ class UniformBuffer : public Resource
 {
 public:
   UniformBuffer()                                = delete;
-  explicit UniformBuffer(std::weak_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
-  explicit UniformBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
+  explicit UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
+  explicit UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
   UniformBuffer(const UniformBuffer&)            = delete;
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   ~UniformBuffer();
@@ -80,20 +80,20 @@ private:
 
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   T                                           uboData;
-  std::weak_ptr<DeviceMemoryAllocator>        allocator;
+  std::shared_ptr<DeviceMemoryAllocator>      allocator;
   VkBufferUsageFlagBits                       additionalFlags;
   uint32_t                                    activeCount = 1;
 
 };
 
 template <typename T>
-UniformBuffer<T>::UniformBuffer(std::weak_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
+UniformBuffer<T>::UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
   : uboData(), allocator{ a }, additionalFlags{ af }
 {
 }
 
 template <typename T>
-UniformBuffer<T>::UniformBuffer(const T& data, std::weak_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
+UniformBuffer<T>::UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
   : uboData(data), allocator{ a }, additionalFlags{ af }
 {
 }
@@ -102,13 +102,12 @@ template <typename T>
 UniformBuffer<T>::~UniformBuffer()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
   for (auto& pdd : perDeviceData)
   {
     for (uint32_t i = 0; i < pdd.second.uboBuffer.size(); ++i)
     {
       vkDestroyBuffer(pdd.first, pdd.second.uboBuffer[i], nullptr);
-      alloc->deallocate(pdd.first, pdd.second.memoryBlock[i]);
+      allocator->deallocate(pdd.first, pdd.second.memoryBlock[i]);
     }
   }
 }
@@ -149,8 +148,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
   if (pddit->second.valid[renderContext.activeIndex])
     return;
 
-  std::shared_ptr<DeviceMemoryAllocator> alloc = allocator.lock();
-  bool memoryIsLocal = ((alloc->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (pddit->second.uboBuffer[renderContext.activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
@@ -160,9 +158,9 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
     VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.uboBuffer[renderContext.activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.uboBuffer[renderContext.activeIndex], &memReqs);
-    pddit->second.memoryBlock[renderContext.activeIndex] = alloc->allocate(renderContext.device, memReqs);
+    pddit->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(pddit->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create UBO");
-    alloc->bindBufferMemory(renderContext.device, pddit->second.uboBuffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    allocator->bindBufferMemory(renderContext.device, pddit->second.uboBuffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
     invalidateCommandBuffers();
   }
   if (memoryIsLocal)
@@ -177,7 +175,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
   }
   else
   {
-    alloc->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, &uboData, sizeof(T), 0);
+    allocator->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, &uboData, sizeof(T), 0);
   }
   pddit->second.valid[renderContext.activeIndex] = true;
 }
