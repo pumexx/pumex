@@ -378,7 +378,7 @@ int main( int argc, char * argv[] )
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
       workflow->addAttachmentDepthOutput("rendering", "depth", "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput("rendering", "color", "surface", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, pumex::loadOpDontCare());
+      workflow->addAttachmentOutput("rendering", "color", "surface", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.setRenderWorkflow(workflow);
@@ -464,15 +464,15 @@ int main( int argc, char * argv[] )
     pumex::addCone(cone, glm::vec3(0, 0, 0), 0.1f, 0.1f, 16, 8, true);
     std::shared_ptr<pumex::Asset> testAsset(pumex::createSimpleAsset(cone, "root"));
 
-    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, 1, 0);
+    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
     assetNode->setName("assetNode");
     pipeline->addChild(assetNode);
 
-    std::shared_ptr<pumex::AssetNode> testAssetNode = std::make_shared<pumex::AssetNode>(testAsset, 1, 0);
+    std::shared_ptr<pumex::AssetNode> testAssetNode = std::make_shared<pumex::AssetNode>(testAsset, verticesAllocator, 1, 0);
     testAssetNode->setName("testAssetNode");
     pipeline->addChild(testAssetNode);
 
-    std::shared_ptr<pumex::AssetNode> boxAssetNode = std::make_shared<pumex::AssetNode>(boxAsset, 1, 0);
+    std::shared_ptr<pumex::AssetNode> boxAssetNode = std::make_shared<pumex::AssetNode>(boxAsset, verticesAllocator, 1, 0);
     boxAssetNode->setName("boxAssetNode");
     boxPipeline->addChild(boxAssetNode);
 

@@ -71,7 +71,6 @@ void AssetBufferDrawObject::validate(const RenderContext& renderContext)
 
 }
 
-
 float AssetBufferDrawObject::getDistanceToViewer() const
 {
   // FIXME - we need to pass pumex::Camera object somehow here
@@ -80,12 +79,13 @@ float AssetBufferDrawObject::getDistanceToViewer() const
 }
 
 
-
-
-AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, uint32_t rm, uint32_t vb)
+AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, std::shared_ptr<DeviceMemoryAllocator> ba, uint32_t rm, uint32_t vb)
   : asset{ a }, renderMask{ rm }, vertexBinding{ vb }
 {
-
+  vertices     = std::make_shared<std::vector<float>>();
+  indices      = std::make_shared<std::vector<uint32_t>>();
+  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void AssetNode::accept(NodeVisitor& visitor)
@@ -100,5 +100,45 @@ void AssetNode::accept(NodeVisitor& visitor)
 
 void AssetNode::validate(const RenderContext& renderContext)
 {
+  if (geometryValid)
+  {
+    Node::validate(renderContext);
+    return;
+  }
+  vertices->resize(0);
+  indices->resize(0);
+  VkDeviceSize vertexCount = 0;
 
+  for (unsigned int i = 0; i < asset->geometries.size(); ++i)
+  {
+    if (asset->geometries[i].renderMask != renderMask)
+      continue;
+
+    copyAndConvertVertices(*vertices, asset->geometries[i].semantic, asset->geometries[i].vertices, asset->geometries[i].semantic);
+    std::transform(asset->geometries[i].indices.begin(), asset->geometries[i].indices.end(), std::back_inserter(*indices), [vertexCount](uint32_t value)->uint32_t { return value + vertexCount; });
+    vertexCount += asset->geometries[i].getVertexCount();
+  }
+  vertexBuffer->invalidate();
+  indexBuffer->invalidate();
+
+  vertexBuffer->validate(renderContext);
+  indexBuffer->validate(renderContext);
+  Node::validate(renderContext);
+}
+
+void AssetNode::internalInvalidate()
+{
+  geometryValid = false;
+}
+
+void AssetNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const
+{
+  VkBuffer vBuffer = vertexBuffer->getBufferHandle(renderContext);
+  VkBuffer iBuffer = indexBuffer->getBufferHandle(renderContext);
+  commandBuffer->addSource(vertexBuffer.get());
+  commandBuffer->addSource(indexBuffer.get());
+  VkDeviceSize offsets = 0;
+  vkCmdBindVertexBuffers(commandBuffer->getHandle(), vertexBinding, 1, &vBuffer, &offsets);
+  vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
+  commandBuffer->cmdDrawIndexed(indices->size(), 1, 0, 0, 0);
 }

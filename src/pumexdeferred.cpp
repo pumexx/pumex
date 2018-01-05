@@ -647,7 +647,7 @@ int main( int argc, char * argv[] )
 
     lightingRoot->addChild(compositePipeline);
 
-    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(fullScreenTriangle,1,0);
+    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(fullScreenTriangle, verticesAllocator, 1, 0);
     assetNode->setName("assetNode");
     compositePipeline->addChild(assetNode);
 

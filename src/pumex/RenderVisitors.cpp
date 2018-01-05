@@ -92,12 +92,13 @@ void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
     return;
   applyDescriptorSets(node);
   renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObject(renderContext.device, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.typeID, node.firstInstance, node.getDistanceToViewer());
+  traverse(node);
 }
 
 void BuildCommandBufferVisitor::apply(AssetNode& node)
 {
   applyDescriptorSets(node);
-//  node.assetBuffer->cmdBindVertexIndexBuffer(renderContext, commandBuffer, node.renderMask, node.vertexBinding);
+  node.cmdDraw(renderContext, commandBuffer);
   traverse(node);
 }
 
