@@ -192,6 +192,12 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
   imageInfo.imageLayout = imageLayout;
 }
 
+Resource::Resource(SwapChainImageBehaviour swapChainImageBehaviour)
+{
+
+}
+
+
 Resource::~Resource()
 {
 }

@@ -158,13 +158,13 @@ void Image::setImageLayout(VkImageLayout newLayout)
 }
 
 Texture::Texture(const ImageTraits& it, const SamplerTraits& st, VkClearValue iv, std::shared_ptr<DeviceMemoryAllocator> a)
-  : imageTraits{ it }, samplerTraits { st }, allocator{ a }
+  : Resource{ Resource::OnceForAllSwapChainImages }, imageTraits{ it }, samplerTraits { st }, allocator{ a }
 {
   initValue = iv;
 }
 
 Texture::Texture(const gli::texture& tex, const SamplerTraits& st, std::shared_ptr<DeviceMemoryAllocator> a)
-  : samplerTraits{ st }, allocator{ a }
+  : Resource{ Resource::OnceForAllSwapChainImages }, samplerTraits{ st }, allocator{ a }
 {
   texture = std::make_shared<gli::texture>(tex);
 

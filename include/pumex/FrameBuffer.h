@@ -130,8 +130,6 @@ public:
 
 protected:
   std::string attachmentName;
-//  std::weak_ptr<FrameBuffer> frameBuffer;
-//  uint32_t frameBufferIndex;
 
   struct PerSurfaceData
   {

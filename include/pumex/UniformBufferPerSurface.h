@@ -45,7 +45,7 @@ class UniformBufferPerSurface : public Resource
 {
 public:
   UniformBufferPerSurface()                                          = delete;
-  explicit UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
+  explicit UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   UniformBufferPerSurface(const UniformBufferPerSurface&)            = delete;
   UniformBufferPerSurface& operator=(const UniformBufferPerSurface&) = delete;
   ~UniformBufferPerSurface();
@@ -60,6 +60,7 @@ public:
   void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
+
 private:
   struct PerSurfaceData
   {
@@ -93,8 +94,8 @@ private:
 };
 
 template <typename T>
-UniformBufferPerSurface<T>::UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
-  : allocator{ a }, additionalFlags{ af }
+UniformBufferPerSurface<T>::UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af, Resource::SwapChainImageBehaviour scib)
+  : Resource{ scib }, allocator{ a }, additionalFlags{ af }
 {
 }
 
@@ -154,7 +155,7 @@ template <typename T>
 void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex); 
-  if (renderContext.imageCount > activeCount)
+  if ( swapChainImageBehaviour == Resource::ForEachSwapChainImage && renderContext.imageCount > activeCount )
   {
     activeCount = renderContext.imageCount;
     for (auto& pdd : perSurfaceData)
@@ -163,22 +164,23 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(renderContext.imageCount, renderContext.vkDevice) }).first;
-  if (it->second.valid[renderContext.activeIndex])
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (it->second.valid[activeIndex])
     return;
 
   bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (it->second.uboBuffer[renderContext.activeIndex] == VK_NULL_HANDLE)
+  if (it->second.uboBuffer[activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
     bufferCreateInfo.size = std::max<VkDeviceSize>(1, sizeof(T));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &it->second.uboBuffer[renderContext.activeIndex]), "Cannot create buffer");
+    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &it->second.uboBuffer[activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(renderContext.vkDevice, it->second.uboBuffer[renderContext.activeIndex], &memReqs);
-    it->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
-    CHECK_LOG_THROW(it->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create UBO");
-    allocator->bindBufferMemory(renderContext.device, it->second.uboBuffer[renderContext.activeIndex], it->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    vkGetBufferMemoryRequirements(renderContext.vkDevice, it->second.uboBuffer[activeIndex], &memReqs);
+    it->second.memoryBlock[activeIndex] = allocator->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(it->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
+    allocator->bindBufferMemory(renderContext.device, it->second.uboBuffer[activeIndex], it->second.memoryBlock[activeIndex].alignedOffset);
 
     invalidateCommandBuffers();
   }
@@ -188,15 +190,15 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
     auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
     VkBufferCopy copyRegion{};
     copyRegion.size = sizeof(T);
-    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.uboBuffer[renderContext.activeIndex], copyRegion);
+    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.uboBuffer[activeIndex], copyRegion);
     renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
     renderContext.device->releaseStagingBuffer(stagingBuffer);
   }
   else
   {
-    allocator->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[renderContext.activeIndex].alignedOffset, &it->second.uboData, sizeof(T), 0);
+    allocator->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[activeIndex].alignedOffset, &it->second.uboData, sizeof(T), 0);
   }
-  it->second.valid[renderContext.activeIndex] = true;
+  it->second.valid[activeIndex] = true;
 }
 
 
@@ -207,7 +209,7 @@ void UniformBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& ren
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(pddit == perSurfaceData.end(), "UniformBufferPerSurface<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex], 0, sizeof(T)));
+  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)));
 }
 
 template <typename T>
@@ -226,7 +228,7 @@ VkBuffer UniformBufferPerSurface<T>::getBufferHandle(const RenderContext& render
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     return VK_NULL_HANDLE;
-  return it->second.uboBuffer[renderContext.activeIndex];
+  return it->second.uboBuffer[renderContext.activeIndex % activeCount];
 }
 
 

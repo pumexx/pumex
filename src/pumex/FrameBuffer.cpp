@@ -219,7 +219,7 @@ VkFramebuffer FrameBuffer::getFrameBuffer(Surface* surface, uint32_t fbIndex)
 }
 
 InputAttachment::InputAttachment(const std::string& an)
-  : attachmentName{ an }
+  : Resource{ Resource::OnceForAllSwapChainImages }, attachmentName{ an }
 {
 }
 

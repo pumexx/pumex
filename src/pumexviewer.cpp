@@ -491,18 +491,6 @@ int main( int argc, char * argv[] )
       boxDescriptorSet->setDescriptor(1, applicationData->positionUbo);
     boxPipeline->setDescriptorSet(0, boxDescriptorSet);
 
-    // missing commands
-    //    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-    //    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-    //    assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-    //    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
-    //    assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, testFigureTypeID, 0, 50.0f);
-
-    //    boxAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-    //    boxAssetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, boxTypeID, 0, 50.0f);
-
-
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
       applicationData->processInput(surface);

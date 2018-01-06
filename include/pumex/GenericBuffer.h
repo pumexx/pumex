@@ -45,7 +45,7 @@ class GenericBuffer : public Resource, public CommandBufferSource
 {
 public:
   GenericBuffer()                                = delete;
-  explicit GenericBuffer(std::shared_ptr<T> data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits usage);
+  explicit GenericBuffer(std::shared_ptr<T> data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   GenericBuffer(const GenericBuffer&)            = delete;
   GenericBuffer& operator=(const GenericBuffer&) = delete;
   ~GenericBuffer();
@@ -83,8 +83,8 @@ private:
 };
 
 template <typename T>
-GenericBuffer<T>::GenericBuffer(std::shared_ptr<T> d, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits u)
-  : data{ d }, allocator{ a }, usage{ u }
+GenericBuffer<T>::GenericBuffer(std::shared_ptr<T> d, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits u, Resource::SwapChainImageBehaviour scib)
+  : Resource{ scib }, data{ d }, allocator{ a }, usage{ u }
 {
 }
 
@@ -109,7 +109,7 @@ void GenericBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "GenericBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex], 0, uglyGetSize(*data) ));
+  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*data) ));
 }
 
 template <typename T>
@@ -126,7 +126,7 @@ template <typename T>
 void GenericBuffer<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (renderContext.imageCount > activeCount)
+  if ( swapChainImageBehaviour == Resource::ForEachSwapChainImage && renderContext.imageCount > activeCount )
   {
     activeCount = renderContext.imageCount;
     for (auto& pdd : perDeviceData)
@@ -135,30 +135,31 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
-  if (pddit->second.valid[renderContext.activeIndex])
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (pddit->second.valid[activeIndex])
     return;
 
-  if (pddit->second.buffer[renderContext.activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[renderContext.activeIndex].alignedSize < uglyGetSize(*data))
+  if (pddit->second.buffer[activeIndex] != VK_NULL_HANDLE  && pddit->second.memoryBlock[activeIndex].alignedSize < uglyGetSize(*data))
   {
-    vkDestroyBuffer(pddit->first, pddit->second.buffer[renderContext.activeIndex], nullptr);
-    allocator->deallocate(pddit->first, pddit->second.memoryBlock[renderContext.activeIndex]);
-    pddit->second.buffer[renderContext.activeIndex] = VK_NULL_HANDLE;
-    pddit->second.memoryBlock[renderContext.activeIndex] = DeviceMemoryBlock();
+    vkDestroyBuffer(pddit->first, pddit->second.buffer[activeIndex], nullptr);
+    allocator->deallocate(pddit->first, pddit->second.memoryBlock[activeIndex]);
+    pddit->second.buffer[activeIndex] = VK_NULL_HANDLE;
+    pddit->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
   }
 
   bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (pddit->second.buffer[renderContext.activeIndex] == VK_NULL_HANDLE)
+  if (pddit->second.buffer[activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
       bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
       bufferCreateInfo.usage = usage | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
       bufferCreateInfo.size  = std::max<VkDeviceSize>(1, uglyGetSize(*data));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.buffer[renderContext.activeIndex]), "Cannot create buffer");
+    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.buffer[activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.buffer[renderContext.activeIndex], &memReqs);
-    pddit->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
-    allocator->bindBufferMemory(renderContext.device, pddit->second.buffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.buffer[activeIndex], &memReqs);
+    pddit->second.memoryBlock[activeIndex] = allocator->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create a buffer " << usage);
+    allocator->bindBufferMemory(renderContext.device, pddit->second.buffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
 
     invalidateCommandBuffers();
   }
@@ -170,16 +171,16 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
       auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
       VkBufferCopy copyRegion{};
       copyRegion.size = uglyGetSize(*data);
-      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[renderContext.activeIndex], copyRegion);
+      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[activeIndex], copyRegion);
       renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
       renderContext.device->releaseStagingBuffer(stagingBuffer);
     }
     else
     {
-      allocator->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, uglyGetPointer(*data), uglyGetSize(*data), 0);
+      allocator->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, uglyGetPointer(*data), uglyGetSize(*data), 0);
     }
   }
-  pddit->second.valid[renderContext.activeIndex] = true;
+  pddit->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -189,7 +190,7 @@ VkBuffer GenericBuffer<T>::getBufferHandle(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
-  return pddit->second.buffer[renderContext.activeIndex];
+  return pddit->second.buffer[renderContext.activeIndex % activeCount];
 }
 
 }

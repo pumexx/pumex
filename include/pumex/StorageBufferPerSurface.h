@@ -46,7 +46,7 @@ class StorageBufferPerSurface : public Resource
 {
 public:
   StorageBufferPerSurface()                                          = delete;
-  explicit StorageBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0 );
+  explicit StorageBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   StorageBufferPerSurface(const StorageBufferPerSurface&)            = delete;
   StorageBufferPerSurface& operator=(const StorageBufferPerSurface&) = delete;
   ~StorageBufferPerSurface();
@@ -96,8 +96,8 @@ private:
 };
 
 template <typename T>
-StorageBufferPerSurface<T>::StorageBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
-  : allocator { a }, additionalFlags{ af }
+StorageBufferPerSurface<T>::StorageBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af, Resource::SwapChainImageBehaviour scib )
+  : Resource{ scib }, allocator { a }, additionalFlags{ af }
 {
 }
 
@@ -163,7 +163,7 @@ template <typename T>
 void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex); 
-  if (renderContext.imageCount > activeCount)
+  if (swapChainImageBehaviour == Resource::ForEachSwapChainImage && renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;
     for (auto& pdd : perSurfaceData)
@@ -172,31 +172,32 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount, renderContext.vkDevice) }).first;
-  if (it->second.valid[renderContext.activeIndex])
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (it->second.valid[activeIndex])
     return;
 
-  if (it->second.storageBuffer[renderContext.activeIndex] != VK_NULL_HANDLE  && it->second.memoryBlock[renderContext.activeIndex].alignedSize < sizeof(T)*it->second.storageData.size())
+  if (it->second.storageBuffer[activeIndex] != VK_NULL_HANDLE  && it->second.memoryBlock[activeIndex].alignedSize < sizeof(T)*it->second.storageData.size())
   {
-    vkDestroyBuffer(renderContext.vkDevice, it->second.storageBuffer[renderContext.activeIndex], nullptr);
-    allocator->deallocate(renderContext.vkDevice, it->second.memoryBlock[renderContext.activeIndex]);
-    it->second.storageBuffer[renderContext.activeIndex] = VK_NULL_HANDLE;
-    it->second.memoryBlock[renderContext.activeIndex] = DeviceMemoryBlock();
+    vkDestroyBuffer(renderContext.vkDevice, it->second.storageBuffer[activeIndex], nullptr);
+    allocator->deallocate(renderContext.vkDevice, it->second.memoryBlock[activeIndex]);
+    it->second.storageBuffer[activeIndex] = VK_NULL_HANDLE;
+    it->second.memoryBlock[activeIndex] = DeviceMemoryBlock();
   }
 
   bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  if (it->second.storageBuffer[renderContext.activeIndex] == VK_NULL_HANDLE)
+  if (it->second.storageBuffer[activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
     bufferCreateInfo.size = std::max<VkDeviceSize>(1, sizeof(T)*it->second.storageData.size());
-    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &it->second.storageBuffer[renderContext.activeIndex]), "Cannot create buffer");
+    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &it->second.storageBuffer[activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(renderContext.vkDevice, it->second.storageBuffer[renderContext.activeIndex], &memReqs);
-    it->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
-    CHECK_LOG_THROW(it->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create SBO");
-    allocator->bindBufferMemory(renderContext.device, it->second.storageBuffer[renderContext.activeIndex], it->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    vkGetBufferMemoryRequirements(renderContext.vkDevice, it->second.storageBuffer[activeIndex], &memReqs);
+    it->second.memoryBlock[activeIndex] = allocator->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(it->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create SBO");
+    allocator->bindBufferMemory(renderContext.device, it->second.storageBuffer[activeIndex], it->second.memoryBlock[activeIndex].alignedOffset);
 
     invalidateCommandBuffers();
   }
@@ -208,16 +209,16 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
       auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
       VkBufferCopy copyRegion{};
       copyRegion.size = sizeof(T) * it->second.storageData.size();
-      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.storageBuffer[renderContext.activeIndex], copyRegion);
+      staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.storageBuffer[activeIndex], copyRegion);
       renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
       renderContext.device->releaseStagingBuffer(stagingBuffer);
     }
     else
     {
-      allocator->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[renderContext.activeIndex].alignedOffset, it->second.storageData.data(), sizeof(T) * it->second.storageData.size(), 0);
+      allocator->copyToDeviceMemory(renderContext.device, it->second.memoryBlock[activeIndex].alignedOffset, it->second.storageData.data(), sizeof(T) * it->second.storageData.size(), 0);
     }
   }
-  it->second.valid[renderContext.activeIndex] = true;
+  it->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -227,7 +228,7 @@ void StorageBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& ren
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(pddit == perSurfaceData.end(), "StorageBufferPerSurface<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex], 0, sizeof(T)*pddit->second.storageData.size()));
+  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)*pddit->second.storageData.size()));
 }
 
 template <typename T>
@@ -246,7 +247,7 @@ VkBuffer StorageBufferPerSurface<T>::getBufferHandle(const RenderContext& render
   auto it = perSurfaceData.find(renderContext.vkSurface);
   if (it == perSurfaceData.end())
     return VK_NULL_HANDLE;
-  return it->second.storageBuffer[renderContext.activeIndex];
+  return it->second.storageBuffer[renderContext.activeIndex % activeCount];
 }
 
 }

@@ -84,8 +84,8 @@ AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, std::shared_ptr<DeviceMemo
 {
   vertices     = std::make_shared<std::vector<float>>();
   indices      = std::make_shared<std::vector<uint32_t>>();
-  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
+  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
 }
 
 void AssetNode::accept(NodeVisitor& visitor)
@@ -100,6 +100,8 @@ void AssetNode::accept(NodeVisitor& visitor)
 
 void AssetNode::validate(const RenderContext& renderContext)
 {
+  std::lock_guard<std::mutex> lock(mutex);
+
   if (geometryValid)
   {
     Node::validate(renderContext);
@@ -123,6 +125,7 @@ void AssetNode::validate(const RenderContext& renderContext)
 
   vertexBuffer->validate(renderContext);
   indexBuffer->validate(renderContext);
+  geometryValid = true;
   Node::validate(renderContext);
 }
 

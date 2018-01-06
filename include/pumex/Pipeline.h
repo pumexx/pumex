@@ -117,6 +117,8 @@ class DescriptorSet;
 class PUMEX_EXPORT Resource
 {
 public:
+  enum SwapChainImageBehaviour { Undefined, OnceForAllSwapChainImages, ForEachSwapChainImage };
+  Resource(SwapChainImageBehaviour swapChainImageBehaviour);
   virtual ~Resource();
 
   void addDescriptor(std::shared_ptr<Descriptor> descriptor);
@@ -131,6 +133,7 @@ public:
 protected:
   mutable std::mutex                     mutex;
   std::vector<std::weak_ptr<Descriptor>> descriptors;
+  SwapChainImageBehaviour                swapChainImageBehaviour;
 };
 
 

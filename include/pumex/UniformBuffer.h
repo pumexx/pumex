@@ -45,8 +45,8 @@ class UniformBuffer : public Resource
 {
 public:
   UniformBuffer()                                = delete;
-  explicit UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
-  explicit UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0);
+  explicit UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
+  explicit UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   UniformBuffer(const UniformBuffer&)            = delete;
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   ~UniformBuffer();
@@ -58,6 +58,8 @@ public:
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
   void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+
+  VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
 private:
   struct PerDeviceData
@@ -87,14 +89,14 @@ private:
 };
 
 template <typename T>
-UniformBuffer<T>::UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
-  : uboData(), allocator{ a }, additionalFlags{ af }
+UniformBuffer<T>::UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af, Resource::SwapChainImageBehaviour scib)
+  : Resource{ scib }, uboData(), allocator{ a }, additionalFlags{ af }
 {
 }
 
 template <typename T>
-UniformBuffer<T>::UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af)
-  : uboData(data), allocator{ a }, additionalFlags{ af }
+UniformBuffer<T>::UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlagBits af, Resource::SwapChainImageBehaviour scib)
+  : Resource{ scib }, uboData(data), allocator{ a }, additionalFlags{ af }
 {
 }
 
@@ -136,7 +138,7 @@ template <typename T>
 void UniformBuffer<T>::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (renderContext.imageCount > activeCount)
+  if (swapChainImageBehaviour == Resource::ForEachSwapChainImage && renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;
     for (auto& pdd : perDeviceData)
@@ -145,22 +147,23 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == perDeviceData.end())
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
-  if (pddit->second.valid[renderContext.activeIndex])
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (pddit->second.valid[activeIndex])
     return;
 
   bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (pddit->second.uboBuffer[renderContext.activeIndex] == VK_NULL_HANDLE)
+  if (pddit->second.uboBuffer[activeIndex] == VK_NULL_HANDLE)
   {
     VkBufferCreateInfo bufferCreateInfo{};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
     bufferCreateInfo.size = std::max<VkDeviceSize>(1, sizeof(T));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.uboBuffer[renderContext.activeIndex]), "Cannot create buffer");
+    VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &pddit->second.uboBuffer[activeIndex]), "Cannot create buffer");
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.uboBuffer[renderContext.activeIndex], &memReqs);
-    pddit->second.memoryBlock[renderContext.activeIndex] = allocator->allocate(renderContext.device, memReqs);
-    CHECK_LOG_THROW(pddit->second.memoryBlock[renderContext.activeIndex].alignedSize == 0, "Cannot create UBO");
-    allocator->bindBufferMemory(renderContext.device, pddit->second.uboBuffer[renderContext.activeIndex], pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset);
+    vkGetBufferMemoryRequirements(renderContext.vkDevice, pddit->second.uboBuffer[activeIndex], &memReqs);
+    pddit->second.memoryBlock[activeIndex] = allocator->allocate(renderContext.device, memReqs);
+    CHECK_LOG_THROW(pddit->second.memoryBlock[activeIndex].alignedSize == 0, "Cannot create UBO");
+    allocator->bindBufferMemory(renderContext.device, pddit->second.uboBuffer[activeIndex], pddit->second.memoryBlock[activeIndex].alignedOffset);
     invalidateCommandBuffers();
   }
   if (memoryIsLocal)
@@ -169,15 +172,15 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
     auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
     VkBufferCopy copyRegion{};
     copyRegion.size = sizeof(T);
-    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.uboBuffer[renderContext.activeIndex], copyRegion);
+    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.uboBuffer[activeIndex], copyRegion);
     renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
     renderContext.device->releaseStagingBuffer(stagingBuffer);
   }
   else
   {
-    allocator->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[renderContext.activeIndex].alignedOffset, &uboData, sizeof(T), 0);
+    allocator->copyToDeviceMemory(renderContext.device, pddit->second.memoryBlock[activeIndex].alignedOffset, &uboData, sizeof(T), 0);
   }
-  pddit->second.valid[renderContext.activeIndex] = true;
+  pddit->second.valid[activeIndex] = true;
 }
 
 template <typename T>
@@ -187,7 +190,7 @@ void UniformBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == perDeviceData.end(), "UniformBuffer<T>::getDescriptorBufferInfo : uniform buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex], 0, sizeof(T)));
+  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)));
 }
 
 template <typename T>
@@ -199,5 +202,16 @@ void UniformBuffer<T>::invalidate()
       pdd.second.valid[i] = false;
   invalidateDescriptors();
 }
+
+template <typename T>
+VkBuffer UniformBuffer<T>::getBufferHandle(const RenderContext& renderContext)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
+  if (pddit == perDeviceData.end())
+    return VK_NULL_HANDLE;
+  return pddit->second.uboBuffer[renderContext.activeIndex % activeCount];
+}
+
 
 }
