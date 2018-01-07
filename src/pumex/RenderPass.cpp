@@ -216,6 +216,7 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
     clearValues,
     renderOperations[0]->subpassContents
   );
+  // FIXME - this should be moved somewhere else
   commandVisitor.commandBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height, 0.0f, 1.0f) });
   commandVisitor.commandBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height) });
 
