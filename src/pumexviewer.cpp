@@ -89,8 +89,9 @@ struct ViewerApplicationData
 {
   ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
   {
-    cameraUbo   = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
+    cameraUbo     = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    positionUbo   = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -101,7 +102,6 @@ struct ViewerApplicationData
     updateData.moveBackward                = false;
     updateData.moveLeft                    = false;
     updateData.moveRight                   = false;
-
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -242,6 +242,10 @@ struct ViewerApplicationData
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
 
     cameraUbo->set(surface.get(), camera);
+
+    pumex::Camera textCamera;
+    textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+    textCameraUbo->set(surface.get(), textCamera);
   }
 
   void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Asset> asset)
@@ -293,8 +297,8 @@ struct ViewerApplicationData
   std::array<RenderData, 3>                            renderData;
 
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
   pumex::HPClock::time_point                                     lastFrameStart;
 };
 
@@ -380,7 +384,7 @@ int main( int argc, char * argv[] )
       workflow->addAttachmentDepthOutput("rendering", "depth", "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentOutput("rendering", "color", "surface", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     surfaceTraits.setRenderWorkflow(workflow);
     std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
 

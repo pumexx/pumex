@@ -77,7 +77,7 @@ public:
   void            buildPrimaryCommandBuffer();
   void            draw();
   void            endFrame();
-  void            resizeSurface(uint32_t newWidth, uint32_t newHeight);
+  void            resizeSurface();
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
 

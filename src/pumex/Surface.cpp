@@ -145,8 +145,10 @@ void Surface::createSwapChain()
 
   vkDeviceWaitIdle(vkDevice);
   
-  VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   VkSwapchainKHR oldSwapChain = swapChain;
+
+  VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
+  swapChainSize = surfaceCapabilities.currentExtent;
 
   FrameBufferImageDefinition swapChainDefinition = renderWorkflow->frameBufferImages->getSwapChainDefinition();
 
@@ -206,10 +208,15 @@ void Surface::createSwapChain()
 void Surface::beginFrame()
 {
   actions.performActions();
-  // FIXME : VK_SUBOPTIMAL_KHR
   auto deviceSh = device.lock();
 
-  VK_CHECK_LOG_THROW(vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex), "failed vkAcquireNextImageKHR" );
+  VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
+
+  if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
+    createSwapChain();
+  else
+    VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
+
   VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
@@ -261,11 +268,16 @@ void Surface::endFrame()
     presentInfo.pImageIndices      = &swapChainImageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
-  VK_CHECK_LOG_THROW(vkQueuePresentKHR(presentationQueue, &presentInfo), "failed vkQueuePresentKHR");
+  VkResult result = vkQueuePresentKHR(presentationQueue, &presentInfo);
+
+  if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
+    createSwapChain();
+  else
+    VK_CHECK_LOG_THROW(result, "failed vkQueuePresentKHR");
+
 }
 
-void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
+void Surface::resizeSurface()
 {
-  swapChainSize = VkExtent2D{ newWidth, newHeight };
   createSwapChain();
 }
