@@ -22,7 +22,6 @@
 
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderPass.h>
-#include <pumex/Texture.h>
 #include <pumex/Surface.h>
 #include <pumex/Command.h>
 #include <pumex/RenderContext.h>

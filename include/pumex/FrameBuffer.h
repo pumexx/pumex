@@ -31,12 +31,12 @@
 #include <pumex/Command.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/RenderWorkflow.h>
+#include <pumex/Texture.h>
 
 namespace pumex
 {
 
 class Surface;
-class Image;
 
 
 struct PUMEX_EXPORT FrameBufferImageDefinition

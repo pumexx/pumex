@@ -27,6 +27,7 @@
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
 #include <pumex/RenderContext.h>
+#include <algorithm>
 #include <fstream>
 
 using namespace pumex;

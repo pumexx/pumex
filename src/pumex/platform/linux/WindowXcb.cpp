@@ -165,7 +165,7 @@ std::shared_ptr<Surface> WindowXcb::createSurface(std::shared_ptr<Viewer> v, std
 
   std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
   // create swapchain
-  result->resizeSurface(width, height);
+  result->resizeSurface();
 
   viewer = v;
   surface = result;
@@ -324,7 +324,7 @@ bool WindowXcb::checkWindowMessages()
       continue;
     win.second->lastResizeTimePoint = timeNow;
     auto surf                      = win.second->surface.lock();
-    surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, win.second->newWidth, win.second->newHeight));
+    surf->actions.addAction(std::bind(&Surface::resizeSurface, surf));
     win.second->width               = win.second->newWidth;
     win.second->height              = win.second->newHeight;
   }
