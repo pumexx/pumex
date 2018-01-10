@@ -311,7 +311,7 @@ struct DeferredApplicationData
     camera.setTimeSinceStart(renderTime);
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
+    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
     cameraUbo->set(surface.get(), camera);
 
     pumex::Camera textCamera;
@@ -369,7 +369,7 @@ struct DeferredApplicationData
   {
   }
 
-  void fillFPS()
+  void fillFPS(std::shared_ptr<pumex::Viewer> viewer)
   {
     pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
     double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
@@ -377,7 +377,7 @@ struct DeferredApplicationData
 
     std::wstringstream stream;
     stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-    //    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+    textDefault->setText(viewer->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
 
 
@@ -389,6 +389,7 @@ struct DeferredApplicationData
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
   std::shared_ptr<pumex::StorageBuffer<LightPointData>>          lightsSbo;
   pumex::HPClock::time_point                                     lastFrameStart;
+  std::shared_ptr<pumex::Text>                                   textDefault;
 };
 
 
@@ -562,7 +563,7 @@ int main( int argc, char * argv[] )
     sponzaFileName = viewer->getFullFilePath(sponzaFileName);
 
     pumex::AssetLoaderAssimp loader;
-    loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace);
+    loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace );
     std::shared_ptr<pumex::Asset> asset(loader.load(sponzaFileName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << sponzaFileName);
 
@@ -585,6 +586,7 @@ int main( int argc, char * argv[] )
     PositionData modelData;
     std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
     modelData.typeID = modelTypeID;
+    applicationData->positionUbo->set(modelData);
 
     std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
     descriptorSet->setDescriptor(0, applicationData->cameraUbo);
@@ -667,6 +669,7 @@ int main( int argc, char * argv[] )
     auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
     textDefault->setName("textDefault");
+    applicationData->textDefault = textDefault;
 
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
     {
@@ -726,7 +729,7 @@ int main( int argc, char * argv[] )
     // All leaf nodes should point to viewer->endRenderGraph.
     tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) 
     { 
-      applicationData->fillFPS();
+      applicationData->fillFPS(viewer);
       applicationData->prepareModelForRendering(viewer, assetBuffer, modelTypeID);
     });
     tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 

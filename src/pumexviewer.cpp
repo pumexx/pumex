@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 
+#include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <pumex/Pumex.h>
@@ -484,6 +485,7 @@ int main( int argc, char * argv[] )
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
     std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
+    applicationData->positionUbo->set(modelData);
 
     auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
       descriptorSet->setDescriptor(0, applicationData->cameraUbo);
