@@ -90,10 +90,12 @@ SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_m
     {
       auto it = std::find_if(resolveAttachments.begin(), resolveAttachments.end(), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->resolveResource == outputAttachment->resource; });
       if (it != resolveAttachments.end())
-        ra.push_back({ resourceIndex.at( (*it)->resolveResource->name), (*it)->layout });
+        ra.push_back({ resourceIndex.at( (*it)->resource->name), (*it)->layout });
       else
         ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
     }
+    else
+      ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
   }
   if (!depthAttachments.empty())
     dsa = { resourceIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->layout };
@@ -223,7 +225,7 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
   CHECK_LOG_THROW(resolveIt == resources.end(), "RenderWorkflow : added pointer no to nonexisting resolve resource")
 
   // FIXME : additional checks
-  std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp);
+  std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentResolveOutput, layout, loadOp);
   resourceTransition->resolveResource = resolveIt->second;
   transitions.push_back(resourceTransition);
   valid = false;

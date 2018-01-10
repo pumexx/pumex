@@ -602,8 +602,11 @@ std::shared_ptr<Asset> createFullScreenTriangle()
     acc.set(VertexSemantic::Position, x * 2.0f - 1.0f, y * 2.0f - 1.0f);
     acc.set(VertexSemantic::TexCoord, x, y);
     geometry.pushVertex(acc);
-    geometry.indices.push_back(i);
   }
+  geometry.indices.push_back(0);
+  geometry.indices.push_back(2);
+  geometry.indices.push_back(1);
+
   result->geometries.push_back(geometry);
 
   Skeleton::Bone bone;

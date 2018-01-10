@@ -25,12 +25,10 @@ layout (std430,binding = 4) readonly buffer MaterialDataSbo
 	MaterialData materialData[];
 };
 
-layout (std430,binding = 5) readonly buffer TextureSamplerOffsets
-{
-	uint textureSamplerOffsets[TextureSemanticCount];
-};
-
-layout (binding = 6) uniform sampler2D textureSamplers[72];
+layout (binding = 5) uniform sampler2D diffuseSamplers[64];
+layout (binding = 6) uniform sampler2D roughnessSamplers[64];
+layout (binding = 7) uniform sampler2D metallicSamplers[64];
+layout (binding = 8) uniform sampler2D normalSamplers[64];
 
 layout (location = 0) out vec4 outPosition;
 layout (location = 1) out vec3 outNormal;
@@ -39,7 +37,7 @@ layout (location = 3) out vec3 outRoughnessMetallic;
 
 void main() 
 {
-	vec4 color = texture( textureSamplers[ textureSamplerOffsets[0] + materialData[materialID].diffuseTextureIndex ], inUV );
+	vec4 color = texture( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], inUV );
 	if(color.a<0.5)
 	  discard;
     color.rgb = pow( color.rgb, vec3(2.2));
@@ -47,8 +45,8 @@ void main()
 
     outRoughnessMetallic = vec3
     (
-      texture( textureSamplers[ textureSamplerOffsets[1] + materialData[materialID].roughnessTextureIndex ], inUV ).r,
-      texture( textureSamplers[ textureSamplerOffsets[2] + materialData[materialID].metallicTextureIndex ], inUV ).r,
+      texture( roughnessSamplers[ materialData[materialID].roughnessTextureIndex ], inUV ).r,
+      texture( metallicSamplers[ materialData[materialID].metallicTextureIndex ], inUV ).r,
       0.0
     );
 
@@ -56,7 +54,7 @@ void main()
     vec3 T    = normalize(inTangent);
     vec3 B    = -cross(N, T);
     mat3 TBN  = mat3(T, B, N);
-    outNormal = texture( textureSamplers[ textureSamplerOffsets[3] + materialData[materialID].normalTextureIndex ], inUV ).xyz;
+    outNormal = texture( normalSamplers[ materialData[materialID].normalTextureIndex ], inUV ).xyz;
     outNormal = outNormal * 2.0 - vec3(1.0);
     outNormal = TBN * normalize(outNormal);
 

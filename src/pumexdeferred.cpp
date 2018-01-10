@@ -454,24 +454,24 @@ int main( int argc, char * argv[] )
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", VK_FORMAT_D24_UNORM_S8_UINT,   VK_SAMPLE_COUNT_4_BIT, false, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, true,  pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("gbuffer", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
-      workflow->addAttachmentOutput     ("gbuffer", "position", "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "normals",  "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "albedo",   "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "pbr",      "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentDepthOutput("gbuffer", "depth",    "depth_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "position", "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "normals",  "vec3_samples",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "albedo",   "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "pbr",      "color_samples", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentDepthOutput("gbuffer", "depth",    "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("lighting", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
-      workflow->addAttachmentInput        ("lighting", "position", "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "normals",  "vec3_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "albedo",   "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "pbr",      "color_samples",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentOutput       ("lighting", "color",    "surface",           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,          pumex::loadOpDontCare());
-      workflow->addAttachmentResolveOutput("lighting", "resolve",  "resolve", "color",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+      workflow->addAttachmentInput        ("lighting", "position", "vec3_samples",       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentInput        ("lighting", "normals",  "vec3_samples",       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentInput        ("lighting", "albedo",   "color_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentInput        ("lighting", "pbr",      "color_samples",      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentOutput       ("lighting", "resolve",  "resolve",            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+      workflow->addAttachmentResolveOutput("lighting", "color",    "surface", "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -502,11 +502,10 @@ int main( int argc, char * argv[] )
       { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 7, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 8, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 9, 72, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 6, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 8, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
 
@@ -593,11 +592,10 @@ int main( int argc, char * argv[] )
     descriptorSet->setDescriptor(2, materialSet->typeDefinitionSbo);
     descriptorSet->setDescriptor(3, materialSet->materialVariantSbo);
     descriptorSet->setDescriptor(4, materialRegistry->materialDefinitionSbo);
-    descriptorSet->setDescriptor(5, textureRegistry->textureSamplerOffsets);
-    descriptorSet->setDescriptor(6, textureRegistry->getTextures(0), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-    descriptorSet->setDescriptor(7, textureRegistry->getTextures(1), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-    descriptorSet->setDescriptor(8, textureRegistry->getTextures(2), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-    descriptorSet->setDescriptor(9, textureRegistry->getTextures(3), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    descriptorSet->setDescriptor(5, textureRegistry->getTextures(0), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    descriptorSet->setDescriptor(6, textureRegistry->getTextures(1), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    descriptorSet->setDescriptor(7, textureRegistry->getTextures(2), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    descriptorSet->setDescriptor(8, textureRegistry->getTextures(3), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     modelDraw->setDescriptorSet(0, descriptorSet);
 
 /**********************/
@@ -648,7 +646,7 @@ int main( int argc, char * argv[] )
     lightingRoot->addChild(compositePipeline);
 
     std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(fullScreenTriangle, verticesAllocator, 1, 0);
-    assetNode->setName("assetNode");
+    assetNode->setName("fullScreenTriangleAssetNode");
     compositePipeline->addChild(assetNode);
 
     auto input2 = std::make_shared<pumex::InputAttachment>("position");
@@ -673,7 +671,7 @@ int main( int argc, char * argv[] )
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
     auto textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, textLayoutBindings);
@@ -709,7 +707,7 @@ int main( int argc, char * argv[] )
 
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
     textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
-    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)

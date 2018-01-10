@@ -199,12 +199,10 @@ public:
   void                                                       refreshStructures() override;
   void                                                       setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
 
-  std::shared_ptr<StorageBuffer<uint32_t>>                   textureSamplerOffsets;
 protected:
   std::shared_ptr<DeviceMemoryAllocator>                     textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Resource>>> textures;
   std::map<uint32_t, SamplerTraits>                          textureTraits;
-  uint32_t                                                   textureSamplersQuantity = 0;
 };
 
 

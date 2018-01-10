@@ -238,7 +238,6 @@ void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerI
 TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc)
   : textureAllocator{ textureAlloc }
 {
-  textureSamplerOffsets = std::make_shared<StorageBuffer<uint32_t>>(allocator);
 }
 
 void TextureRegistryArrayOfTextures::setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait)
@@ -257,20 +256,6 @@ std::vector<std::shared_ptr<Resource>> TextureRegistryArrayOfTextures::getTextur
 
 void TextureRegistryArrayOfTextures::refreshStructures()
 {
-  std::vector<uint32_t> tso(TextureSemantic::Type::TextureSemanticCount);
-  std::fill(tso.begin(), tso.end(), 0);
-  uint32_t textureSum = 0;
-  for (uint32_t i = 0; i < TextureSemantic::Type::TextureSemanticCount; ++i)
-  {
-    auto it = textures.find(i);
-    if (it == textures.end())
-      continue;
-
-    tso[i] = textureSum;
-    textureSum += textures[i].size();
-  }
-  textureSamplersQuantity = textureSum;
-  textureSamplerOffsets->set(tso);
 }
 
 void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)

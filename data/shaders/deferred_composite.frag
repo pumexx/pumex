@@ -12,6 +12,8 @@ struct LightPoint
   vec4 attenuation;
 };
 
+layout (location = 0) in vec2 inUV;
+
 layout (binding = 0) uniform CameraUbo
 {
   mat4 viewMatrix;
@@ -25,10 +27,10 @@ layout (std430,binding = 1) readonly buffer Lights
 	LightPoint lights[];
 };
 
-layout(input_attachment_index = 2, binding = 2) uniform subpassInputMS inPosition;
-layout(input_attachment_index = 3, binding = 3) uniform subpassInputMS inNormal;
-layout(input_attachment_index = 4, binding = 4) uniform subpassInputMS inAlbedo;
-layout(input_attachment_index = 5, binding = 5) uniform subpassInputMS inRoughnessMetallic;
+layout(input_attachment_index = 0, binding = 2) uniform subpassInputMS inPosition;
+layout(input_attachment_index = 1, binding = 3) uniform subpassInputMS inNormal;
+layout(input_attachment_index = 2, binding = 4) uniform subpassInputMS inAlbedo;
+layout(input_attachment_index = 3, binding = 5) uniform subpassInputMS inRoughnessMetallic;
 
 layout (location = 0) out vec4 outColor;
 
