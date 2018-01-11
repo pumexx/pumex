@@ -167,7 +167,7 @@ std::shared_ptr<Surface> WindowWin32::createSurface(std::shared_ptr<Viewer> v, s
 
   std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
   // create swapchain
-  result->resizeSurface();
+  result->resizeSurface(width,height);
 
   viewer  = v;
   surface = result;
@@ -281,14 +281,14 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
       if (wParam == SIZE_MAXIMIZED)
       {
         sizeMaximized = true;
-        surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh));
+        surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh, newWidth, newHeight));
         width  = newWidth;
         height = newHeight;
       }
       else if ( sizeMaximized && wParam == SIZE_RESTORED)
       { 
         sizeMaximized = false;
-        surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh));
+        surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh, newWidth, newHeight));
         width  = newWidth;
         height = newHeight;
       }
@@ -300,7 +300,7 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
     if ((swapChainResizable) && ((width != newWidth) || (height != newHeight)))
     {
       auto surf = surface.lock();
-      surf->actions.addAction(std::bind(&Surface::resizeSurface, surf));
+      surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, newWidth, newHeight));
       width  = newWidth;
       height = newHeight;
     }

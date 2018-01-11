@@ -149,6 +149,7 @@ void Surface::createSwapChain()
 
   VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   swapChainSize = surfaceCapabilities.currentExtent;
+  LOG_ERROR << "cs " << swapChainSize.width << "x" << swapChainSize.height << std::endl;
 
   FrameBufferImageDefinition swapChainDefinition = renderWorkflow->frameBufferImages->getSwapChainDefinition();
 
@@ -211,11 +212,14 @@ void Surface::beginFrame()
   auto deviceSh = device.lock();
 
   VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
-
   if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
+  {
+    // recreate swapchain
     createSwapChain();
-  else
-    VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
+    // try to acquire images again - throw error for every reason other than VK_SUCCESS
+    result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
+  }
+  VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
 
   VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
@@ -270,14 +274,13 @@ void Surface::endFrame()
     presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
   VkResult result = vkQueuePresentKHR(presentationQueue, &presentInfo);
 
-  if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
-    createSwapChain();
-  else
+  if ((result != VK_ERROR_OUT_OF_DATE_KHR) && (result != VK_SUBOPTIMAL_KHR))
     VK_CHECK_LOG_THROW(result, "failed vkQueuePresentKHR");
 
 }
 
-void Surface::resizeSurface()
+void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
 {
-  createSwapChain();
+  if(swapChainSize.width != newWidth && swapChainSize.height != newHeight )
+    createSwapChain();
 }
