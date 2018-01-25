@@ -45,9 +45,11 @@
 #include <pumex/StorageBufferPerSurface.h>
 
 #include <pumex/Asset.h>
+#include <pumex/AssetBuffer.h>
+#include <pumex/AssetNode.h>
+#include <pumex/AssetBufferNode.h>
+#include <pumex/MaterialSet.h>
+#include <pumex/Text.h>
 #include <pumex/Camera.h>
 #include <pumex/Kinematic.h>
-#include <pumex/AssetBuffer.h>
-#include <pumex/MaterialSet.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/Text.h>
+

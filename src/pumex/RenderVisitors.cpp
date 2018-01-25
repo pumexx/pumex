@@ -22,6 +22,7 @@
 #include <pumex/RenderVisitors.h>
 #include <pumex/RenderWorkflow.h>
 #include <pumex/AssetBufferNode.h>
+#include <pumex/AssetNode.h>
 #include <pumex/Text.h>
 
 using namespace pumex;

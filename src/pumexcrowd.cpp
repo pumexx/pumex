@@ -187,6 +187,100 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
   return lhs.skelID < rhs.skelID;
 }
 
+// global variables storing model file names etc
+std::vector<std::string> animationFileNames
+{
+  "people/wmale1_bbox.dae",
+  "people/wmale1_walk.dae",
+  "people/wmale1_walk_easy.dae",
+  "people/wmale1_walk_big_steps.dae",
+  "people/wmale1_run.dae"
+};
+
+std::vector<float> animationSpeed =  // in meters per sec
+{
+  0.0f,
+  1.0f,
+  0.8f,
+  1.2f,
+  2.0f
+};
+
+std::vector<std::pair<std::string, bool>> skeletalNames
+{
+  { "wmale1", true },
+  { "wmale2", true },
+  { "wmale3", true },
+  { "wmale1_cloth1", false },
+  { "wmale1_cloth2", false },
+  { "wmale1_cloth3", false },
+  { "wmale2_cloth1", false },
+  { "wmale2_cloth2", false },
+  { "wmale2_cloth3", false },
+  { "wmale3_cloth1", false },
+  { "wmale3_cloth2", false },
+  { "wmale3_cloth3", false }
+};
+
+std::vector<std::string> skeletalModels
+{
+  "people/wmale1_lod0.dae", "people/wmale1_lod1.dae", "people/wmale1_lod2.dae",
+  "people/wmale2_lod0.dae", "people/wmale2_lod1.dae", "people/wmale2_lod2.dae",
+  "people/wmale3_lod0.dae", "people/wmale3_lod1.dae", "people/wmale3_lod2.dae",
+  "people/wmale1_cloth1.dae", "", "", // well, I don't have LODded cloths :(
+  "people/wmale1_cloth2.dae", "", "",
+  "people/wmale1_cloth3.dae", "", "",
+  "people/wmale2_cloth1.dae", "", "",
+  "people/wmale2_cloth2.dae", "", "",
+  "people/wmale2_cloth3.dae", "", "",
+  "people/wmale3_cloth1.dae", "", "",
+  "people/wmale3_cloth2.dae", "", "",
+  "people/wmale3_cloth3.dae", "", ""
+};
+
+std::vector<pumex::AssetLodDefinition> lodRanges
+{
+  pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
+  pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
+  pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
+  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)
+};
+
+std::multimap<std::string, std::vector<std::vector<std::string>>> materialVariants =
+{
+  { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse_1.dds" } } },
+  { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse.dds" } } },
+  { "wmale2", { { "body_mat", "people/young_lightskinned_male_diffuse3_1.dds" } } },
+  { "wmale2", { { "body_mat", "people/dragon_female_white.dds" } } },
+  { "wmale3", { { "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds" } } },
+  { "wmale3", { { "body_mat", "people/ork_texture.dds" } } }
+};
+
+std::multimap<std::string, std::vector<std::string>> clothVariants =
+{
+  { "wmale1", {} },
+  { "wmale1", { "wmale1_cloth1" } },
+  { "wmale1", { "wmale1_cloth2" } },
+  { "wmale1", { "wmale1_cloth3" } },
+  { "wmale2", {} },
+  { "wmale2", { "wmale2_cloth1" } },
+  { "wmale2", { "wmale2_cloth2" } },
+  { "wmale2", { "wmale2_cloth3" } },
+  { "wmale3", {} },
+  { "wmale3", { "wmale3_cloth1" } },
+  { "wmale3", { "wmale3_cloth2" } },
+  { "wmale3", { "wmale3_cloth3" } }
+};
+
+
 struct CrowdApplicationData
 {
   std::weak_ptr<pumex::Viewer>                           viewer;
@@ -196,7 +290,6 @@ struct CrowdApplicationData
 
   glm::vec3                                              minArea;
   glm::vec3                                              maxArea;
-  std::vector<pumex::Skeleton>                           skeletons;
   std::vector<pumex::Animation>                          animations;
   std::map<SkelAnimKey, std::vector<uint32_t>>           skelAnimBoneMapping;
   std::vector<float>                                     animationSpeed;
@@ -206,48 +299,48 @@ struct CrowdApplicationData
   std::uniform_real_distribution<float>                  randomRotation;
   std::uniform_int_distribution<uint32_t>                randomAnimation;
 
-  std::shared_ptr<pumex::DeviceMemoryAllocator>          buffersAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>          verticesAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>          texturesAllocator;
-  std::shared_ptr<pumex::AssetBuffer>                    skeletalAssetBuffer;
-  std::shared_ptr<pumex::AssetBufferInstancedResults>    instancedResults;
-  std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry;
-  std::shared_ptr<pumex::MaterialSet<MaterialData>>      materialSet;
+  //std::shared_ptr<pumex::DeviceMemoryAllocator>          buffersAllocator;
+  //std::shared_ptr<pumex::DeviceMemoryAllocator>          verticesAllocator;
+  //std::shared_ptr<pumex::DeviceMemoryAllocator>          texturesAllocator;
+  //std::shared_ptr<pumex::AssetBuffer>                    skeletalAssetBuffer;
+  //std::shared_ptr<pumex::AssetBufferInstancedResults>    instancedResults;
+  //std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry;
+  //std::shared_ptr<pumex::MaterialSet<MaterialData>>      materialSet;
 
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
   std::shared_ptr<pumex::StorageBuffer<PositionData>>            positionSbo;
   std::shared_ptr<pumex::StorageBuffer<InstanceData>>            instanceSbo;
 
-  std::shared_ptr<pumex::RenderPass>                     defaultRenderPass;
+  //std::shared_ptr<pumex::RenderPass>                     defaultRenderPass;
 
-  std::shared_ptr<pumex::PipelineCache>                  pipelineCache;
+  //std::shared_ptr<pumex::PipelineCache>                  pipelineCache;
 
-  std::shared_ptr<pumex::DescriptorSetLayout>            instancedRenderDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>                 instancedRenderPipelineLayout;
-  std::shared_ptr<pumex::GraphicsPipeline>               instancedRenderPipeline;
-  std::shared_ptr<pumex::DescriptorPool>                 instancedRenderDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                  instancedRenderDescriptorSet;
+  //std::shared_ptr<pumex::DescriptorSetLayout>            instancedRenderDescriptorSetLayout;
+  //std::shared_ptr<pumex::PipelineLayout>                 instancedRenderPipelineLayout;
+  //std::shared_ptr<pumex::GraphicsPipeline>               instancedRenderPipeline;
+  //std::shared_ptr<pumex::DescriptorPool>                 instancedRenderDescriptorPool;
+  //std::shared_ptr<pumex::DescriptorSet>                  instancedRenderDescriptorSet;
 
-  std::shared_ptr<pumex::DescriptorSetLayout>            filterDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>                 filterPipelineLayout;
-  std::shared_ptr<pumex::ComputePipeline>                filterPipeline;
-  std::shared_ptr<pumex::DescriptorPool>                 filterDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                  filterDescriptorSet;
+  //std::shared_ptr<pumex::DescriptorSetLayout>            filterDescriptorSetLayout;
+  //std::shared_ptr<pumex::PipelineLayout>                 filterPipelineLayout;
+  //std::shared_ptr<pumex::ComputePipeline>                filterPipeline;
+  //std::shared_ptr<pumex::DescriptorPool>                 filterDescriptorPool;
+  //std::shared_ptr<pumex::DescriptorSet>                  filterDescriptorSet;
 
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::Font>                           fontDefault;
-  std::shared_ptr<pumex::Font>                           fontSmall;
-  std::shared_ptr<pumex::Text>                           textDefault;
-  std::shared_ptr<pumex::Text>                           textSmall;
+  //std::shared_ptr<pumex::Font>                           fontDefault;
+  //std::shared_ptr<pumex::Font>                           fontSmall;
+  //std::shared_ptr<pumex::Text>                           textDefault;
+  //std::shared_ptr<pumex::Text>                           textSmall;
 
-  std::shared_ptr<pumex::DescriptorSetLayout>            textDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>                 textPipelineLayout;
-  std::shared_ptr<pumex::GraphicsPipeline>               textPipeline;
-  std::shared_ptr<pumex::DescriptorPool>                 textDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                  textDescriptorSet;
-  std::shared_ptr<pumex::DescriptorSet>                  textDescriptorSetSmall;
+  //std::shared_ptr<pumex::DescriptorSetLayout>            textDescriptorSetLayout;
+  //std::shared_ptr<pumex::PipelineLayout>                 textPipelineLayout;
+  //std::shared_ptr<pumex::GraphicsPipeline>               textPipeline;
+  //std::shared_ptr<pumex::DescriptorPool>                 textDescriptorPool;
+  //std::shared_ptr<pumex::DescriptorSet>                  textDescriptorSet;
+  //std::shared_ptr<pumex::DescriptorSet>                  textDescriptorSetSmall;
 
-  std::shared_ptr<pumex::QueryPool>                      timeStampQueryPool;
+  //std::shared_ptr<pumex::QueryPool>                      timeStampQueryPool;
 
   pumex::HPClock::time_point                             lastFrameStart;
   bool                                                   measureTime = true;
@@ -256,7 +349,7 @@ struct CrowdApplicationData
 
   std::unordered_map<uint32_t, glm::mat4>                slaveViewMatrix;
 
-  std::unordered_map<pumex::Surface*,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
+  //std::unordered_map<pumex::Surface*,std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
 
   CrowdApplicationData(std::shared_ptr<pumex::Viewer> v)
@@ -268,272 +361,8 @@ struct CrowdApplicationData
   {
     minArea = minAreaParam;
     maxArea = maxAreaParam;
-    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
-    CHECK_LOG_THROW (viewerSh.get() == nullptr, "Cannot acces pumex viewer");
 
-    pumex::AssetLoaderAssimp loader;
-
-    std::vector<std::string> animationFileNames
-    {
-      "people/wmale1_bbox.dae",
-      "people/wmale1_walk.dae",
-      "people/wmale1_walk_easy.dae",
-      "people/wmale1_walk_big_steps.dae",
-      "people/wmale1_run.dae"
-    };
-    animationSpeed =  // in meters per sec
-    {
-      0.0f,
-      1.0f,
-      0.8f,
-      1.2f,
-      2.0f
-    };
-
-    // We assume that animations use the same skeleton as skeletal models
-    for (uint32_t i = 0; i < animationFileNames.size(); ++i)
-    {
-      std::string fullAssetFileName = viewerSh->getFullFilePath(animationFileNames[i]);
-      if (fullAssetFileName.empty())
-      {
-        LOG_WARNING << "Cannot find asset : " << animationFileNames[i] << std::endl;
-        continue;
-      }
-      std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,true));
-      if (asset.get() == nullptr)
-      {
-        LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
-        continue;
-      }
-      animations.push_back(asset->animations[0]);
-    }
-
-	randomAnimation = std::uniform_int_distribution<uint32_t>(1, animations.size() - 1);
-
-    // alocate 12 MB for uniform and storage buffers
-    buffersAllocator  = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 64 MB for vertex and index buffers
-    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 80 MB memory for 24 compressed textures and for font textures
-    texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
-    std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
-    skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    instancedResults    = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
-
-    textureRegistry = std::make_shared<pumex::TextureRegistryTextureArray>();
-    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::SamplerTraits(), texturesAllocator));
-    std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 } };
-    materialSet = std::make_shared<pumex::MaterialSet<MaterialData>>(viewerSh, textureRegistry, buffersAllocator, textureSemantic);
-
-    std::vector<std::pair<std::string,bool>> skeletalNames
-    {
-      { "wmale1", true},
-      { "wmale2", true},
-      { "wmale3", true},
-      { "wmale1_cloth1", false},
-      { "wmale1_cloth2", false },
-      { "wmale1_cloth3", false },
-      { "wmale2_cloth1", false },
-      { "wmale2_cloth2", false },
-      { "wmale2_cloth3", false },
-      { "wmale3_cloth1", false },
-      { "wmale3_cloth2", false },
-      { "wmale3_cloth3", false }
-    };
-    std::vector<std::string> skeletalModels
-    {
-      "people/wmale1_lod0.dae", "people/wmale1_lod1.dae", "people/wmale1_lod2.dae",
-      "people/wmale2_lod0.dae", "people/wmale2_lod1.dae", "people/wmale2_lod2.dae",
-      "people/wmale3_lod0.dae", "people/wmale3_lod1.dae", "people/wmale3_lod2.dae",
-      "people/wmale1_cloth1.dae", "", "", // well, I don't have LODded cloths :(
-      "people/wmale1_cloth2.dae", "", "",
-      "people/wmale1_cloth3.dae", "", "",
-      "people/wmale2_cloth1.dae", "", "",
-      "people/wmale2_cloth2.dae", "", "",
-      "people/wmale2_cloth3.dae", "", "",
-      "people/wmale3_cloth1.dae", "", "",
-      "people/wmale3_cloth2.dae", "", "",
-      "people/wmale3_cloth3.dae", "", ""
-    };
-    std::vector<pumex::AssetLodDefinition> lodRanges
-    {
-      pumex::AssetLodDefinition(0.0f, 8.0f), pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
-      pumex::AssetLodDefinition(0.0f, 8.0f), pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
-      pumex::AssetLodDefinition(0.0f, 8.0f), pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f),
-      pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f), pumex::AssetLodDefinition(0.0f, 0.0f)
-   };
-    std::multimap<std::string,std::vector<std::vector<std::string>>> materialVariants = 
-    {
-      { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse_1.dds" } } },
-      { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse.dds" } } },
-      { "wmale2", { { "body_mat", "people/young_lightskinned_male_diffuse3_1.dds" } } },
-      { "wmale2", { { "body_mat", "people/dragon_female_white.dds" } } },
-      { "wmale3", { { "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds"} } },
-      { "wmale3", { { "body_mat", "people/ork_texture.dds" } } }
-    };
-    std::multimap<std::string, std::vector<std::string>> clothVariants =
-    {
-      { "wmale1", { } },
-      { "wmale1", { "wmale1_cloth1" } },
-      { "wmale1", { "wmale1_cloth2" } },
-      { "wmale1", { "wmale1_cloth3" } },
-      { "wmale2", { } },
-      { "wmale2", { "wmale2_cloth1" } },
-      { "wmale2", { "wmale2_cloth2" } },
-      { "wmale2", { "wmale2_cloth3" } },
-      { "wmale3", { } },
-      { "wmale3", { "wmale3_cloth1" } },
-      { "wmale3", { "wmale3_cloth2" } },
-      { "wmale3", { "wmale3_cloth3" } }
-    };
-
-    std::vector<uint32_t> mainObjectTypeID;
-    std::vector<uint32_t> accessoryObjectTypeID;
-    skeletons.push_back(pumex::Skeleton()); // empty skeleton for null type
-    for (uint32_t i = 0; i < skeletalNames.size(); ++i)
-    {
-      uint32_t typeID = 0;
-      for (uint32_t j = 0; j<3; ++j)
-      {
-        if (skeletalModels[3 * i + j].empty())
-          continue;
-        std::string fullAssetFileName = viewerSh->getFullFilePath(skeletalModels[3 * i + j]);
-        if (fullAssetFileName.empty())
-        {
-          LOG_WARNING << "Cannot find asset : " << skeletalModels[3 * i + j] << std::endl;
-          continue;
-        }
-        std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,false,vertexSemantic));
-        if (asset.get() == nullptr)
-        {
-          LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
-          continue;
-        }
-        if( typeID == 0 )
-        {
-          skeletons.push_back(asset->skeleton);
-          pumex::BoundingBox bbox = pumex::calculateBoundingBox(asset->skeleton, animations[0], true);
-          typeID = skeletalAssetBuffer->registerType(skeletalNames[i].first, pumex::AssetTypeDefinition(bbox));
-          if(skeletalNames[i].second)
-            mainObjectTypeID.push_back(typeID);
-          else
-            accessoryObjectTypeID.push_back(typeID);
-        }
-        materialSet->registerMaterials(typeID, asset);
-        skeletalAssetBuffer->registerObjectLOD(typeID, asset, lodRanges[3 * i + j]);
-      }
-      // register texture variants
-      for (auto it = materialVariants.begin(), eit = materialVariants.end(); it != eit; ++it)
-      {
-        if (it->first == skeletalNames[i].first)
-        {
-          uint32_t variantCount = materialSet->getMaterialVariantCount(typeID);
-          std::vector<pumex::Material> materials = materialSet->getMaterials(typeID);
-          for (auto iit = it->second.begin(); iit != it->second.end(); ++iit)
-          {
-            for ( auto& mat : materials )
-            {
-              if (mat.name == (*iit)[0])
-                mat.textures[pumex::TextureSemantic::Diffuse] = (*iit)[1];
-            }
-          }
-          materialSet->setMaterialVariant(typeID, variantCount, materials);
-        }
-      }
-    }
-    instancedResults->setup();
-
-    materialSet->refreshMaterialStructures();
-    std::vector<uint32_t> materialVariantCount(skeletalNames.size()+1);
-    for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
-      materialVariantCount[i] = materialSet->getMaterialVariantCount(i);
-
-    cameraUbo    = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    positionSbo  = std::make_shared<pumex::StorageBuffer<PositionData>>(buffersAllocator, 3);
-    instanceSbo  = std::make_shared<pumex::StorageBuffer<InstanceData>>(buffersAllocator, 3);
-
-    pipelineCache = std::make_shared<pumex::PipelineCache>();
-
-    std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
-    instancedRenderDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, instancedRenderLayoutBindings);
-    // building pipeline layout
-    instancedRenderPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
-    instancedRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
-    instancedRenderPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_instanced_animation.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_instanced_animation.frag.spv")), "main" }
-    };
-    instancedRenderPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
-    };
-    instancedRenderPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    instancedRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
-    instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
-    instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
-    instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);
-    instancedRenderDescriptorSet->setDescriptor(3, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    instancedRenderDescriptorSet->setDescriptor(4, materialSet->typeDefinitionSbo);
-    instancedRenderDescriptorSet->setDescriptor(5, materialSet->materialVariantSbo);
-    instancedRenderDescriptorSet->setDescriptor(6, materialSet->materialDefinitionSbo);
-    instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getTargetTexture(0));
-
-    std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
-    };
-    filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
-    // building pipeline layout
-    filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
-    filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
-
-    filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    filterDescriptorSet->setDescriptor(0, cameraUbo);
-    filterDescriptorSet->setDescriptor(1, positionSbo);
-    filterDescriptorSet->setDescriptor(2, instanceSbo);
-    filterDescriptorSet->setDescriptor(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(5, instancedResults->getResults(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
-
-    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
+    randomAnimation = std::uniform_int_distribution<uint32_t>(1, animations.size() - 1);
 
     // initializing data
     float fullArea = (maxArea.x - minArea.x) * (maxArea.y - minArea.y);
@@ -584,54 +413,10 @@ struct CrowdApplicationData
       }
     }
 
-    std::string fullFontFileName = viewerSh->getFullFilePath("fonts/DejaVuSans.ttf");
-    fontDefault                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 24, texturesAllocator, buffersAllocator);
-    textDefault                  = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-    fontSmall                    = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512,512), 16, texturesAllocator, buffersAllocator);
-    textSmall                    = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
-
-    
+    cameraUbo     = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    textDescriptorPool = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
-    // building pipeline layout
-    textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
-    textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 0);
-    textPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
-    };
-    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    textPipeline->blendAttachments =
-    {
-      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
-    };
-    textPipeline->depthTestEnable  = VK_FALSE;
-    textPipeline->depthWriteEnable = VK_FALSE;
-    textPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
-    };
-    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSet->setDescriptor(0, textCameraUbo);
-    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
-
-    textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
-    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture);
-
+    positionSbo   = std::make_shared<pumex::StorageBuffer<PositionData>>(buffersAllocator, 3);
+    instanceSbo   = std::make_shared<pumex::StorageBuffer<InstanceData>>(buffersAllocator, 3);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -1262,9 +1047,281 @@ int main(int argc, char * argv[])
     CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
 
     std::vector<std::shared_ptr<pumex::Window>> windows;
-    for (const auto& t : windowTraits)
-      windows.push_back(pumex::Window::createWindow(t));
+    for (const auto& wt : windowTraits)
+      windows.push_back(pumex::Window::createWindow(wt));
+    
+    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
+    
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", workflowCompiler, frameBufferAllocator);
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, false, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, true,  pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0,{ 0.75f } });
+
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute, VK_SUBPASS_CONTENTS_INLINE));
+
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
+      workflow->addAttachmentDepthOutput( "rendering", "depth", "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ( "rendering", "color", "surface",       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    surfaceTraits.setRenderWorkflow(workflow);
+    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
+    for (auto win : windows)
+      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
+
+    pumex::AssetLoaderAssimp      loader;
+    std::vector<pumex::Animation> animations;
+
+    // We assume that animations use the same skeleton as skeletal models
+    for (uint32_t i = 0; i < animationFileNames.size(); ++i)
+    {
+      std::string fullAssetFileName = viewer->getFullFilePath(animationFileNames[i]);
+      if (fullAssetFileName.empty())
+      {
+        LOG_WARNING << "Cannot find asset : " << animationFileNames[i] << std::endl;
+        continue;
+      }
+      std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,true));
+      if (asset.get() == nullptr)
+      {
+        LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
+        continue;
+      }
+      animations.push_back(asset->animations[0]);
+    }
+
+
+    // alocate 12 MB for uniform and storage buffers
+    auto buffersAllocator  = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    auto verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 80 MB memory for 24 compressed textures and for font textures
+    auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
+    std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
+
+    auto skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+    auto instancedResults    = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
+
+    std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
+    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::SamplerTraits(), texturesAllocator));
+    std::vector<pumex::TextureSemantic>                    textureSemantic  = { { pumex::TextureSemantic::Diffuse, 0 } };
+    std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
+    std::shared_ptr<pumex::MaterialSet>                    materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
+
+    std::vector<pumex::Skeleton>                           skeletons;
+
+    std::vector<uint32_t> mainObjectTypeID;
+    std::vector<uint32_t> accessoryObjectTypeID;
+    skeletons.push_back(pumex::Skeleton()); // empty skeleton for null type
+    for (uint32_t i = 0; i < skeletalNames.size(); ++i)
+    {
+      uint32_t typeID = 0;
+      for (uint32_t j = 0; j<3; ++j)
+      {
+        if (skeletalModels[3 * i + j].empty())
+          continue;
+        std::string fullAssetFileName = viewer->getFullFilePath(skeletalModels[3 * i + j]);
+        if (fullAssetFileName.empty())
+        {
+          LOG_WARNING << "Cannot find asset : " << skeletalModels[3 * i + j] << std::endl;
+          continue;
+        }
+        std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,false,vertexSemantic));
+        if (asset.get() == nullptr)
+        {
+          LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
+          continue;
+        }
+        if( typeID == 0 )
+        {
+          skeletons.push_back(asset->skeleton);
+          pumex::BoundingBox bbox = pumex::calculateBoundingBox(asset->skeleton, animations[0], true);
+          typeID = skeletalAssetBuffer->registerType(skeletalNames[i].first, pumex::AssetTypeDefinition(bbox));
+          if(skeletalNames[i].second)
+            mainObjectTypeID.push_back(typeID);
+          else
+            accessoryObjectTypeID.push_back(typeID);
+        }
+        materialSet->registerMaterials(typeID, asset);
+        skeletalAssetBuffer->registerObjectLOD(typeID, asset, lodRanges[3 * i + j]);
+      }
+
+      // register texture variants
+      for (auto it = materialVariants.begin(), eit = materialVariants.end(); it != eit; ++it)
+      {
+        if (it->first == skeletalNames[i].first)
+        {
+          uint32_t variantCount = materialSet->getMaterialVariantCount(typeID);
+          std::vector<pumex::Material> materials = materialSet->getMaterials(typeID);
+          for (auto iit = it->second.begin(); iit != it->second.end(); ++iit)
+          {
+            for ( auto& mat : materials )
+            {
+              if (mat.name == (*iit)[0])
+                mat.textures[pumex::TextureSemantic::Diffuse] = (*iit)[1];
+            }
+          }
+          materialSet->setMaterialVariant(typeID, variantCount, materials);
+        }
+      }
+    }
+    instancedResults->setup();
+    materialSet->refreshMaterialStructures();
+    std::vector<uint32_t> materialVariantCount(skeletalNames.size()+1);
+    for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
+      materialVariantCount[i] = materialSet->getMaterialVariantCount(i);
+
+    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(viewer);
+    applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
+
+
+    auto renderingRoot = std::make_shared<pumex::Group>();
+    renderingRoot->setName("renderingRoot");
+    workflow->setSceneNode("rendering", renderingRoot);
+
+    auto pipelineCache = std::make_shared<pumex::PipelineCache>();
+
+    std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    // building rendering pipeline layout
+    auto instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
+    auto instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, instancedRenderLayoutBindings);
+    auto instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
+    auto instancedRenderPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout);
+    instancedRenderPipeline->shaderStages   =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_instanced_animation.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_instanced_animation.frag.spv")), "main" }
+    };
+    instancedRenderPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
+    };
+    instancedRenderPipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF }
+    };
+    instancedRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    renderingRoot->addChild(instancedRenderPipeline);
+
+    auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(skeletalAssetBuffer, materialSet, 1, 0);
+    assetBufferNode->setName("assetBufferNode");
+    instancedRenderPipeline->addChild(assetBufferNode);
+
+    // FIXME - DRAW NODE
+    
+
+
+    auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
+    instancedRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+    instancedRenderDescriptorSet->setDescriptor(1, applicationData->positionSbo);
+    instancedRenderDescriptorSet->setDescriptor(2, applicationData->instanceSbo);
+    instancedRenderDescriptorSet->setDescriptor(3, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    instancedRenderDescriptorSet->setDescriptor(4, materialSet->typeDefinitionSbo);
+    instancedRenderDescriptorSet->setDescriptor(5, materialSet->materialVariantSbo);
+    instancedRenderDescriptorSet->setDescriptor(6, materialRegistry->materialDefinitionSbo);
+    instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getTargetTexture(0));
+
+
+    auto computeRoot = std::make_shared<pumex::Group>();
+    computeRoot->setName("computeRoot");
+    workflow->setSceneNode("crowd_compute", computeRoot);
+    
+    std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
+    };
+
+    // building compute pipeline layout
+    auto filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
+    auto filterDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
+    auto filterPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
+    auto filterPipeline            = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
+    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
+
+    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
+    filterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+    filterDescriptorSet->setDescriptor(1, applicationData->positionSbo);
+    filterDescriptorSet->setDescriptor(2, applicationData->instanceSbo);
+    filterDescriptorSet->setDescriptor(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(5, instancedResults->getResults(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+
+    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
+
+    std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
+    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
+    auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+    auto fontSmall = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512), 16, texturesAllocator, buffersAllocator);
+    auto textSmall = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
+
+    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    // building text rendering pipeline layout
+    auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
+    auto textDescriptorPool      = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
+    auto textPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
+    auto textPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 0);
+    textPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+    };
+    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    textPipeline->blendAttachments =
+    {
+      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+    };
+    textPipeline->depthTestEnable = VK_FALSE;
+    textPipeline->depthWriteEnable = VK_FALSE;
+    textPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+    };
+    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
+    textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
+
+    auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
+    textDescriptorSetSmall->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture);
+
+
+
+
+/*
     std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
     {
       { pumex::atSurface, VK_FORMAT_B8G8R8A8_UNORM,    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
@@ -1296,14 +1353,7 @@ int main(int argc, char * argv[])
 
     std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0,{ 0.75f } });
-    surfaceTraits.setDefaultRenderPass(renderPass);
-    surfaceTraits.setFrameBufferImages(frameBufferImages);
-
-    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(viewer);
-    applicationData->defaultRenderPass = renderPass;
-    applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
+*/
 
     if (render3windows)
     {

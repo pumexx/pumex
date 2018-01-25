@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -19,62 +19,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include <pumex/NodeVisitor.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/AssetNode.h>
-#include <pumex/Text.h>
 
-using namespace pumex;
+#include <pumex/Export.h>
+#include <pumex/Node.h>
+#include <pumex/GenericBuffer.h>
 
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+namespace pumex
 {
-}
-
-void NodeVisitor::traverse(Node& node)
+	
+class PUMEX_EXPORT AssetNode : public Node
 {
-  if ( traversalMode == Parents) 
-    node.ascend(*this);
-  else if ( traversalMode != None) 
-    node.traverse(*this);
-}
+public:
+  AssetNode(std::shared_ptr<pumex::Asset> asset, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, uint32_t renderMask, uint32_t vertexBinding);
 
-void NodeVisitor::apply(Node& node)
-{
-  traverse(node);
-}
+  void accept(NodeVisitor& visitor) override;
+  void validate(const RenderContext& renderContext) override;
 
-void NodeVisitor::apply(Group& node)
-{
-  apply(static_cast<Node&>(node));
-}
+  void internalInvalidate();
 
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
 
-void NodeVisitor::apply(ComputePipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
 
-void NodeVisitor::apply(AssetBufferNode& node)
-{
-  apply(static_cast<Group&>(node));
-}
+  std::shared_ptr<pumex::Asset> asset;
+  uint32_t                      renderMask;
+  uint32_t                      vertexBinding;
+protected:
+  bool                                                  geometryValid = false;
+  std::shared_ptr<std::vector<float>>                   vertices;
+  std::shared_ptr<std::vector<uint32_t>>                indices;
+  std::shared_ptr<GenericBuffer<std::vector<float>>>    vertexBuffer;
+  std::shared_ptr<GenericBuffer<std::vector<uint32_t>>> indexBuffer;
+};
 
-void NodeVisitor::apply(AssetBufferDrawObject& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(AssetNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(Text& node)
-{
-  apply(static_cast<Node&>(node));
 }

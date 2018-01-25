@@ -27,9 +27,9 @@
 namespace pumex
 {
 
+class AssetNode;
 class AssetBufferNode;
 class AssetBufferDrawObject;
-class AssetNode;
 class Text;
 
 class PUMEX_EXPORT NodeVisitor
