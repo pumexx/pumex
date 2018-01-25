@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -53,7 +53,9 @@ public:
   void apply(ComputePipeline& node) override;
   void apply(AssetBufferNode& node) override;
   void apply(AssetBufferDrawObject& node) override;
+  void apply(AssetBufferIndirectDrawObjects& node) override;
   void apply(AssetNode& node) override;
+  void apply(DispatchNode& node) override;
   void apply(Text& node) override;
 
   void applyDescriptorSets(Node& node);

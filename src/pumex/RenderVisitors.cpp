@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -23,6 +23,7 @@
 #include <pumex/RenderWorkflow.h>
 #include <pumex/AssetBufferNode.h>
 #include <pumex/AssetNode.h>
+#include <pumex/DispatchNode.h>
 #include <pumex/Text.h>
 
 using namespace pumex;
@@ -92,9 +93,19 @@ void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
   if (renderContext.currentAssetBufferNode == nullptr)
     return;
   applyDescriptorSets(node);
-  renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObject(renderContext.device, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.typeID, node.firstInstance, node.getDistanceToViewer());
+  renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObject(renderContext, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.typeID, node.firstInstance, node.getDistanceToViewer());
   traverse(node);
 }
+
+void BuildCommandBufferVisitor::apply(AssetBufferIndirectDrawObjects& node)
+{
+  if (renderContext.currentAssetBufferNode == nullptr)
+    return;
+  applyDescriptorSets(node);
+  renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObjectsIndirect(renderContext, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.instancedResults);
+  traverse(node);
+}
+
 
 void BuildCommandBufferVisitor::apply(AssetNode& node)
 {
@@ -103,6 +114,12 @@ void BuildCommandBufferVisitor::apply(AssetNode& node)
   traverse(node);
 }
 
+void BuildCommandBufferVisitor::apply(DispatchNode& node)
+{
+  applyDescriptorSets(node);
+  commandBuffer->cmdDispatch(node.x, node.y, node.z);
+  traverse(node);
+}
 
 void BuildCommandBufferVisitor::apply(Text& node)
 {

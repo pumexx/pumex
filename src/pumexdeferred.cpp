@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -452,11 +452,11 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 512 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", workflowCompiler, frameBufferAllocator);
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", VK_FORMAT_D24_UNORM_S8_UINT,   VK_SAMPLE_COUNT_4_BIT, false, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, false, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, true,  pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_4_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D24_UNORM_S8_UINT,   VK_SAMPLE_COUNT_4_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_4_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("gbuffer", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));

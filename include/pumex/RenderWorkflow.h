@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -118,30 +118,37 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
-  RenderWorkflowResourceType(const std::string& typeName, VkFormat format, VkSampleCountFlagBits samples, bool persistent, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
+  RenderWorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
+  RenderWorkflowResourceType(const std::string& typeName, bool persistent);
 
   MetaType              metaType;
   std::string           typeName;
-  VkFormat              format;
-  VkSampleCountFlagBits samples;
   bool                  persistent;
 
   struct AttachmentData
   {
-    AttachmentData(AttachmentType at, const AttachmentSize& as, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
-      :attachmentType{ at }, attachmentSize{ as }, swizzles{ sw }
+    AttachmentData(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
+      : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, swizzles{ sw }
     {
     }
 
+    VkFormat              format;
+    VkSampleCountFlagBits samples;
     AttachmentType        attachmentType;
     AttachmentSize        attachmentSize;
     gli::swizzles         swizzles;
-
+  };
+  struct BufferData
+  {
+    BufferData()
+    {
+    }
   };
 
   union
   {
     AttachmentData attachment;
+    BufferData     buffer;
   };
 };
 
@@ -186,9 +193,11 @@ enum ResourceTransitionType
   rttAttachmentOutput        = 2,
   rttAttachmentResolveOutput = 4,
   rttAttachmentDepthOutput   = 8,
+  rttBufferInput             = 16,
+  rttBufferOutput            = 32,
   rttAllAttachments          = (rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput),
-  rttAllInputs               = (rttAttachmentInput),
-  rttAllOutputs              = (rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput),
+  rttAllInputs               = (rttAttachmentInput | rttBufferInput),
+  rttAllOutputs              = (rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput),
   rttAllInputsOutputs        = (rttAllInputs | rttAllOutputs)
 };
 
@@ -196,6 +205,7 @@ class PUMEX_EXPORT ResourceTransition
 {
 public:
   ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load);
+  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType );
   std::shared_ptr<RenderOperation>  operation;
   std::shared_ptr<WorkflowResource> resource;
   ResourceTransitionType            transitionType;
@@ -250,6 +260,9 @@ public:
   void addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
   void addAttachmentResolveOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
   void addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
+
+  void addBufferInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType);
+  void addBufferOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType);
 
   std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionType transitionTypes) const;
   std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionType transitionTypes) const;

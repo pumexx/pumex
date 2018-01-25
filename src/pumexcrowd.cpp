@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -1051,17 +1051,21 @@ int main(int argc, char * argv[])
       windows.push_back(pumex::Window::createWindow(wt));
     
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-    
+
+    // allocate 24 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", workflowCompiler, frameBufferAllocator);
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, false, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, true,  pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", true));
       workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0,{ 0.75f } });
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute, VK_SUBPASS_CONTENTS_INLINE));
+      workflow->addBufferOutput( "crowd_compute", "visible_instances", "compute_results" );
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
+      workflow->addBufferInput          ( "rendering", "visible_instances", "compute_results" );
       workflow->addAttachmentDepthOutput( "rendering", "depth", "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentOutput     ( "rendering", "color", "surface",       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
@@ -1092,9 +1096,8 @@ int main(int argc, char * argv[])
       animations.push_back(asset->animations[0]);
     }
 
-
     // alocate 12 MB for uniform and storage buffers
-    auto buffersAllocator  = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     auto verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 80 MB memory for 24 compressed textures and for font textures
@@ -1104,7 +1107,7 @@ int main(int argc, char * argv[])
     std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
 
     auto skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    auto instancedResults    = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
+    auto instancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
 
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::SamplerTraits(), texturesAllocator));
@@ -1178,12 +1181,58 @@ int main(int argc, char * argv[])
     std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(viewer);
     applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000);
 
+    // build a compute tree
+
+    auto pipelineCache = std::make_shared<pumex::PipelineCache>();
+
+    auto computeRoot = std::make_shared<pumex::Group>();
+    computeRoot->setName("computeRoot");
+    workflow->setSceneNode("crowd_compute", computeRoot);
+
+    std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
+    };
+
+    // building compute pipeline layout
+    auto filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
+    auto filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
+    auto filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
+    auto filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
+    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
+    computeRoot->addChild(filterPipeline);
+
+    // FIXME : instance count
+//    uint32_t instanceCount = rData.people.size() + rData.clothes.size();
+//    currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
+    auto dispatchNode = std::make_shared<pumex::DispatchNode>(1, 1, 1);
+    dispatchNode->setName("dispatchNode");
+    filterPipeline->addChild(dispatchNode);
+  
+    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
+    filterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+    filterDescriptorSet->setDescriptor(1, applicationData->positionSbo);
+    filterDescriptorSet->setDescriptor(2, applicationData->instanceSbo);
+    filterDescriptorSet->setDescriptor(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(5, instancedResults->getResults(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    dispatchNode->setDescriptorSet(0, filterDescriptorSet);
+
+    //    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
+
+    // build a render tree
 
     auto renderingRoot = std::make_shared<pumex::Group>();
     renderingRoot->setName("renderingRoot");
     workflow->setSceneNode("rendering", renderingRoot);
-
-    auto pipelineCache = std::make_shared<pumex::PipelineCache>();
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
     {
@@ -1219,13 +1268,13 @@ int main(int argc, char * argv[])
 
     renderingRoot->addChild(instancedRenderPipeline);
 
-    auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(skeletalAssetBuffer, materialSet, 1, 0);
+    auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(skeletalAssetBuffer, materialSet, MAIN_RENDER_MASK, 0);
     assetBufferNode->setName("assetBufferNode");
     instancedRenderPipeline->addChild(assetBufferNode);
 
-    // FIXME - DRAW NODE
-    
-
+    auto assetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>( instancedResults );
+    assetBufferDrawIndirect->setName("assetBufferDrawIndirect");
+    assetBufferNode->addChild(assetBufferDrawIndirect);
 
     auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
     instancedRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
@@ -1236,41 +1285,7 @@ int main(int argc, char * argv[])
     instancedRenderDescriptorSet->setDescriptor(5, materialSet->materialVariantSbo);
     instancedRenderDescriptorSet->setDescriptor(6, materialRegistry->materialDefinitionSbo);
     instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getTargetTexture(0));
-
-
-    auto computeRoot = std::make_shared<pumex::Group>();
-    computeRoot->setName("computeRoot");
-    workflow->setSceneNode("crowd_compute", computeRoot);
-    
-    std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
-    };
-
-    // building compute pipeline layout
-    auto filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    auto filterDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
-    auto filterPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
-    filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
-    auto filterPipeline            = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
-
-    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    filterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    filterDescriptorSet->setDescriptor(1, applicationData->positionSbo);
-    filterDescriptorSet->setDescriptor(2, applicationData->instanceSbo);
-    filterDescriptorSet->setDescriptor(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(5, instancedResults->getResults(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
-
-    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
+    assetBufferDrawIndirect->setDescriptorSet(0, instancedRenderDescriptorSet);
 
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
     auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);

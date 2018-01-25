@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -49,6 +49,7 @@
 #include <pumex/AssetNode.h>
 #include <pumex/AssetBufferNode.h>
 #include <pumex/MaterialSet.h>
+#include <pumex/DispatchNode.h>
 #include <pumex/Text.h>
 #include <pumex/Camera.h>
 #include <pumex/Kinematic.h>

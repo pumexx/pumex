@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -57,5 +57,18 @@ public:
   uint32_t typeID;
   uint32_t firstInstance;
 };
+
+// class that draws series of objects registered in AssetBufferNode using cmdDrawIndexedIndirect - needs a buffer to work
+class PUMEX_EXPORT AssetBufferIndirectDrawObjects : public Node
+{
+public:
+  AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferInstancedResults> instancedResults);
+
+  void accept(NodeVisitor& visitor) override;
+  void validate(const RenderContext& renderContext) override;
+
+  std::shared_ptr<AssetBufferInstancedResults> instancedResults;
+};
+
 
 }

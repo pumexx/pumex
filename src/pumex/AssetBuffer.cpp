@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -25,6 +25,8 @@
 #include <set>
 #include <iterator>
 #include <pumex/Device.h>
+#include <pumex/PhysicalDevice.h>
+#include <pumex/RenderContext.h>
 #include <pumex/Command.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
@@ -231,9 +233,10 @@ void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, C
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void AssetBuffer::cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
+void AssetBuffer::cmdDrawObject(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const
 {
   std::lock_guard<std::mutex> lock(mutex);
+
   auto prmit = perRenderMaskData.find(renderMask);
   if (prmit == perRenderMaskData.end())
   {
@@ -262,6 +265,24 @@ void AssetBuffer::cmdDrawObject(Device* device, CommandBuffer* commandBuffer, ui
     }
   }
 }
+
+void AssetBuffer::cmdDrawObjectsIndirect(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, std::shared_ptr<AssetBufferInstancedResults> instancedResults)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+
+  std::vector<pumex::DescriptorSetValue> resultsBuffer;
+  instancedResults->getResults(renderMask)->getDescriptorSetValues(renderContext, resultsBuffer);
+  uint32_t drawCount = instancedResults->getDrawCount(renderMask);
+
+  if (renderContext.device->physical.lock()->features.multiDrawIndirect == 1)
+    commandBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset, drawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+  else
+  {
+    for (uint32_t i = 0; i < drawCount; ++i)
+      commandBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+  }
+}
+
 
 std::shared_ptr<StorageBuffer<AssetTypeDefinition>> AssetBuffer::getTypeBuffer(uint32_t renderMask)
 {

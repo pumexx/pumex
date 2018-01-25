@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -33,9 +33,15 @@
 
 using namespace pumex;
 
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, VkFormat f, VkSampleCountFlagBits s, bool p, AttachmentType at, const AttachmentSize& as)
-  : metaType{ Attachment }, typeName{ tn }, format{ f }, samples{ s }, persistent{ p }, attachment{ at, as }
+RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as)
+  : metaType{ Attachment }, typeName{ tn }, persistent{ p }, attachment{ f, s, at, as }
 {
+}
+
+RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p)
+  : metaType{ Buffer }, typeName{ tn }, persistent{ p }, buffer{}
+{
+
 }
 
 
@@ -106,6 +112,12 @@ SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_m
 
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& lo)
   : operation{ op }, resource{ res }, transitionType{ tt }, resolveResource{}, layout{ l }, load { lo }
+{
+
+}
+
+ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt)
+  : operation{ op }, resource{ res }, transitionType{ tt }, resolveResource{}, layout{ VK_IMAGE_LAYOUT_UNDEFINED }, load{ loadOpLoad() }
 {
 
 }
@@ -247,6 +259,39 @@ void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const s
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthOutput, layout, loadOp));
   valid = false;
 }
+
+void RenderWorkflow::addBufferInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType)
+{
+  auto operation = getRenderOperation(opName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
+  if (resIt == resources.end())
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+  // FIXME : additional checks
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttBufferInput));
+  valid = false;
+}
+
+void RenderWorkflow::addBufferOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType)
+{
+  auto operation = getRenderOperation(opName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
+  if (resIt == resources.end())
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+  {
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+    // resource may only have one transition with output type
+  }
+  // FIXME : additional checks
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttBufferOutput));
+  valid = false;
+
+}
+
 
 std::vector<std::shared_ptr<RenderOperation>> RenderWorkflow::getPreviousOperations(const std::string& opName) const
 {
@@ -461,10 +506,10 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
 
     frameBufferDefinitions.push_back(FrameBufferImageDefinition(
       resourceType->attachment.attachmentType,
-      resourceType->format,
+      resourceType->attachment.format,
       0,
       getAspectMask(resourceType->attachment.attachmentType),
-      resourceType->samples,
+      resourceType->attachment.samples,
       resourceVector[i]->name,
       resourceType->attachment.attachmentSize,
       resourceType->attachment.swizzles
@@ -664,8 +709,8 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
 
           attachmentDefinitions.push_back(AttachmentDefinition(
             i,
-            resType->format,
-            resType->samples,
+            resType->attachment.format,
+            resType->attachment.samples,
             colorDepthAttachment                     ? (VkAttachmentLoadOp)firstLoadOp[i].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE                : VK_ATTACHMENT_STORE_OP_DONT_CARE,
             stencilAttachment                        ? (VkAttachmentLoadOp)firstLoadOp[i].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,

@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Pawe³ Ksiê¿opolski ( pumexx )
+// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -143,6 +143,8 @@ struct PUMEX_EXPORT DrawIndexedIndirectCommand
   uint32_t firstInstance = 0;
 };
 
+class AssetBufferInstancedResults;
+
 class PUMEX_EXPORT AssetBuffer
 {
 public:
@@ -164,7 +166,8 @@ public:
   void                   validate(const RenderContext& renderContext);
 
   void                   cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
-  void                   cmdDrawObject(Device* device, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+  void                   cmdDrawObject(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
+  void                   cmdDrawObjectsIndirect(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, std::shared_ptr<AssetBufferInstancedResults> instancedResults);
 
   inline uint32_t        getNumRenderMasks() const;
 

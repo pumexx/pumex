@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -76,4 +76,26 @@ float AssetBufferDrawObject::getDistanceToViewer() const
   // FIXME - we need to pass pumex::Camera object somehow here
   // For now we will return constant value
   return 10.0f;
+}
+
+AssetBufferIndirectDrawObjects::AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferInstancedResults> ir)
+  : instancedResults{ ir }
+{
+
+}
+
+void AssetBufferIndirectDrawObjects::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
+}
+
+void AssetBufferIndirectDrawObjects::validate(const RenderContext& renderContext)
+{
+  instancedResults->validate(renderContext);
+  Node::validate(renderContext);
 }

@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -30,6 +30,8 @@ namespace pumex
 class AssetNode;
 class AssetBufferNode;
 class AssetBufferDrawObject;
+class AssetBufferIndirectDrawObjects;
+class DispatchNode;
 class Text;
 
 class PUMEX_EXPORT NodeVisitor
@@ -53,7 +55,9 @@ public:
   virtual void apply(ComputePipeline& node);
   virtual void apply(AssetBufferNode& node);
   virtual void apply(AssetBufferDrawObject& node);
+  virtual void apply(AssetBufferIndirectDrawObjects& node);
   virtual void apply(AssetNode& node);
+  virtual void apply(DispatchNode& node);
   virtual void apply(Text& node);
 
 

@@ -19,73 +19,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include <pumex/NodeVisitor.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/AssetNode.h>
+
 #include <pumex/DispatchNode.h>
-#include <pumex/Text.h>
+#include <pumex/NodeVisitor.h>
 
 using namespace pumex;
 
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+DispatchNode::DispatchNode(uint32_t x_, uint32_t y_, uint32_t z_ )
+  : x{ x_ }, y{ y_ }, z{ z_ }
 {
 }
 
-void NodeVisitor::traverse(Node& node)
+void DispatchNode::accept(NodeVisitor& visitor)
 {
-  if ( traversalMode == Parents) 
-    node.ascend(*this);
-  else if ( traversalMode != None) 
-    node.traverse(*this);
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
 }
 
-void NodeVisitor::apply(Node& node)
+void DispatchNode::validate(const RenderContext& renderContext)
 {
-  traverse(node);
-}
-
-void NodeVisitor::apply(Group& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(ComputePipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferNode& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferDrawObject& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferIndirectDrawObjects& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(AssetNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(DispatchNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(Text& node)
-{
-  apply(static_cast<Node&>(node));
+  Node::validate(renderContext);
 }
