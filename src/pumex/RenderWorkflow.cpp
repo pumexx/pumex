@@ -70,7 +70,7 @@ void RenderOperation::setSceneNode(std::shared_ptr<Node> node)
   sceneNode = node;
 }
 
-SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& resourceIndex) const
+SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex) const
 {
   // Fun fact : VkSubpassDescription with compute bind point is forbidden by Vulkan spec
   VkPipelineBindPoint              bindPoint = (operationType == Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
@@ -87,16 +87,16 @@ SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_m
   auto depthAttachments   = rw->getOperationIO(name, rttAttachmentDepthOutput);
 
   for (auto inputAttachment : inputAttachments)
-    ia.push_back({ resourceIndex.at(inputAttachment->resource->name), inputAttachment->layout });
+    ia.push_back({ attachmentIndex.at(inputAttachment->resource->name), inputAttachment->layout });
   for (auto outputAttachment : outputAttachments)
   {
-    oa.push_back({ resourceIndex.at(outputAttachment->resource->name), outputAttachment->layout });
+    oa.push_back({ attachmentIndex.at(outputAttachment->resource->name), outputAttachment->layout });
 
     if (!resolveAttachments.empty())
     {
       auto it = std::find_if(resolveAttachments.begin(), resolveAttachments.end(), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->resolveResource == outputAttachment->resource; });
       if (it != resolveAttachments.end())
-        ra.push_back({ resourceIndex.at( (*it)->resource->name), (*it)->layout });
+        ra.push_back({ attachmentIndex.at( (*it)->resource->name), (*it)->layout });
       else
         ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
     }
@@ -104,7 +104,7 @@ SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_m
       ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
   }
   if (!depthAttachments.empty())
-    dsa = { resourceIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->layout };
+    dsa = { attachmentIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->layout };
   else
     dsa = { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
   return SubpassDefinition(bindPoint, ia, oa, ra, dsa, pa);
@@ -498,12 +498,15 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
   std::unordered_map<std::string, uint32_t>      resourceIndex;
   collectResources(workflow, resourceVector, resourceIndex);
 
-  // FIXME : resource vector has ALL inputs - we only need attachments to create framebuffer
+  std::unordered_map<std::string, uint32_t>      attachmentIndex;
   std::vector<FrameBufferImageDefinition> frameBufferDefinitions;
   for (uint32_t i = 0; i < resourceVector.size(); ++i)
   {
     auto resourceType = resourceVector[i]->resourceType;
+    if (resourceType->metaType != RenderWorkflowResourceType::Attachment)
+      continue;
 
+    attachmentIndex.insert({ resourceVector[i]->name, frameBufferDefinitions.size() });
     frameBufferDefinitions.push_back(FrameBufferImageDefinition(
       resourceType->attachment.attachmentType,
       resourceType->attachment.format,
@@ -578,7 +581,7 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
         // build subpasses, attachment definitions, dependencies, pipeline barriers and events
         for (auto& operation : renderPass->renderOperations)
         {
-          auto subPassDefinition = operation->buildSubPassDefinition(resourceIndex);
+          auto subPassDefinition = operation->buildSubPassDefinition(attachmentIndex);
           renderPass->subpasses.push_back(subPassDefinition);
 
 // default first dependency as defined by the specification - we don't want to use it
@@ -598,12 +601,12 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
               if (gen->resource == inputTransition->resource)
                 generatingTransition = gen;
             }
-            uint32_t resIndex = resourceIndex[inputTransition->resource->name];
             // if this input was generated outside of render pass...
             uint32_t srcSubpass = VK_SUBPASS_EXTERNAL;
             auto it = modifiedOutputs.find(inputTransition->resource->name);
             if (it != modifiedOutputs.end())
               srcSubpass = it->second;
+
             // find subpass dependency that matches one with srcSubpass == srcSubpass and dstSubpass == passOperationIndex
             auto dep = std::find_if(subpassDependencies.begin(), subpassDependencies.end(), [srcSubpass, passOperationIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpass && sd.dstSubpass == passOperationIndex; });
             if (dep == subpassDependencies.end())
@@ -618,33 +621,39 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
             dep->srcAccessMask |= srcAccessMask;
             dep->dstAccessMask |= dstAccessMask;
             // if input resource is an attachment - set VK_DEPENDENCY_BY_REGION_BIT ( FIXME ?!? )
-            if( inputTransition->resource->resourceType->metaType == RenderWorkflowResourceType::Attachment )
+            if (inputTransition->resource->resourceType->metaType == RenderWorkflowResourceType::Attachment)
+            {
               dep->dependencyFlags |= VK_DEPENDENCY_BY_REGION_BIT;
 
-            lastLayout[resIndex]                   = inputTransition->layout;
-            frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(inputTransition->layout);
-            if( firstLoadOp[resIndex].loadType == LoadOp::DontCare )
-              firstLoadOp[resIndex]                = loadOpLoad();
+              uint32_t attIndex = attachmentIndex[inputTransition->resource->name];
+              lastLayout[attIndex] = inputTransition->layout;
+              frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(inputTransition->layout);
+              if (firstLoadOp[attIndex].loadType == LoadOp::DontCare)
+                firstLoadOp[attIndex] = loadOpLoad();
+            }
 
-            // FIXME : if generating transition and input transition point to operations in different queues, then we need to add synchronizing EVENT
+            // FIXME : when generating transition and input transition point to operations in different queues, then we need to add synchronizing EVENT
           }
 
           auto outputTransitions = workflow.getOperationIO(operation->name, rttAllOutputs);
           for (auto outputTransition : outputTransitions)
           {
-            uint32_t resIndex = resourceIndex[outputTransition->resource->name];
             modifiedOutputs[outputTransition->resource->name] = passOperationIndex;
 
-            lastLayout[resIndex] = outputTransition->layout;
-            frameBufferDefinitions[resIndex].usage |= getAttachmentUsage(outputTransition->layout);
-            if (firstLoadOp[resIndex].loadType == LoadOp::DontCare)
-              firstLoadOp[resIndex] = outputTransition->load;
-
-            // look for render pass that produces swapchain image
-            if (outputTransition->resource->resourceType->attachment.attachmentType == atSurface)
+            if (outputTransition->resource->resourceType->metaType == RenderWorkflowResourceType::Attachment)
             {
-              outputRenderPass       = renderPass;
-              presentationQueueIndex = sequenceIndex;
+              uint32_t attIndex = attachmentIndex[outputTransition->resource->name];
+              lastLayout[attIndex] = outputTransition->layout;
+              frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(outputTransition->layout);
+              if (firstLoadOp[attIndex].loadType == LoadOp::DontCare)
+                firstLoadOp[attIndex] = outputTransition->load;
+
+              // look for render pass that produces swapchain image
+              if (outputTransition->resource->resourceType->attachment.attachmentType == atSurface)
+              {
+                outputRenderPass = renderPass;
+                presentationQueueIndex = sequenceIndex;
+              }
             }
           }
 
@@ -680,6 +689,8 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
         {
           auto res = resourceVector[i];
           auto resType = res->resourceType;
+          if (resType->metaType != RenderWorkflowResourceType::Attachment)
+            continue;
 
           bool colorDepthAttachment;
           bool stencilAttachment;
@@ -707,16 +718,17 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
             resType->attachment.attachmentType == atSurface ||
             resourcesUsedAfterRenderPass.find(res->name) != resourcesUsedAfterRenderPass.end();
 
+          uint32_t attIndex = attachmentIndex[res->name];
           attachmentDefinitions.push_back(AttachmentDefinition(
-            i,
+            attIndex,
             resType->attachment.format,
             resType->attachment.samples,
-            colorDepthAttachment                     ? (VkAttachmentLoadOp)firstLoadOp[i].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE                : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            stencilAttachment                        ? (VkAttachmentLoadOp)firstLoadOp[i].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            stencilAttachment && mustSaveResource    ? VK_ATTACHMENT_STORE_OP_STORE                : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            beginLayout[i],
-            lastLayout[i],
+            colorDepthAttachment                     ? (VkAttachmentLoadOp)firstLoadOp[attIndex].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE                       : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            stencilAttachment                        ? (VkAttachmentLoadOp)firstLoadOp[attIndex].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            stencilAttachment && mustSaveResource    ? VK_ATTACHMENT_STORE_OP_STORE                       : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            beginLayout[attIndex],
+            lastLayout[attIndex],
             0
           ));
 
@@ -725,12 +737,12 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
           {
           case atSurface:
           case atColor:
-            clearValues.push_back( makeColorClearValue(firstLoadOp[i].clearColor) );
+            clearValues.push_back( makeColorClearValue(firstLoadOp[attIndex].clearColor) );
             break;
           case atDepth:
           case atDepthStencil:
           case atStencil:
-            clearValues.push_back(makeDepthStencilClearValue(firstLoadOp[i].clearColor.x, firstLoadOp[i].clearColor.y));
+            clearValues.push_back(makeDepthStencilClearValue(firstLoadOp[attIndex].clearColor.x, firstLoadOp[attIndex].clearColor.y));
             break;
           }
         }
@@ -767,6 +779,8 @@ void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflo
     auto opTransitions = workflow.getOperationIO(operation.first, rttAllAttachments);
     for (auto transition : opTransitions)
       attachmentSizes.push_back(transition->resource->resourceType->attachment.attachmentSize);
+    if (attachmentSizes.empty())
+      continue;
     bool sameSize = true;
     for (uint32_t i = 0; i < attachmentSizes.size() - 1; ++i)
     {
