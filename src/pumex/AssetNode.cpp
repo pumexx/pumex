@@ -26,7 +26,7 @@
 
 using namespace pumex;
 
-AssetNode::AssetNode(std::shared_ptr<pumex::Asset> a, std::shared_ptr<DeviceMemoryAllocator> ba, uint32_t rm, uint32_t vb)
+AssetNode::AssetNode(std::shared_ptr<Asset> a, std::shared_ptr<DeviceMemoryAllocator> ba, uint32_t rm, uint32_t vb)
   : asset{ a }, renderMask{ rm }, vertexBinding{ vb }
 {
   vertices     = std::make_shared<std::vector<float>>();

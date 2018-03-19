@@ -30,14 +30,31 @@
 
 using namespace pumex;
 
-QueueTraits::QueueTraits(VkQueueFlags h, VkQueueFlags nh, const std::vector<float>& p)
+QueueTraits::QueueTraits(VkQueueFlags h, VkQueueFlags nh, float p)
   : mustHave{ h }, mustNotHave{ nh }, priority(p)
 {
 }
 
-Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
-  : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }
+Queue::Queue(const QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
+  : traits(t), familyIndex(f), index(i), queue(vq), available(true)
 {
+}
+
+Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, const std::vector<const char*>& re )
+  : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }, requestedExtensions{ re }
+{
+}
+
+Device::~Device()
+{
+  cleanup();
+}
+
+void Device::realize()
+{
+  if (isRealized())
+    return;
+
   auto physicalDevice = physical.lock();
 
   // we have to assign queues to available queue families
@@ -45,46 +62,47 @@ Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, con
   for (const auto& queueTraits : requestedQueues)
     matchingFamilies.push_back(physicalDevice->matchingFamilyIndices(queueTraits));
 
-  std::vector<std::vector<QueueTraits>> proposedMatching( physicalDevice->queueFamilyProperties.size() );
-  std::vector<std::vector<float>>       proposedMatchingPriorities(physicalDevice->queueFamilyProperties.size());
+  std::vector<uint32_t> queueCount(physicalDevice->queueFamilyProperties.size());
+  for (uint32_t i = 0; i < queueCount.size(); i++)
+    queueCount[i] = physicalDevice->queueFamilyProperties[i].queueCount;
 
-  // we will start from queues that have lowest number of matching family indices
-  for (uint32_t s = 1; s <= physicalDevice->queueFamilyProperties.size(); ++s)
+  std::vector<uint32_t> chosenFamilies(requestedQueues.size());
+  std::fill(chosenFamilies.begin(), chosenFamilies.end(), UINT32_MAX);
+  
+  // at first - assign queues that have only one queue family available
+  for (uint32_t i = 0; i < requestedQueues.size(); i++)
   {
-    for (uint32_t i = 0; i < requestedQueues.size(); ++i)
+    if (matchingFamilies[i].size() > 1)
+      continue;
+    CHECK_LOG_THROW(queueCount[matchingFamilies[i][0]]==0, "Device cannot deliver requested queues (1)");
+    chosenFamilies[i] = matchingFamilies[i][0];
+    queueCount[matchingFamilies[i][0]] -= 1;
+  }
+  // assign other queues in no particular order ( first fit :) )
+  for (uint32_t i = 0; i < requestedQueues.size(); i++)
+  {
+    if (chosenFamilies[i] != UINT32_MAX)
+      continue;
+    bool found = false;
+    for (uint32_t j = 0; j < matchingFamilies[i].size(); ++j)
     {
-      if ( s != matchingFamilies[i].size() )
+      if (queueCount[matchingFamilies[i][j]] == 0)
         continue;
-      // let's check if specific family has a place for these queues
-      bool queuesPlaced = false;
-      for (uint32_t j = 0; j < matchingFamilies[i].size(); ++j)
-      {
-        uint32_t q = matchingFamilies[i][j];
-        // i : requestedQueues
-        // q : proposedMatching, proposedMatchingCount, queueFamilyProperties
-        // if number of requested queues plus number of already matched queues is higher than possible number of queues in that family
-        if (requestedQueues[i].priority.size() + proposedMatchingPriorities[q].size() > physicalDevice->queueFamilyProperties[q].queueCount)
-          continue;
-        proposedMatching[q].push_back(requestedQueues[i]);
-        std::copy(requestedQueues[i].priority.begin(), requestedQueues[i].priority.end(), std::back_inserter(proposedMatchingPriorities[q]));
-        queuesPlaced = true;
-      }
-      CHECK_LOG_THROW(!queuesPlaced, "Device cannot deliver requested queues" );
+      chosenFamilies[i] = matchingFamilies[i][j];
+      queueCount[matchingFamilies[i][j]] -= 1;
+      found = true;
     }
+    CHECK_LOG_THROW(!found, "Device cannot deliver requested queues (2)");
   }
 
   std::vector<VkDeviceQueueCreateInfo> deviceQueues;
-  for (uint32_t q=0; q<proposedMatching.size(); ++q)
+  for (uint32_t i=0; i<requestedQueues.size(); ++i)
   {
-    if (proposedMatchingPriorities[q].size() == 0)
-      continue;
-
     VkDeviceQueueCreateInfo queueCreateInfo{};
       queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-      queueCreateInfo.queueFamilyIndex = q;
-      queueCreateInfo.queueCount       = proposedMatchingPriorities[q].size();
-      queueCreateInfo.pQueuePriorities = proposedMatchingPriorities[q].data();
-
+      queueCreateInfo.queueFamilyIndex = chosenFamilies[i];
+      queueCreateInfo.queueCount       = 1;
+      queueCreateInfo.pQueuePriorities = &requestedQueues[i].priority;
     deviceQueues.push_back( queueCreateInfo );
   }
 
@@ -111,21 +129,17 @@ Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, con
   }
 
   VK_CHECK_LOG_THROW( vkCreateDevice(physicalDevice->physicalDevice, &deviceCreateInfo, nullptr, &device), "Could not create logical device" );
-  // get all created queues
-  for (uint32_t q = 0; q<proposedMatching.size(); ++q)
+
+  // collect all created queues
+  std::vector<uint32_t> queueIndex(physicalDevice->queueFamilyProperties.size());
+  std::fill(queueIndex.begin(), queueIndex.end(), 0);
+  for (uint32_t i=0; i<requestedQueues.size(); ++i)
   {
-    uint32_t k = 0;
-    for (uint32_t i = 0; i < proposedMatching[q].size(); ++i)
-    {
-      for (uint32_t j = 0; j < proposedMatching[q][i].priority.size(); ++j, ++k)
-      {
-        VkQueue queue;
-        vkGetDeviceQueue(device, q, k, &queue);
-        CHECK_LOG_THROW(queue == VK_NULL_HANDLE, "Could not get the queue " << q << " " << k);
-        QueueTraits queueTraits(proposedMatching[q][i].mustHave, proposedMatching[q][i].mustNotHave, { proposedMatching[q][i].priority[j] });
-        queues.push_back(Queue{ queueTraits, q, k, queue });
-      }
-    }
+    VkQueue queue;
+    vkGetDeviceQueue(device, chosenFamilies[i], queueIndex[chosenFamilies[i]], &queue);
+    CHECK_LOG_THROW(queue == VK_NULL_HANDLE, "Could not get the queue " << chosenFamilies[i] << " " << queueIndex[chosenFamilies[i]]);
+    queues.push_back( std::make_shared<Queue>(requestedQueues[i], chosenFamilies[i], queueIndex[chosenFamilies[i]], queue ));
+    queueIndex[chosenFamilies[i]] += 1;
   }
   if (enableDebugMarkers)
   {
@@ -135,11 +149,7 @@ Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, con
     pfnCmdDebugMarkerEnd        = reinterpret_cast<PFN_vkCmdDebugMarkerEndEXT>(vkGetDeviceProcAddr(device, "vkCmdDebugMarkerEndEXT"));
     pfnCmdDebugMarkerInsert     = reinterpret_cast<PFN_vkCmdDebugMarkerInsertEXT>(vkGetDeviceProcAddr(device, "vkCmdDebugMarkerInsertEXT"));
   }
-}
 
-Device::~Device()
-{
-  cleanup();
 }
 
 void Device::cleanup()
@@ -153,42 +163,29 @@ void Device::cleanup()
   }
 }
 
-VkQueue Device::getQueue(const QueueTraits& queueTraits, bool reserve)
+std::shared_ptr<Queue> Device::getQueue(const QueueTraits& queueTraits, bool reserve)
 {
   for (auto& q : queues)
   {
-    if (!q.isEqual(queueTraits))
+    if (q->traits!=queueTraits)
       continue;
-    if ( !q.available )
+    if ( !q->available )
       continue;
     if ( reserve )
-      q.available = false;
-    return q.queue;
+      q->available = false;
+    return q;
   }
-  return VK_NULL_HANDLE;
+  return std::shared_ptr<Queue>();
 }
 
-void Device::releaseQueue(VkQueue queue)
+void Device::releaseQueue(std::shared_ptr<Queue> queue)
 {
   for (auto& q : queues)
   {
-    if (q.queue != queue)
+    if (q->queue != queue->queue)
       continue;
-    q.available = true;
+    q->available = true;
   }
-}
-
-bool Device::getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result)
-{
-  for (auto& q : queues)
-  {
-    if (q.queue == queue)
-    {
-      result = std::make_tuple(q.familyIndex,q.index);
-      return true;
-    }
-  }
-  return false;
 }
 
 std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(void* data, VkDeviceSize size)
@@ -398,11 +395,3 @@ void Device::setEventName(VkEvent _event, const std::string& name)
   setObjectName((uint64_t)_event, VK_DEBUG_REPORT_OBJECT_TYPE_EVENT_EXT, name);
 }
 
-Device::Queue::Queue(const QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
-  : traits(t), familyIndex(f), index(i), queue(vq), available(true)
-{
-}
-bool Device::Queue::isEqual(const QueueTraits& queueTraits)
-{
-  return (traits.mustHave == queueTraits.mustHave) && (traits.mustNotHave == queueTraits.mustNotHave) && (traits.priority[0] == queueTraits.priority[0]);
-}

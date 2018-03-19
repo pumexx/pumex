@@ -71,6 +71,8 @@ public:
   Surface& operator=(const Surface&) = delete;
   virtual ~Surface();
 
+  inline bool     isRealized() const;
+  void            realize();
   void            cleanup();
   void            beginFrame();
   void            validateGPUData(bool validateRenderGraphs);
@@ -92,14 +94,13 @@ public:
   VkSurfaceKHR                        surface                      = VK_NULL_HANDLE;
   SurfaceTraits                       surfaceTraits;
   std::shared_ptr<RenderWorkflow>     renderWorkflow;
+  bool                                realized                     = false;
+
   VkSurfaceCapabilitiesKHR            surfaceCapabilities;
   std::vector<VkPresentModeKHR>       presentModes;
   std::vector<VkSurfaceFormatKHR>     surfaceFormats;
   std::vector<VkBool32>               supportsPresent;
-
-  VkQueue                             presentationQueue            = VK_NULL_HANDLE;
-  uint32_t                            presentationQueueFamilyIndex = UINT32_MAX;
-  uint32_t                            presentationQueueIndex       = UINT32_MAX;
+  std::shared_ptr<Queue>              presentationQueue;
   std::shared_ptr<CommandPool>        commandPool;
 
   VkExtent2D                          swapChainSize                = VkExtent2D{1,1};
@@ -121,6 +122,7 @@ protected:
   void createSwapChain();
 };
 
+bool     Surface::isRealized() const    { return realized; }
 void     Surface::setID(uint32_t newID) { id = newID; }
 uint32_t Surface::getID() const         { return id; }
 uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }

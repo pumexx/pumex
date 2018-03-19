@@ -121,15 +121,10 @@ VkSubpassDependency SubpassDependencyDefinition::getDependency() const
 }
 
 RenderPass::RenderPass()
-  : RenderCommand(RenderCommand::commRenderPass)
+  : RenderCommand(RenderCommand::RenderPass)
 {
 
 }
-
-//RenderPass::RenderPass(const std::vector<AttachmentDefinition>& a, const std::vector<SubpassDefinition>& s, const std::vector<SubpassDependencyDefinition>& d)
-//  : RenderCommand(RenderCommand::commRenderPass), attachments(a), subpasses(s), dependencies(d)
-//{
-//}
 
 RenderPass::~RenderPass()
 {
@@ -217,8 +212,8 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
     renderOperations[0]->subpassContents
   );
   // FIXME - this should be moved somewhere else
-  commandVisitor.commandBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height, 0.0f, 1.0f) });
-  commandVisitor.commandBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height) });
+  commandVisitor.commandBuffer->cmdSetViewport(0, { makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height, 0.0f, 1.0f) });
+  commandVisitor.commandBuffer->cmdSetScissor(0, { makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height) });
 
   for (uint32_t subpassIndex = 0; subpassIndex < renderOperations.size(); ++subpassIndex)
   {
@@ -244,7 +239,7 @@ void RenderPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 }
 
 ComputePass::ComputePass()
-  : RenderCommand(RenderCommand::commComputePass)
+  : RenderCommand(RenderCommand::ComputePass)
 {
 }
 
@@ -259,6 +254,32 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 {
   commandVisitor.renderContext.setRenderOperation(computeOperation.get());
   computeOperation->sceneNode->accept(commandVisitor);
+
+  // we need to prepare barriers for all output resources that are not attachments
+  // FIXME : attachments have their barriers made automatically in a render pass. What about compute pass ? Can we even use attachments in them ?
+  auto workflow = computeOperation->renderWorkflow.lock();
+  auto outputs = workflow->getOperationIO(computeOperation->name, rttAllOutputs & ~rttAllAttachments);
+
+  //VkPipelineStageFlags srcPipelineStage = 0;
+  //VkPipelineStageFlags dstPipelineStage = 0;
+  //VkDependencyFlags    dependencyFlags  = 0;
+
+  //for (auto output : outputs)
+  //{
+  //  auto realResource = workflow->getAssociatedResource(output->resource->name);
+  //  if (realResource.get() == nullptr)
+  //    continue;
+  //  if(output->transitionType == rttBufferOutput)
+  //    srcPipelineStage |= output->buffer.pipelineStage;
+
+  //  auto inputs = workflow->getResourceIO(output->resource->name, rttAllInputs);
+  //  for( auto input : inputs )
+  //  {
+  //    if (input->transitionType == rttBufferInput)
+  //      dstPipelineStage |= input->buffer.pipelineStage;
+  //  }
+  //}
+
   commandVisitor.renderContext.setRenderOperation(nullptr);
 }
 

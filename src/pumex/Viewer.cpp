@@ -27,6 +27,7 @@
 #include <pumex/Device.h>
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
+#include <pumex/RenderWorkflow.h>
 #if defined(_WIN32)
   #include <pumex/platform/win32/WindowWin32.h>
   #include <direct.h>
@@ -184,6 +185,9 @@ Viewer::~Viewer()
 
 void Viewer::run()
 {
+  if (!isRealized())
+    realize();
+
   std::thread renderThread([&]
   {
     while (true)
@@ -282,12 +286,18 @@ void Viewer::cleanup()
   renderGraph.reset();
   if (instance != VK_NULL_HANDLE)
   {
-    for( auto s : surfaces )
-      s.second->cleanup();
+    if (isRealized())
+    {
+      for (auto s : surfaces)
+        s.second->cleanup();
+    }
     surfaces.clear();
     windows.clear();
-    for (auto d : devices)
-      d.second->cleanup();
+    if (isRealized())
+    {
+      for (auto d : devices)
+        d.second->cleanup();
+    }
     devices.clear();
     physicalDevices.clear();
     if (viewerTraits.useValidation)
@@ -297,18 +307,39 @@ void Viewer::cleanup()
   }
 }
 
+void Viewer::realize()
+{
+  if (isRealized())
+    return;
+
+  // collect queues that are requested by surface workflows
+  for (auto d : devices)
+    d.second->resetRequestedQueues();
+  for (auto s : surfaces)
+  {
+    auto device = s.second->device.lock();
+    for (auto qt : s.second->renderWorkflow->queueTraits)
+      device->addRequestedQueue(qt);
+  }
+  for (auto d : devices)
+    d.second->realize();
+  for (auto s : surfaces)
+    s.second->realize();
+
+  realized = true;
+}
+
 void Viewer::setTerminate()
 {
   viewerTerminate = true;
 }
 
 
-std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions)
+std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<const char*>& requestedExtensions)
 {
   CHECK_LOG_THROW(physicalDeviceIndex >= physicalDevices.size(), "Could not create device. Index is too high : " << physicalDeviceIndex);
-  CHECK_LOG_THROW(requestedQueues.empty(), "Could not create device with no queues");
 
-  std::shared_ptr<Device> device = std::make_shared<Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedQueues, requestedExtensions);
+  std::shared_ptr<Device> device = std::make_shared<Device>(shared_from_this(), physicalDevices[physicalDeviceIndex], requestedExtensions);
   device->setID(nextDeviceID);
   devices.insert({ nextDeviceID++, device });
   return device;

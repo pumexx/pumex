@@ -35,12 +35,14 @@ namespace pumex
 class  Device;
 struct QueueTraits;
 struct SubpassDefinition;
-class DeviceMemoryAllocator;
-class FrameBuffer;
-class FrameBufferImages;
-class Node;
-class ValidateGPUVisitor;
-class BuildCommandBufferVisitor;
+class  DeviceMemoryAllocator;
+class  FrameBuffer;
+class  FrameBufferImages;
+struct FrameBufferImageDefinition;
+class  Node;
+class  ValidateGPUVisitor;
+class  BuildCommandBufferVisitor;
+class  Resource;
 
 struct PUMEX_EXPORT LoadOp
 {
@@ -80,28 +82,29 @@ inline StoreOp storeOpStore();
 inline StoreOp storeOpDontCare();
 
 enum AttachmentType { atUndefined, atSurface, atColor, atDepth, atDepthStencil, atStencil };
+
 inline VkImageAspectFlags getAspectMask(AttachmentType at);
 inline VkImageUsageFlags  getAttachmentUsage(VkImageLayout imageLayout);
 
-enum AttachmentSizeType { astUndefined, astAbsolute, astSurfaceDependent };
-
-struct AttachmentSize
+struct PUMEX_EXPORT AttachmentSize
 {
+  enum Type { Undefined, Absolute, SurfaceDependent };
+
   AttachmentSize()
-    : attachmentSize{ astUndefined }, imageSize{ 0.0f, 0.0f, 0.0f }
+    : attachmentSize{ Undefined }, imageSize{ 0.0f, 0.0f, 0.0f }
   {
   }
-  AttachmentSize(AttachmentSizeType aSize, const glm::vec3& imSize)
+  AttachmentSize(Type aSize, const glm::vec3& imSize)
     : attachmentSize{ aSize }, imageSize{ imSize }
   {
   }
-  AttachmentSize(AttachmentSizeType aSize, const glm::vec2& imSize)
+  AttachmentSize(Type aSize, const glm::vec2& imSize)
     : attachmentSize{ aSize }, imageSize{ imSize.x, imSize.y, 1.0f }
   {
   }
 
-  AttachmentSizeType attachmentSize;
-  glm::vec3          imageSize;
+  Type      attachmentSize;
+  glm::vec3 imageSize;
 };
 
 inline bool operator==(const AttachmentSize& lhs, const AttachmentSize& rhs)
@@ -138,6 +141,7 @@ public:
     AttachmentSize        attachmentSize;
     gli::swizzles         swizzles;
   };
+
   struct BufferData
   {
     BufferData()
@@ -194,24 +198,52 @@ enum ResourceTransitionType
   rttAttachmentResolveOutput = 4,
   rttAttachmentDepthOutput   = 8,
   rttBufferInput             = 16,
-  rttBufferOutput            = 32,
-  rttAllAttachments          = (rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput),
-  rttAllInputs               = (rttAttachmentInput | rttBufferInput),
-  rttAllOutputs              = (rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput),
-  rttAllInputsOutputs        = (rttAllInputs | rttAllOutputs)
+  rttBufferOutput            = 32
 };
+
+typedef VkFlags ResourceTransitionTypeFlags;
+
+const ResourceTransitionTypeFlags rttAllAttachments   = (rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput);
+const ResourceTransitionTypeFlags rttAllInputs        = (rttAttachmentInput | rttBufferInput);
+const ResourceTransitionTypeFlags rttAllOutputs       = (rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput);
+const ResourceTransitionTypeFlags rttAllInputsOutputs = (rttAllInputs | rttAllOutputs);
+
 
 class PUMEX_EXPORT ResourceTransition
 {
 public:
   ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load);
-  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType );
+  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
+  ~ResourceTransition();
   std::shared_ptr<RenderOperation>  operation;
   std::shared_ptr<WorkflowResource> resource;
   ResourceTransitionType            transitionType;
-  std::shared_ptr<WorkflowResource> resolveResource;
-  VkImageLayout                     layout;
-  LoadOp                            load;
+
+  struct AttachmentData
+  {
+    AttachmentData(VkImageLayout l, const LoadOp& ld)
+      : resolveResource{}, layout{ l }, load{ ld }
+    {
+    }
+    std::shared_ptr<WorkflowResource> resolveResource;
+    VkImageLayout                     layout;
+    LoadOp                            load;
+  };
+  struct BufferData
+  {
+    BufferData(VkPipelineStageFlagBits ps, VkAccessFlagBits af)
+      : pipelineStage{ ps }, accessFlags{ af }
+    {
+    }
+    VkPipelineStageFlagBits           pipelineStage;
+    VkAccessFlagBits                  accessFlags;
+  };
+
+  union
+  {
+    AttachmentData attachment;
+    BufferData     buffer;
+  };
 };
 
 inline void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask);
@@ -228,7 +260,7 @@ public:
 class PUMEX_EXPORT RenderCommand : public CommandBufferSource
 {
 public:
-  enum CommandType{commRenderPass, commComputePass};
+  enum CommandType{ RenderPass, ComputePass };
   RenderCommand(CommandType commandType);
 
   virtual void validateGPUData(ValidateGPUVisitor& updateVisitor) = 0;
@@ -256,16 +288,19 @@ public:
   std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
   uint32_t                                    getResourceIndex(const std::string& resourceName) const;
 
-  void addAttachmentInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout);
-  void addAttachmentOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
-  void addAttachmentResolveOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
-  void addAttachmentDepthOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType, VkImageLayout layout, const LoadOp& loadOp);
+  void addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
+  void addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
+  void addAttachmentResolveOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
+  void addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
 
-  void addBufferInput(const std::string& opName, const std::string& resourceName, const std::string& resourceType);
-  void addBufferOutput(const std::string& opName, const std::string& resourceName, const std::string& resourceType);
+  void addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
+  void addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
 
-  std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionType transitionTypes) const;
-  std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionType transitionTypes) const;
+  void associateResource(const std::string& resourceName, std::shared_ptr<Resource> resource);
+  std::shared_ptr<Resource> getAssociatedResource(const std::string& resourceName);
+
+  std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionTypeFlags transitionTypes) const;
+  std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionTypeFlags transitionTypes) const;
 
   std::vector<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName) const;
   std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName) const;
@@ -283,6 +318,7 @@ public:
   std::unordered_map<std::string, std::shared_ptr<RenderWorkflowResourceType>> resourceTypes;
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
+  std::unordered_map<std::string, std::shared_ptr<Resource>>                   associatedResources;
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
   std::vector<QueueTraits>                                                     queueTraits;
 
@@ -316,6 +352,7 @@ private:
   void                                        verifyOperations(const RenderWorkflow& workflow);
   void                                        collectResources(const RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
   std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
+  bool                                        constructRenderPassDetails(const RenderWorkflow& workflow, std::shared_ptr<RenderPass> command, std::vector<VkImageLayout>& lastLayout, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& attachmentIndex);
 
   StandardRenderWorkflowCostCalculator        costCalculator;
 };
@@ -367,41 +404,89 @@ VkImageUsageFlags  getAttachmentUsage(VkImageLayout il)
 
 void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask)
 {
-  switch (generatingTransition->layout)
+  switch (generatingTransition->transitionType)
   {
-  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-    srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
-  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-    srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+  case rttAttachmentInput:
+  case rttAttachmentOutput:
+  case rttAttachmentResolveOutput:
+  case rttAttachmentDepthOutput:
+    switch (generatingTransition->attachment.layout)
+    {
+    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+      srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+      srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+    }
+    break;
+  case rttBufferInput:
+  case rttBufferOutput:
+    srcStageMask = generatingTransition->buffer.pipelineStage;
+    break;
   }
-  switch (consumingTransition->layout)
+
+  switch (consumingTransition->transitionType)
   {
-  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-    dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; break;
-  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
-    dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; break;
-    
+  case rttAttachmentInput:
+  case rttAttachmentOutput:
+  case rttAttachmentResolveOutput:
+  case rttAttachmentDepthOutput:
+    switch (consumingTransition->attachment.layout)
+    {
+    case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+      dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+      dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; break;
+    }
+    break;
+  case rttBufferInput:
+  case rttBufferOutput:
+    dstStageMask = consumingTransition->buffer.pipelineStage;
+    break;
   }
+
 }
 
 void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask)
 {
-  switch (generatingTransition->layout)
+  switch (generatingTransition->transitionType)
   {
-  case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-    srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
-  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-    srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; break;
+  case rttAttachmentInput:
+  case rttAttachmentOutput:
+  case rttAttachmentResolveOutput:
+  case rttAttachmentDepthOutput:
+    switch (generatingTransition->attachment.layout)
+    {
+    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+      srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+      srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; break;
+    }
+    break;
+  case rttBufferInput:
+  case rttBufferOutput:
+    srcAccessMask = generatingTransition->buffer.accessFlags;
+    break;
   }
-  switch (consumingTransition->layout)
+
+  switch (consumingTransition->transitionType)
   {
-  case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-    dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT; break;
-  case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
-    dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT; break;
-
+  case rttAttachmentInput:
+  case rttAttachmentOutput:
+  case rttAttachmentResolveOutput:
+  case rttAttachmentDepthOutput:
+    switch (consumingTransition->attachment.layout)
+    {
+    case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+      dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+      dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT; break;
+    }
+    break;
+  case rttBufferInput:
+  case rttBufferOutput:
+    dstAccessMask = consumingTransition->buffer.accessFlags;
+    break;
   }
-
 }
 	
 }

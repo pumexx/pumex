@@ -73,7 +73,7 @@ void AssetBufferDrawObject::validate(const RenderContext& renderContext)
 
 float AssetBufferDrawObject::getDistanceToViewer() const
 {
-  // FIXME - we need to pass pumex::Camera object somehow here
+  // FIXME - we need to pass Camera object somehow here
   // For now we will return constant value
   return 10.0f;
 }

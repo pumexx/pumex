@@ -99,8 +99,8 @@ public:
 // Material is a template T - you can use whatever structure you want, as long as the struct T :
 //   - is std430 compatible ( because it will be sent to GPU )
 //   - includes following methods :
-//      void registerProperties(const pumex::Material& material)
-//      void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
+//      void registerProperties(const Material& material)
+//      void registerTextures(const std::map<TextureSemantic::Type, uint32_t>& textureIndices)
 // Check out different MaterialData implementations in examples ( crowd, gpucull and deferred ).
 class PUMEX_EXPORT MaterialSet
 {

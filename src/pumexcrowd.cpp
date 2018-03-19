@@ -977,12 +977,8 @@ int main(int argc, char * argv[])
       windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Crowd rendering" });
     }
 
-    std::vector<float> queuePriorities;
-    queuePriorities.resize(windowTraits.size(), 0.75f);
-    std::vector<pumex::QueueTraits> requestQueues    = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, queuePriorities } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-    std::shared_ptr<pumex::Device> device            = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
-    CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
+    std::shared_ptr<pumex::Device> device            = viewer->addDevice(0, requestDeviceExtensions);
 
     std::vector<std::shared_ptr<pumex::Window>> windows;
     for (const auto& wt : windowTraits)
@@ -994,39 +990,20 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", workflowCompiler, frameBufferAllocator);
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::astSurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples",   false, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",         true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", true));
-      workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0,{ 0.75f } });
+      workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f });
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute, VK_SUBPASS_CONTENTS_INLINE));
-      workflow->addBufferOutput( "crowd_compute", "visible_instances", "compute_results" );
+      workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
+      workflow->addBufferOutput( "crowd_compute", "compute_results", "offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
-      workflow->addBufferInput          ( "rendering", "visible_instances", "compute_results" );
-      workflow->addAttachmentDepthOutput( "rendering", "depth", "depth_samples", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ( "rendering", "color", "surface",       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-
-    pumex::AssetLoaderAssimp      loader;
-    std::vector<pumex::Animation> animations;
-
-    // We assume that animations use the same skeleton as skeletal models
-    for (uint32_t i = 0; i < animationFileNames.size(); ++i)
-    {
-      std::string fullAssetFileName = viewer->getFullFilePath(animationFileNames[i]);
-      if (fullAssetFileName.empty())
-      {
-        LOG_WARNING << "Cannot find asset : " << animationFileNames[i] << std::endl;
-        continue;
-      }
-      std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,true));
-      if (asset.get() == nullptr)
-      {
-        LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
-        continue;
-      }
-      animations.push_back(asset->animations[0]);
-    }
+      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
+      workflow->addBufferInput          ( "rendering", "compute_results", "offset_values",     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
+      workflow->addAttachmentDepthOutput( "rendering", "depth_samples",   "depth",             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ( "rendering", "surface",         "color",             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     // alocate 12 MB for uniform and storage buffers
     auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -1040,6 +1017,8 @@ int main(int argc, char * argv[])
 
     auto skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
     auto instancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
+    workflow->associateResource("indirect_commands", instancedResults->getResults(MAIN_RENDER_MASK));
+    workflow->associateResource("offset_values",     instancedResults->getOffsetValues(MAIN_RENDER_MASK));
 
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(gli::texture(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12), pumex::SamplerTraits(), texturesAllocator));
@@ -1047,10 +1026,31 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet>                    materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
-    std::vector<pumex::Skeleton>                           skeletons;
+    pumex::AssetLoaderAssimp      loader;
+    std::vector<pumex::Animation> animations;
 
-    std::vector<uint32_t> mainObjectTypeID;
-    std::vector<uint32_t> accessoryObjectTypeID;
+    // We assume that animations use the same skeleton as skeletal models
+    for (uint32_t i = 0; i < animationFileNames.size(); ++i)
+    {
+      std::string fullAssetFileName = viewer->getFullFilePath(animationFileNames[i]);
+      if (fullAssetFileName.empty())
+      {
+        LOG_WARNING << "Cannot find asset : " << animationFileNames[i] << std::endl;
+        continue;
+      }
+      std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName, true));
+      if (asset.get() == nullptr)
+      {
+        LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
+        continue;
+      }
+      animations.push_back(asset->animations[0]);
+    }
+
+
+    std::vector<pumex::Skeleton>  skeletons;
+    std::vector<uint32_t>         mainObjectTypeID;
+    std::vector<uint32_t>         accessoryObjectTypeID;
     skeletons.push_back(pumex::Skeleton()); // empty skeleton for null type
     for (uint32_t i = 0; i < skeletalNames.size(); ++i)
     {
@@ -1142,9 +1142,8 @@ int main(int argc, char * argv[])
     computeRoot->addChild(filterPipeline);
 
     // FIXME : instance count
-//    uint32_t instanceCount = rData.people.size() + rData.clothes.size();
-//    currentCmdBuffer->cmdDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
-    auto dispatchNode = std::make_shared<pumex::DispatchNode>(1, 1, 1);
+    uint32_t instanceCount = applicationData->updateData.people.size() + applicationData->updateData.clothes.size();
+    auto dispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     dispatchNode->setName("dispatchNode");
     filterPipeline->addChild(dispatchNode);
   

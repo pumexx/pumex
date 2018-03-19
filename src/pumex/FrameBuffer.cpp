@@ -64,14 +64,14 @@ void FrameBufferImages::validate(Surface* surface)
     VkExtent3D imSize;
     switch (definition.attachmentSize.attachmentSize)
     {
-    case astSurfaceDependent:
+    case AttachmentSize::SurfaceDependent:
     {
       imSize.width  = surface->swapChainSize.width  * definition.attachmentSize.imageSize.x;
       imSize.height = surface->swapChainSize.height * definition.attachmentSize.imageSize.y;
       imSize.depth  = 1;
       break;
     }
-    case astAbsolute:
+    case AttachmentSize::Absolute:
     {
       imSize.width  = definition.attachmentSize.imageSize.x;
       imSize.height = definition.attachmentSize.imageSize.y;
@@ -176,7 +176,7 @@ void FrameBuffer::validate(Surface* surface, const std::vector<std::unique_ptr<I
     {
       auto commandBuffer = deviceSh->beginSingleTimeCommands(surface->commandPool.get());
       commandBuffer->setImageLayout(*(frameBufferImages->getImage(surface, definition.imageDefinitionIndex)), fbiDefinition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
-      deviceSh->endSingleTimeCommands(commandBuffer, surface->presentationQueue);
+      deviceSh->endSingleTimeCommands(commandBuffer, surface->presentationQueue->queue);
     }
   }
 

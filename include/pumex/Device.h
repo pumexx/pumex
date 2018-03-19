@@ -41,32 +41,60 @@ class StagingBuffer;
 // struct that represents queues that must be provided by Vulkan implementation during initialization
 struct PUMEX_EXPORT QueueTraits
 {
-  QueueTraits(VkQueueFlags mustHave, VkQueueFlags mustNotHave, const std::vector<float>& priority);
+  QueueTraits(VkQueueFlags mustHave, VkQueueFlags mustNotHave, float priority);
 
-  VkQueueFlags       mustHave    = 0;
-  VkQueueFlags       mustNotHave = 0;
-  std::vector<float> priority;
+  VkQueueFlags  mustHave    = 0;
+  VkQueueFlags  mustNotHave = 0;
+  float         priority;
 };
+
+inline PUMEX_EXPORT bool operator==(const QueueTraits& lhs, const QueueTraits& rhs)
+{
+  return (lhs.mustHave == rhs.mustHave) && (lhs.mustNotHave == rhs.mustNotHave) && (lhs.priority == rhs.priority);
+}
+
+inline PUMEX_EXPORT bool operator!=(const QueueTraits& lhs, const QueueTraits& rhs)
+{
+  return (lhs.mustHave != rhs.mustHave) || (lhs.mustNotHave != rhs.mustNotHave) || (lhs.priority != rhs.priority);
+}
+
+class Queue
+{
+public:
+  Queue()                        = delete;
+  Queue(const QueueTraits& queueTraits, uint32_t familyIndex, uint32_t index, VkQueue queue);
+  Queue(const Queue&)            = delete;
+  Queue& operator=(const Queue&) = delete;
+
+  QueueTraits traits;
+  uint32_t    familyIndex = UINT32_MAX;
+  uint32_t    index       = UINT32_MAX;
+  bool        available   = true;
+  VkQueue     queue       = VK_NULL_HANDLE;
+};
+
 
 // class representing Vulkan logical device
 class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>
 {
 public:
   Device()                         = delete;
-  explicit Device(std::shared_ptr<Viewer> viewer, std::shared_ptr<PhysicalDevice>  physical, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
+  explicit Device(std::shared_ptr<Viewer> viewer, std::shared_ptr<PhysicalDevice> physical, const std::vector<const char*>& requestedExtensions);
   Device(const Device&)            = delete;
   Device& operator=(const Device&) = delete;
   ~Device();
 
-  inline bool isValid();
-  void cleanup();
+  inline void resetRequestedQueues();
+  inline void addRequestedQueue(const QueueTraits& requestedQueues);
+  inline bool isRealized() const;
+  void        realize();
+  void        cleanup();
 
   std::shared_ptr<CommandBuffer> beginSingleTimeCommands(CommandPool* commandPool);
   void endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue);
 
-  VkQueue                        getQueue(const QueueTraits& queueTraits, bool reserve = false);
-  void                           releaseQueue(VkQueue queue);
-  bool                           getQueueIndices(VkQueue queue, std::tuple<uint32_t&, uint32_t&>& result);
+  std::shared_ptr<Queue>         getQueue(const QueueTraits& queueTraits, bool reserve = false);
+  void                           releaseQueue(std::shared_ptr<Queue> queue);
 
   std::shared_ptr<StagingBuffer> acquireStagingBuffer( void* data, VkDeviceSize size );
   void                           releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
@@ -102,20 +130,7 @@ public:
   VkDevice                       device             = VK_NULL_HANDLE;
   bool                           enableDebugMarkers = false;
 protected:
-  struct Queue
-  {
-    Queue(const QueueTraits& queueTraits, uint32_t familyIndex, uint32_t index, VkQueue queue);
-    bool isEqual(const QueueTraits& queueTraits);
-
-    QueueTraits traits;
-    uint32_t    familyIndex = UINT32_MAX;
-    uint32_t    index       = UINT32_MAX;
-    VkQueue     queue       = VK_NULL_HANDLE;
-    bool        available   = true;
-  };
-
-  std::vector<Queue>                queues;
-  uint32_t                          id                          = 0;
+  uint32_t                            id                        = 0;
 
   PFN_vkDebugMarkerSetObjectTagEXT  pfnDebugMarkerSetObjectTag  = VK_NULL_HANDLE;
   PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName = VK_NULL_HANDLE;
@@ -123,12 +138,17 @@ protected:
   PFN_vkCmdDebugMarkerEndEXT        pfnCmdDebugMarkerEnd        = VK_NULL_HANDLE;
   PFN_vkCmdDebugMarkerInsertEXT     pfnCmdDebugMarkerInsert     = VK_NULL_HANDLE;
 
+  std::vector<const char*>                    requestedExtensions;
+  std::vector<QueueTraits>                    requestedQueues;
+  std::vector<std::shared_ptr<Queue>>         queues;
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
   std::mutex                                  stagingMutex;
 };
 
-bool     Device::isValid()             { return device != VK_NULL_HANDLE; }
-void     Device::setID(uint32_t newID) { id = newID; }
-uint32_t Device::getID() const         { return id; }
+void     Device::resetRequestedQueues()                   { requestedQueues.clear(); }
+void     Device::addRequestedQueue(const QueueTraits& rq) { requestedQueues.push_back(rq); }
+bool     Device::isRealized() const                       { return device != VK_NULL_HANDLE; }
+void     Device::setID(uint32_t newID)                    { id = newID; }
+uint32_t Device::getID() const                            { return id; }
 
 }

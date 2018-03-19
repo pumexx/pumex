@@ -30,7 +30,7 @@ namespace pumex
 class PUMEX_EXPORT AssetNode : public Node
 {
 public:
-  AssetNode(std::shared_ptr<pumex::Asset> asset, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, uint32_t renderMask, uint32_t vertexBinding);
+  AssetNode(std::shared_ptr<Asset> asset, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, uint32_t renderMask, uint32_t vertexBinding);
 
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
@@ -40,9 +40,9 @@ public:
   void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
 
 
-  std::shared_ptr<pumex::Asset> asset;
-  uint32_t                      renderMask;
-  uint32_t                      vertexBinding;
+  std::shared_ptr<Asset> asset;
+  uint32_t               renderMask;
+  uint32_t               vertexBinding;
 protected:
   bool                                                  geometryValid = false;
   std::shared_ptr<std::vector<float>>                   vertices;

@@ -41,7 +41,7 @@ class Surface;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
-  FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const std::string& name, const AttachmentSize& attachmentSize = AttachmentSize(astSurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const std::string& name, const AttachmentSize& attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
   AttachmentType        attachmentType;
   VkFormat              format;
   VkImageUsageFlags     usage;

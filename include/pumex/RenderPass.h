@@ -100,8 +100,7 @@ struct PUMEX_EXPORT SubpassDependencyDefinition
 class PUMEX_EXPORT RenderPass : public RenderCommand
 {
 public:
-  RenderPass();
-//  explicit RenderPass(const std::vector<AttachmentDefinition>& attachments, const std::vector<SubpassDefinition>& subpasses, const std::vector<SubpassDependencyDefinition>& dependencies = std::vector<SubpassDependencyDefinition>());
+  explicit RenderPass();
   RenderPass(const RenderPass&)            = delete;
   RenderPass& operator=(const RenderPass&) = delete;
   ~RenderPass();

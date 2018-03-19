@@ -47,9 +47,21 @@ void SurfaceTraits::setRenderWorkflow(std::shared_ptr<RenderWorkflow> rw)
 Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
   : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st), renderWorkflow(st.renderWorkflow)
 {
-  auto deviceSh = device.lock();
+}
+
+Surface::~Surface()
+{
+  cleanup();
+}
+
+void Surface::realize()
+{
+  if (isRealized())
+    return;
+
+  auto deviceSh          = device.lock();
   VkPhysicalDevice phDev = deviceSh->physical.lock()->physicalDevice;
-  VkDevice vkDevice = deviceSh->device;
+  VkDevice vkDevice      = deviceSh->device;
 
   // collect surface properties
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR" );
@@ -72,13 +84,11 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
 
   // get the main queue
   presentationQueue = deviceSh->getQueue(renderWorkflow->getPresentationQueue(), true);
-  CHECK_LOG_THROW( presentationQueue == VK_NULL_HANDLE, "Cannot get the presentation queue for this surface" );
-  auto pp = std::tie(presentationQueueFamilyIndex, presentationQueueIndex);
-  CHECK_LOG_THROW( (!deviceSh->getQueueIndices(presentationQueue, pp)), "Could not get data for (device, surface, familyIndex, index)" );
-  CHECK_LOG_THROW(supportsPresent[presentationQueueFamilyIndex] == VK_FALSE, "Support not present for(device,surface,familyIndex) : " << presentationQueueFamilyIndex);
+  CHECK_LOG_THROW( presentationQueue.get() == nullptr, "Cannot get the presentation queue for this surface" );
+  CHECK_LOG_THROW(supportsPresent[presentationQueue->familyIndex] == VK_FALSE, "Support not present for(device,surface,familyIndex) : " << presentationQueue->familyIndex);
 
   // create command pool
-  commandPool = std::make_shared<CommandPool>(presentationQueueFamilyIndex);
+  commandPool = std::make_shared<CommandPool>(presentationQueue->familyIndex);
   commandPool->validate(deviceSh.get());
 
   // Create synchronization objects
@@ -103,11 +113,7 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
   waitFences.resize(surfaceTraits.imageCount);
   for (auto& fence : waitFences)
     VK_CHECK_LOG_THROW(vkCreateFence(vkDevice, &fenceCreateInfo, nullptr, &fence), "Could not create a surface wait fence");
-}
-
-Surface::~Surface()
-{
-  cleanup();
+  realized = true;
 }
 
 void Surface::cleanup()
@@ -211,6 +217,9 @@ void Surface::beginFrame()
   actions.performActions();
   auto deviceSh = device.lock();
 
+  if( swapChain == VK_NULL_HANDLE )
+    createSwapChain();
+
   VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
   if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
   {
@@ -254,7 +263,7 @@ void Surface::buildPrimaryCommandBuffer()
 void Surface::draw()
 {
   primaryCommandBuffer->setActiveIndex(swapChainImageIndex);
-  primaryCommandBuffer->queueSubmit(presentationQueue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { renderCompleteSemaphore }, VK_NULL_HANDLE);
+  primaryCommandBuffer->queueSubmit(presentationQueue->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { renderCompleteSemaphore }, VK_NULL_HANDLE);
 }
 
 
@@ -263,7 +272,7 @@ void Surface::endFrame()
   auto deviceSh = device.lock();
   // Submit pre present dummy image barrier so that we are able to signal a fence
   presentCommandBuffer->setActiveIndex(swapChainImageIndex);
-  presentCommandBuffer->queueSubmit(presentationQueue, {}, {}, {}, waitFences[swapChainImageIndex]);
+  presentCommandBuffer->queueSubmit(presentationQueue->queue, {}, {}, {}, waitFences[swapChainImageIndex]);
 
   VkPresentInfoKHR presentInfo{};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -272,7 +281,7 @@ void Surface::endFrame()
     presentInfo.pImageIndices      = &swapChainImageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
-  VkResult result = vkQueuePresentKHR(presentationQueue, &presentInfo);
+  VkResult result = vkQueuePresentKHR(presentationQueue->queue, &presentInfo);
 
   if ((result != VK_ERROR_OUT_OF_DATE_KHR) && (result != VK_SUBOPTIMAL_KHR))
     VK_CHECK_LOG_THROW(result, "failed vkQueuePresentKHR");
@@ -281,6 +290,8 @@ void Surface::endFrame()
 
 void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
 {
+  if (!isRealized())
+    return;
   if(swapChainSize.width != newWidth && swapChainSize.height != newHeight )
     createSwapChain();
 }

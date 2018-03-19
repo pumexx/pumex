@@ -165,7 +165,7 @@ std::shared_ptr<Surface> WindowXcb::createSurface(std::shared_ptr<Viewer> v, std
 
   std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
   // create swapchain
-  result->resizeSurface(width, height);
+//  result->resizeSurface(width, height);
 
   viewer = v;
   surface = result;

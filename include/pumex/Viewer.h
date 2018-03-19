@@ -72,7 +72,7 @@ public:
   Viewer& operator=(const Viewer&) = delete;
   ~Viewer();
 
-  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<QueueTraits>& requestedQueues, const std::vector<const char*>& requestedExtensions);
+  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<const char*>& requestedExtensions);
   std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
   Device*                    getDevice(uint32_t id);
   Surface*                   getSurface(uint32_t id);
@@ -81,6 +81,8 @@ public:
 
   void                       run();
   void                       cleanup();
+  inline bool                isRealized() const;
+  void                       realize();
 
   void                       setTerminate();
   inline bool                terminating() const;
@@ -113,6 +115,9 @@ public:
   tbb::flow::continue_node< tbb::flow::continue_msg > endRenderGraph;
 
 protected:
+  bool realized = false;
+
+
   void            setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
   void            cleanupDebugging();
 
@@ -148,6 +153,7 @@ protected:
 
 };
 
+bool                Viewer::isRealized() const              { return realized; }
 uint32_t            Viewer::getNumDevices() const           { return devices.size(); }
 uint32_t            Viewer::getNumSurfaces() const          { return surfaces.size(); }
 VkInstance          Viewer::getInstance() const             { return instance; }

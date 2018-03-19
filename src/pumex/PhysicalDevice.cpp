@@ -76,8 +76,6 @@ std::vector<uint32_t> PhysicalDevice::matchingFamilyIndices(const QueueTraits& q
       continue;
     if ((~queueFamilyProperties[i].queueFlags & queueTraits.mustNotHave) != queueTraits.mustNotHave)
       continue;
-    if (queueFamilyProperties[i].queueCount < queueTraits.priority.size())
-      continue;
     results.push_back(i);
   }
   return std::move(results);
