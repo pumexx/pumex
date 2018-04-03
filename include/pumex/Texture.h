@@ -28,7 +28,7 @@
 #include <glm/glm.hpp>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
-#include <pumex/Pipeline.h>
+#include <pumex/Resource.h>
 #include <pumex/DeviceMemoryAllocator.h>
 
 namespace pumex

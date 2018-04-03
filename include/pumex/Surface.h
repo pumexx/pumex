@@ -35,7 +35,6 @@ namespace pumex
 
 class Viewer;
 class Window;
-class RenderPass;
 class FrameBuffer;
 class FrameBufferImages;
 class RenderWorkflow;

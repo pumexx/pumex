@@ -27,6 +27,7 @@
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Resource.h>
 #include <algorithm>
 #include <fstream>
 
@@ -170,67 +171,6 @@ VkDescriptorPool DescriptorPool::getHandle(VkDevice device) const
   if (pddit == perDeviceData.end())
     return VK_NULL_HANDLE;
   return pddit->second.descriptorPool;
-}
-
-DescriptorSetValue::DescriptorSetValue()
-  : vType{ Undefined }
-{
-}
-
-DescriptorSetValue::DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
-  : vType{ Buffer }
-{
-  bufferInfo.buffer = buffer;
-  bufferInfo.offset = offset;
-  bufferInfo.range  = range;
-}
-
-DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
-  : vType{ Image }
-{
-  imageInfo.sampler     = sampler;
-  imageInfo.imageView   = imageView;
-  imageInfo.imageLayout = imageLayout;
-}
-
-Resource::Resource(SwapChainImageBehaviour swapChainImageBehaviour)
-{
-
-}
-
-
-Resource::~Resource()
-{
-}
-
-void Resource::addDescriptor(std::shared_ptr<Descriptor> descriptor)
-{
-  descriptors.push_back(descriptor);
-}
-
-void Resource::removeDescriptor(std::shared_ptr<Descriptor> descriptor)
-{
-  auto it = std::find_if(descriptors.begin(), descriptors.end(), [descriptor](std::weak_ptr<Descriptor> p) -> bool { return p.lock() == descriptor; });
-  if (it != descriptors.end())
-    descriptors.erase(it);
-}
-
-void Resource::invalidateDescriptors()
-{
-  for (auto ds : descriptors)
-    ds.lock()->invalidate();
-}
-
-
-void Resource::invalidateCommandBuffers()
-{
-  for ( auto ds : descriptors )
-    ds.lock()->invalidateCommandBuffers();
-}
-
-std::pair<bool, VkDescriptorType> Resource::getDefaultDescriptorType()
-{
-  return{ false,VK_DESCRIPTOR_TYPE_MAX_ENUM };
 }
 
 Descriptor::Descriptor(std::shared_ptr<DescriptorSet> o, std::shared_ptr<Resource> r, VkDescriptorType dt)

@@ -43,6 +43,7 @@ class  Node;
 class  ValidateGPUVisitor;
 class  BuildCommandBufferVisitor;
 class  Resource;
+class RenderCommand;
 
 struct PUMEX_EXPORT LoadOp
 {
@@ -61,6 +62,7 @@ struct PUMEX_EXPORT LoadOp
 };
 
 inline LoadOp loadOpLoad();
+inline LoadOp loadOpClear(const glm::vec2& color = glm::vec2(1.0f, 0.0f));
 inline LoadOp loadOpClear(const glm::vec4& color = glm::vec4(0.0f));
 inline LoadOp loadOpDontCare();
 
@@ -165,7 +167,7 @@ public:
   std::shared_ptr<RenderWorkflowResourceType> resourceType;
 };
 
-class PUMEX_EXPORT RenderWorkflow;
+class RenderWorkflow;
 
 class PUMEX_EXPORT RenderOperation
 {
@@ -176,9 +178,6 @@ public:
   virtual ~RenderOperation();
 
   void setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
-
-  SubpassDefinition buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& resourceIndex) const;
-
   void setSceneNode(std::shared_ptr<Node> node);
 
 
@@ -213,7 +212,7 @@ class PUMEX_EXPORT ResourceTransition
 {
 public:
   ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load);
-  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
+  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags);
   ~ResourceTransition();
   std::shared_ptr<RenderOperation>  operation;
   std::shared_ptr<WorkflowResource> resource;
@@ -231,12 +230,12 @@ public:
   };
   struct BufferData
   {
-    BufferData(VkPipelineStageFlagBits ps, VkAccessFlagBits af)
+    BufferData(VkPipelineStageFlags ps, VkAccessFlags af)
       : pipelineStage{ ps }, accessFlags{ af }
     {
     }
-    VkPipelineStageFlagBits           pipelineStage;
-    VkAccessFlagBits                  accessFlags;
+    VkPipelineStageFlags           pipelineStage;
+    VkAccessFlags                  accessFlags;
   };
 
   union
@@ -249,24 +248,10 @@ public:
 inline void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask);
 inline void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask);
 
-
 class PUMEX_EXPORT RenderWorkflowCompiler
 {
 public:
   virtual void compile(RenderWorkflow& workflow) = 0;
-};
-
-// really - I don't have idea how to name this crucial class :(
-class PUMEX_EXPORT RenderCommand : public CommandBufferSource
-{
-public:
-  enum CommandType{ RenderPass, ComputePass };
-  RenderCommand(CommandType commandType);
-
-  virtual void validateGPUData(ValidateGPUVisitor& updateVisitor) = 0;
-  virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
-
-  CommandType commandType;
 };
 
 class PUMEX_EXPORT RenderWorkflow : public std::enable_shared_from_this<RenderWorkflow>
@@ -286,7 +271,6 @@ public:
   std::shared_ptr<Node>                       getSceneNode(const std::string& opName);
 
   std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
-  uint32_t                                    getResourceIndex(const std::string& resourceName) const;
 
   void addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
   void addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
@@ -310,7 +294,7 @@ public:
   QueueTraits getPresentationQueue() const;
 
   void compile();
-  void setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, const std::unordered_map<std::string, uint32_t> newResourceIndex, uint32_t newPresentationQueueIndex);
+  void setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, uint32_t newPresentationQueueIndex);
 
   // data provided by user during workflow setup
   std::string                                                                  name;
@@ -324,12 +308,11 @@ public:
 
   bool                                                                         valid = false;
 
-  // data created during workflow compilation
+  // data created during workflow compilation - may be used in many surfaces at once
   std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;
   std::shared_ptr<DeviceMemoryAllocator>                                       frameBufferAllocator;
   std::shared_ptr<FrameBufferImages>                                           frameBufferImages;
   std::shared_ptr<FrameBuffer>                                                 frameBuffer;
-  std::unordered_map<std::string, uint32_t>                                    resourceIndex;
   uint32_t                                                                     presentationQueueIndex = 0;
 };
 
@@ -351,13 +334,16 @@ public:
 private:
   void                                        verifyOperations(const RenderWorkflow& workflow);
   void                                        collectResources(const RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
-  std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence);
-  bool                                        constructRenderPassDetails(const RenderWorkflow& workflow, std::shared_ptr<RenderPass> command, std::vector<VkImageLayout>& lastLayout, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& attachmentIndex);
+  std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions);
+  void                                        createPipelineBarriers(const RenderWorkflow& workflow, std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commandSequences);
+  void                                        createSubpassDependency(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex);
+  void                                        createPipelineBarrier(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex);
 
   StandardRenderWorkflowCostCalculator        costCalculator;
 };
 
 LoadOp             loadOpLoad()                        { return LoadOp(LoadOp::Load, glm::vec4(0.0f)); }
+LoadOp             loadOpClear(const glm::vec2& color) { return LoadOp(LoadOp::Clear, glm::vec4(color.x, color.y, 0.0f, 0.0f)); }
 LoadOp             loadOpClear(const glm::vec4& color) { return LoadOp(LoadOp::Clear, color); }
 LoadOp             loadOpDontCare()                    { return LoadOp(LoadOp::DontCare, glm::vec4(0.0f));}
 StoreOp            storeOpStore()                      { return StoreOp(StoreOp::Store); }

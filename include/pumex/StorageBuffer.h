@@ -30,7 +30,7 @@
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Device.h>
 #include <pumex/Command.h>
-#include <pumex/Pipeline.h>
+#include <pumex/Resource.h>
 #include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>

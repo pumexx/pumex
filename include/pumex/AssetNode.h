@@ -21,6 +21,7 @@
 //
 
 #include <pumex/Export.h>
+#include <pumex/Asset.h>
 #include <pumex/Node.h>
 #include <pumex/GenericBuffer.h>
 

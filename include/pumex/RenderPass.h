@@ -24,17 +24,21 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <map>
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/Command.h>
-#include <pumex/RenderContext.h>
-#include <pumex/RenderWorkflow.h>
 
 namespace pumex
 {
 
-class  Device;
+class  Resource;
+class  WorkflowResource;
+class  RenderOperation;
+class  ValidateGPUVisitor;
+class  BuildCommandBufferVisitor;
+struct FrameBufferImageDefinition;
 
 // VkAttachmentDescription wrapper
 struct PUMEX_EXPORT AttachmentDefinition
@@ -67,7 +71,9 @@ struct PUMEX_EXPORT AttachmentReference
 // struct storing information about subpass
 struct PUMEX_EXPORT SubpassDefinition
 {
+  SubpassDefinition();
   SubpassDefinition(VkPipelineBindPoint pipelineBindPoint, const std::vector<AttachmentReference>& inputAttachments, const std::vector<AttachmentReference>& colorAttachments, const std::vector<AttachmentReference>& resolveAttachments, const AttachmentReference& depthStencilAttachment, const std::vector<uint32_t>& preserveAttachments, VkSubpassDescriptionFlags flags = 0x0);
+  SubpassDefinition& operator=(const SubpassDefinition& subpassDefinition);
 
   VkPipelineBindPoint                pipelineBindPoint;
   std::vector<VkAttachmentReference> inputAttachments;
@@ -96,8 +102,10 @@ struct PUMEX_EXPORT SubpassDependencyDefinition
   VkSubpassDependency getDependency() const;
 };
 
+class RenderSubPass;
+
 // class representing Vulkan graphics render pass along with its attachments, subpasses and dependencies
-class PUMEX_EXPORT RenderPass : public RenderCommand
+class PUMEX_EXPORT RenderPass : public std::enable_shared_from_this<RenderPass>
 {
 public:
   explicit RenderPass();
@@ -105,18 +113,19 @@ public:
   RenderPass& operator=(const RenderPass&) = delete;
   ~RenderPass();
 
-  void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
-  void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
+  void initializeAttachments(const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
+  void addSubPass(std::shared_ptr<RenderSubPass> renderSubPass);
+  void updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions);
+  void finalizeAttachments();
 
   void         validate(const RenderContext& renderContext);
   VkRenderPass getHandle(VkDevice device) const;
 
-  std::vector<AttachmentDefinition>        attachments;
-  std::vector<SubpassDefinition>           subpasses;
-  std::vector<SubpassDependencyDefinition> dependencies;
-  std::vector<VkClearValue>                clearValues;
+  std::vector<AttachmentDefinition>         attachments;
+  std::vector<VkClearValue>                 clearValues;
+  std::vector<std::weak_ptr<RenderSubPass>> subPasses;
+  std::vector<SubpassDependencyDefinition>  dependencies;
 
-  std::vector<std::shared_ptr<RenderOperation>> renderOperations;
 protected:
   struct PerDeviceData
   {
@@ -128,24 +137,84 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-class ComputePass : public RenderCommand
+class PUMEX_EXPORT ResourceBarrier
+{
+public:
+  ResourceBarrier(std::shared_ptr<Resource> resource, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+  std::shared_ptr<Resource> resource;
+  VkAccessFlags             srcAccessMask;
+  VkAccessFlags             dstAccessMask;
+  uint32_t                  srcQueueFamilyIndex;
+  uint32_t                  dstQueueFamilyIndex;
+  VkImageLayout             oldLayout;
+  VkImageLayout             newLayout;
+
+};
+
+class PUMEX_EXPORT ResourceBarrierGroup
+{
+public:
+  ResourceBarrierGroup(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags);
+
+  VkPipelineStageFlags                 srcStageMask;
+  VkPipelineStageFlags                 dstStageMask;
+  VkDependencyFlags                    dependencyFlags;
+};
+
+inline bool operator<(const ResourceBarrierGroup& lhs, const ResourceBarrierGroup& rhs);
+
+// really - I don't have idea how to name this crucial class :(
+class PUMEX_EXPORT RenderCommand : public CommandBufferSource
+{
+public:
+  enum CommandType { RenderSubPass, ComputePass };
+  RenderCommand(CommandType commandType);
+
+  virtual void validateGPUData(ValidateGPUVisitor& updateVisitor) = 0;
+  virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
+
+  CommandType commandType;
+  std::shared_ptr<RenderOperation> operation;
+  std::map<ResourceBarrierGroup, std::vector<ResourceBarrier>> barriersBeforeOp;
+  std::map<ResourceBarrierGroup, std::vector<ResourceBarrier>> barriersAfterOp;
+};
+
+
+// class representing Vulkan graphics render pass along with its attachments, subpasses and dependencies
+class PUMEX_EXPORT RenderSubPass : public RenderCommand
+{
+public:
+  explicit RenderSubPass();
+
+  void buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex);
+
+  void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
+  void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
+
+  std::shared_ptr<RenderPass>      renderPass;
+  uint32_t                         subpassIndex;
+
+  SubpassDefinition                definition;
+};
+
+class PUMEX_EXPORT ComputePass : public RenderCommand
 {
 public:
   explicit ComputePass();
 
   void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
-
-  std::shared_ptr<RenderOperation> computeOperation;
-protected:
-  struct PerDeviceData
-  {
-    bool         valid = false;
-  };
-
-  mutable std::mutex                          mutex;
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
+
+bool operator<(const ResourceBarrierGroup& lhs, const ResourceBarrierGroup& rhs)
+{
+  if (lhs.srcStageMask != rhs.srcStageMask)
+    return lhs.srcStageMask < rhs.srcStageMask;
+  if (lhs.dstStageMask != rhs.dstStageMask)
+    return lhs.dstStageMask < rhs.dstStageMask;
+  return lhs.dependencyFlags < rhs.dependencyFlags;
+}
 
 
 }

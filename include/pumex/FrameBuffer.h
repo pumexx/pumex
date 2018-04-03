@@ -37,7 +37,7 @@ namespace pumex
 {
 
 class Surface;
-
+class RenderPass;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {

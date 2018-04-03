@@ -28,8 +28,8 @@
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderPass.h>
-#include <pumex/Pipeline.h>
-#include <pumex/Node.h>
+//#include <pumex/Pipeline.h>
+//#include <pumex/Node.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
@@ -45,12 +45,10 @@ RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bo
 
 }
 
-
 WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<RenderWorkflowResourceType> t)
   : name{ n }, resourceType{ t }
 {
 }
-
 
 RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, VkSubpassContents sc)
   : name{ n }, operationType{ t }, subpassContents{ sc }
@@ -71,63 +69,17 @@ void RenderOperation::setSceneNode(std::shared_ptr<Node> node)
   sceneNode = node;
 }
 
-SubpassDefinition RenderOperation::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex) const
-{
-  // Fun fact : VkSubpassDescription with compute bind point is forbidden by Vulkan spec
-  VkPipelineBindPoint              bindPoint = (operationType == Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
-  std::vector<AttachmentReference> ia;
-  std::vector<AttachmentReference> oa;
-  std::vector<AttachmentReference> ra;
-  AttachmentReference              dsa;
-  std::vector<uint32_t>            pa;
-
-  std::shared_ptr<RenderWorkflow> rw = renderWorkflow.lock();
-  auto inputAttachments   = rw->getOperationIO(name, rttAttachmentInput);
-  auto outputAttachments  = rw->getOperationIO(name, rttAttachmentOutput);
-  auto resolveAttachments = rw->getOperationIO(name, rttAttachmentResolveOutput);
-  auto depthAttachments   = rw->getOperationIO(name, rttAttachmentDepthOutput);
-
-  for (auto inputAttachment : inputAttachments)
-    ia.push_back({ attachmentIndex.at(inputAttachment->resource->name), inputAttachment->attachment.layout });
-  for (auto outputAttachment : outputAttachments)
-  {
-    oa.push_back({ attachmentIndex.at(outputAttachment->resource->name), outputAttachment->attachment.layout });
-
-    if (!resolveAttachments.empty())
-    {
-      auto it = std::find_if(resolveAttachments.begin(), resolveAttachments.end(), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->attachment.resolveResource == outputAttachment->resource; });
-      if (it != resolveAttachments.end())
-        ra.push_back({ attachmentIndex.at( (*it)->resource->name), (*it)->attachment.layout });
-      else
-        ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
-    }
-    else
-      ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
-  }
-  if (!depthAttachments.empty())
-    dsa = { attachmentIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->attachment.layout };
-  else
-    dsa = { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
-  return SubpassDefinition(bindPoint, ia, oa, ra, dsa, pa);
-}
-
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld)
   : operation{ op }, resource{ res }, transitionType{ tt }, attachment{l,ld}
 {
 }
 
-ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkPipelineStageFlagBits ps, VkAccessFlagBits af)
+ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkPipelineStageFlags ps, VkAccessFlags af)
   : operation{ op }, resource{ res }, transitionType{ tt }, buffer{ps,af}
 {
 }
 
 ResourceTransition::~ResourceTransition()
-{
-}
-
-
-RenderCommand::RenderCommand(RenderCommand::CommandType ct)
-  : commandType{ ct }
 {
 }
 
@@ -143,6 +95,8 @@ RenderWorkflow::~RenderWorkflow()
 
 void RenderWorkflow::addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp)
 {
+  auto it = resourceTypes.find(tp->typeName);
+  CHECK_LOG_THROW(it == resourceTypes.end(), "RenderWorkflow : resource type already exists : " + tp->typeName);
   resourceTypes[tp->typeName] = tp;
   valid = false;
 }
@@ -156,6 +110,9 @@ std::shared_ptr<RenderWorkflowResourceType> RenderWorkflow::getResourceType(cons
 
 void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
 {
+  auto it = renderOperations.find(op->name);
+  CHECK_LOG_THROW(it != renderOperations.end(), "RenderWorkflow : operation already exists : " + op->name);
+
   op->setRenderWorkflow(shared_from_this());
   renderOperations[op->name] = op;
   valid = false;
@@ -185,14 +142,6 @@ std::shared_ptr<WorkflowResource> RenderWorkflow::getResource(const std::string&
   CHECK_LOG_THROW(it == resources.end(), "RenderWorkflow : there is no resource with name " + resourceName);
   return it->second;
 }
-
-uint32_t RenderWorkflow::getResourceIndex(const std::string& resourceName) const
-{
-  auto it = resourceIndex.find(resourceName);
-  CHECK_LOG_THROW(it == resourceIndex.end(), "RenderWorkflow : there is no resource with name " + resourceName);
-  return it->second;
-}
-
 
 void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout)
 {
@@ -377,16 +326,14 @@ void RenderWorkflow::compile()
   valid = true;
 };
 
-void RenderWorkflow::setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, const std::unordered_map<std::string, uint32_t> newResourceIndex, uint32_t newPresentationQueueIndex)
+void RenderWorkflow::setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, uint32_t newPresentationQueueIndex)
 {
   // FIXME : Are old objects still in use by GPU ? May we simply delete them or not ?
   commandSequences       = newCommandSequences;
   frameBufferImages      = newFrameBufferImages;
   frameBuffer            = newFrameBuffer;
-  resourceIndex          = newResourceIndex;
   presentationQueueIndex = newPresentationQueueIndex;
 }
-
 
 void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const RenderWorkflow& workflow)
 {
@@ -427,6 +374,8 @@ float StandardRenderWorkflowCostCalculator::calculateWorkflowCost(const RenderWo
   if (operationSchedule.empty())
     return 0.0f;
   float result = 0.0f;
+
+  // first preference : prefer operations with the same tags ( render pass grouping )
   int tag = attachmentTag.at(operationSchedule[0]->name);
   for (int i = 1; i < operationSchedule.size(); ++i)
   {
@@ -435,6 +384,7 @@ float StandardRenderWorkflowCostCalculator::calculateWorkflowCost(const RenderWo
       result += 10.0f;
     tag = newTag;
   }
+
   return result;
 }
 
@@ -545,41 +495,20 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
   std::vector<std::vector<std::shared_ptr<RenderCommand>>> newCommandSequences;
   for( auto& operationSequence : operationSequences )
   {
-    std::vector<std::shared_ptr<RenderCommand>> commandSequence = createCommandSequence(operationSequence);
+    std::vector<std::shared_ptr<RenderCommand>> commandSequence = createCommandSequence(operationSequence, resourceVector, attachmentIndex, frameBufferDefinitions);
     newCommandSequences.push_back(commandSequence);
   }
 
-  // construct full information about graphics render passes
-  uint32_t sequenceIndex = 0;
-  uint32_t presentationQueueIndex = 0;
-  std::shared_ptr<RenderPass> outputRenderPass;
-  for ( auto& commandSequence : newCommandSequences )
-  {
-    std::vector<VkImageLayout> lastLayout(frameBufferDefinitions.size());
-    std::fill(lastLayout.begin(), lastLayout.end(), VK_IMAGE_LAYOUT_UNDEFINED);
+  // create pipeline barriers
+  createPipelineBarriers(workflow, newCommandSequences);
 
-    for (auto& command : commandSequence)
-    {
-      if(command->commandType == RenderCommand::RenderPass)
-      {
-        std::shared_ptr<RenderPass> renderPass = std::dynamic_pointer_cast<RenderPass>(command);
-        if (constructRenderPassDetails(workflow, renderPass, lastLayout, frameBufferDefinitions, resourceVector, attachmentIndex))
-        {
-          outputRenderPass = renderPass;
-          presentationQueueIndex = sequenceIndex;
-        }
-      }
-    }
-    sequenceIndex++;
-  }
-
-  // create events and pipeline barriers
+  // 
 
   // create frame buffers. Only one is created now
   std::shared_ptr<FrameBufferImages> fbi = std::make_shared<FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
   std::shared_ptr<FrameBuffer> frameBuffer = std::make_shared<FrameBuffer>(outputRenderPass, fbi);
 
-  workflow.setOutputData(newCommandSequences, fbi, frameBuffer, resourceIndex, presentationQueueIndex);
+  workflow.setOutputData(newCommandSequences, fbi, frameBuffer, presentationQueueIndex);
 }
 
 void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflow)
@@ -777,253 +706,203 @@ void SingleQueueWorkflowCompiler::collectResources(const RenderWorkflow& workflo
   }
 }
 
-std::vector<std::shared_ptr<RenderCommand>> SingleQueueWorkflowCompiler::createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence)
+std::vector<std::shared_ptr<RenderCommand>> SingleQueueWorkflowCompiler::createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions)
 {
   std::vector<std::shared_ptr<RenderCommand>> results;
 
-  auto it = operationSequence.begin();
-  while (it != operationSequence.end())
+  int lastTag = -1;
+  std::shared_ptr<RenderPass> lastRenderPass;
+
+  std::vector<VkImageLayout> lastLayout(attachmentIndex.size());
+  std::fill(lastLayout.begin(), lastLayout.end(), VK_IMAGE_LAYOUT_UNDEFINED);
+
+
+  for( auto& operation : operationSequence )
   {
-    int tag = costCalculator.attachmentTag.at((*it)->name);
-    auto bit = it++;
-    while (it != operationSequence.end() && (costCalculator.attachmentTag.at((*it)->name) == tag))
-      ++it;
+    int tag = costCalculator.attachmentTag.at(operation->name);
+
     // we have a new set of operations from bit to it
-    switch ((*bit)->operationType)
+    switch (operation->operationType)
     {
     case RenderOperation::Graphics:
     {
-      std::shared_ptr<RenderPass> renderPass = std::make_shared<RenderPass>();
-      for (auto xit = bit; xit < it; ++xit)
-        renderPass->renderOperations.push_back(*xit);
-      results.push_back(renderPass);
+      if (lastTag != tag)
+      {
+        if (lastRenderPass.get() != nullptr)
+          lastRenderPass->finalizeAttachments();
+        lastRenderPass = std::make_shared<RenderPass>();
+        lastRenderPass->initializeAttachments(resourceVector, attachmentIndex, lastLayout);
+      }
+
+      std::shared_ptr<RenderSubPass> renderSubPass = std::make_shared<RenderSubPass>();
+      renderSubPass->operation = operation;
+      renderSubPass->buildSubPassDefinition(attachmentIndex);
+
+      lastRenderPass->addSubPass(renderSubPass);
+      lastRenderPass->updateAttachments(renderSubPass, attachmentIndex, lastLayout, frameBufferDefinitions);
+
+      results.push_back(renderSubPass);
       break;
     }
     case RenderOperation::Compute:
     {
-      // there is only one compute operation per compute pass
-      for (auto xit = bit; xit < it; ++xit)
-      {
-        std::shared_ptr<ComputePass> computePass = std::make_shared<ComputePass>();
-        computePass->computeOperation = *xit;
-        results.push_back(computePass);
-      }
+      lastRenderPass = nullptr;
+
+      std::shared_ptr<ComputePass> computePass = std::make_shared<ComputePass>();
+      computePass->operation = operation;
+      results.push_back(computePass);
       break;
     }
     default:
       break;
     }
+
+    lastTag = tag;
   }
+  if (lastRenderPass.get() != nullptr)
+    lastRenderPass->finalizeAttachments();
   return results;
 }
 
-bool SingleQueueWorkflowCompiler::constructRenderPassDetails(const RenderWorkflow& workflow, std::shared_ptr<RenderPass> renderPass, std::vector<VkImageLayout>& lastLayout, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& attachmentIndex)
+void SingleQueueWorkflowCompiler::createPipelineBarriers(const RenderWorkflow& workflow, std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commandSequences)
 {
-  // construct subpasses and subpass dependencies from operations
-  std::vector<LoadOp>                      firstLoadOp(frameBufferDefinitions.size());
-  std::vector<SubpassDependencyDefinition> subpassDependencies;
-  auto                                     beginLayout              = lastLayout;
-
-  // this is value returned by this function - it informs if this render pass is suitable to be used as output render pass ( and if current queue should be defined as presentation queue )
-  bool                                     renderPassOutputsSurface = false;
-
-  // a list of outputs modified in a current render pass along with the passOperationIndex in which modifications took place
-  std::unordered_map<std::string, uint32_t> modifiedOutputs;
-  uint32_t                                 passOperationIndex = 0;
-
-  // collect a set of resources that will be used in subsequent render pases / compute passes
-  std::set<std::string> resourcesUsedAfterRenderPass;
-  for (auto& operation : renderPass->renderOperations)
+  std::map<std::string, int> queueNumber;
+  std::map<std::string, int> operationNumber;
+  std::map<std::string, std::shared_ptr<RenderCommand>> commandMap;
+  int queueIndex = 0;
+  for (auto& commandSequence : commandSequences)
   {
-    auto nextOperations = workflow.getNextOperations(operation->name);
-    while (!nextOperations.empty())
+    int operationIndex = 0;
+    for (auto& command : commandSequence)
     {
-      std::set<std::shared_ptr<RenderOperation>> laterOperations;
-      for (auto nextOperation : nextOperations)
-      {
-        if (std::find(renderPass->renderOperations.begin(), renderPass->renderOperations.end(), nextOperation) == renderPass->renderOperations.end())
-        {
-          auto inputTransitions = workflow.getOperationIO(nextOperation->name, rttAllInputs);
-          for (auto inputTransition : inputTransitions)
-            resourcesUsedAfterRenderPass.insert(inputTransition->resource->name);
-          auto laterOps = workflow.getNextOperations(nextOperation->name);
-          for (auto lop : laterOps)
-            laterOperations.insert(lop);
-        }
-      }
-      nextOperations.clear();
-      std::copy(laterOperations.begin(), laterOperations.end(), std::back_inserter(nextOperations));
+      queueNumber[command->operation->name]     = queueIndex;
+      operationNumber[command->operation->name] = operationIndex;
+      commandMap[command->operation->name]      = command;
+      operationIndex++;
     }
+    queueIndex++;
   }
 
-  // build subpasses, attachment definitions, dependencies, pipeline barriers and events
-  for (auto& operation : renderPass->renderOperations)
+  for (auto resource : workflow.resources)
   {
-    auto subPassDefinition = operation->buildSubPassDefinition(attachmentIndex);
-    renderPass->subpasses.push_back(subPassDefinition);
-
-// default first dependency as defined by the specification - we don't want to use it
-//          SubpassDependencyDefinition dependency{ VK_SUBPASS_EXTERNAL, 0, 
-//            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
-//            0, VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 
-//            0 }; // VK_DEPENDENCY_BY_REGION_BIT
-
-    auto consumingTransitions = workflow.getOperationIO(operation->name, rttAllInputs);
-    for (auto consumingTransition : consumingTransitions)
-    {
-      // find operation that generated this input
-      auto generateTransitions = workflow.getResourceIO(consumingTransition->resource->name, rttAllOutputs);
-      std::shared_ptr<ResourceTransition> generatingTransition;
-      for (auto gen : generateTransitions)
-      {
-        if (gen->resource == consumingTransition->resource)
-          generatingTransition = gen;
-      }
-      // if this input was generated outside of render pass...
-      uint32_t srcSubpass = VK_SUBPASS_EXTERNAL;
-      auto it = modifiedOutputs.find(consumingTransition->resource->name);
-      if (it != modifiedOutputs.end())
-        srcSubpass = it->second;
-
-      // find subpass dependency that matches one with srcSubpass == srcSubpass and dstSubpass == passOperationIndex
-      auto dep = std::find_if(subpassDependencies.begin(), subpassDependencies.end(), [srcSubpass, passOperationIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpass && sd.dstSubpass == passOperationIndex; });
-      if (dep == subpassDependencies.end())
-        dep = subpassDependencies.insert(subpassDependencies.end(), SubpassDependencyDefinition(srcSubpass, passOperationIndex, 0, 0, 0, 0, 0));
-      // add correct flags to the dependency
-      VkPipelineStageFlags    srcStageMask = 0, dstStageMask = 0;
-      VkAccessFlags           srcAccessMask = 0, dstAccessMask = 0;
-      getPipelineStageMasks(generatingTransition, consumingTransition, srcStageMask, dstStageMask);
-      getAccessMasks(generatingTransition, consumingTransition, srcAccessMask, dstAccessMask);
-      dep->srcStageMask  |= srcStageMask;
-      dep->dstStageMask  |= dstStageMask;
-      dep->srcAccessMask |= srcAccessMask;
-      dep->dstAccessMask |= dstAccessMask;
-      // if input resource is an attachment - set VK_DEPENDENCY_BY_REGION_BIT ( FIXME ?!? )
-      if (consumingTransition->resource->resourceType->metaType == RenderWorkflowResourceType::Attachment)
-      {
-        dep->dependencyFlags |= VK_DEPENDENCY_BY_REGION_BIT;
-
-        uint32_t attIndex = attachmentIndex[consumingTransition->resource->name];
-        lastLayout[attIndex] = consumingTransition->attachment.layout;
-        frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(consumingTransition->attachment.layout);
-        if (firstLoadOp[attIndex].loadType == LoadOp::DontCare)
-          firstLoadOp[attIndex] = loadOpLoad();
-      }
-
-      // FIXME : when generating transition and input transition point to operations in different queues, then we need to add synchronizing EVENT
-    }
-
-    auto outputTransitions = workflow.getOperationIO(operation->name, rttAllOutputs);
-    for (auto outputTransition : outputTransitions)
-    {
-      modifiedOutputs[outputTransition->resource->name] = passOperationIndex;
-
-      if (outputTransition->resource->resourceType->metaType == RenderWorkflowResourceType::Attachment)
-      {
-        uint32_t attIndex = attachmentIndex[outputTransition->resource->name];
-        lastLayout[attIndex] = outputTransition->attachment.layout;
-        frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(outputTransition->attachment.layout);
-        if (firstLoadOp[attIndex].loadType == LoadOp::DontCare)
-          firstLoadOp[attIndex] = outputTransition->attachment.load;
-
-        // look for render pass that produces swapchain image
-        if (outputTransition->resource->resourceType->attachment.attachmentType == atSurface)
-        {
-          renderPassOutputsSurface = true;
-        }
-      }
-    }
-
-    passOperationIndex++;
-  }
-  // check if there exist any subpass dependency that has srcSubpass == VK_SUBPASS_EXTERNAL and dstSubpass == 0
-  auto dep = std::find_if(subpassDependencies.begin(), subpassDependencies.end(), [](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == VK_SUBPASS_EXTERNAL && sd.dstSubpass == 0; });
-  // if not - add default one, that is empty
-  if (dep == subpassDependencies.end())
-  {
-    SubpassDependencyDefinition introDependency{ VK_SUBPASS_EXTERNAL, 0,
-      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
-      0, 0, 
-      0 }; // VK_DEPENDENCY_BY_REGION_BIT
-    subpassDependencies.push_back(introDependency);
-  }
-
-  // add outro dependency
-  // FIXME : this should take into consideration only attachments that will be used in a future
-  // now it adds DEFAULT dependency ( as declared in Vulkan specification ) that produces too much burden
-  SubpassDependencyDefinition outroDependency{ (uint32_t)renderPass->renderOperations.size()-1, VK_SUBPASS_EXTERNAL,
-    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
-    VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0, 
-    0 }; // VK_DEPENDENCY_BY_REGION_BIT
-  subpassDependencies.push_back(outroDependency);
-  renderPass->dependencies = subpassDependencies;
-
-  // construct render pass attachments
-  std::vector<AttachmentDefinition> attachmentDefinitions;
-  std::vector<VkClearValue> clearValues;
-  for (uint32_t i = 0; i < resourceVector.size(); ++i)
-  {
-    auto res = resourceVector[i];
-    auto resType = res->resourceType;
-    if (resType->metaType != RenderWorkflowResourceType::Attachment)
+    auto generatingTransitions     = workflow.getResourceIO(resource.first, rttAllOutputs);
+    if (generatingTransitions.empty())
       continue;
 
-    bool colorDepthAttachment;
-    bool stencilAttachment;
-    switch (resType->attachment.attachmentType)
+    auto generatingOperationNumber = operationNumber[generatingTransitions[0]->operation->name];
+    auto generatingQueueNumber     = queueNumber[generatingTransitions[0]->operation->name];
+
+    // sort consuming transitions according to operation index, operations from current queue will be first in sorted vector
+    auto consumingTransitions = workflow.getResourceIO(resource.first, rttAllInputs);
+    // place transitions that are in the same queue first
+    auto pos = std::partition(consumingTransitions.begin(), consumingTransitions.end(), [&queueNumber, &generatingQueueNumber](std::shared_ptr<ResourceTransition> lhs) 
     {
-    case atSurface:
-    case atColor:
-    case atDepth:
-      colorDepthAttachment = true;
-      stencilAttachment    = false;
-      break;
-    case atDepthStencil:
-      colorDepthAttachment = true;
-      stencilAttachment    = true;
-      break;
-    case atStencil:
-      colorDepthAttachment = false;
-      stencilAttachment    = true;
-      break;
-    }
-
-    // Resource must be saved when it was tagged as persistent, ot it is a swapchain surface  or it will be used later
-    // FIXME : resource will be used later if any of its subsequent uses has loadOpLoad or it is used as input - THESE CONDITIONS ARE NOT EXAMINED AT THE MOMENT
-    bool mustSaveResource = resType->persistent ||
-      resType->attachment.attachmentType == atSurface ||
-      resourcesUsedAfterRenderPass.find(res->name) != resourcesUsedAfterRenderPass.end();
-
-    uint32_t attIndex = attachmentIndex[res->name];
-    attachmentDefinitions.push_back(AttachmentDefinition(
-      attIndex,
-      resType->attachment.format,
-      resType->attachment.samples,
-      colorDepthAttachment                     ? (VkAttachmentLoadOp)firstLoadOp[attIndex].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE                       : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      stencilAttachment                        ? (VkAttachmentLoadOp)firstLoadOp[attIndex].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      stencilAttachment && mustSaveResource    ? VK_ATTACHMENT_STORE_OP_STORE                       : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      beginLayout[attIndex],
-      lastLayout[attIndex],
-      0
-    ));
-
-    // calculate clear values
-    switch (resType->attachment.attachmentType)
+      return queueNumber[lhs->operation->name] == generatingQueueNumber;
+    });
+    // sort transitions from the same queue according to order of operations
+    std::sort(consumingTransitions.begin(), pos, [&operationNumber](std::shared_ptr<ResourceTransition> lhs, std::shared_ptr<ResourceTransition> rhs)
     {
-    case atSurface:
-    case atColor:
-      clearValues.push_back( makeColorClearValue(firstLoadOp[attIndex].clearColor) );
-      break;
-    case atDepth:
-    case atDepthStencil:
-    case atStencil:
-      clearValues.push_back(makeDepthStencilClearValue(firstLoadOp[attIndex].clearColor.x, firstLoadOp[attIndex].clearColor.y));
-      break;
+      return operationNumber[lhs->operation->name] < operationNumber[rhs->operation->name];
+    });
+    // sort transitions from other queues
+    std::sort(pos, consumingTransitions.end(), [&queueNumber, &operationNumber](std::shared_ptr<ResourceTransition> lhs, std::shared_ptr<ResourceTransition> rhs)
+    {
+      if (queueNumber[lhs->operation->name] == queueNumber[rhs->operation->name])
+        return operationNumber[lhs->operation->name] < operationNumber[rhs->operation->name];
+      return queueNumber[lhs->operation->name] < queueNumber[rhs->operation->name];
+    });
+
+    // for now we will create a barrier/subpass dependency for each transition. It should be later optimized ( some barriers are not necessary )
+    for (auto consumingTransition : consumingTransitions)
+    {
+      if (resource.second->resourceType->metaType == pumex::RenderWorkflowResourceType::Attachment)
+        createSubpassDependency(generatingTransitions[0], commandMap[generatingTransitions[0]->operation->name], consumingTransition, commandMap[consumingTransition->operation->name], queueNumber[generatingTransitions[0]->operation->name], queueNumber[consumingTransition->operation->name]);
+      else
+        createPipelineBarrier(generatingTransitions[0], commandMap[generatingTransitions[0]->operation->name], consumingTransition, commandMap[consumingTransition->operation->name], queueNumber[generatingTransitions[0]->operation->name], queueNumber[consumingTransition->operation->name]);
     }
   }
-  renderPass->attachments = attachmentDefinitions;
-  renderPass->clearValues = clearValues;
+}
 
-  return renderPassOutputsSurface;
+void SingleQueueWorkflowCompiler::createSubpassDependency(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex)
+{
+  VkPipelineStageFlags srcStageMask = 0,  dstStageMask = 0;
+  VkAccessFlags        srcAccessMask = 0, dstAccessMask = 0;
+  getPipelineStageMasks(generatingTransition, consumingTransition, srcStageMask, dstStageMask);
+  getAccessMasks(generatingTransition, consumingTransition, srcAccessMask, dstAccessMask);
+
+  uint32_t             srcSubpassIndex = VK_SUBPASS_EXTERNAL, dstSubpassIndex = VK_SUBPASS_EXTERNAL;
+  // try to add subpass dependency to latter command
+  if (consumingCommand->commandType == RenderCommand::RenderSubPass)
+  {
+    auto consumingSubpass = std::dynamic_pointer_cast<RenderSubPass>(consumingCommand);
+    // if both are render subpasses
+    if (generatingCommand->commandType == RenderCommand::RenderSubPass)
+    {
+      auto generatingSubpass = std::dynamic_pointer_cast<RenderSubPass>(generatingCommand);
+      // check if it's the same render pass
+      if (generatingSubpass->renderPass.get() == consumingSubpass->renderPass.get())
+        srcSubpassIndex = generatingSubpass->subpassIndex;
+    }
+    dstSubpassIndex = consumingSubpass->subpassIndex;
+
+    auto dep = std::find_if(consumingSubpass->renderPass->dependencies.begin(), consumingSubpass->renderPass->dependencies.end(), 
+      [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
+    if (dep == consumingSubpass->renderPass->dependencies.end())
+      dep = consumingSubpass->renderPass->dependencies.insert(consumingSubpass->renderPass->dependencies.end(), SubpassDependencyDefinition(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));
+    dep->srcStageMask    |= srcStageMask;
+    dep->dstStageMask    |= dstStageMask;
+    dep->srcAccessMask   |= srcAccessMask;
+    dep->dstAccessMask   |= dstAccessMask;
+    dep->dependencyFlags |= VK_DEPENDENCY_BY_REGION_BIT;
+  }
+  else if (generatingCommand->commandType == RenderCommand::RenderSubPass) // consumingCommand is not a subpass - let's add it to generating command
+  {
+    auto generatingSubpass = std::dynamic_pointer_cast<RenderSubPass>(generatingCommand);
+    srcSubpassIndex = generatingSubpass->subpassIndex;
+
+    auto dep = std::find_if(generatingSubpass->renderPass->dependencies.begin(), generatingSubpass->renderPass->dependencies.end(),
+      [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
+    if (dep == generatingSubpass->renderPass->dependencies.end())
+      dep = generatingSubpass->renderPass->dependencies.insert(generatingSubpass->renderPass->dependencies.end(), SubpassDependencyDefinition(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));
+    dep->srcStageMask    |= srcStageMask;
+    dep->dstStageMask    |= dstStageMask;
+    dep->srcAccessMask   |= srcAccessMask;
+    dep->dstAccessMask   |= dstAccessMask;
+    dep->dependencyFlags |= VK_DEPENDENCY_BY_REGION_BIT;
+  }
+  else // none of the commands are subpasses - add pipeline barrier instead
+    createPipelineBarrier(generatingTransition, generatingCommand, consumingTransition, consumingCommand, generatingQueueIndex, consumingQueueIndex);
+}
+
+void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex)
+{
+  auto workflow = generatingTransition->operation->renderWorkflow.lock();
+  auto resource = workflow->getAssociatedResource(generatingTransition->resource->name);
+  if (resource.get() == nullptr)
+    return;
+
+  uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  if (generatingQueueIndex != consumingQueueIndex)
+  {
+    // FIXME - find family indices for both queues
+  }
+
+  VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED, newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  if (generatingTransition->transitionType != rttBufferInput && generatingTransition->transitionType != rttBufferOutput)
+    oldLayout = generatingTransition->attachment.layout;
+  if (consumingTransition->transitionType != rttBufferInput && consumingTransition->transitionType != rttBufferOutput)
+    newLayout = consumingTransition->attachment.layout;
+
+  VkPipelineStageFlags srcStageMask = 0,  dstStageMask = 0;
+  VkAccessFlags        srcAccessMask = 0, dstAccessMask = 0;
+  getPipelineStageMasks(generatingTransition, consumingTransition, srcStageMask, dstStageMask);
+  getAccessMasks(generatingTransition, consumingTransition, srcAccessMask, dstAccessMask);
+
+  VkDependencyFlags dependencyFlags = 0; // FIXME
+
+  ResourceBarrierGroup rbg(srcStageMask, dstStageMask, dependencyFlags);
+  auto rbgit = consumingCommand->barriersBeforeOp.find(rbg);
+  if (rbgit == consumingCommand->barriersBeforeOp.end())
+    rbgit = consumingCommand->barriersBeforeOp.insert({ rbg, std::vector<ResourceBarrier>() }).first;
+  rbgit->second.push_back(ResourceBarrier(resource, srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, oldLayout, newLayout));
 }

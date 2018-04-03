@@ -36,13 +36,15 @@ namespace pumex
 class Device;
 class Surface;
 class RenderContext;
-class RenderPass;
+class RenderSubPass;
 class FrameBuffer;
 class ComputePipeline;
 class GraphicsPipeline;
 class PipelineLayout;
 class DescriptorSet;
 class Image;
+class ResourceBarrierGroup;
+class ResourceBarrier;
 
 class PUMEX_EXPORT CommandPool
 {
@@ -98,8 +100,8 @@ public:
   void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
   void            cmdEnd();
 
-  void            cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
-  void            cmdNextSubPass(VkSubpassContents contents) const;
+  void            cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
+  void            cmdNextSubPass(RenderSubPass* renderSubPass, VkSubpassContents contents);
   void            cmdEndRenderPass() const;
 
   void            cmdSetViewport(uint32_t firstViewport, const std::vector<VkViewport> viewports) const;
@@ -107,6 +109,7 @@ public:
 
   void            cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const;
   void            cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
+  void            cmdPipelineBarrier(const RenderContext& renderContext, const ResourceBarrierGroup& barrierGroup, const std::vector<ResourceBarrier>& barriers);
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
   void            cmdBindPipeline(ComputePipeline* pipeline);
@@ -154,7 +157,7 @@ struct PUMEX_EXPORT PipelineBarrier
   explicit PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size);
   explicit PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkDescriptorBufferInfo bufferInfo);
   // image barrier
-  explicit PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImage image, VkImageSubresourceRange subresourceRange);
+  explicit PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout oldLayout, VkImageLayout newLayout );
 
   enum Type { Undefined, Memory, Image, Buffer };
   Type mType = Undefined;

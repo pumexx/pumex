@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017 Paweł Księżopolski ( pumexx )
+// Copyright(c) 2017-2018 Paweł Księżopolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 #pragma once
+#include <memory>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 
@@ -34,38 +35,39 @@ class RenderOperation;
 class Pipeline;
 class AssetBufferNode;
 
-class RenderContext
+class PUMEX_EXPORT RenderContext
 {
 public:
   explicit RenderContext(Surface* surface);
 
-  inline void             setRenderPass(RenderPass* renderPass);
+  inline void             setRenderPass(std::shared_ptr<RenderPass> renderPass);
   inline void             setSubpassIndex(uint32_t subpassIndex);
-  inline void             setRenderOperation(RenderOperation* renderOperation);
+  inline void             setRenderOperation(std::shared_ptr<RenderOperation> renderOperation);
   inline Pipeline*        setCurrentPipeline(Pipeline* pipeline);
   inline AssetBufferNode* setCurrentAssetBufferNode(AssetBufferNode* assetBufferNode);
 
   // elements of the context that are constant through visitor work
-  Surface*         surface                = nullptr;
-  VkSurfaceKHR     vkSurface              = VK_NULL_HANDLE;
-  CommandPool*     commandPool            = nullptr;
-  VkQueue          presentationQueue      = VK_NULL_HANDLE;
-  Device*          device                 = nullptr;
-  VkDevice         vkDevice               = VK_NULL_HANDLE;
-  uint32_t         activeIndex            = 0;
-  uint32_t         imageCount             = 1;
+  Surface*                         surface                = nullptr;
+  VkSurfaceKHR                     vkSurface              = VK_NULL_HANDLE;
+  CommandPool*                     commandPool            = nullptr;
+  VkQueue                          presentationQueue      = VK_NULL_HANDLE;
+  Device*                          device                 = nullptr;
+  VkDevice                         vkDevice               = VK_NULL_HANDLE;
+  uint32_t                         activeIndex            = 0;
+  uint32_t                         imageCount             = 1;
 
   // elements of the context that may change during visitor work
-  RenderPass*      renderPass             = nullptr;
-  uint32_t         subpassIndex           = 0;
-  RenderOperation* renderOperation        = nullptr;
-  Pipeline*        currentPipeline        = nullptr; // graphics pipeline or compute pipeline
-  AssetBufferNode* currentAssetBufferNode = nullptr; // asset buffer
+  std::shared_ptr<RenderPass>      renderPass;
+  uint32_t                         subpassIndex           = 0;
+  std::shared_ptr<RenderOperation> renderOperation;
+  Pipeline*                        currentPipeline        = nullptr; // graphics pipeline or compute pipeline
+  AssetBufferNode*                 currentAssetBufferNode = nullptr; // asset buffer
 };
 
-void             RenderContext::setRenderPass(RenderPass* rp)           { renderPass = rp; }
-void             RenderContext::setSubpassIndex(uint32_t si)            { subpassIndex = si; }
-void             RenderContext::setRenderOperation(RenderOperation* ro) { renderOperation = ro; }
+void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)           { renderPass = rp; }
+void             RenderContext::setSubpassIndex(uint32_t si)                            { subpassIndex = si; }
+void             RenderContext::setRenderOperation(std::shared_ptr<RenderOperation> ro) { renderOperation = ro; }
+
 Pipeline*        RenderContext::setCurrentPipeline(Pipeline* pipeline) 
 {
   Pipeline* oldPipeline = currentPipeline;

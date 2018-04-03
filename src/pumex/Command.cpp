@@ -22,6 +22,7 @@
 
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
+#include <pumex/RenderContext.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
@@ -109,7 +110,6 @@ void CommandBuffer::clearSources()
   sources.clear();
 }
 
-
 VkCommandBuffer CommandBuffer::getHandle() const
 {
   return commandBuffer[activeIndex];
@@ -130,13 +130,13 @@ void CommandBuffer::cmdEnd()
   valid[activeIndex] = true;
 }
 
-void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
+void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
 {
-  addSource(renderPass);
+  addSource(renderSubPass);
   addSource(frameBuffer);
   VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass      = renderPass->getHandle(device);
+    renderPassBeginInfo.renderPass      = renderSubPass->renderPass->getHandle(device);
     renderPassBeginInfo.renderArea      = renderArea;
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
@@ -144,8 +144,9 @@ void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderPass* renderPass,
   vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, subpassContents);
 }
 
-void CommandBuffer::cmdNextSubPass(VkSubpassContents contents) const
+void CommandBuffer::cmdNextSubPass(RenderSubPass* renderSubPass, VkSubpassContents contents)
 {
+  addSource(renderSubPass);
   vkCmdNextSubpass(commandBuffer[activeIndex], contents);
 }
 
@@ -163,7 +164,6 @@ void CommandBuffer::cmdSetScissor(uint32_t firstScissor, const std::vector<VkRec
 {
   vkCmdSetScissor(commandBuffer[activeIndex], firstScissor, scissors.size(), scissors.data());
 }
-
 
 void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const
 {
@@ -205,6 +205,69 @@ void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkP
     break;
   }
 }
+
+void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const ResourceBarrierGroup& barrierGroup, const std::vector<ResourceBarrier>& barriers)
+{
+  std::vector<VkMemoryBarrier>       memoryBarriers;
+  std::vector<VkBufferMemoryBarrier> bufferBarriers;
+  std::vector<VkImageMemoryBarrier>  imageBarriers;
+
+  for (const auto& b : barriers)
+  {
+    std::vector<DescriptorSetValue> values;
+    b.resource->getDescriptorSetValues(renderContext, values);
+
+    switch (values[0].vType)
+    {
+    case DescriptorSetValue::Buffer:
+    {
+      VkBufferMemoryBarrier bufferBarrier;
+        bufferBarrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        bufferBarrier.pNext               = nullptr;
+        bufferBarrier.srcAccessMask       = b.srcAccessMask;
+        bufferBarrier.dstAccessMask       = b.dstAccessMask;
+        bufferBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
+        bufferBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
+        bufferBarrier.buffer              = values[0].bufferInfo.buffer;
+        bufferBarrier.offset              = values[0].bufferInfo.offset;
+        bufferBarrier.size                = values[0].bufferInfo.range;
+      bufferBarriers.emplace_back(bufferBarrier);
+      break;
+    }
+    case DescriptorSetValue::Image:
+    {
+      auto tex = std::dynamic_pointer_cast<Texture>(b.resource);
+      if (tex.get() == nullptr)
+        break;
+      // FIXME - for now the image barrier will always use the whole image
+      VkImageSubresourceRange subRes{};
+        subRes.aspectMask = tex->imageTraits.aspectMask;
+        subRes.baseMipLevel = 0;
+        subRes.levelCount = tex->imageTraits.mipLevels;
+        subRes.baseArrayLayer = 0;
+        subRes.layerCount = tex->imageTraits.arrayLayers;
+
+      VkImageMemoryBarrier imageBarrier;
+        imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageBarrier.pNext               = nullptr;
+        imageBarrier.srcAccessMask       = b.srcAccessMask;
+        imageBarrier.dstAccessMask       = b.dstAccessMask;
+        imageBarrier.oldLayout           = b.oldLayout;
+        imageBarrier.newLayout           = b.newLayout;
+        imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
+        imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
+        imageBarrier.image               = tex->getHandleImage(renderContext.vkDevice)->getImage();
+        imageBarrier.subresourceRange    = subRes;
+      imageBarriers.emplace_back(imageBarrier);
+      break;
+    }
+    }
+  }
+  vkCmdPipelineBarrier(commandBuffer[activeIndex], barrierGroup.srcStageMask, barrierGroup.dstStageMask, barrierGroup.dependencyFlags,
+    memoryBarriers.size(), memoryBarriers.data(), bufferBarriers.size(), bufferBarriers.data(), imageBarriers.size(), imageBarriers.data());
+
+}
+
 
 void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const
 {
@@ -380,7 +443,7 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   VkPipelineStageFlagBits srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   VkPipelineStageFlagBits destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   VkDependencyFlags dependencyFlags = 0;
-  cmdPipelineBarrier(srcStageFlags, destStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, oldImageLayout, newImageLayout, 0, 0, image.getImage(), subresourceRange));
+  cmdPipelineBarrier(srcStageFlags, destStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, 0, 0, image.getImage(), subresourceRange, oldImageLayout, newImageLayout ));
   image.setImageLayout(newImageLayout);
 }
 
@@ -393,7 +456,6 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     subresourceRange.layerCount   = image.getImageTraits().arrayLayers;
   setImageLayout(image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
-
 
 void CommandBuffer::queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores, const std::vector<VkPipelineStageFlags>& waitStages, const std::vector<VkSemaphore>& signalSemaphores, VkFence fence ) const
 {
@@ -447,8 +509,7 @@ PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstA
   bufferBarrier.size                = bufferInfo.range;
 }
 
-
-PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImage image, VkImageSubresourceRange subresourceRange)
+PipelineBarrier::PipelineBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout oldLayout, VkImageLayout newLayout)
   : mType{ Image }
 {
   imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -485,6 +546,5 @@ void CommandBufferSource::notifyCommandBuffers(uint32_t index)
   for (auto cb : commandBuffers)
     cb->invalidate(index);
 }
-
 
 }

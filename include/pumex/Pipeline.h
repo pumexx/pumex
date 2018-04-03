@@ -35,7 +35,7 @@ namespace pumex
 
 class Device;
 class Surface;
-class RenderPass;
+class Resource;
 class RenderContext;
 
 // A set of classes implementing different Vulkan pipeline elements
@@ -96,46 +96,8 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-struct PUMEX_EXPORT DescriptorSetValue
-{
-  enum Type { Undefined, Image, Buffer };
-  DescriptorSetValue();
-  DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
-  DescriptorSetValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout);
-
-  Type vType;
-  union
-  {
-    VkDescriptorBufferInfo bufferInfo;
-    VkDescriptorImageInfo  imageInfo;
-  };
-};
-
-class Descriptor;
 class DescriptorSet;
-
-class PUMEX_EXPORT Resource
-{
-public:
-  enum SwapChainImageBehaviour { Undefined, OnceForAllSwapChainImages, ForEachSwapChainImage };
-  Resource(SwapChainImageBehaviour swapChainImageBehaviour);
-  virtual ~Resource();
-
-  void addDescriptor(std::shared_ptr<Descriptor> descriptor);
-  void removeDescriptor(std::shared_ptr<Descriptor> descriptor);
-  void invalidateDescriptors();
-  void invalidateCommandBuffers();
-
-  virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
-  virtual void validate(const RenderContext& context) = 0;
-  virtual void invalidate() = 0;
-  virtual void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const = 0;
-protected:
-  mutable std::mutex                     mutex;
-  std::vector<std::weak_ptr<Descriptor>> descriptors;
-  SwapChainImageBehaviour                swapChainImageBehaviour;
-};
-
+struct DescriptorSetValue;
 
 class PUMEX_EXPORT Descriptor : public std::enable_shared_from_this<Descriptor>
 {
