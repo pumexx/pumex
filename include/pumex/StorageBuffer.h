@@ -189,7 +189,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
       VkBufferCopy copyRegion{};
       copyRegion.size = sizeof(T)*storageData.size();
       staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.storageBuffer[activeIndex], copyRegion);
-      renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
+      renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.queue);
       renderContext.device->releaseStagingBuffer(stagingBuffer);
     }
     else

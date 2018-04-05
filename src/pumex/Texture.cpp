@@ -313,7 +313,7 @@ void Texture::validate(const RenderContext& renderContext)
       // Setup image memory barrier
       cmdBuffer->setImageLayout(*(pddit->second.image.get()), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     }
-    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.presentationQueue);
+    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.queue);
     renderContext.device->releaseStagingBuffer(stagingBuffer);
   }
   else
@@ -334,7 +334,7 @@ void Texture::validate(const RenderContext& renderContext)
       cmdBuffer->cmdClearColorImage(*(pddit->second.image.get()), VK_IMAGE_LAYOUT_GENERAL, initValue, subResources);
     else
       cmdBuffer->cmdClearDepthStencilImage(*(pddit->second.image.get()), VK_IMAGE_LAYOUT_GENERAL, initValue, subResources);
-    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.presentationQueue);
+    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.queue);
 
   }
   pddit->second.valid = true;

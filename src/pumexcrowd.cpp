@@ -283,8 +283,6 @@ std::multimap<std::string, std::vector<std::string>> clothVariants =
 
 struct CrowdApplicationData
 {
-  std::weak_ptr<pumex::Viewer>                           viewer;
-
   UpdateData                                             updateData;
   std::array<RenderData, 3>                              renderData;
 
@@ -318,8 +316,8 @@ struct CrowdApplicationData
   std::unordered_map<uint32_t, glm::mat4>                slaveViewMatrix;
 
 
-  CrowdApplicationData(std::shared_ptr<pumex::Viewer> v)
-	  : viewer{ v }, randomTime2NextTurn{ 0.25 }, randomRotation{ -glm::pi<float>(), glm::pi<float>() }
+  CrowdApplicationData()
+	  : randomTime2NextTurn{ 0.25 }, randomRotation{ -glm::pi<float>(), glm::pi<float>() }
   {
   }
 
@@ -404,9 +402,11 @@ struct CrowdApplicationData
     updateData.measureTime                 = true;
   }
 
-  void processInput(std::shared_ptr<pumex::Surface> surface )
+  void processInput( std::shared_ptr<pumex::Surface> surface )
   {
     std::shared_ptr<pumex::Window>  windowSh  = surface->window.lock();
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
+
 
     std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
@@ -464,7 +464,7 @@ struct CrowdApplicationData
       }
     }
 
-    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+    uint32_t updateIndex = viewer->getUpdateIndex();
     RenderData& uData = renderData[updateIndex];
     uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
     uData.prevCameraDistance              = updateData.cameraDistance;
@@ -520,7 +520,7 @@ struct CrowdApplicationData
     uData.cameraPosition              = updateData.cameraPosition;
   }
 
-  void update(double timeSinceStart, double updateStep)
+  void update(std::shared_ptr<pumex::Viewer> viewer, double timeSinceStart, double updateStep)
   {
     // update people positions and state
     std::vector< std::unordered_map<uint32_t, ObjectData>::iterator > iters;
@@ -536,7 +536,7 @@ struct CrowdApplicationData
       }
     );
     // send UpdateData to RenderData
-    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+    uint32_t updateIndex = viewer->getUpdateIndex();
 
     std::unordered_map<uint32_t, uint32_t> humanIndexByID;
     renderData[updateIndex].people.resize(0);
@@ -601,11 +601,12 @@ struct CrowdApplicationData
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
-    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
+    uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    float deltaTime = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
+    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
     glm::vec3 relCam
     (
@@ -641,17 +642,17 @@ struct CrowdApplicationData
     textCameraUbo->set(surface.get(), textCamera);
   }
 
-  void prepareBuffersForRendering()
+  void prepareBuffersForRendering( std::shared_ptr<pumex::Viewer> viewer )
   {
     pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
     double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
     lastFrameStart = thisFrameStart;
 
-    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    float deltaTime  = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
+    float deltaTime  = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
     std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
     std::fill(typeCount.begin(), typeCount.end(), 0);
@@ -833,23 +834,27 @@ int main(int argc, char * argv[])
     std::vector<std::shared_ptr<pumex::Window>> windows;
     for (const auto& wt : windowTraits)
       windows.push_back(pumex::Window::createWindow(wt));
-    
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
+
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
+    for (auto win : windows)
+      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
 
     // allocate 24 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
+    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", workflowCompiler, frameBufferAllocator);
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples",   false, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",         true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", true));
       workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f });
 
-    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute, VK_SUBPASS_CONTENTS_INLINE));
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute));
       workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
       workflow->addBufferOutput( "crowd_compute", "compute_results", "offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
 
-    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
       workflow->addBufferInput          ( "rendering", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
       workflow->addBufferInput          ( "rendering", "compute_results", "offset_values",     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples",   "depth",             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
@@ -960,7 +965,7 @@ int main(int argc, char * argv[])
     for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
       materialVariantCount[i] = materialSet->getMaterialVariantCount(i);
 
-    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(viewer);
+    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>();
     applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, mainObjectTypeID, materialVariantCount, skeletalAssetBuffer, instancedResults, buffersAllocator, animations, skeletons);
 
     // build a compute tree
@@ -1138,11 +1143,9 @@ int main(int argc, char * argv[])
       applicationData->setSlaveViewMatrix(0, glm::mat4());
     }
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    surfaceTraits.setRenderWorkflow(workflow);
-    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
-    for (auto win : windows)
-      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
+    // connecting workflow to all surfaces
+    for (auto surf : surfaces)
+      surf->setRenderWorkflow(workflow);
 
     // Making the update graph
     // The update in this example is "almost" singlethreaded. 
@@ -1156,58 +1159,18 @@ int main(int argc, char * argv[])
       for (auto surf : surfaces)
         applicationData->processInput(surf);
       auto updateBeginTime = applicationData->setTime(1010, inputBeginTime);
-      applicationData->update(pumex::inSeconds( viewer->getUpdateTime() - viewer->getApplicationStartTime() ), pumex::inSeconds(viewer->getUpdateDuration()));
+      applicationData->update(viewer, pumex::inSeconds( viewer->getUpdateTime() - viewer->getApplicationStartTime() ), pumex::inSeconds(viewer->getUpdateDuration()));
       applicationData->setTime(1020, updateBeginTime);
     });
 
     tbb::flow::make_edge(viewer->startUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->endUpdateGraph);
 
-    // Making the render graph.
-    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
-    // Consider make_edge() in render graph :
-    // viewer->startRenderGraph should point to all root nodes.
-    // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-    { 
-      auto t = applicationData->now();
-      applicationData->prepareBuffersForRendering();
-      applicationData->setTime(2010, t);
-    });
-    std::vector<tbb::flow::continue_node< tbb::flow::continue_msg >> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
-    for (auto& surf : surfaces)
-    {
-      startSurfaceFrame.emplace_back(tbb::flow::continue_node< tbb::flow::continue_msg >(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-      { 
-        auto t = applicationData->now();
-        applicationData->prepareCameraForRendering(surf);
-        surf->beginFrame(); 
-        surf->validateGPUData(true);
-        surf->buildPrimaryCommandBuffer();
-        applicationData->setTime(2020+surf->getID(), t);
-      }));
-      drawSurfaceFrame.emplace_back(tbb::flow::continue_node< tbb::flow::continue_msg >(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-      { 
-        auto t = applicationData->now();
-        surf->draw();
-        applicationData->setTime(2030 + surf->getID(), t);
-      }));
-      endSurfaceFrame.emplace_back(tbb::flow::continue_node< tbb::flow::continue_msg >(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-      { 
-        auto t = applicationData->now();
-        surf->endFrame();
-        applicationData->setTime(2040 + surf->getID(), t);
-      }));
-    }
+    // set render callbacks to application data
+    viewer->setEventRenderStart(std::bind(&CrowdApplicationData::prepareBuffersForRendering, applicationData, std::placeholders::_1));
+    for (auto surf : surfaces)
+      surf->setEventSurfaceRenderStart(std::bind(&CrowdApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
 
-    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
-    for (uint32_t i = 0; i < startSurfaceFrame.size(); ++i)
-    {
-      tbb::flow::make_edge(prepareBuffers, startSurfaceFrame[i]);
-      tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);
-      tbb::flow::make_edge(drawSurfaceFrame[i], endSurfaceFrame[i]);
-      tbb::flow::make_edge(endSurfaceFrame[i], viewer->endRenderGraph);
-    }
     viewer->run();
   }
   catch (const std::exception e)

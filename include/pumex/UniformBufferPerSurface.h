@@ -191,7 +191,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
     VkBufferCopy copyRegion{};
     copyRegion.size = sizeof(T);
     staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, it->second.uboBuffer[activeIndex], copyRegion);
-    renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
+    renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.queue);
     renderContext.device->releaseStagingBuffer(stagingBuffer);
   }
   else

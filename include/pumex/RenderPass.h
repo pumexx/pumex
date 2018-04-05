@@ -164,15 +164,21 @@ public:
 
 inline bool operator<(const ResourceBarrierGroup& lhs, const ResourceBarrierGroup& rhs);
 
+class RenderSubPass;
+class ComputePass;
+
 // really - I don't have idea how to name this crucial class :(
 class PUMEX_EXPORT RenderCommand : public CommandBufferSource
 {
 public:
-  enum CommandType { RenderSubPass, ComputePass };
+  enum CommandType { ctRenderSubPass, ctComputePass };
   RenderCommand(CommandType commandType);
 
   virtual void validateGPUData(ValidateGPUVisitor& updateVisitor) = 0;
   virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
+
+  virtual RenderSubPass* asRenderSubPass() = 0;
+  virtual ComputePass*   asComputePass() = 0;
 
   CommandType commandType;
   std::shared_ptr<RenderOperation> operation;
@@ -192,6 +198,10 @@ public:
   void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
+  RenderSubPass* asRenderSubPass() override;
+  ComputePass*   asComputePass() override;
+
+
   std::shared_ptr<RenderPass>      renderPass;
   uint32_t                         subpassIndex;
 
@@ -205,6 +215,9 @@ public:
 
   void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
+
+  RenderSubPass* asRenderSubPass() override;
+  ComputePass*   asComputePass() override;
 };
 
 bool operator<(const ResourceBarrierGroup& lhs, const ResourceBarrierGroup& rhs)

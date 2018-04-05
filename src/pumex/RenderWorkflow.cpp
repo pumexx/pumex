@@ -319,11 +319,16 @@ QueueTraits RenderWorkflow::getPresentationQueue() const
   return queueTraits[presentationQueueIndex];
 }
 
-void RenderWorkflow::compile()
+bool RenderWorkflow::compile()
 {
-  if(!valid)
-    compiler->compile(*this);
+  if (valid)
+    return false;
+  std::lock_guard<std::mutex> lock(compileMutex);
+  if (valid)
+    return true;
+  compiler->compile(*this);
   valid = true;
+  return true;
 };
 
 void RenderWorkflow::setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, uint32_t newPresentationQueueIndex)
@@ -388,7 +393,7 @@ float StandardRenderWorkflowCostCalculator::calculateWorkflowCost(const RenderWo
   return result;
 }
 
-std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(RenderWorkflow workflow, const std::set<std::shared_ptr<RenderOperation>>& doneOperations, StandardRenderWorkflowCostCalculator* costCalculator)
+std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(const RenderWorkflow& workflow, const std::set<std::shared_ptr<RenderOperation>>& doneOperations, StandardRenderWorkflowCostCalculator* costCalculator)
 {
   std::set<std::shared_ptr<RenderOperation>> newDoneOperations;
   if (doneOperations.empty())
@@ -502,9 +507,37 @@ void SingleQueueWorkflowCompiler::compile(RenderWorkflow& workflow)
   // create pipeline barriers
   createPipelineBarriers(workflow, newCommandSequences);
 
-  // 
+  // find render pass that writes to surface
+  uint32_t presentationQueueIndex = 0;
+  std::shared_ptr<RenderPass> outputRenderPass;
+  for (auto& commandSequence : newCommandSequences)
+  {
+    for (int i = commandSequence.size()-1; i>=0; --i)
+    {
+      if (commandSequence[i]->commandType != RenderCommand::ctRenderSubPass)
+        continue;
+      bool found = false;
+      auto transitions = workflow.getOperationIO(commandSequence[i]->operation->name, rttAttachmentOutput | rttAttachmentResolveOutput);
+      for (auto transition : transitions)
+      {
+        if (transition->resource->resourceType->attachment.attachmentType == atSurface)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (found)
+      {
+        outputRenderPass = commandSequence[i]->asRenderSubPass()->renderPass;
+        break;
+      }
+    }
+    if (outputRenderPass.get() != nullptr)
+      break;
+    presentationQueueIndex++;
+  }
 
-  // create frame buffers. Only one is created now
+  // create frame buffer
   std::shared_ptr<FrameBufferImages> fbi = std::make_shared<FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
   std::shared_ptr<FrameBuffer> frameBuffer = std::make_shared<FrameBuffer>(outputRenderPass, fbi);
 
@@ -832,11 +865,11 @@ void SingleQueueWorkflowCompiler::createSubpassDependency(std::shared_ptr<Resour
 
   uint32_t             srcSubpassIndex = VK_SUBPASS_EXTERNAL, dstSubpassIndex = VK_SUBPASS_EXTERNAL;
   // try to add subpass dependency to latter command
-  if (consumingCommand->commandType == RenderCommand::RenderSubPass)
+  if (consumingCommand->commandType == RenderCommand::ctRenderSubPass)
   {
     auto consumingSubpass = std::dynamic_pointer_cast<RenderSubPass>(consumingCommand);
     // if both are render subpasses
-    if (generatingCommand->commandType == RenderCommand::RenderSubPass)
+    if (generatingCommand->commandType == RenderCommand::ctRenderSubPass)
     {
       auto generatingSubpass = std::dynamic_pointer_cast<RenderSubPass>(generatingCommand);
       // check if it's the same render pass
@@ -855,7 +888,7 @@ void SingleQueueWorkflowCompiler::createSubpassDependency(std::shared_ptr<Resour
     dep->dstAccessMask   |= dstAccessMask;
     dep->dependencyFlags |= VK_DEPENDENCY_BY_REGION_BIT;
   }
-  else if (generatingCommand->commandType == RenderCommand::RenderSubPass) // consumingCommand is not a subpass - let's add it to generating command
+  else if (generatingCommand->commandType == RenderCommand::ctRenderSubPass) // consumingCommand is not a subpass - let's add it to generating command
   {
     auto generatingSubpass = std::dynamic_pointer_cast<RenderSubPass>(generatingCommand);
     srcSubpassIndex = generatingSubpass->subpassIndex;

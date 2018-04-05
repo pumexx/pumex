@@ -34,7 +34,7 @@ class CommandBuffer;
 class PUMEX_EXPORT ValidateGPUVisitor : public NodeVisitor
 {
 public:
-  ValidateGPUVisitor(Surface* surface, bool validateRenderGraphs);
+  ValidateGPUVisitor(Surface* surface, uint32_t queueNumber, bool validateRenderGraphs);
 
   void apply(Node& node) override;
   void applyDescriptorSets(Node& node);
@@ -46,7 +46,7 @@ public:
 class PUMEX_EXPORT BuildCommandBufferVisitor : public NodeVisitor
 {
 public:
-  BuildCommandBufferVisitor(Surface* surface, CommandBuffer* commandBuffer);
+  BuildCommandBufferVisitor(Surface* surface, uint32_t queueNumber, CommandBuffer* commandBuffer);
 
   void apply(Node& node) override;
   void apply(GraphicsPipeline& node) override;

@@ -38,7 +38,7 @@ class AssetBufferNode;
 class PUMEX_EXPORT RenderContext
 {
 public:
-  explicit RenderContext(Surface* surface);
+  explicit RenderContext(Surface* surface, uint32_t queueNumber);
 
   inline void             setRenderPass(std::shared_ptr<RenderPass> renderPass);
   inline void             setSubpassIndex(uint32_t subpassIndex);
@@ -50,7 +50,7 @@ public:
   Surface*                         surface                = nullptr;
   VkSurfaceKHR                     vkSurface              = VK_NULL_HANDLE;
   CommandPool*                     commandPool            = nullptr;
-  VkQueue                          presentationQueue      = VK_NULL_HANDLE;
+  VkQueue                          queue                  = VK_NULL_HANDLE;
   Device*                          device                 = nullptr;
   VkDevice                         vkDevice               = VK_NULL_HANDLE;
   uint32_t                         activeIndex            = 0;

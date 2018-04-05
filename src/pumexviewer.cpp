@@ -84,8 +84,6 @@ struct RenderData
 
 };
 
-
-
 struct ViewerApplicationData
 {
   ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
@@ -362,6 +360,9 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
+
     // alocate 16 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // alocate 1 MB for uniform and storage buffers
@@ -379,13 +380,9 @@ int main( int argc, char * argv[] )
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true, VK_FORMAT_B8G8R8A8_UNORM,     VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0, 0.75f });
 
-    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics, VK_SUBPASS_CONTENTS_INLINE));
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput     ( "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_FIFO_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    surfaceTraits.setRenderWorkflow(workflow);
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
 
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
@@ -495,42 +492,19 @@ int main( int argc, char * argv[] )
       boxDescriptorSet->setDescriptor(1, applicationData->positionUbo);
     boxPipeline->setDescriptorSet(0, boxDescriptorSet);
 
+    surface->setRenderWorkflow(workflow);
+
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
       applicationData->processInput(surface);
       applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
     });
-
     tbb::flow::make_edge(viewer->startUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->endUpdateGraph);
 
-    // Making the render graph.
-    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
-    // Consider make_edge() in render graph :
-    // viewer->startRenderGraph should point to all root nodes.
-    // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-    { 
-      applicationData->prepareModelForRendering(viewer, asset);
-    });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-    {
-      applicationData->prepareCameraForRendering(surface);
-      surface->beginFrame();
-      surface->validateGPUData(true);
-      surface->buildPrimaryCommandBuffer();
-    });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) 
-    { 
-      surface->draw();
-    });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
+    viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
 
-    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
-    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
-    tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
-    tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
-    tbb::flow::make_edge(endSurfaceFrame, viewer->endRenderGraph);
+    surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
 
     viewer->run();
   }

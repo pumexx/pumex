@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <mutex>
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
@@ -174,7 +175,7 @@ class PUMEX_EXPORT RenderOperation
 public:
   enum Type { Graphics, Compute };
 
-  RenderOperation(const std::string& name, Type operationType, VkSubpassContents subpassContents);
+  RenderOperation(const std::string& name, Type operationType, VkSubpassContents subpassContents = VK_SUBPASS_CONTENTS_INLINE);
   virtual ~RenderOperation();
 
   void setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
@@ -184,6 +185,7 @@ public:
   std::string                                       name;
   Type                                              operationType;
   VkSubpassContents                                 subpassContents;
+
   std::weak_ptr<RenderWorkflow>                     renderWorkflow;
   std::shared_ptr<Node>                             sceneNode;
 
@@ -293,7 +295,7 @@ public:
   void        addQueue(const QueueTraits& queueTraits);
   QueueTraits getPresentationQueue() const;
 
-  void compile();
+  bool compile();
   void setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, uint32_t newPresentationQueueIndex);
 
   // data provided by user during workflow setup
@@ -307,6 +309,7 @@ public:
   std::vector<QueueTraits>                                                     queueTraits;
 
   bool                                                                         valid = false;
+  mutable std::mutex                                                           compileMutex;
 
   // data created during workflow compilation - may be used in many surfaces at once
   std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;

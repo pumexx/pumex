@@ -194,7 +194,7 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
       VkBufferCopy copyRegion{};
       copyRegion.size = uglyGetSize(*(pddit->second.data));
       staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.buffer[activeIndex], copyRegion);
-      renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.presentationQueue);
+      renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.queue);
       renderContext.device->releaseStagingBuffer(stagingBuffer);
     }
     else

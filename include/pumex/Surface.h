@@ -47,17 +47,12 @@ struct PUMEX_EXPORT SurfaceTraits
 {
   explicit SurfaceTraits(uint32_t imageCount, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
 
-  void setRenderWorkflow(std::shared_ptr<RenderWorkflow> renderWorkflow);
-
   uint32_t                           imageCount;
   VkColorSpaceKHR                    imageColorSpace;
   uint32_t                           imageArrayLayers; // always 1 ( until VR )
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
-
-  std::shared_ptr<RenderWorkflow>    renderWorkflow;
-
 };
 
 // class representing a Vulkan surface
@@ -74,48 +69,62 @@ public:
   void            realize();
   void            cleanup();
   void            beginFrame();
-  void            validateGPUData(bool validateRenderGraphs);
-  void            buildPrimaryCommandBuffer();
+  void            buildPrimaryCommandBuffer(uint32_t queueNumber);
   void            draw();
   void            endFrame();
   void            resizeSurface(uint32_t newWidth, uint32_t newHeight);
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
 
+  void            setRenderWorkflow(std::shared_ptr<RenderWorkflow> renderWorkflow);
+
   inline void     setID(uint32_t newID);
   inline uint32_t getID() const;
 
-    
-  std::weak_ptr<Viewer>               viewer;
-  std::weak_ptr<Window>               window;
-  std::weak_ptr<Device>               device;
+  inline void     setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
+  inline void     setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);
 
-  VkSurfaceKHR                        surface                      = VK_NULL_HANDLE;
-  SurfaceTraits                       surfaceTraits;
-  std::shared_ptr<RenderWorkflow>     renderWorkflow;
-  bool                                realized                     = false;
+  inline void     onEventSurfaceRenderStart();
+  inline void     onEventSurfaceRenderFinish();
 
-  VkSurfaceCapabilitiesKHR            surfaceCapabilities;
-  std::vector<VkPresentModeKHR>       presentModes;
-  std::vector<VkSurfaceFormatKHR>     surfaceFormats;
-  std::vector<VkBool32>               supportsPresent;
-  std::shared_ptr<Queue>              presentationQueue;
-  std::shared_ptr<CommandPool>        commandPool;
+  std::shared_ptr<CommandPool> getPresentationCommandPool();
+  std::shared_ptr<Queue>       getPresentationQueue();
 
-  VkExtent2D                          swapChainSize                = VkExtent2D{1,1};
-  uint32_t                            swapChainImageIndex          = 0;
-  std::vector<std::unique_ptr<Image>> swapChainImages;
+  std::weak_ptr<Viewer>                         viewer;
+  std::weak_ptr<Window>                         window;
+  std::weak_ptr<Device>                         device;
 
-  VkSemaphore                         imageAvailableSemaphore      = VK_NULL_HANDLE;
-  VkSemaphore                         renderCompleteSemaphore      = VK_NULL_HANDLE;
-  ActionQueue                         actions;
+  VkSurfaceKHR                                  surface                      = VK_NULL_HANDLE;
+  SurfaceTraits                                 surfaceTraits;
+  std::shared_ptr<RenderWorkflow>               renderWorkflow;
+  bool                                          realized                     = false;
+
+  VkSurfaceCapabilitiesKHR                      surfaceCapabilities;
+  std::vector<VkPresentModeKHR>                 presentModes;
+  std::vector<VkSurfaceFormatKHR>               surfaceFormats;
+  std::vector<VkBool32>                         supportsPresent;
+
+  std::vector<std::shared_ptr<Queue>>           queues;
+  std::vector<std::shared_ptr<CommandPool>>     commandPools;
+  std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
+
+  VkExtent2D                                    swapChainSize                = VkExtent2D{1,1};
+  uint32_t                                      swapChainImageIndex          = 0;
+  std::vector<std::unique_ptr<Image>>           swapChainImages;
+
+  VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;
+  VkSemaphore                                   renderCompleteSemaphore      = VK_NULL_HANDLE;
+  ActionQueue                                   actions;
 
 protected:
-  uint32_t                            id                           = 0;
-  VkSwapchainKHR                      swapChain                    = VK_NULL_HANDLE;
-  std::vector<VkFence>                waitFences;
-  std::shared_ptr<CommandBuffer>      primaryCommandBuffer;
-  std::shared_ptr<CommandBuffer>      presentCommandBuffer;
+  uint32_t                                      id                           = 0;
+  VkSwapchainKHR                                swapChain                    = VK_NULL_HANDLE;
+  std::vector<VkFence>                          waitFences;
+  std::shared_ptr<CommandBuffer>                presentCommandBuffer;
+
+  std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;
+  std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderFinish;
+
 
 protected:
   void createSwapChain();
@@ -126,6 +135,11 @@ void     Surface::setID(uint32_t newID) { id = newID; }
 uint32_t Surface::getID() const         { return id; }
 uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }
 uint32_t Surface::getImageIndex() const { return swapChainImageIndex; }
+
+void     Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
+void     Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }
+void     Surface::onEventSurfaceRenderStart()                                                      { if (eventSurfaceRenderStart != nullptr)  eventSurfaceRenderStart(shared_from_this()); }
+void     Surface::onEventSurfaceRenderFinish()                                                     { if (eventSurfaceRenderFinish != nullptr)  eventSurfaceRenderFinish(shared_from_this()); }
 
 
 }

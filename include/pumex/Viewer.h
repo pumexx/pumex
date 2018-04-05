@@ -79,6 +79,9 @@ public:
   inline uint32_t            getNumDevices() const;
   inline uint32_t            getNumSurfaces() const;
 
+  inline void                setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event);
+  inline void                setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event);
+
   void                       run();
   void                       cleanup();
   inline bool                isRealized() const;
@@ -102,17 +105,13 @@ public:
 
 
   ViewerTraits                                        viewerTraits;
-  VkInstance                                          instance        = VK_NULL_HANDLE;
+  VkInstance                                          instance         = VK_NULL_HANDLE;
   std::vector<VkExtensionProperties>                  extensionProperties;
-  bool                                                viewerTerminate = false;
+  bool                                                viewerTerminate  = false;
 
   tbb::flow::graph                                    updateGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg > startUpdateGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg > endUpdateGraph;
-
-  tbb::flow::graph                                    renderGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg > startRenderGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg > endRenderGraph;
 
 protected:
   bool realized = false;
@@ -125,11 +124,19 @@ protected:
   inline uint32_t getNextUpdateSlot() const;
   inline void     doNothing() const;
 
+  inline void     onEventRenderStart();
+  inline void     onEventRenderFinish();
+
+
+  void            buildRenderGraph();
+
   std::vector<std::string>                               defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
   std::vector<std::shared_ptr<PhysicalDevice>>           physicalDevices;
   std::unordered_map<uint32_t, std::shared_ptr<Device>>  devices;
   std::unordered_map<uint32_t, std::shared_ptr<Surface>> surfaces;
   std::vector<std::shared_ptr<Window>>                   windows;
+  std::function<void(std::shared_ptr<Viewer>)>           eventRenderStart;
+  std::function<void(std::shared_ptr<Viewer>)>           eventRenderFinish;
 
   uint32_t                                               nextSurfaceID                 = 0;
   uint32_t                                               nextDeviceID                  = 0;
@@ -151,6 +158,10 @@ protected:
   PFN_vkDebugReportMessageEXT                            pfnDebugReportMessage         = nullptr;
   VkDebugReportCallbackEXT                               msgCallback;
 
+  tbb::flow::graph                                       renderGraph;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphStart;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphFinish;
+  bool                                                   renderGraphValid = false;
 };
 
 bool                Viewer::isRealized() const              { return realized; }
@@ -167,6 +178,11 @@ HPClock::time_point Viewer::getUpdateTime() const           { return updateStart
 HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
 void                Viewer::addDefaultDirectory(std::string directory) { std::replace( directory.begin(), directory.end(), '\\', '/'); defaultDirectories.push_back(directory); }
 void                Viewer::doNothing() const               {}
+void                Viewer::setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event)  { eventRenderStart = event; }
+void                Viewer::setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event) { eventRenderFinish = event; }
+void                Viewer::onEventRenderStart()            { if (eventRenderStart != nullptr)  eventRenderStart(shared_from_this()); }
+void                Viewer::onEventRenderFinish()           { if (eventRenderFinish != nullptr)  eventRenderFinish(shared_from_this()); }
+
 
 uint32_t   Viewer::getNextUpdateSlot() const
 {

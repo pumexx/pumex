@@ -28,8 +28,8 @@
 
 using namespace pumex;
 
-ValidateGPUVisitor::ValidateGPUVisitor(Surface* s, bool vrg)
-  : NodeVisitor{ AllChildren }, renderContext{ s }, validateRenderGraphs{ vrg }
+ValidateGPUVisitor::ValidateGPUVisitor(Surface* s, uint32_t q, bool vrg)
+  : NodeVisitor{ AllChildren }, renderContext{ s, q }, validateRenderGraphs{ vrg }
 {
 }
 
@@ -46,8 +46,8 @@ void ValidateGPUVisitor::applyDescriptorSets(Node& node)
     it->second->validate(renderContext);
 }
 
-BuildCommandBufferVisitor::BuildCommandBufferVisitor(Surface* s, CommandBuffer* cb)
-  : NodeVisitor{ AllChildren }, renderContext(s), commandBuffer{ cb }
+BuildCommandBufferVisitor::BuildCommandBufferVisitor(Surface* s, uint32_t q, CommandBuffer* cb)
+  : NodeVisitor{ AllChildren }, renderContext(s, q), commandBuffer{ cb }
 {
 
 }

@@ -20,8 +20,9 @@
 // SOFTWARE.
 //
 
-#include <algorithm>
 #include <pumex/Viewer.h>
+#include <algorithm>
+#include <map>
 #include <pumex/utils/Log.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Device.h>
@@ -52,8 +53,8 @@ Viewer::Viewer(const ViewerTraits& vt)
   : viewerTraits{ vt }, 
   startUpdateGraph { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   endUpdateGraph   { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  startRenderGraph { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  endRenderGraph   { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } }
+  renderGraphStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
+  renderGraphFinish{ renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
 {
   viewerStartTime     = HPClock::now();
   for(uint32_t i=0; i<3;++i)
@@ -66,7 +67,6 @@ Viewer::Viewer(const ViewerTraits& vt)
   const char* dataDirVariable = getenv("PUMEX_DATA_DIR");
   if (dataDirVariable != nullptr)
   {
-    // boost::tokenizer would be great here, but for now I don't want to add boost as dependency
     const char* currentPos = dataDirVariable;
     do
     {
@@ -113,7 +113,6 @@ Viewer::Viewer(const ViewerTraits& vt)
     addDefaultDirectory(exeDir+"/data");
   }
 #endif
-
 
   // create vulkan instance with required extensions
   std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
@@ -192,6 +191,12 @@ void Viewer::run()
   {
     while (true)
     {
+      if (!renderGraphValid)
+      {
+        buildRenderGraph();
+        renderGraphValid = true;
+      }
+
       {
         std::lock_guard<std::mutex> lck(updateMutex);
         renderIndex      = getNextRenderSlot();
@@ -214,7 +219,7 @@ void Viewer::run()
         continueRun = !terminating();
         if (continueRun)
         {
-          startRenderGraph.try_put(tbb::flow::continue_msg());
+          renderGraphStart.try_put(tbb::flow::continue_msg());
           renderGraph.wait_for_all();
         }
       }
@@ -334,7 +339,6 @@ void Viewer::setTerminate()
   viewerTerminate = true;
 }
 
-
 std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<const char*>& requestedExtensions)
 {
   CHECK_LOG_THROW(physicalDeviceIndex >= physicalDevices.size(), "Could not create device. Index is too high : " << physicalDeviceIndex);
@@ -369,7 +373,6 @@ Surface* Viewer::getSurface(uint32_t id)
     return nullptr;
   return it->second.get();
 }
-
 
 std::string Viewer::getFullFilePath(const std::string& shortFileName) const
 {
@@ -407,6 +410,67 @@ void Viewer::cleanupDebugging()
   {
     pfnDestroyDebugReportCallback(instance, msgCallback, nullptr);
     msgCallback = VK_NULL_HANDLE;
+  }
+}
+
+void Viewer::buildRenderGraph()
+{
+  renderGraph.reset();
+
+  std::vector<Surface*> surfacePointers;
+  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
+  std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> primaryBuffers;
+  for (auto& surf : surfaces)
+  {
+    Surface* surface = surf.second.get();
+    surfacePointers.emplace_back(surface);
+    startSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->onEventSurfaceRenderStart();
+      bool workflowCompiledNow = surface->renderWorkflow->compile();
+    });
+    auto jit = primaryBuffers.find(surface);
+    if(jit == primaryBuffers.end())
+      jit = primaryBuffers.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
+
+    for (uint32_t i = 0; i < surface->queues.size(); ++i)
+    {
+      jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+      {
+        surface->buildPrimaryCommandBuffer(i);
+      });
+    }
+    drawSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->beginFrame();
+      surface->draw();
+    });
+    endSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->endFrame();
+      surface->onEventSurfaceRenderFinish();
+    });
+  }
+
+  for (uint32_t i = 0; i < surfacePointers.size(); ++i)
+  {
+    tbb::flow::make_edge(renderGraphStart, startSurfaceFrame[i]);
+    auto jit = primaryBuffers.find(surfacePointers[i]);
+    if (jit == primaryBuffers.end() || jit->second.size() == 0)
+    {
+      // no command buffer building ? Maybe we should throw an error ?
+      tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);
+    }
+    else
+    {
+      for (uint32_t j = 0; j < jit->second.size(); ++j)
+      {
+        tbb::flow::make_edge(startSurfaceFrame[i], jit->second[j]);
+        tbb::flow::make_edge(jit->second[j], drawSurfaceFrame[i]);
+      }
+    }
+    tbb::flow::make_edge(drawSurfaceFrame[i], endSurfaceFrame[i]);
+    tbb::flow::make_edge(endSurfaceFrame[i], renderGraphFinish);
   }
 }
 

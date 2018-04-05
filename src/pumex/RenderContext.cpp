@@ -28,8 +28,8 @@
 
 using namespace pumex;
 
-RenderContext::RenderContext(Surface* s)
-  : surface { s }, vkSurface{ s->surface }, commandPool{ s->commandPool.get() }, presentationQueue{s->presentationQueue->queue},
+RenderContext::RenderContext(Surface* s, uint32_t queueNumber)
+  : surface { s }, vkSurface{ s->surface }, commandPool{ s->commandPools[queueNumber].get() }, queue{s->queues[queueNumber]->queue},
     device{ s->device.lock().get() }, vkDevice{ device->device },
     activeIndex{ s->getImageIndex() }, imageCount{ s->getImageCount() }
 {

@@ -304,9 +304,8 @@ RenderCommand::RenderCommand(RenderCommand::CommandType ct)
 }
 
 RenderSubPass::RenderSubPass()
-  : RenderCommand(RenderCommand::ComputePass)
+  : RenderCommand(RenderCommand::ctRenderSubPass)
 {
-
 }
 
 void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex)
@@ -396,8 +395,15 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   commandVisitor.commandBuffer->cmdSetViewport(0, { makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height, 0.0f, 1.0f) });
   commandVisitor.commandBuffer->cmdSetScissor(0, { makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height) });
 
-  operation->sceneNode->accept(commandVisitor);
-
+  if (operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
+  {
+    operation->sceneNode->accept(commandVisitor);
+  }
+  else
+  {
+    // FIXME : call vkCmdExecuteCommands
+    // void vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers);
+  }
 
   if (renderPass->subPasses.size() == subpassIndex + 1)
   {
@@ -412,8 +418,18 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   commandVisitor.renderContext.setRenderPass(nullptr);
 }
 
+RenderSubPass* RenderSubPass::asRenderSubPass()
+{
+  return this;
+}
+
+ComputePass* RenderSubPass::asComputePass()
+{
+  return nullptr;
+}
+
 ComputePass::ComputePass()
-  : RenderCommand(RenderCommand::ComputePass)
+  : RenderCommand(RenderCommand::ctComputePass)
 {
 }
 
@@ -431,7 +447,15 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
   for (auto barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
-  operation->sceneNode->accept(commandVisitor);
+  if (operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
+  {
+    operation->sceneNode->accept(commandVisitor);
+  }
+  else
+  {
+    // FIXME : call vkCmdExecuteCommands
+    // void vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers);
+  }
 
   for (auto barrierGroup : barriersAfterOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
@@ -439,3 +463,12 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
   commandVisitor.renderContext.setRenderOperation(nullptr);
 }
 
+RenderSubPass* ComputePass::asRenderSubPass()
+{
+  return nullptr;
+}
+
+ComputePass* ComputePass::asComputePass()
+{
+  return this;
+}
