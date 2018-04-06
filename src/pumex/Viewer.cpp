@@ -22,7 +22,6 @@
 
 #include <pumex/Viewer.h>
 #include <algorithm>
-#include <map>
 #include <pumex/utils/Log.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Device.h>
@@ -287,6 +286,8 @@ void Viewer::run()
 
 void Viewer::cleanup()
 {
+  eventRenderStart  = nullptr;
+  eventRenderFinish = nullptr;
   updateGraph.reset();
   renderGraph.reset();
   if (instance != VK_NULL_HANDLE)
@@ -323,7 +324,7 @@ void Viewer::realize()
   for (auto s : surfaces)
   {
     auto device = s.second->device.lock();
-    for (auto qt : s.second->renderWorkflow->queueTraits)
+    for (auto qt : s.second->renderWorkflow->getQueueTraits())
       device->addRequestedQueue(qt);
   }
   for (auto d : devices)
@@ -416,10 +417,12 @@ void Viewer::cleanupDebugging()
 void Viewer::buildRenderGraph()
 {
   renderGraph.reset();
+  startSurfaceFrame.clear();
+  drawSurfaceFrame.clear();
+  endSurfaceFrame.clear();
+  primaryBuffers.clear();
 
   std::vector<Surface*> surfacePointers;
-  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
-  std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> primaryBuffers;
   for (auto& surf : surfaces)
   {
     Surface* surface = surf.second.get();
@@ -427,7 +430,8 @@ void Viewer::buildRenderGraph()
     startSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->onEventSurfaceRenderStart();
-      bool workflowCompiledNow = surface->renderWorkflow->compile();
+      surface->checkWorkflow();
+      surface->beginFrame();
     });
     auto jit = primaryBuffers.find(surface);
     if(jit == primaryBuffers.end())
@@ -442,7 +446,6 @@ void Viewer::buildRenderGraph()
     }
     drawSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      surface->beginFrame();
       surface->draw();
     });
     endSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)

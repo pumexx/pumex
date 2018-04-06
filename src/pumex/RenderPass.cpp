@@ -379,7 +379,6 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
     (
       commandVisitor.renderContext.surface,
       this,
-      commandVisitor.renderContext.surface->renderWorkflow->frameBuffer.get(),
       commandVisitor.renderContext.activeIndex,
       makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height),
       renderPass->clearValues,

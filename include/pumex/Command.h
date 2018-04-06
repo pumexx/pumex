@@ -100,7 +100,7 @@ public:
   void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
   void            cmdEnd();
 
-  void            cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
+  void            cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
   void            cmdNextSubPass(RenderSubPass* renderSubPass, VkSubpassContents contents);
   void            cmdEndRenderPass() const;
 
@@ -145,7 +145,7 @@ protected:
 
 void     CommandBuffer::setActiveIndex(uint32_t index) { activeIndex = index % commandBuffer.size(); }
 uint32_t CommandBuffer::getActiveIndex() const         { return activeIndex; }
-bool     CommandBuffer::isValid(uint32_t index)        { return valid[index]; }
+bool     CommandBuffer::isValid(uint32_t index)        { return valid[index % commandBuffer.size()]; }
 
 // helper class defining pipeline barrier used later in CommandBuffer::cmdPipelineBarrier()
 struct PUMEX_EXPORT PipelineBarrier

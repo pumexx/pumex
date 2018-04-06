@@ -94,11 +94,12 @@ Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAlloc
   VK_CHECK_LOG_THROW(vkCreateImageView(device, &imageViewCI, nullptr, &imageView), "failed vkCreateImageView");
 }
 
-Image::Image(Device* d, VkImage i, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
+Image::Image(Device* d, VkImage i, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
   : device(d->device), image{ i }, ownsImage {  false }
 {
   // gather all what we know about delivered image
   imageTraits.format      = format;
+  imageTraits.extent      = extent;
   imageTraits.mipLevels   = mipLevels;
   imageTraits.arrayLayers = arrayLayers;
   imageTraits.aspectMask  = aspectMask;

@@ -38,6 +38,8 @@ class Window;
 class FrameBuffer;
 class FrameBufferImages;
 class RenderWorkflow;
+class RenderWorkflowCompiler;
+class RenderWorkflowSequences;
 class CommandPool;
 class CommandBuffer;
 class Image;
@@ -68,6 +70,7 @@ public:
   inline bool     isRealized() const;
   void            realize();
   void            cleanup();
+  void            checkWorkflow();
   void            beginFrame();
   void            buildPrimaryCommandBuffer(uint32_t queueNumber);
   void            draw();
@@ -76,7 +79,7 @@ public:
   inline uint32_t getImageCount() const;
   inline uint32_t getImageIndex() const;
 
-  void            setRenderWorkflow(std::shared_ptr<RenderWorkflow> renderWorkflow);
+  void            setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler);
 
   inline void     setID(uint32_t newID);
   inline uint32_t getID() const;
@@ -97,6 +100,8 @@ public:
   VkSurfaceKHR                                  surface                      = VK_NULL_HANDLE;
   SurfaceTraits                                 surfaceTraits;
   std::shared_ptr<RenderWorkflow>               renderWorkflow;
+  std::shared_ptr<RenderWorkflowCompiler>       renderWorkflowCompiler;
+  std::shared_ptr<RenderWorkflowSequences>      workflowSequences;
   bool                                          realized                     = false;
 
   VkSurfaceCapabilitiesKHR                      surfaceCapabilities;
@@ -104,6 +109,7 @@ public:
   std::vector<VkSurfaceFormatKHR>               surfaceFormats;
   std::vector<VkBool32>                         supportsPresent;
 
+  std::shared_ptr<FrameBuffer>                  frameBuffer;
   std::vector<std::shared_ptr<Queue>>           queues;
   std::vector<std::shared_ptr<CommandPool>>     commandPools;
   std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
@@ -125,8 +131,6 @@ protected:
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderFinish;
 
-
-protected:
   void createSwapChain();
 };
 

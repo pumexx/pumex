@@ -23,11 +23,12 @@
 #pragma once
 
 #include <memory>
+#include <vector>
+#include <map>
+#include <unordered_map>
+#include <algorithm>
 #include <thread>
 #include <condition_variable>
-#include <vector>
-#include <algorithm>
-#include <unordered_map>
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <tbb/flow_graph.h>
@@ -161,6 +162,9 @@ protected:
   tbb::flow::graph                                       renderGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphStart;
   tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphFinish;
+  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
+  std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> primaryBuffers;
+
   bool                                                   renderGraphValid = false;
 };
 

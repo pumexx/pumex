@@ -92,7 +92,7 @@ void CommandBuffer::invalidate(uint32_t index)
   if (index == UINT32_MAX) 
     std::fill(valid.begin(), valid.end(), false);
   else 
-    valid[index] = false; 
+    valid[index % commandBuffer.size()] = false;
 }
 
 void CommandBuffer::addSource(CommandBufferSource* source)
@@ -130,17 +130,17 @@ void CommandBuffer::cmdEnd()
   valid[activeIndex] = true;
 }
 
-void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, FrameBuffer* frameBuffer, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
+void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
 {
   addSource(renderSubPass);
-  addSource(frameBuffer);
+  addSource(surface->frameBuffer.get());
   VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.renderPass      = renderSubPass->renderPass->getHandle(device);
     renderPassBeginInfo.renderArea      = renderArea;
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
-    renderPassBeginInfo.framebuffer     = frameBuffer->getFrameBuffer(surface,imageIndex);
+    renderPassBeginInfo.framebuffer     = surface->frameBuffer->getFrameBuffer(imageIndex);
   vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, subpassContents);
 }
 

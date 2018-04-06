@@ -37,7 +37,7 @@ class  Device;
 struct QueueTraits;
 struct SubpassDefinition;
 class  DeviceMemoryAllocator;
-class  FrameBuffer;
+class  RenderPass;
 class  FrameBufferImages;
 struct FrameBufferImageDefinition;
 class  Node;
@@ -250,29 +250,44 @@ public:
 inline void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask);
 inline void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask);
 
+class PUMEX_EXPORT RenderWorkflowSequences
+{
+public:
+  RenderWorkflowSequences(const std::vector<QueueTraits>& queueTraits, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, std::shared_ptr<FrameBufferImages> frameBufferImages, std::shared_ptr<RenderPass> outputRenderPass, uint32_t presentationQueueIndex);
+
+  std::vector<QueueTraits>                                 queueTraits;
+  std::vector<std::vector<std::shared_ptr<RenderCommand>>> commands;
+  std::shared_ptr<FrameBufferImages>                       frameBufferImages;
+  std::shared_ptr<RenderPass>                              outputRenderPass;
+  uint32_t                                                 presentationQueueIndex = 0;
+
+  QueueTraits getPresentationQueue() const;
+};
+
 class PUMEX_EXPORT RenderWorkflowCompiler
 {
 public:
-  virtual void compile(RenderWorkflow& workflow) = 0;
+  virtual std::shared_ptr<RenderWorkflowSequences> compile(RenderWorkflow& workflow) = 0;
 };
 
 class PUMEX_EXPORT RenderWorkflow : public std::enable_shared_from_this<RenderWorkflow>
 {
 public:
   RenderWorkflow()                                 = delete;
-  explicit RenderWorkflow(const std::string& name, std::shared_ptr<RenderWorkflowCompiler> compiler, std::shared_ptr<DeviceMemoryAllocator> frameBufferAllocator);
+  explicit RenderWorkflow(const std::string& name, std::shared_ptr<DeviceMemoryAllocator> frameBufferAllocator, const std::vector<QueueTraits>& queueTraits);
   ~RenderWorkflow();
 
   void                                        addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
   std::shared_ptr<RenderWorkflowResourceType> getResourceType(const std::string& typeName) const;
 
+  inline const std::vector<QueueTraits>&      getQueueTraits() const;
+
   void                                        addRenderOperation(std::shared_ptr<RenderOperation> op);
+  std::vector<std::string>                    getRenderOperationNames() const;
   std::shared_ptr<RenderOperation>            getRenderOperation(const std::string& opName) const;
 
   void                                        setSceneNode(const std::string& opName, std::shared_ptr<Node> node);
   std::shared_ptr<Node>                       getSceneNode(const std::string& opName);
-
-  std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
 
   void addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
   void addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
@@ -281,6 +296,9 @@ public:
 
   void addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
   void addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
+
+  std::vector<std::string>                    getResourceNames() const;
+  std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
 
   void associateResource(const std::string& resourceName, std::shared_ptr<Resource> resource);
   std::shared_ptr<Resource> getAssociatedResource(const std::string& resourceName);
@@ -291,32 +309,23 @@ public:
   std::vector<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName) const;
   std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName) const;
 
+  bool compile(std::shared_ptr<RenderWorkflowCompiler> compiler);
 
-  void        addQueue(const QueueTraits& queueTraits);
-  QueueTraits getPresentationQueue() const;
+  // data created during workflow compilation - may be used in many surfaces at once
+  std::shared_ptr<DeviceMemoryAllocator>                                       frameBufferAllocator;
+  std::shared_ptr<RenderWorkflowSequences>                                     workflowSequences;
 
-  bool compile();
-  void setOutputData(const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& newCommandSequences, std::shared_ptr<FrameBufferImages> newFrameBufferImages, std::shared_ptr<FrameBuffer> newFrameBuffer, uint32_t newPresentationQueueIndex);
-
+protected:
   // data provided by user during workflow setup
   std::string                                                                  name;
-  std::shared_ptr<RenderWorkflowCompiler>                                      compiler;
   std::unordered_map<std::string, std::shared_ptr<RenderWorkflowResourceType>> resourceTypes;
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
   std::unordered_map<std::string, std::shared_ptr<Resource>>                   associatedResources;
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
   std::vector<QueueTraits>                                                     queueTraits;
-
-  bool                                                                         valid = false;
+  bool                                                                         valid                = false;
   mutable std::mutex                                                           compileMutex;
-
-  // data created during workflow compilation - may be used in many surfaces at once
-  std::vector<std::vector<std::shared_ptr<RenderCommand>>>                     commandSequences;
-  std::shared_ptr<DeviceMemoryAllocator>                                       frameBufferAllocator;
-  std::shared_ptr<FrameBufferImages>                                           frameBufferImages;
-  std::shared_ptr<FrameBuffer>                                                 frameBuffer;
-  uint32_t                                                                     presentationQueueIndex = 0;
 };
 
 // This is the first implementation of workflow compiler
@@ -333,7 +342,7 @@ struct PUMEX_EXPORT StandardRenderWorkflowCostCalculator
 class PUMEX_EXPORT SingleQueueWorkflowCompiler : public RenderWorkflowCompiler
 {
 public:
-  void compile(RenderWorkflow& workflow) override;
+  std::shared_ptr<RenderWorkflowSequences> compile(RenderWorkflow& workflow) override;
 private:
   void                                        verifyOperations(const RenderWorkflow& workflow);
   void                                        collectResources(const RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
@@ -351,6 +360,9 @@ LoadOp             loadOpClear(const glm::vec4& color) { return LoadOp(LoadOp::C
 LoadOp             loadOpDontCare()                    { return LoadOp(LoadOp::DontCare, glm::vec4(0.0f));}
 StoreOp            storeOpStore()                      { return StoreOp(StoreOp::Store); }
 StoreOp            storeOpDontCare()                   { return StoreOp(StoreOp::DontCare); }
+
+const std::vector<QueueTraits>& RenderWorkflow::getQueueTraits() const { return queueTraits; }
+
 
 VkImageAspectFlags getAspectMask(AttachmentType at)
 {

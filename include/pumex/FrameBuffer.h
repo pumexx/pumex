@@ -61,6 +61,7 @@ public:
   FrameBufferImages& operator=(const FrameBufferImages&) = delete;
   virtual ~FrameBufferImages();
 
+  void                       invalidate(Surface* surface);
   void                       validate(Surface* surface);
   void                       reset(Surface* surface);
   Image*                     getImage(Surface* surface, uint32_t imageIndex);
@@ -90,32 +91,29 @@ protected:
 class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
-  FrameBuffer()                              = delete;
-  explicit FrameBuffer( std::shared_ptr<RenderPass> renderPass, std::shared_ptr<FrameBufferImages> frameBufferImages );
+  explicit FrameBuffer(std::shared_ptr<Surface> surface, uint32_t cbCount = 1);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   virtual ~FrameBuffer();
 
-  void          reset(Surface* surface);
-  void          validate(Surface* surface, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
-  VkFramebuffer getFrameBuffer(Surface* surface, uint32_t fbIndex);
+  void setFrameBufferImages(std::shared_ptr<FrameBufferImages> frameBufferImages);
+  inline std::shared_ptr<FrameBufferImages> getFrameBufferImages();
 
+  void setRenderPass(std::shared_ptr<RenderPass> renderPass);
+
+  void          reset();
+  void          invalidate();
+  void          validate(uint32_t index, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
+  VkFramebuffer getFrameBuffer(uint32_t index);
+
+protected:
+  std::weak_ptr<Surface>              surface;
+  std::vector<bool>                   valid;
+  std::vector<VkFramebuffer>          frameBuffers;
+
+  mutable std::mutex                  mutex;
   std::weak_ptr<RenderPass>           renderPass;
   std::shared_ptr<FrameBufferImages>  frameBufferImages;
-protected:
-  struct PerSurfaceData
-  {
-    PerSurfaceData(VkDevice d, uint32_t fbCount)
-      : device{ d }
-    {
-      frameBuffers.resize(fbCount, VK_NULL_HANDLE);
-    }
-    VkDevice                            device;
-    std::vector<VkFramebuffer>          frameBuffers;
-    bool                                valid = false;
-  };
-  mutable std::mutex                               mutex;
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 
 class PUMEX_EXPORT InputAttachment : public Resource
@@ -141,5 +139,6 @@ protected:
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
 
+std::shared_ptr<FrameBufferImages> FrameBuffer::getFrameBufferImages() { return frameBufferImages; }
 
 }
