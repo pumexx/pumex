@@ -23,6 +23,8 @@
 #pragma once
 #include <unordered_map>
 #include <vector>
+#include <set>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <vulkan/vulkan.h>
@@ -127,6 +129,8 @@ public:
   RenderWorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
   RenderWorkflowResourceType(const std::string& typeName, bool persistent);
 
+  bool isEqual(const RenderWorkflowResourceType& rhs) const;
+
   MetaType              metaType;
   std::string           typeName;
   bool                  persistent;
@@ -143,6 +147,8 @@ public:
     AttachmentType        attachmentType;
     AttachmentSize        attachmentSize;
     gli::swizzles         swizzles;
+
+    bool isEqual(const AttachmentData& rhs) const;
   };
 
   struct BufferData
@@ -150,6 +156,7 @@ public:
     BufferData()
     {
     }
+    bool isEqual(const BufferData& rhs) const;
   };
 
   union
@@ -204,11 +211,12 @@ enum ResourceTransitionType
 
 typedef VkFlags ResourceTransitionTypeFlags;
 
-const ResourceTransitionTypeFlags rttAllAttachments   = (rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput);
-const ResourceTransitionTypeFlags rttAllInputs        = (rttAttachmentInput | rttBufferInput);
-const ResourceTransitionTypeFlags rttAllOutputs       = (rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput);
-const ResourceTransitionTypeFlags rttAllInputsOutputs = (rttAllInputs | rttAllOutputs);
-
+const ResourceTransitionTypeFlags rttAllAttachments       = rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput;
+const ResourceTransitionTypeFlags rttAllAttachmentInputs =  rttAttachmentInput;
+const ResourceTransitionTypeFlags rttAllAttachmentOutputs = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput;
+const ResourceTransitionTypeFlags rttAllInputs            = rttAttachmentInput | rttBufferInput;
+const ResourceTransitionTypeFlags rttAllOutputs           = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput;
+const ResourceTransitionTypeFlags rttAllInputsOutputs     = rttAllInputs | rttAllOutputs;
 
 class PUMEX_EXPORT ResourceTransition
 {
@@ -253,11 +261,12 @@ inline void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransit
 class PUMEX_EXPORT RenderWorkflowSequences
 {
 public:
-  RenderWorkflowSequences(const std::vector<QueueTraits>& queueTraits, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, std::shared_ptr<FrameBufferImages> frameBufferImages, std::shared_ptr<RenderPass> outputRenderPass, uint32_t presentationQueueIndex);
+  RenderWorkflowSequences(const std::vector<QueueTraits>& queueTraits, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, std::shared_ptr<FrameBufferImages> frameBufferImages, const std::vector<VkImageLayout>& initialImageLayouts, std::shared_ptr<RenderPass> outputRenderPass, uint32_t presentationQueueIndex);
 
   std::vector<QueueTraits>                                 queueTraits;
   std::vector<std::vector<std::shared_ptr<RenderCommand>>> commands;
   std::shared_ptr<FrameBufferImages>                       frameBufferImages;
+  std::vector<VkImageLayout>                               initialImageLayouts;
   std::shared_ptr<RenderPass>                              outputRenderPass;
   uint32_t                                                 presentationQueueIndex = 0;
 
@@ -301,13 +310,15 @@ public:
   std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
 
   void associateResource(const std::string& resourceName, std::shared_ptr<Resource> resource);
-  std::shared_ptr<Resource> getAssociatedResource(const std::string& resourceName);
+  std::shared_ptr<Resource> getAssociatedResource(const std::string& resourceName) const;
 
   std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionTypeFlags transitionTypes) const;
   std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionTypeFlags transitionTypes) const;
 
-  std::vector<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName) const;
-  std::vector<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName) const;
+  std::set<std::shared_ptr<RenderOperation>> getInitialOperations() const;
+  std::set<std::shared_ptr<RenderOperation>> getFinalOperations() const;
+  std::set<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName) const;
+  std::set<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName) const;
 
   bool compile(std::shared_ptr<RenderWorkflowCompiler> compiler);
 
@@ -342,16 +353,21 @@ struct PUMEX_EXPORT StandardRenderWorkflowCostCalculator
 class PUMEX_EXPORT SingleQueueWorkflowCompiler : public RenderWorkflowCompiler
 {
 public:
-  std::shared_ptr<RenderWorkflowSequences> compile(RenderWorkflow& workflow) override;
+  std::shared_ptr<RenderWorkflowSequences>      compile(RenderWorkflow& workflow) override;
 private:
-  void                                        verifyOperations(const RenderWorkflow& workflow);
-  void                                        collectResources(const RenderWorkflow& workflow, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::unordered_map<std::string, uint32_t>& resourceIndex);
-  std::vector<std::shared_ptr<RenderCommand>> createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions);
-  void                                        createPipelineBarriers(const RenderWorkflow& workflow, std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commandSequences);
-  void                                        createSubpassDependency(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex);
-  void                                        createPipelineBarrier(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex);
+  void                                          verifyOperations(const RenderWorkflow& workflow);
+  std::vector<std::shared_ptr<RenderOperation>> calculatePartialOrdering(const RenderWorkflow& workflow);
+  void                                          collectResources(const RenderWorkflow& workflow, const std::vector<std::vector<std::shared_ptr<RenderOperation>>>& operationSequences, std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, std::map<std::string, std::string>& resourceAlias, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, std::unordered_map<std::string, uint32_t>& attachmentIndex);
+  std::vector<std::shared_ptr<RenderCommand>>   createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex);
+  std::vector<VkImageLayout>                    calculateInitialLayouts(const RenderWorkflow& workflow, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex);
+  void                                          finalizeRenderPasses(const RenderWorkflow& workflow, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, const std::vector<std::shared_ptr<RenderOperation>>& partialOrdering, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex);
+  void                                          createPipelineBarriers(const RenderWorkflow& workflow, std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commandSequences);
+  void                                          createSubpassDependency(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex);
+  void                                          createPipelineBarrier(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<RenderCommand> generatingCommand, std::shared_ptr<ResourceTransition> consumingTransition, std::shared_ptr<RenderCommand> consumingCommand, uint32_t generatingQueueIndex, uint32_t consumingQueueIndex);
+  std::shared_ptr<RenderPass>                   findOutputRenderPass(const RenderWorkflow& workflow, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, uint32_t& presentationQueueIndex);
 
-  StandardRenderWorkflowCostCalculator        costCalculator;
+
+  StandardRenderWorkflowCostCalculator          costCalculator;
 };
 
 LoadOp             loadOpLoad()                        { return LoadOp(LoadOp::Load, glm::vec4(0.0f)); }
@@ -407,7 +423,6 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
 {
   switch (generatingTransition->transitionType)
   {
-  case rttAttachmentInput:
   case rttAttachmentOutput:
   case rttAttachmentResolveOutput:
   case rttAttachmentDepthOutput:
@@ -428,9 +443,6 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
   switch (consumingTransition->transitionType)
   {
   case rttAttachmentInput:
-  case rttAttachmentOutput:
-  case rttAttachmentResolveOutput:
-  case rttAttachmentDepthOutput:
     switch (consumingTransition->attachment.layout)
     {
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
@@ -440,7 +452,6 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
     }
     break;
   case rttBufferInput:
-  case rttBufferOutput:
     dstStageMask = consumingTransition->buffer.pipelineStage;
     break;
   }
@@ -451,7 +462,6 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
 {
   switch (generatingTransition->transitionType)
   {
-  case rttAttachmentInput:
   case rttAttachmentOutput:
   case rttAttachmentResolveOutput:
   case rttAttachmentDepthOutput:
@@ -463,7 +473,6 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
       srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; break;
     }
     break;
-  case rttBufferInput:
   case rttBufferOutput:
     srcAccessMask = generatingTransition->buffer.accessFlags;
     break;
@@ -472,9 +481,6 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
   switch (consumingTransition->transitionType)
   {
   case rttAttachmentInput:
-  case rttAttachmentOutput:
-  case rttAttachmentResolveOutput:
-  case rttAttachmentDepthOutput:
     switch (consumingTransition->attachment.layout)
     {
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
@@ -484,7 +490,6 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
     }
     break;
   case rttBufferInput:
-  case rttBufferOutput:
     dstAccessMask = consumingTransition->buffer.accessFlags;
     break;
   }

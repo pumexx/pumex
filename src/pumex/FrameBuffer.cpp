@@ -199,13 +199,6 @@ void FrameBuffer::validate(uint32_t index, const std::vector<std::unique_ptr<Ima
     {
       imageViews[i] = frameBufferImages->getImage(surface.lock().get(), definition.imageDefinitionIndex)->getImageView();
     }
-
-    if (definition.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED)
-    {
-      auto commandBuffer = device->beginSingleTimeCommands(surf->getPresentationCommandPool().get());
-      commandBuffer->setImageLayout(*(frameBufferImages->getImage(surf.get(), definition.imageDefinitionIndex)), fbiDefinition.aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, definition.initialLayout);
-      device->endSingleTimeCommands(commandBuffer, surf->getPresentationQueue()->queue);
-    }
   }
 
   // define frame buffers

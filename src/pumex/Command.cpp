@@ -165,7 +165,7 @@ void CommandBuffer::cmdSetScissor(uint32_t firstScissor, const std::vector<VkRec
   vkCmdSetScissor(commandBuffer[activeIndex], firstScissor, scissors.size(), scissors.data());
 }
 
-void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const
+void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const
 {
   std::vector<VkMemoryBarrier>       memoryBarriers;
   std::vector<VkBufferMemoryBarrier> bufferBarriers;
@@ -190,7 +190,7 @@ void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkP
     memoryBarriers.size(), memoryBarriers.data(), bufferBarriers.size(), bufferBarriers.data(), imageBarriers.size(), imageBarriers.data());
 }
 
-void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlagBits srcStageMask, VkPipelineStageFlagBits dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const
+void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const
 {
   switch (barrier.mType)
   {
@@ -353,7 +353,8 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
 {
   // Source access mask controls actions that have to be finished on the old layout
   // before it will be transitioned to the new layout
-  VkAccessFlags srcAccessMask, dstAccessMask;
+  VkAccessFlags srcAccessMask = 0;
+  VkAccessFlags dstAccessMask = 0;
   switch (oldImageLayout)
   {
   case VK_IMAGE_LAYOUT_GENERAL:

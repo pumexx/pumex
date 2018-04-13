@@ -113,16 +113,16 @@ public:
   RenderPass& operator=(const RenderPass&) = delete;
   ~RenderPass();
 
-  void initializeAttachments(const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
+  void initializeAttachments(const std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
   void addSubPass(std::shared_ptr<RenderSubPass> renderSubPass);
-  void updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions);
-  void finalizeAttachments();
+  void updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
 
   void         validate(const RenderContext& renderContext);
   VkRenderPass getHandle(VkDevice device) const;
 
   std::vector<AttachmentDefinition>         attachments;
   std::vector<VkClearValue>                 clearValues;
+  std::vector<bool>                         clearValuesInitialized;
   std::vector<std::weak_ptr<RenderSubPass>> subPasses;
   std::vector<SubpassDependencyDefinition>  dependencies;
 

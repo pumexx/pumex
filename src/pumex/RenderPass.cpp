@@ -151,35 +151,30 @@ RenderPass::~RenderPass()
     vkDestroyRenderPass(pddit.first, pddit.second.renderPass, nullptr);
 }
 
-void RenderPass::initializeAttachments(const std::vector<std::shared_ptr<WorkflowResource>>& resourceVector, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout)
+void RenderPass::initializeAttachments(const std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout)
 {
   attachments.clear();
   clearValues.clear();
+  clearValuesInitialized.clear();
 
-  for (uint32_t i = 0; i < resourceVector.size(); ++i)
+  for (uint32_t i = 0; i < frameBufferDefinitions.size(); ++i)
   {
-    auto res = resourceVector[i];
-    auto resType = res->resourceType;
-    if (resType->metaType != RenderWorkflowResourceType::Attachment)
-      continue;
-
-    uint32_t attIndex = attachmentIndex.at(res->name);
     attachments.push_back( AttachmentDefinition(
-      attIndex,
-      resType->attachment.format,
-      resType->attachment.samples,
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE, //colorDepthAttachment ? (VkAttachmentLoadOp)firstLoadOp[attIndex].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE, //colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE, // stencilAttachment ? (VkAttachmentLoadOp)firstLoadOp[attIndex].loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencilAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      lastLayout[attIndex],
-      lastLayout[attIndex],
+      i,
+      frameBufferDefinitions[i].format,
+      frameBufferDefinitions[i].samples,
+      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+      VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+      VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      lastLayout[i],
+      lastLayout[i],
       0
     ));
 
   }
-  clearValues.resize(attachments.size());
-  std::fill(clearValues.begin(), clearValues.end(), makeColorClearValue(glm::vec4(0.0f)));
+  clearValues.resize(attachments.size(), makeColorClearValue(glm::vec4(0.0f)));
+  clearValuesInitialized.resize(attachments.size(), false);
 }
 
 void RenderPass::addSubPass(std::shared_ptr<RenderSubPass> renderSubPass)
@@ -189,7 +184,7 @@ void RenderPass::addSubPass(std::shared_ptr<RenderSubPass> renderSubPass)
   subPasses.push_back(renderSubPass);
 }
 
-void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions)
+void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout)
 {
   // fill attachment information with render subpass specifics ( initial layout, final layout, load op, clear values )
   std::shared_ptr<RenderWorkflow> rw = renderSubPass->operation->renderWorkflow.lock();
@@ -219,30 +214,20 @@ void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass,
       // FIXME
     }
 
-    attachments[attIndex].loadOp        = colorDepthAttachment ? (VkAttachmentLoadOp)transition->attachment.load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachments[attIndex].stencilLoadOp = stencilAttachment    ? (VkAttachmentLoadOp)transition->attachment.load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    if(attachments[attIndex].loadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+      attachments[attIndex].loadOp        = colorDepthAttachment ? (VkAttachmentLoadOp)transition->attachment.load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    if (attachments[attIndex].stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+      attachments[attIndex].stencilLoadOp = stencilAttachment    ? (VkAttachmentLoadOp)transition->attachment.load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
-    if (stencilDepthAttachment)
-      clearValues[attIndex] = makeDepthStencilClearValue(transition->attachment.load.clearColor.x, transition->attachment.load.clearColor.y);
-    else
-      clearValues[attIndex] = makeColorClearValue(transition->attachment.load.clearColor);
+    if (!clearValuesInitialized[attIndex])
+    {
+      if (stencilDepthAttachment)
+        clearValues[attIndex] = makeDepthStencilClearValue(transition->attachment.load.clearColor.x, transition->attachment.load.clearColor.y);
+      else
+        clearValues[attIndex] = makeColorClearValue(transition->attachment.load.clearColor);
+      clearValuesInitialized[attIndex] = true;
+    }
   }
-}
-
-void RenderPass::finalizeAttachments()
-{
-  // FIXME - collect information about resources that must be saved and/or preserved
-
-  // Resource must be saved when it was tagged as persistent, ot it is a swapchain surface  or it will be used later
-  // FIXME : resource will be used later if any of its subsequent uses has loadOpLoad or it is used as input - THESE CONDITIONS ARE NOT EXAMINED AT THE MOMENT
-  //bool mustSaveResource = resType->persistent ||
-  //  resType->attachment.attachmentType == atSurface ||
-  //  resourcesUsedAfterRenderPass.find(res->name) != resourcesUsedAfterRenderPass.end();
-
-  //    VK_ATTACHMENT_STORE_OP_DONT_CARE, //colorDepthAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-  //    VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencilAttachment && mustSaveResource ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-
-  // FIXME - preserve attachments
 }
 
 void RenderPass::validate(const RenderContext& renderContext)
@@ -355,13 +340,16 @@ void RenderSubPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
   validateVisitor.renderContext.setRenderPass(renderPass);
   renderPass->validate(validateVisitor.renderContext);
 
-  validateVisitor.renderContext.setSubpassIndex(subpassIndex);
-  validateVisitor.renderContext.setRenderOperation(operation);
+  if (validateVisitor.validateRenderGraphs)
+  {
+    validateVisitor.renderContext.setSubpassIndex(subpassIndex);
+    validateVisitor.renderContext.setRenderOperation(operation);
 
-  operation->sceneNode->accept(validateVisitor);
+    operation->sceneNode->accept(validateVisitor);
 
-  validateVisitor.renderContext.setRenderOperation(nullptr);
-  validateVisitor.renderContext.setSubpassIndex(0);
+    validateVisitor.renderContext.setRenderOperation(nullptr);
+    validateVisitor.renderContext.setSubpassIndex(0);
+  }
   validateVisitor.renderContext.setRenderPass(nullptr);
 }
 
@@ -435,7 +423,10 @@ ComputePass::ComputePass()
 void ComputePass::validateGPUData(ValidateGPUVisitor& validateVisitor)
 {
   validateVisitor.renderContext.setRenderOperation(operation);
-  operation->sceneNode->accept(validateVisitor);
+  if (validateVisitor.validateRenderGraphs)
+  {
+    operation->sceneNode->accept(validateVisitor);
+  }
   validateVisitor.renderContext.setRenderOperation(nullptr);
 }
 

@@ -82,6 +82,10 @@ void Surface::realize()
   CHECK_LOG_THROW(renderWorkflow.get() == nullptr, "Render workflow not defined for surface " << getID());
   CHECK_LOG_THROW(renderWorkflowCompiler.get() == nullptr, "Render workflow compiler not defined for surface " << getID());
   checkWorkflow();
+  // Create synchronization objects
+  VkSemaphoreCreateInfo semaphoreCreateInfo{};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
   // get all queues and create command pools and command buffers for them
   for (auto q : workflowSequences->queueTraits)
   {
@@ -96,21 +100,24 @@ void Surface::realize()
 
     auto commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPool.get(), surfaceTraits.imageCount);
     primaryCommandBuffers.push_back(commandBuffer);
+
+    // Create a semaphore used to synchronize command submission
+    // Ensures that the image is not presented until all commands have been sumbitted and executed
+    VkSemaphore semaphore0;
+    VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore0), "Could not create render complete semaphore");
+    frameBufferReadySemaphores.emplace_back(semaphore0);
+
+    VkSemaphore semaphore1;
+    VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore1), "Could not create render complete semaphore");
+    renderCompleteSemaphores.emplace_back(semaphore1);
   }
-  // define presentation command buffer
+  // define basic command buffers required to render a frame
+  prepareCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[workflowSequences->presentationQueueIndex].get(), surfaceTraits.imageCount);
   presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[workflowSequences->presentationQueueIndex].get(), surfaceTraits.imageCount);
 
-  // Create synchronization objects
-  VkSemaphoreCreateInfo semaphoreCreateInfo{};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-  // Create a semaphore used to synchronize image presentation
-  // Ensures that the image is displayed before we start submitting new commands to the queue
-  VK_CHECK_LOG_THROW( vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore), "Could not create image available semaphore" );
-
-  // Create a semaphore used to synchronize command submission
-  // Ensures that the image is not presented until all commands have been sumbitted and executed
-  VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &renderCompleteSemaphore), "Could not create render complete semaphore");
+  // create all semaphores required to render a frame
+  VK_CHECK_LOG_THROW( vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore), "Could not create image available semaphore");
+  VK_CHECK_LOG_THROW( vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphore), "Could not create image available semaphore");
 
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -139,10 +146,16 @@ void Surface::cleanup()
 
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
-    presentCommandBuffer = nullptr;
-    primaryCommandBuffers.clear();
-    vkDestroySemaphore(dev, renderCompleteSemaphore, nullptr);
+
+    for (auto sem : renderCompleteSemaphores)
+      vkDestroySemaphore(dev, sem, nullptr);
+    for (auto sem : frameBufferReadySemaphores)
+      vkDestroySemaphore(dev, sem, nullptr);
+    vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
     vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
+    primaryCommandBuffers.clear();
+    presentCommandBuffer = nullptr;
+    prepareCommandBuffer = nullptr;
     commandPools.clear();
     for(auto q : queues )
       device.lock()->releaseQueue(q);
@@ -165,7 +178,7 @@ void Surface::createSwapChain()
 
   VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   swapChainSize = surfaceCapabilities.currentExtent;
-  LOG_ERROR << "cs " << swapChainSize.width << "x" << swapChainSize.height << std::endl;
+//  LOG_ERROR << "cs " << swapChainSize.width << "x" << swapChainSize.height << std::endl;
 
   FrameBufferImageDefinition swapChainDefinition = workflowSequences->frameBufferImages->getSwapChainDefinition();
 
@@ -206,6 +219,7 @@ void Surface::createSwapChain()
 
   workflowSequences->frameBufferImages->invalidate(this);
   frameBuffer->invalidate();
+  prepareCommandBuffer->invalidate(UINT32_MAX);
   presentCommandBuffer->invalidate(UINT32_MAX);
 }
 
@@ -219,7 +233,9 @@ void Surface::checkWorkflow()
     frameBuffer->setRenderPass(workflowSequences->outputRenderPass);
     frameBuffer->setFrameBufferImages(workflowSequences->frameBufferImages);
 
-    // invalidate prepresentation command buffers
+    // invalidate basic command buffers
+    if (prepareCommandBuffer.get() != nullptr)
+      prepareCommandBuffer->invalidate(UINT32_MAX);
     if(presentCommandBuffer.get() != nullptr)
       presentCommandBuffer->invalidate(UINT32_MAX);
     for (auto pcb : primaryCommandBuffers)
@@ -246,14 +262,92 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
 
   workflowSequences->frameBufferImages->validate(this);
+  // create render passes for current surface - skip scene graphs
+  ValidateGPUVisitor validateVisitor(this, workflowSequences->presentationQueueIndex, false);
+  for (auto command : workflowSequences->commands[workflowSequences->presentationQueueIndex])
+  {
+    command->validateGPUData(validateVisitor);
+  }
+
   frameBuffer->validate(swapChainImageIndex, swapChainImages);
+
+  VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
+  VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
+
+  // at the beginning of render we must transform frame buffer images into appropriate image layouts
+  prepareCommandBuffer->setActiveIndex(swapChainImageIndex);
+  if (!prepareCommandBuffer->isValid(swapChainImageIndex))
+  {
+    prepareCommandBuffer->cmdBegin();
+    std::vector<PipelineBarrier> prepareBarriers;
+    VkPipelineStageFlags dstStageFlags = 0;
+    for ( unsigned int i = 0; i < workflowSequences->initialImageLayouts.size(); ++i )
+    {
+      if ( workflowSequences->initialImageLayouts[i] == VK_IMAGE_LAYOUT_UNDEFINED )
+        continue;
+
+      VkImageLayout oldLayout;
+      VkAccessFlags srcAccessFlags,dstAccessFlags;
+      VkImage image;
+      switch (workflowSequences->frameBufferImages->imageDefinitions[i].attachmentType)
+      {
+      case atSurface:
+        srcAccessFlags = 0;
+        dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        image          = swapChainImages[swapChainImageIndex]->getImage();
+        break;
+      case atColor:
+        srcAccessFlags = 0;
+        dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+        dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        image          = workflowSequences->frameBufferImages->getImage(this, i)->getImage();
+        break;
+      case atDepth:
+      case atDepthStencil:
+      case atStencil:
+        srcAccessFlags = 0;
+        dstAccessFlags = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+        dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        image          = workflowSequences->frameBufferImages->getImage(this, i)->getImage();
+        break;
+      }
+
+      prepareBarriers.emplace_back( PipelineBarrier
+      (
+        srcAccessFlags,
+        dstAccessFlags,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        image,
+        { getAspectMask(workflowSequences->frameBufferImages->imageDefinitions[i].attachmentType), 0, 1, 0, 1 },
+        oldLayout,
+        workflowSequences->initialImageLayouts[i]
+      ));
+    }
+    prepareCommandBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, dstStageFlags, VK_DEPENDENCY_BY_REGION_BIT, prepareBarriers);
+    prepareCommandBuffer->cmdEnd();
+  }
 
   presentCommandBuffer->setActiveIndex(swapChainImageIndex);
   if (!presentCommandBuffer->isValid(swapChainImageIndex))
   {
     presentCommandBuffer->cmdBegin();
-    PipelineBarrier prePresentBarrier(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapChainImages[swapChainImageIndex]->getImage(), { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-    presentCommandBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, prePresentBarrier);
+    PipelineBarrier presentBarrier
+    (
+      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 
+      VK_ACCESS_MEMORY_READ_BIT, 
+      VK_QUEUE_FAMILY_IGNORED, 
+      VK_QUEUE_FAMILY_IGNORED, 
+      swapChainImages[swapChainImageIndex]->getImage(), 
+      { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }, 
+      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    );
+    presentCommandBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT, presentBarrier);
     presentCommandBuffer->cmdEnd();
   }
 }
@@ -286,36 +380,33 @@ void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
 
 void Surface::draw()
 {
-  auto deviceSh = device.lock();
-  VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
-  VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
+  prepareCommandBuffer->setActiveIndex(swapChainImageIndex);
+  prepareCommandBuffer->queueSubmit(queues[workflowSequences->presentationQueueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, frameBufferReadySemaphores, VK_NULL_HANDLE );
 
   for (uint32_t i = 0; i < queues.size(); ++i)
   {
     primaryCommandBuffers[i]->setActiveIndex(swapChainImageIndex);
-    // FIXME : rework synchronization of many queues
-    if(workflowSequences->presentationQueueIndex == i)
-      primaryCommandBuffers[i]->queueSubmit(queues[i]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, {}, VK_NULL_HANDLE);
-    else
-      primaryCommandBuffers[i]->queueSubmit(queues[i]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, {}, VK_NULL_HANDLE);
+    // submit command buffer to each queue with a semaphore signaling ent of work (renderCompleteSemaphores[i])
+    primaryCommandBuffers[i]->queueSubmit(queues[i]->queue, { frameBufferReadySemaphores[i] }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { renderCompleteSemaphores[i] }, VK_NULL_HANDLE);
   }
 }
 
-
 void Surface::endFrame()
 {
-  auto deviceSh = device.lock();
-  // Submit pre present dummy image barrier so that we are able to signal a fence
+  // wait for all queues to finish work ( using renderCompleteSemaphores ), then submit command buffer converting output image to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR layout
+  std::vector<VkPipelineStageFlags> waitStages;
+  waitStages.resize(renderCompleteSemaphores.size(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
   presentCommandBuffer->setActiveIndex(swapChainImageIndex);
-  presentCommandBuffer->queueSubmit(queues[workflowSequences->presentationQueueIndex]->queue, {}, {}, { renderCompleteSemaphore }, waitFences[swapChainImageIndex]);
+  presentCommandBuffer->queueSubmit(queues[workflowSequences->presentationQueueIndex]->queue, renderCompleteSemaphores, waitStages, { renderFinishedSemaphore }, waitFences[swapChainImageIndex]);
 
+  // present output image when its layout is transformed into VK_IMAGE_LAYOUT_PRESENT_SRC_KHR 
   VkPresentInfoKHR presentInfo{};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.swapchainCount     = 1;
     presentInfo.pSwapchains        = &swapChain;
     presentInfo.pImageIndices      = &swapChainImageIndex;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &renderCompleteSemaphore;
+    presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
   VkResult result = vkQueuePresentKHR(queues[workflowSequences->presentationQueueIndex]->queue, &presentInfo);
 
   if ((result != VK_ERROR_OUT_OF_DATE_KHR) && (result != VK_SUBOPTIMAL_KHR))

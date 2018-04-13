@@ -102,7 +102,6 @@ public:
   std::shared_ptr<RenderWorkflow>               renderWorkflow;
   std::shared_ptr<RenderWorkflowCompiler>       renderWorkflowCompiler;
   std::shared_ptr<RenderWorkflowSequences>      workflowSequences;
-  bool                                          realized                     = false;
 
   VkSurfaceCapabilitiesKHR                      surfaceCapabilities;
   std::vector<VkPresentModeKHR>                 presentModes;
@@ -112,21 +111,28 @@ public:
   std::shared_ptr<FrameBuffer>                  frameBuffer;
   std::vector<std::shared_ptr<Queue>>           queues;
   std::vector<std::shared_ptr<CommandPool>>     commandPools;
-  std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
 
   VkExtent2D                                    swapChainSize                = VkExtent2D{1,1};
   uint32_t                                      swapChainImageIndex          = 0;
   std::vector<std::unique_ptr<Image>>           swapChainImages;
 
-  VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;
-  VkSemaphore                                   renderCompleteSemaphore      = VK_NULL_HANDLE;
   ActionQueue                                   actions;
 
 protected:
   uint32_t                                      id                           = 0;
   VkSwapchainKHR                                swapChain                    = VK_NULL_HANDLE;
+  bool                                          realized                     = false;
+
   std::vector<VkFence>                          waitFences;
+  std::shared_ptr<CommandBuffer>                prepareCommandBuffer;
+  std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
   std::shared_ptr<CommandBuffer>                presentCommandBuffer;
+
+  VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;
+  std::vector<VkSemaphore>                      frameBufferReadySemaphores;
+  std::vector<VkSemaphore>                      renderCompleteSemaphores;
+  VkSemaphore                                   renderFinishedSemaphore      = VK_NULL_HANDLE;
+
 
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderFinish;
