@@ -106,6 +106,78 @@ struct DynamicInstanceData
   uint32_t  std430pad0;
 };
 
+class XXX
+{
+public:
+  virtual DynamicInstanceData update(const DynamicObjectData& objectData, float deltaTime, float renderTime) = 0;
+};
+
+class BlimpXXX : public XXX
+{
+public:
+  BlimpXXX(const std::vector<glm::mat4>& bonesReset, size_t blimpPropL, size_t blimpPropR)
+    : _bonesReset{ bonesReset }, _blimpPropL{ blimpPropL }, _blimpPropR{ blimpPropR }
+  {
+  }
+  DynamicInstanceData update(const DynamicObjectData& objectData, float deltaTime, float renderTime) override
+  {
+    DynamicInstanceData diData(pumex::extrapolate(objectData.kinematic, deltaTime), objectData.typeID, objectData.materialVariant, objectData.brightness);
+    diData.bones[_blimpPropL] = _bonesReset[_blimpPropL] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  0.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    diData.bones[_blimpPropR] = _bonesReset[_blimpPropR] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() * -0.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    return diData;
+  }
+protected:
+  std::vector<glm::mat4> _bonesReset;
+  size_t                 _blimpPropL;
+  size_t                 _blimpPropR;
+};
+
+class CarXXX : public XXX
+{
+public:
+  CarXXX(const std::vector<glm::mat4>& bonesReset, size_t carWheel0, size_t carWheel1, size_t carWheel2, size_t carWheel3)
+    : _bonesReset{ bonesReset }, _carWheel0{ carWheel0 }, _carWheel1{ carWheel1 }, _carWheel2{ carWheel2 }, _carWheel3{ carWheel3 }
+  {
+  }
+  DynamicInstanceData update(const DynamicObjectData& objectData, float deltaTime, float renderTime) override
+  {
+    DynamicInstanceData diData(pumex::extrapolate(objectData.kinematic, deltaTime), objectData.typeID, objectData.materialVariant, objectData.brightness);
+    float speed = glm::length(objectData.kinematic.velocity);
+    diData.bones[_carWheel0] = _bonesReset[_carWheel0] * glm::rotate(glm::mat4(), fmodf((speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    diData.bones[_carWheel1] = _bonesReset[_carWheel1] * glm::rotate(glm::mat4(), fmodf((speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    diData.bones[_carWheel2] = _bonesReset[_carWheel2] * glm::rotate(glm::mat4(), fmodf((-speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    diData.bones[_carWheel3] = _bonesReset[_carWheel3] * glm::rotate(glm::mat4(), fmodf((-speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    return diData;
+  }
+protected:
+  std::vector<glm::mat4> _bonesReset;
+  size_t                 _carWheel0;
+  size_t                 _carWheel1;
+  size_t                 _carWheel2;
+  size_t                 _carWheel3;
+};
+
+class AirplaneXXX : public XXX
+{
+public:
+  AirplaneXXX(const std::vector<glm::mat4>& bonesReset, size_t airplaneProp)
+    : _bonesReset{ bonesReset }, _airplaneProp{ airplaneProp }
+  {
+  }
+  DynamicInstanceData update(const DynamicObjectData& objectData, float deltaTime, float renderTime) override
+  {
+    DynamicInstanceData diData(pumex::extrapolate(objectData.kinematic, deltaTime), objectData.typeID, objectData.materialVariant, objectData.brightness);
+    diData.bones[_airplaneProp] = _bonesReset[_airplaneProp] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  -1.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
+    return diData;
+  }
+protected:
+  std::vector<glm::mat4> _bonesReset;
+  size_t                 _airplaneProp;
+};
+
+
+
+
 struct UpdateData
 {
   UpdateData()
@@ -545,96 +617,32 @@ pumex::Asset* createAirplane(float detailRatio, const glm::vec4& hullColor, cons
 // Look at update() method to see how dynamic objects are updated.
 struct GpuCullApplicationData
 {
-  std::weak_ptr<pumex::Viewer> viewer;
-  UpdateData                   updateData;
-  std::array<RenderData, 3>    renderData;
+  bool      _showStaticRendering  = false;
+  bool      _showDynamicRendering = false;
+  uint32_t  _instancesPerCell     = 4096;
+  float     _staticAreaSize;
+  float     _dynamicAreaSize;
+  glm::vec2 _minArea;
+  glm::vec2 _maxArea;
 
-  bool  _showStaticRendering  = true;
-  bool  _showDynamicRendering = true;
-  uint32_t _instancesPerCell  = 4096;
-  float _staticAreaSize       = 2000.0f;
-  float _dynamicAreaSize      = 1000.0f;
-  float _lodModifier          = 1.0f;
-  float _densityModifier      = 1.0f;
-  float _triangleModifier     = 1.0f;
+  std::exponential_distribution<float>                                _randomTime2NextTurn;
+  std::uniform_real_distribution<float>                               _randomRotation;
+  std::unordered_map<uint32_t, std::uniform_real_distribution<float>> _randomObjectSpeed;
+  std::default_random_engine                                          _randomEngine;
 
-  std::vector<pumex::VertexSemantic>                   vertexSemantic;
-  std::vector<pumex::TextureSemantic>                  textureSemantic;
-  std::shared_ptr<pumex::TextureRegistryNull>          textureRegistryNull;
+  UpdateData                                                          updateData;
+  std::array<RenderData, 3>                                           renderData;
 
-  std::default_random_engine                           randomEngine;
+  std::shared_ptr<pumex::AssetBufferInstancedResults>                 _staticInstancedResults;
+  std::shared_ptr<pumex::AssetBufferInstancedResults>                 _dynamicInstancedResults;
 
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        texturesAllocator;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>      cameraUbo;
+  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>      textCameraUbo;
+  std::shared_ptr<pumex::StorageBuffer<StaticInstanceData>>           staticInstanceSbo;
+  std::shared_ptr<pumex::StorageBuffer<DynamicInstanceData>>          dynamicInstanceSbo;
 
-
-  std::shared_ptr<pumex::AssetBuffer>                  staticAssetBuffer;
-  std::shared_ptr<pumex::AssetBufferInstancedResults>  staticInstancedResults;
-  std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> staticMaterialSet;
-
-  std::shared_ptr<pumex::AssetBuffer>                  dynamicAssetBuffer;
-  std::shared_ptr<pumex::AssetBufferInstancedResults>  dynamicInstancedResults;
-  std::shared_ptr<pumex::MaterialSet<MaterialGpuCull>> dynamicMaterialSet;
-
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>            cameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<StaticInstanceData>>                 staticInstanceSbo;
-  std::shared_ptr<pumex::StorageBuffer<DynamicInstanceData>>                dynamicInstanceSbo;
-
-  uint32_t                                                                  blimpID;
-  uint32_t                                                                  carID;
-  uint32_t                                                                  airplaneID;
-  std::map<uint32_t, std::vector<glm::mat4>>                                bonesReset;
-
-  std::exponential_distribution<float>                                      randomTime2NextTurn;
-  std::uniform_real_distribution<float>                                     randomRotation;
-  std::unordered_map<uint32_t, std::uniform_real_distribution<float>>       randomObjectSpeed;
-  uint32_t                                                                 _blimpPropL   = 0;
-  uint32_t                                                                 _blimpPropR   = 0;
-  uint32_t                                                                 _carWheel0    = 0;
-  uint32_t                                                                 _carWheel1    = 0;
-  uint32_t                                                                 _carWheel2    = 0;
-  uint32_t                                                                 _carWheel3    = 0;
-  uint32_t                                                                 _airplaneProp = 0;
-  glm::vec2                                                                _minArea;
-  glm::vec2                                                                _maxArea;
-
-  std::shared_ptr<pumex::RenderPass>                   defaultRenderPass;
-
-  std::shared_ptr<pumex::PipelineCache>                pipelineCache;
-
-  std::shared_ptr<pumex::DescriptorSetLayout>          instancedRenderDescriptorSetLayout;
-  std::shared_ptr<pumex::DescriptorPool>               instancedRenderDescriptorPool;
-  std::shared_ptr<pumex::PipelineLayout>               instancedRenderPipelineLayout;
-
-  std::shared_ptr<pumex::GraphicsPipeline>             staticRenderPipeline;
-  std::shared_ptr<pumex::DescriptorSet>                staticRenderDescriptorSet;
-
-  std::shared_ptr<pumex::GraphicsPipeline>             dynamicRenderPipeline;
-  std::shared_ptr<pumex::DescriptorSet>                dynamicRenderDescriptorSet;
-
-  std::shared_ptr<pumex::DescriptorSetLayout>          filterDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>               filterPipelineLayout;
-  std::shared_ptr<pumex::DescriptorPool>               filterDescriptorPool;
-
-  std::shared_ptr<pumex::ComputePipeline>              staticFilterPipeline;
-  std::shared_ptr<pumex::DescriptorSet>                staticFilterDescriptorSet;
-
-  std::shared_ptr<pumex::ComputePipeline>              dynamicFilterPipeline;
-  std::shared_ptr<pumex::DescriptorSet>                dynamicFilterDescriptorSet;
-
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::Font>                         fontDefault;
-  std::shared_ptr<pumex::Font>                         fontSmall;
-  std::shared_ptr<pumex::Text>                         textDefault;
-  std::shared_ptr<pumex::Text>                         textSmall;
-
-  std::shared_ptr<pumex::DescriptorSetLayout>          textDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>               textPipelineLayout;
-  std::shared_ptr<pumex::GraphicsPipeline>             textPipeline;
-  std::shared_ptr<pumex::DescriptorPool>               textDescriptorPool;
-  std::shared_ptr<pumex::DescriptorSet>                textDescriptorSet;
-  std::shared_ptr<pumex::DescriptorSet>                textDescriptorSetSmall;
+  std::vector<uint32_t>                                               _staticTypeIDs;
+  std::unordered_map<uint32_t, std::shared_ptr<XXX>>                  _dynamicTypeIDs;
 
   std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
@@ -644,127 +652,14 @@ struct GpuCullApplicationData
   std::unordered_map<uint32_t, double>                 times;
 
   std::unordered_map<uint32_t, glm::mat4>              slaveViewMatrix;
-  std::unordered_map<pumex::Surface*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 
-  GpuCullApplicationData(std::shared_ptr<pumex::Viewer> v)
-    : viewer{ v }, randomTime2NextTurn { 0.1f }, randomRotation(-glm::pi<float>(), glm::pi<float>())
+  GpuCullApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
+    : _instancesPerCell{ 4096 }, _randomTime2NextTurn{ 0.1f }, _randomRotation(-glm::pi<float>(), glm::pi<float>())
   {
-  }
-  
-  void setup(bool showStaticRendering, bool showDynamicRendering, float staticAreaSize, float dynamicAreaSize, float lodModifier, float densityModifier, float triangleModifier)
-  {
-    _showStaticRendering  = showStaticRendering;
-    _showDynamicRendering = showDynamicRendering;
-    _instancesPerCell     = 4096;
-    _staticAreaSize       = staticAreaSize;
-    _dynamicAreaSize      = dynamicAreaSize;
-    _lodModifier          = lodModifier;
-    _densityModifier      = densityModifier;
-    _triangleModifier     = triangleModifier;
-    _minArea = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
-    _maxArea = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
-    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
-    CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
-
-    // alocate 32 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 64 MB for vertex and index buffers
-    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 4 MB memory for font textures
-    texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 4 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
-    vertexSemantic      = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 3 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
-    textureSemantic     = {};
-    textureRegistryNull = std::make_shared<pumex::TextureRegistryNull>();
-
     cameraUbo           = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    pipelineCache       = std::make_shared<pumex::PipelineCache>();
-
-    std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
-    instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, instancedRenderLayoutBindings);
-    instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
-    instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
-
-    std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
-      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
-    };
-    filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
-    // building pipeline layout
-    filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
-
-    if (showStaticRendering)
-      createStaticRendering();
-
-    if (showDynamicRendering)
-      createDynamicRendering();
-
-    std::string fullFontFileName = viewer.lock()->getFullFilePath("fonts/DejaVuSans.ttf");
-    fontDefault                  = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024,1024), 24, texturesAllocator, buffersAllocator);
-    textDefault                  = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-    fontSmall                    = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512,512), 16, texturesAllocator, buffersAllocator);
-    textSmall                    = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
-
-    
-    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    textDescriptorPool = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
-    // building pipeline layout
-    textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
-    textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout, defaultRenderPass, 0);
-    textPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
-    };
-    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    textPipeline->blendAttachments =
-    {
-      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
-    };
-    textPipeline->depthTestEnable  = VK_FALSE;
-    textPipeline->depthWriteEnable = VK_FALSE;
-    textPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer.lock()->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
-    };
-    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSet->setDescriptor(0, textCameraUbo);
-    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture);
-
-    textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool, 3);
-    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
-    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture);
-
-    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP, 8 * MAX_SURFACES);
+    textCameraUbo       = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>(buffersAllocator);
+    dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>(buffersAllocator);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -779,324 +674,37 @@ struct GpuCullApplicationData
     updateData.moveDown                    = false;
     updateData.moveFast                    = false;
     updateData.measureTime                 = true;
+
+    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP, 8 * MAX_SURFACES);
   }
 
-  void createStaticRendering()
+  void setupStaticRendering(float staticAreaSize, const std::vector<uint32_t>& staticTypeIDs, const std::vector<StaticInstanceData>& staticInstanceData, std::shared_ptr<pumex::AssetBufferInstancedResults> staticInstancedResults)
   {
-    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
-    CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
-
-    std::vector<uint32_t> typeIDs;
-
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
-    staticAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    staticInstancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, staticAssetBuffer, buffersAllocator);
-    staticMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, buffersAllocator, textureSemantic);
-
-    std::shared_ptr<pumex::Asset> groundAsset(createGround(_staticAreaSize, glm::vec4(0.0f, 0.7f, 0.0f, 1.0f)));
-    pumex::BoundingBox groundBbox = pumex::calculateBoundingBox(*groundAsset, MAIN_RENDER_MASK);
-    uint32_t groundTypeID = staticAssetBuffer->registerType("ground", pumex::AssetTypeDefinition(groundBbox));
-    staticMaterialSet->registerMaterials(groundTypeID, groundAsset);
-    staticAssetBuffer->registerObjectLOD(groundTypeID, groundAsset, pumex::AssetLodDefinition(0.0f, 5.0f * _staticAreaSize));
-    updateData.staticInstanceData.push_back(StaticInstanceData(glm::mat4(), groundTypeID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
-
-    std::shared_ptr<pumex::Asset> coniferTree0 ( createConiferTree( 0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> coniferTree1 ( createConiferTree(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> coniferTree2 ( createConiferTree(0.15f * _triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-    pumex::BoundingBox coniferTreeBbox = pumex::calculateBoundingBox(*coniferTree0, MAIN_RENDER_MASK);
-    uint32_t coniferTreeID = staticAssetBuffer->registerType("coniferTree", pumex::AssetTypeDefinition(coniferTreeBbox));
-    staticMaterialSet->registerMaterials(coniferTreeID, coniferTree0);
-    staticMaterialSet->registerMaterials(coniferTreeID, coniferTree1);
-    staticMaterialSet->registerMaterials(coniferTreeID, coniferTree2);
-    staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree0, pumex::AssetLodDefinition(  0.0f * _lodModifier,   100.0f * _lodModifier ));
-    staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree1, pumex::AssetLodDefinition( 100.0f * _lodModifier,  500.0f * _lodModifier ));
-    staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree2, pumex::AssetLodDefinition( 500.0f * _lodModifier, 1200.0f * _lodModifier ));
-    typeIDs.push_back(coniferTreeID);
-
-    std::shared_ptr<pumex::Asset> decidousTree0 ( createDecidousTree(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> decidousTree1 ( createDecidousTree(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> decidousTree2 ( createDecidousTree(0.15f * _triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-    pumex::BoundingBox decidousTreeBbox = pumex::calculateBoundingBox(*decidousTree0, MAIN_RENDER_MASK);
-    uint32_t decidousTreeID = staticAssetBuffer->registerType("decidousTree", pumex::AssetTypeDefinition(decidousTreeBbox));
-    staticMaterialSet->registerMaterials(decidousTreeID, decidousTree0);
-    staticMaterialSet->registerMaterials(decidousTreeID, decidousTree1);
-    staticMaterialSet->registerMaterials(decidousTreeID, decidousTree2);
-    staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree0, pumex::AssetLodDefinition(  0.0f * _lodModifier,   120.0f * _lodModifier ));
-    staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree1, pumex::AssetLodDefinition( 120.0f * _lodModifier,  600.0f * _lodModifier ));
-    staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree2, pumex::AssetLodDefinition( 600.0f * _lodModifier, 1400.0f * _lodModifier ));
-    typeIDs.push_back(decidousTreeID);
-
-    std::shared_ptr<pumex::Asset> simpleHouse0 ( createSimpleHouse(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> simpleHouse1 ( createSimpleHouse(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> simpleHouse2 ( createSimpleHouse(0.15f * _triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-    pumex::BoundingBox simpleHouseBbox = pumex::calculateBoundingBox(*simpleHouse0, MAIN_RENDER_MASK);
-    uint32_t simpleHouseID = staticAssetBuffer->registerType("simpleHouse", pumex::AssetTypeDefinition(simpleHouseBbox));
-    staticMaterialSet->registerMaterials(simpleHouseID, simpleHouse0);
-    staticMaterialSet->registerMaterials(simpleHouseID, simpleHouse1);
-    staticMaterialSet->registerMaterials(simpleHouseID, simpleHouse2);
-    staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse0, pumex::AssetLodDefinition(0.0f * _lodModifier, 120.0f * _lodModifier));
-    staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse1, pumex::AssetLodDefinition(120.0f * _lodModifier, 600.0f * _lodModifier));
-    staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse2, pumex::AssetLodDefinition(600.0f * _lodModifier, 1400.0f * _lodModifier));
-    typeIDs.push_back(simpleHouseID);
-
-    staticInstancedResults->setup();
-    staticMaterialSet->refreshMaterialStructures();
-
-    float objectDensity[3]     = { 10000.0f * _densityModifier, 1000.0f * _densityModifier, 100.0f * _densityModifier };
-    float amplitudeModifier[3] = { 1.0f, 1.0f, 0.0f }; // we don't want the house to wave in the wind
-
-    float fullArea = _staticAreaSize * _staticAreaSize;
-    std::uniform_real_distribution<float>   randomX(-0.5f*_staticAreaSize, 0.5f * _staticAreaSize);
-    std::uniform_real_distribution<float>   randomY(-0.5f*_staticAreaSize, 0.5f * _staticAreaSize);
-    std::uniform_real_distribution<float>   randomScale(0.8f, 1.2f);
-    std::uniform_real_distribution<float>   randomBrightness(0.5f, 1.0f);
-    std::uniform_real_distribution<float>   randomAmplitude(0.01f, 0.05f);
-    std::uniform_real_distribution<float>   randomFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
-    std::uniform_real_distribution<float>   randomOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
-
-    for (unsigned int i = 0; i<typeIDs.size(); ++i)
-    {
-      int objectQuantity = (int)floor(objectDensity[i] * fullArea / 1000000.0f);
-
-      for (int j = 0; j<objectQuantity; ++j)
-      {
-        glm::vec3 pos( randomX(randomEngine), randomY(randomEngine), 0.0f );
-        float rot             = randomRotation(randomEngine);
-        float scale           = randomScale(randomEngine);
-        float brightness      = randomBrightness(randomEngine);
-        float wavingAmplitude = randomAmplitude(randomEngine) * amplitudeModifier[i];
-        float wavingFrequency = randomFrequency(randomEngine);
-        float wavingOffset    = randomOffset(randomEngine);
-        glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::scale(glm::mat4(), glm::vec3(scale, scale, scale)));
-        updateData.staticInstanceData.push_back(StaticInstanceData(position, typeIDs[i], 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
-      }
-    }
-
-    staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>(buffersAllocator,3);
-
-    staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
-
-    staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3);
-    staticFilterDescriptorSet->setDescriptor(0, cameraUbo);
-    staticFilterDescriptorSet->setDescriptor(1, staticInstanceSbo);
-    staticFilterDescriptorSet->setDescriptor(2, staticAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    staticFilterDescriptorSet->setDescriptor(3, staticAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    staticFilterDescriptorSet->setDescriptor(4, staticInstancedResults->getResults(MAIN_RENDER_MASK));
-    staticFilterDescriptorSet->setDescriptor(5, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
-
-    staticRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
-    staticRenderPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_render.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_static_render.frag.spv")), "main" }
-    };
-    staticRenderPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
-    };
-    staticRenderPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    staticRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
-    staticRenderDescriptorSet->setDescriptor(0, cameraUbo);
-    staticRenderDescriptorSet->setDescriptor(1, staticInstanceSbo);
-    staticRenderDescriptorSet->setDescriptor(2, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    staticRenderDescriptorSet->setDescriptor(3, staticMaterialSet->typeDefinitionSbo);
-    staticRenderDescriptorSet->setDescriptor(4, staticMaterialSet->materialVariantSbo);
-    staticRenderDescriptorSet->setDescriptor(5, staticMaterialSet->materialDefinitionSbo);
+    _showStaticRendering          = true;
+    _staticTypeIDs                = staticTypeIDs;
+    _staticAreaSize               = staticAreaSize;
+    updateData.staticInstanceData = staticInstanceData;
+    _staticInstancedResults       = staticInstancedResults;
   }
 
-  void createDynamicRendering()
+  void setupDynamicRendering(float dynamicAreaSize, const std::unordered_map<uint32_t,std::shared_ptr<XXX>>& dynamicTypeIDs, std::unordered_map<uint32_t, std::uniform_real_distribution<float>> randomObjectSpeed, const std::unordered_map<uint32_t, DynamicObjectData>& dynamicObjectData, std::shared_ptr<pumex::AssetBufferInstancedResults> dynamicInstancedResults)
   {
-    std::shared_ptr<pumex::Viewer> viewerSh = viewer.lock();
-    CHECK_LOG_THROW(viewerSh.get() == nullptr, "Cannot acces pumex viewer");
-
-    std::vector<uint32_t> typeIDs;
-
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, vertexSemantic } };
-    dynamicAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    dynamicInstancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, dynamicAssetBuffer, buffersAllocator);
-    dynamicMaterialSet = std::make_shared<pumex::MaterialSet<MaterialGpuCull>>(viewerSh, textureRegistryNull, buffersAllocator, textureSemantic);
-
-    std::shared_ptr<pumex::Asset> blimpLod0 ( createBlimp(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)) );
-    std::shared_ptr<pumex::Asset> blimpLod1 ( createBlimp(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)) );
-    std::shared_ptr<pumex::Asset> blimpLod2 ( createBlimp(0.20f * _triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)) );
-    pumex::BoundingBox blimpBbox = pumex::calculateBoundingBox(*blimpLod0, MAIN_RENDER_MASK);
-    blimpID = dynamicAssetBuffer->registerType("blimp", pumex::AssetTypeDefinition(blimpBbox));
-    dynamicMaterialSet->registerMaterials(blimpID, blimpLod0);
-    dynamicMaterialSet->registerMaterials(blimpID, blimpLod1);
-    dynamicMaterialSet->registerMaterials(blimpID, blimpLod2);
-    dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod0, pumex::AssetLodDefinition(0.0f * _lodModifier, 150.0f * _lodModifier));
-    dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod1, pumex::AssetLodDefinition(150.0f * _lodModifier, 800.0f * _lodModifier));
-    dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod2, pumex::AssetLodDefinition(800.0f * _lodModifier, 6500.0f * _lodModifier));
-    typeIDs.push_back(blimpID);
-    _blimpPropL = blimpLod0->skeleton.invBoneNames["propL"];
-    _blimpPropR = blimpLod0->skeleton.invBoneNames["propR"];
-    bonesReset[blimpID] = pumex::calculateResetPosition(*blimpLod0);
-
-    std::shared_ptr<pumex::Asset> carLod0(createCar(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.3, 0.3, 0.3, 1.0)));
-    std::shared_ptr<pumex::Asset> carLod1(createCar(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> carLod2(createCar(0.15f * _triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-    pumex::BoundingBox carBbox = pumex::calculateBoundingBox(*carLod0, MAIN_RENDER_MASK);
-    carID = dynamicAssetBuffer->registerType("car", pumex::AssetTypeDefinition(carBbox));
-    dynamicMaterialSet->registerMaterials(carID, carLod0);
-    dynamicMaterialSet->registerMaterials(carID, carLod1);
-    dynamicMaterialSet->registerMaterials(carID, carLod2);
-    dynamicAssetBuffer->registerObjectLOD(carID, carLod0, pumex::AssetLodDefinition(0.0f * _lodModifier, 50.0f * _lodModifier));
-    dynamicAssetBuffer->registerObjectLOD(carID, carLod1, pumex::AssetLodDefinition(50.0f * _lodModifier, 300.0f * _lodModifier));
-    dynamicAssetBuffer->registerObjectLOD(carID, carLod2, pumex::AssetLodDefinition(300.0f * _lodModifier, 1000.0f * _lodModifier));
-    typeIDs.push_back(carID);
-    _carWheel0 = carLod0->skeleton.invBoneNames["wheel0"];
-    _carWheel1 = carLod0->skeleton.invBoneNames["wheel1"];
-    _carWheel2 = carLod0->skeleton.invBoneNames["wheel2"];
-    _carWheel3 = carLod0->skeleton.invBoneNames["wheel3"];
-
-    bonesReset[carID] = pumex::calculateResetPosition(*carLod0);
-
-    std::shared_ptr<pumex::Asset> airplaneLod0(createAirplane(0.75f * _triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> airplaneLod1(createAirplane(0.45f * _triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-    std::shared_ptr<pumex::Asset> airplaneLod2(createAirplane(0.15f * _triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-    pumex::BoundingBox airplaneBbox = pumex::calculateBoundingBox(*airplaneLod0, MAIN_RENDER_MASK);
-    airplaneID = dynamicAssetBuffer->registerType("airplane", pumex::AssetTypeDefinition(airplaneBbox));
-    dynamicMaterialSet->registerMaterials(airplaneID, airplaneLod0);
-    dynamicMaterialSet->registerMaterials(airplaneID, airplaneLod1);
-    dynamicMaterialSet->registerMaterials(airplaneID, airplaneLod2);
-    dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod0, pumex::AssetLodDefinition(0.0f * _lodModifier, 80.0f * _lodModifier));
-    dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod1, pumex::AssetLodDefinition(80.0f * _lodModifier, 400.0f * _lodModifier));
-    dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod2, pumex::AssetLodDefinition(400.0f * _lodModifier, 1200.0f * _lodModifier));
-    typeIDs.push_back(airplaneID);
-    _airplaneProp = airplaneLod0->skeleton.invBoneNames["prop"];
-    bonesReset[airplaneID] = pumex::calculateResetPosition(*airplaneLod0);
-
-    dynamicInstancedResults->setup();
-    dynamicMaterialSet->refreshMaterialStructures();
-
-    float objectZ[3]        = { 50.0f, 0.0f, 25.0f };
-    float objectDensity[3]  = { 100.0f * _densityModifier, 100.0f * _densityModifier, 100.0f * _densityModifier };
-    float minObjectSpeed[3] = { 5.0f, 1.0f, 10.0f };
-    float maxObjectSpeed[3] = { 10.0f, 5.0f, 16.0f };
-
-    for (uint32_t i = 0; i<typeIDs.size(); ++i)
-      randomObjectSpeed.insert({ typeIDs[i],std::uniform_real_distribution<float>(minObjectSpeed[i], maxObjectSpeed[i]) });
-
-    float fullArea = _dynamicAreaSize * _dynamicAreaSize;
-    std::uniform_real_distribution<float>              randomX(_minArea.x, _maxArea.x);
-    std::uniform_real_distribution<float>              randomY(_minArea.y, _maxArea.y);
-    std::uniform_real_distribution<float>              randomBrightness(0.5f, 1.0f);
-
-    uint32_t objectID = 0;
-    for (uint32_t i = 0; i<typeIDs.size(); ++i)
-    {
-
-      int objectQuantity = (int)floor(objectDensity[i] * fullArea / 1000000.0f);
-      for (int j = 0; j<objectQuantity; ++j)
-      {
-        objectID++;
-        DynamicObjectData objectData;
-        objectData.typeID                = typeIDs[i];
-        objectData.kinematic.position    = glm::vec3(randomX(randomEngine), randomY(randomEngine), objectZ[i]);
-        objectData.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
-        objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
-        objectData.brightness            = randomBrightness(randomEngine);
-        objectData.time2NextTurn         = randomTime2NextTurn(randomEngine);
-
-        //glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)));
-        //DynamicInstanceDataCPU instanceDataCPU(pos, rot, speed, time2NextTurn);
-        //DynamicInstanceData instanceData(position, typeIDs[i], 0, brightness);
-        //for (uint32_t k = 0; k<bonesReset[typeIDs[i]].size() && k<MAX_BONES; ++k)
-        //  instanceData.bones[k] = bonesReset[typeIDs[i]][k];
-        updateData.dynamicObjectData.insert({ objectID,objectData });
-      }
-    }
-
-    dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>(buffersAllocator,3);
-
-    dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_filter_instances.comp.spv")), "main" };
-
-    dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool, 3 );
-    dynamicFilterDescriptorSet->setDescriptor(0, cameraUbo);
-    dynamicFilterDescriptorSet->setDescriptor(1, dynamicInstanceSbo);
-    dynamicFilterDescriptorSet->setDescriptor(2, dynamicAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    dynamicFilterDescriptorSet->setDescriptor(3, dynamicAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    dynamicFilterDescriptorSet->setDescriptor(4, dynamicInstancedResults->getResults(MAIN_RENDER_MASK));
-    dynamicFilterDescriptorSet->setDescriptor(5, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
-
-    dynamicRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout, defaultRenderPass, 0);
-    dynamicRenderPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_render.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewerSh->getFullFilePath("shaders/gpucull_dynamic_render.frag.spv")), "main" }
-    };
-    dynamicRenderPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
-    };
-    dynamicRenderPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    dynamicRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool, 3);
-    dynamicRenderDescriptorSet->setDescriptor(0, cameraUbo);
-    dynamicRenderDescriptorSet->setDescriptor(1, dynamicInstanceSbo);
-    dynamicRenderDescriptorSet->setDescriptor(2, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    dynamicRenderDescriptorSet->setDescriptor(3, dynamicMaterialSet->typeDefinitionSbo);
-    dynamicRenderDescriptorSet->setDescriptor(4, dynamicMaterialSet->materialVariantSbo);
-    dynamicRenderDescriptorSet->setDescriptor(5, dynamicMaterialSet->materialDefinitionSbo);
+    _showDynamicRendering        = true;
+    _dynamicTypeIDs              = dynamicTypeIDs;
+    _randomObjectSpeed           = randomObjectSpeed;
+    _dynamicAreaSize             = dynamicAreaSize;
+    _minArea                     = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
+    _maxArea                     = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
+    updateData.dynamicObjectData = dynamicObjectData;
+    _dynamicInstancedResults     = dynamicInstancedResults;
   }
-
-  void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
-  {
-    pumex::Device*      devicePtr      = surface->device.lock().get();
-    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-
-    myCmdBuffer[surface.get()] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
-
-    pipelineCache->validate(devicePtr);
-    instancedRenderDescriptorSetLayout->validate(devicePtr);
-    instancedRenderDescriptorPool->validate(devicePtr);
-    instancedRenderPipelineLayout->validate(devicePtr);
-    filterDescriptorSetLayout->validate(devicePtr);
-    filterDescriptorPool->validate(devicePtr);
-    filterPipelineLayout->validate(devicePtr);
-
-    textDescriptorSetLayout->validate(devicePtr);
-    textDescriptorPool->validate(devicePtr);
-    textPipelineLayout->validate(devicePtr);
-    textPipeline->validate(devicePtr);
-
-    timeStampQueryPool->validate(surface.get());
-
-    if (_showStaticRendering)
-    {
-      staticAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      staticInstancedResults->validate(surface.get());
-      staticMaterialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      staticRenderPipeline->validate(devicePtr);
-      staticFilterPipeline->validate(devicePtr);
-    }
-
-    if (_showDynamicRendering)
-    {
-      dynamicAssetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      dynamicInstancedResults->validate(surface.get());
-      dynamicMaterialSet->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      dynamicRenderPipeline->validate(devicePtr);
-      dynamicFilterPipeline->validate(devicePtr);
-    }
-  }
-
+  
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
+    std::shared_ptr<pumex::Window> window = surface->window.lock();
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
 
-    std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
+    std::vector<pumex::InputEvent> mouseEvents = window->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
     for (const auto& m : mouseEvents)
     {
@@ -1151,7 +759,7 @@ struct GpuCullApplicationData
         break;
       }
     }
-    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+    uint32_t updateIndex = viewer->getUpdateIndex();
     RenderData& uData = renderData[updateIndex];
 
     uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
@@ -1197,21 +805,17 @@ struct GpuCullApplicationData
       updateData.cameraPosition -= up * camSpeed;
 
     if (measureTime != updateData.measureTime)
-    {
-      for (auto& cb : myCmdBuffer)
-        cb.second->setDirty(UINT32_MAX);
       measureTime = updateData.measureTime;
-    }
 
     uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
-    uData.cameraDistance = updateData.cameraDistance;
-    uData.cameraPosition = updateData.cameraPosition;
+    uData.cameraDistance              = updateData.cameraDistance;
+    uData.cameraPosition              = updateData.cameraPosition;
   }
 
-  void update(float timeSinceStart, float updateStep)
+  void update(std::shared_ptr<pumex::Viewer> viewer, float timeSinceStart, float updateStep)
   {
     // send UpdateData to RenderData
-    uint32_t updateIndex = viewer.lock()->getUpdateIndex();
+    uint32_t updateIndex = viewer->getUpdateIndex();
 
     if (_showStaticRendering)
     {
@@ -1244,9 +848,9 @@ struct GpuCullApplicationData
   {
     if (objectData.time2NextTurn < 0.0f)
     {
-      objectData.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
-      objectData.kinematic.velocity = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
-      objectData.time2NextTurn = randomTime2NextTurn(randomEngine);
+      objectData.kinematic.orientation = glm::angleAxis(_randomRotation(_randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+      objectData.kinematic.velocity = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * _randomObjectSpeed[objectData.typeID](_randomEngine);
+      objectData.time2NextTurn = _randomTime2NextTurn(_randomEngine);
     }
     else
       objectData.time2NextTurn -= updateStep;
@@ -1276,18 +880,19 @@ struct GpuCullApplicationData
         direction.y *= -1.0f;
 
       objectData.kinematic.orientation = glm::angleAxis(atan2f(direction.y, direction.x), glm::vec3(0.0f, 0.0f, 1.0f));
-      objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
-      objectData.time2NextTurn         = randomTime2NextTurn(randomEngine);
+      objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * _randomObjectSpeed[objectData.typeID](_randomEngine);
+      objectData.time2NextTurn         = _randomTime2NextTurn(_randomEngine);
     }
   }
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
-    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
+    uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    float deltaTime = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
+    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
     glm::vec3 relCam
     (
@@ -1322,321 +927,247 @@ struct GpuCullApplicationData
     textCameraUbo->set(surface.get(), textCamera);
   }
 
-  void prepareStaticBuffersForRendering()
+  void prepareBuffersForRendering(std::shared_ptr<pumex::Viewer> viewer)
   {
-    uint32_t renderIndex = viewer.lock()->getRenderIndex();
+    uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
-    // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
-    staticInstanceSbo->set(rData.staticInstanceData);
-
-    std::vector<uint32_t> typeCount(staticAssetBuffer->getNumTypesID());
-    std::fill(typeCount.begin(), typeCount.end(), 0);
-
-    // compute how many instances of each type there is
-    for (uint32_t i = 0; i<rData.staticInstanceData.size(); ++i)
-      typeCount[rData.staticInstanceData[i].typeID]++;
-
-    staticInstancedResults->prepareBuffers(typeCount);
-  }
-
-  void prepareDynamicBuffersForRendering()
-  {
-    uint32_t renderIndex = viewer.lock()->getRenderIndex();
-    const RenderData& rData = renderData[renderIndex];
-
-    float deltaTime = pumex::inSeconds(viewer.lock()->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer.lock()->getUpdateTime() - viewer.lock()->getApplicationStartTime()) + deltaTime;
-
-    std::vector<uint32_t> typeCount(dynamicAssetBuffer->getNumTypesID());
-    std::fill(typeCount.begin(), typeCount.end(), 0);
-
-    // compute how many instances of each type there is
-    for (uint32_t i = 0; i<rData.dynamicObjectData.size(); ++i)
-      typeCount[rData.dynamicObjectData[i].typeID]++;
-
-    dynamicInstancedResults->prepareBuffers(typeCount);
-
-    std::vector<DynamicInstanceData> dynamicInstanceData;
-    for (auto it = rData.dynamicObjectData.begin(); it != rData.dynamicObjectData.end(); ++it)
-    {
-      DynamicInstanceData diData(pumex::extrapolate(it->kinematic, deltaTime), it->typeID, it->materialVariant, it->brightness);
-
-      float speed = glm::length(it->kinematic.velocity);
-      // calculate new positions for wheels and propellers
-      if (diData.typeID == blimpID)
-      {
-        diData.bones[_blimpPropL] = bonesReset[diData.typeID][_blimpPropL] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  0.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-        diData.bones[_blimpPropR] = bonesReset[diData.typeID][_blimpPropR] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() * -0.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      }
-      if (diData.typeID == carID)
-      {
-        diData.bones[_carWheel0] = bonesReset[diData.typeID][_carWheel0] * glm::rotate(glm::mat4(), fmodf(( speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-        diData.bones[_carWheel1] = bonesReset[diData.typeID][_carWheel1] * glm::rotate(glm::mat4(), fmodf(( speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-        diData.bones[_carWheel2] = bonesReset[diData.typeID][_carWheel2] * glm::rotate(glm::mat4(), fmodf((-speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-        diData.bones[_carWheel3] = bonesReset[diData.typeID][_carWheel3] * glm::rotate(glm::mat4(), fmodf((-speed / 0.5f) * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      }
-      if (diData.typeID == airplaneID)
-      {
-        diData.bones[_airplaneProp] = bonesReset[diData.typeID][_airplaneProp] * glm::rotate(glm::mat4(), fmodf(glm::two_pi<float>() *  -1.5f * renderTime, glm::two_pi<float>()), glm::vec3(0.0, 0.0, 1.0));
-      }
-      dynamicInstanceData.emplace_back(diData);
-    }
-    dynamicInstanceSbo->set(dynamicInstanceData);
-  }
-
-  void draw(std::shared_ptr<pumex::Surface> surface)
-  {
-    pumex::Surface*     surfacePtr = surface.get();
-    pumex::Device*      devicePtr = surface->device.lock().get();
-    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-    uint32_t            renderIndex = surface->viewer.lock()->getRenderIndex();
-    const RenderData&   rData = renderData[renderIndex];
-    unsigned long long  frameNumber = surface->viewer.lock()->getFrameNumber();
-    uint32_t            activeIndex = frameNumber % 3;
-    uint32_t            renderWidth = surface->swapChainSize.width;
-    uint32_t            renderHeight = surface->swapChainSize.height;
-
-    fontDefault->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    textDefault->setActiveIndex(activeIndex);
-    textDefault->validate(surfacePtr);
-
-    fontSmall->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    if (measureTime)
-    {
-      std::lock_guard<std::mutex> lock(measureMutex);
-      std::wstringstream stream;
-      stream << "Process input          : " << std::fixed << std::setprecision(3) << 1000.0 * times[1010] << " ms";
-      textSmall->setText(surfacePtr, 1010, glm::vec2(30, 58), glm::vec4(0.0f, 0.9f, 0.0f, 1.0f), stream.str());
-
-      stream.str(L"");
-      stream << "Update                    : " << std::fixed << std::setprecision(3) << 1000.0 * times[1020] << " ms";
-      textSmall->setText(surfacePtr, 1020, glm::vec2(30, 78), glm::vec4(0.0f, 0.9f, 0.0f, 1.0f), stream.str());
-
-      stream.str(L"");
-      stream << "Prepare static buffers    : " << std::fixed << std::setprecision(3) << 1000.0 * times[2010] << " ms";
-      textSmall->setText(surfacePtr, 2010, glm::vec2(30, 118), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
-
-      stream.str(L"");
-      stream << "Prepare dynamic buffers    : " << std::fixed << std::setprecision(3) << 1000.0 * times[2011] << " ms";
-      textSmall->setText(surfacePtr, 2011, glm::vec2(30, 138), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
-
-      stream.str(L"");
-      stream << "Begin frame            : " << std::fixed << std::setprecision(3) << 1000.0 * times[2020+surfacePtr->getID()] << " ms";
-      textSmall->setText(surfacePtr, 2020, glm::vec2(30, 158), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
-
-      stream.str(L"");
-      stream << "Draw frame             : " << std::fixed << std::setprecision(3) << 1000.0 * times[2030 + surfacePtr->getID()] << " ms";
-      textSmall->setText(surfacePtr, 2030, glm::vec2(30, 178), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
-
-      stream.str(L"");
-      stream << "End frame               : " << std::fixed << std::setprecision(3) << 1000.0 * times[2040 + surfacePtr->getID()] << " ms";
-      textSmall->setText(surfacePtr, 2040, glm::vec2(30, 198), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
-
-      float timeStampPeriod = devicePtr->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
-      std::vector<uint64_t> queryResults;
-      // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
-      queryResults = timeStampQueryPool->getResults(surfacePtr, ((activeIndex + 2) % 3) * 8, 8, 0);
-      uint32_t y = 238;
-      if (_showStaticRendering)
-      {
-        // exclude timer overflows
-        if (queryResults[1] > queryResults[0])
-        {
-          stream.str(L"");
-          stream << "GPU LOD compute static : " << std::fixed << std::setprecision(3) << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms";
-          textSmall->setText(surfacePtr, 3010, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
-        }
-        y += 20;
-
-        // exclude timer overflows
-        if (queryResults[5] > queryResults[4])
-        {
-          stream.str(L"");
-          stream << "GPU draw shader static       : " << std::fixed << std::setprecision(3) << (queryResults[5] - queryResults[4]) * timeStampPeriod << " ms";
-          textSmall->setText(surfacePtr, 3020, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
-        }
-        y += 20;
-      }
-      if (_showDynamicRendering)
-      {
-        // exclude timer overflows
-        if (queryResults[3] > queryResults[2])
-        {
-          stream.str(L"");
-          stream << "GPU LOD compute dynamic : " << std::fixed << std::setprecision(3) << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms";
-          textSmall->setText(surfacePtr, 3030, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
-        }
-        y += 20;
-
-        // exclude timer overflows
-        if (queryResults[7] > queryResults[6])
-        {
-          stream.str(L"");
-          stream << "GPU draw shader dynamic     : " << std::fixed << std::setprecision(3) << (queryResults[7] - queryResults[6]) * timeStampPeriod << " ms";
-          textSmall->setText(surfacePtr, 3040, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
-        }
-        y += 20;
-      }
-    }
-    textSmall->setActiveIndex(activeIndex);
-    textSmall->validate(surfacePtr);
-
-
-    cameraUbo->validate(surfacePtr);
+    float deltaTime  = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
     if (_showStaticRendering)
     {
-      staticInstanceSbo->setActiveIndex(activeIndex);
-      staticInstanceSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      staticInstancedResults->setActiveIndex(activeIndex);
-      staticInstancedResults->validate(surfacePtr);
+      // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
+      staticInstanceSbo->set(rData.staticInstanceData);
 
-      staticRenderDescriptorSet->setActiveIndex(activeIndex);
-      staticRenderDescriptorSet->validate(surfacePtr);
-      staticFilterDescriptorSet->setActiveIndex(activeIndex);
-      staticFilterDescriptorSet->validate(surfacePtr);
+      std::vector<uint32_t> typeCount(_staticTypeIDs.size());
+      std::fill(typeCount.begin(), typeCount.end(), 0);
+
+      // compute how many instances of each type there is
+      for (uint32_t i = 0; i < rData.staticInstanceData.size(); ++i)
+        typeCount[rData.staticInstanceData[i].typeID]++;
+
+      _staticInstancedResults->prepareBuffers(typeCount);
     }
 
     if (_showDynamicRendering)
     {
-      dynamicInstanceSbo->setActiveIndex(activeIndex);
-      dynamicInstanceSbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-      dynamicInstancedResults->setActiveIndex(activeIndex);
-      dynamicInstancedResults->validate(surfacePtr);
+      std::vector<uint32_t> typeCount(_dynamicTypeIDs.size());
+      std::fill(typeCount.begin(), typeCount.end(), 0);
 
-      dynamicRenderDescriptorSet->setActiveIndex(activeIndex);
-      dynamicRenderDescriptorSet->validate(surfacePtr);
-      dynamicFilterDescriptorSet->setActiveIndex(activeIndex);
-      dynamicFilterDescriptorSet->validate(surfacePtr);
+      // compute how many instances of each type there is
+      for (uint32_t i = 0; i<rData.dynamicObjectData.size(); ++i)
+        typeCount[rData.dynamicObjectData[i].typeID]++;
+
+      _dynamicInstancedResults->prepareBuffers(typeCount);
+
+      std::vector<DynamicInstanceData> dynamicInstanceData;
+      for (auto it = rData.dynamicObjectData.begin(); it != rData.dynamicObjectData.end(); ++it)
+        dynamicInstanceData.emplace_back( _dynamicTypeIDs[it->typeID]->update(*it, deltaTime, renderTime) );
+
+      dynamicInstanceSbo->set(dynamicInstanceData);
     }
-    textCameraUbo->validate(surfacePtr);
-    textDescriptorSet->setActiveIndex(activeIndex);
-    textDescriptorSet->validate(surfacePtr);
-
-    textDescriptorSetSmall->setActiveIndex(activeIndex);
-    textDescriptorSetSmall->validate(surfacePtr);
-
-    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
-    currentCmdBuffer->setActiveIndex(activeIndex);
-    if (currentCmdBuffer->isDirty(activeIndex))
-    {
-      currentCmdBuffer->cmdBegin();
-
-      timeStampQueryPool->reset(surfacePtr, currentCmdBuffer, activeIndex * 8, 8);
-
-      std::vector<pumex::DescriptorSetValue> staticResultsBuffer, dynamicResultsBuffer;
-      uint32_t staticDrawCount, dynamicDrawCount;
-
-      // Set up memory barrier to ensure that the indirect commands have been consumed before the compute shaders update them
-      if (_showStaticRendering)
-      {
-        staticInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, staticResultsBuffer);
-        staticDrawCount = staticInstancedResults->getDrawCount(MAIN_RENDER_MASK);
-      }
-      if (_showDynamicRendering)
-      {
-        dynamicInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, dynamicResultsBuffer);
-        dynamicDrawCount = dynamicInstancedResults->getDrawCount(MAIN_RENDER_MASK);
-      }
-
-      // perform compute shaders
-      if (_showStaticRendering)
-      {
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-        currentCmdBuffer->cmdBindPipeline(staticFilterPipeline.get());
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, staticFilterDescriptorSet.get());
-        currentCmdBuffer->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16 > 0) ? 1 : 0), 1, 1);
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 1, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-      }
-      if (_showDynamicRendering)
-      {
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 2, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-        currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline.get());
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, dynamicFilterDescriptorSet.get());
-        currentCmdBuffer->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16 > 0) ? 1 : 0), 1, 1);
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-      }
-
-      // setup memory barriers, so that copying data to *resultsSbo2 will start only after compute shaders finish working
-      std::vector<pumex::PipelineBarrier> afterComputeBarriers;
-      if (_showStaticRendering)
-        afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer[0].bufferInfo));
-      if (_showDynamicRendering)
-        afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer[0].bufferInfo));
-      if(!afterComputeBarriers.empty())
-        currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, afterComputeBarriers);
-
-      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-      if (_showStaticRendering)
-      {
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 4, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-        currentCmdBuffer->cmdBindPipeline(staticRenderPipeline.get());
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, staticRenderDescriptorSet.get());
-        staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-        if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
-          currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
-        else
-        {
-          for (uint32_t i = 0; i < staticDrawCount; ++i)
-            currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
-        }
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 5, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-      }
-      if (_showDynamicRendering)
-      {
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 6, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-        currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline.get());
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, dynamicRenderDescriptorSet.get());
-        dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-        if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
-          currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
-        else
-        {
-          for (uint32_t i = 0; i < dynamicDrawCount; ++i)
-            currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
-        }
-        if (measureTime)
-          timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 7, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-      }
-
-      currentCmdBuffer->cmdBindPipeline(textPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
-      textDefault->cmdDraw(surfacePtr, currentCmdBuffer);
-
-      if (measureTime)
-      {
-        currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSetSmall.get());
-        textSmall->cmdDraw(surfacePtr, currentCmdBuffer);
-      }
-
-      currentCmdBuffer->cmdEndRenderPass();
-      currentCmdBuffer->cmdEnd();
-    }
-    currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
   }
 
-  void fillFPS()
-  {
-    pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
-    double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
-    lastFrameStart = thisFrameStart;
+  //void draw(std::shared_ptr<pumex::Surface> surface)
+  //{
 
-    std::wstringstream stream;
-    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
-  }
+  //  if (measureTime)
+  //  {
+  //    std::lock_guard<std::mutex> lock(measureMutex);
+  //    std::wstringstream stream;
+  //    stream << "Process input          : " << std::fixed << std::setprecision(3) << 1000.0 * times[1010] << " ms";
+  //    textSmall->setText(surfacePtr, 1010, glm::vec2(30, 58), glm::vec4(0.0f, 0.9f, 0.0f, 1.0f), stream.str());
+
+  //    stream.str(L"");
+  //    stream << "Update                    : " << std::fixed << std::setprecision(3) << 1000.0 * times[1020] << " ms";
+  //    textSmall->setText(surfacePtr, 1020, glm::vec2(30, 78), glm::vec4(0.0f, 0.9f, 0.0f, 1.0f), stream.str());
+
+  //    stream.str(L"");
+  //    stream << "Prepare static buffers    : " << std::fixed << std::setprecision(3) << 1000.0 * times[2010] << " ms";
+  //    textSmall->setText(surfacePtr, 2010, glm::vec2(30, 118), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+  //    stream.str(L"");
+  //    stream << "Prepare dynamic buffers    : " << std::fixed << std::setprecision(3) << 1000.0 * times[2011] << " ms";
+  //    textSmall->setText(surfacePtr, 2011, glm::vec2(30, 138), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+  //    stream.str(L"");
+  //    stream << "Begin frame            : " << std::fixed << std::setprecision(3) << 1000.0 * times[2020+surfacePtr->getID()] << " ms";
+  //    textSmall->setText(surfacePtr, 2020, glm::vec2(30, 158), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+  //    stream.str(L"");
+  //    stream << "Draw frame             : " << std::fixed << std::setprecision(3) << 1000.0 * times[2030 + surfacePtr->getID()] << " ms";
+  //    textSmall->setText(surfacePtr, 2030, glm::vec2(30, 178), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+  //    stream.str(L"");
+  //    stream << "End frame               : " << std::fixed << std::setprecision(3) << 1000.0 * times[2040 + surfacePtr->getID()] << " ms";
+  //    textSmall->setText(surfacePtr, 2040, glm::vec2(30, 198), glm::vec4(0.9f, 0.0f, 0.0f, 1.0f), stream.str());
+
+  //    float timeStampPeriod = devicePtr->physical.lock()->properties.limits.timestampPeriod / 1000000.0f;
+  //    std::vector<uint64_t> queryResults;
+  //    // We use swapChainImageIndex to get the time measurments from previous frame - timeStampQueryPool works like circular buffer
+  //    queryResults = timeStampQueryPool->getResults(surfacePtr, ((activeIndex + 2) % 3) * 8, 8, 0);
+  //    uint32_t y = 238;
+  //    if (_showStaticRendering)
+  //    {
+  //      // exclude timer overflows
+  //      if (queryResults[1] > queryResults[0])
+  //      {
+  //        stream.str(L"");
+  //        stream << "GPU LOD compute static : " << std::fixed << std::setprecision(3) << (queryResults[1] - queryResults[0]) * timeStampPeriod << " ms";
+  //        textSmall->setText(surfacePtr, 3010, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+  //      }
+  //      y += 20;
+
+  //      // exclude timer overflows
+  //      if (queryResults[5] > queryResults[4])
+  //      {
+  //        stream.str(L"");
+  //        stream << "GPU draw shader static       : " << std::fixed << std::setprecision(3) << (queryResults[5] - queryResults[4]) * timeStampPeriod << " ms";
+  //        textSmall->setText(surfacePtr, 3020, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+  //      }
+  //      y += 20;
+  //    }
+  //    if (_showDynamicRendering)
+  //    {
+  //      // exclude timer overflows
+  //      if (queryResults[3] > queryResults[2])
+  //      {
+  //        stream.str(L"");
+  //        stream << "GPU LOD compute dynamic : " << std::fixed << std::setprecision(3) << (queryResults[3] - queryResults[2]) * timeStampPeriod << " ms";
+  //        textSmall->setText(surfacePtr, 3030, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+  //      }
+  //      y += 20;
+
+  //      // exclude timer overflows
+  //      if (queryResults[7] > queryResults[6])
+  //      {
+  //        stream.str(L"");
+  //        stream << "GPU draw shader dynamic     : " << std::fixed << std::setprecision(3) << (queryResults[7] - queryResults[6]) * timeStampPeriod << " ms";
+  //        textSmall->setText(surfacePtr, 3040, glm::vec2(30, y), glm::vec4(0.8f, 0.8f, 0.0f, 1.0f), stream.str());
+  //      }
+  //      y += 20;
+  //    }
+  //  }
+
+  //  if (currentCmdBuffer->isDirty(activeIndex))
+  //  {
+  //    currentCmdBuffer->cmdBegin();
+
+  //    timeStampQueryPool->reset(surfacePtr, currentCmdBuffer, activeIndex * 8, 8);
+
+  //    std::vector<pumex::DescriptorSetValue> staticResultsBuffer, dynamicResultsBuffer;
+  //    uint32_t staticDrawCount, dynamicDrawCount;
+
+  //    // Set up memory barrier to ensure that the indirect commands have been consumed before the compute shaders update them
+  //    if (_showStaticRendering)
+  //    {
+  //      staticInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, staticResultsBuffer);
+  //      staticDrawCount = staticInstancedResults->getDrawCount(MAIN_RENDER_MASK);
+  //    }
+  //    if (_showDynamicRendering)
+  //    {
+  //      dynamicInstancedResults->getResults(MAIN_RENDER_MASK)->getDescriptorSetValues(surface->surface, activeIndex, dynamicResultsBuffer);
+  //      dynamicDrawCount = dynamicInstancedResults->getDrawCount(MAIN_RENDER_MASK);
+  //    }
+
+  //    // perform compute shaders
+  //    if (_showStaticRendering)
+  //    {
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+  //      currentCmdBuffer->cmdBindPipeline(staticFilterPipeline.get());
+  //      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, staticFilterDescriptorSet.get());
+  //      currentCmdBuffer->cmdDispatch(rData.staticInstanceData.size() / 16 + ((rData.staticInstanceData.size() % 16 > 0) ? 1 : 0), 1, 1);
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 1, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+  //    }
+  //    if (_showDynamicRendering)
+  //    {
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 2, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+  //      currentCmdBuffer->cmdBindPipeline(dynamicFilterPipeline.get());
+  //      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, surfacePtr, filterPipelineLayout.get(), 0, dynamicFilterDescriptorSet.get());
+  //      currentCmdBuffer->cmdDispatch(rData.dynamicObjectData.size() / 16 + ((rData.dynamicObjectData.size() % 16 > 0) ? 1 : 0), 1, 1);
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 3, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+  //    }
+
+  //    // setup memory barriers, so that copying data to *resultsSbo2 will start only after compute shaders finish working
+  //    std::vector<pumex::PipelineBarrier> afterComputeBarriers;
+  //    if (_showStaticRendering)
+  //      afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, staticResultsBuffer[0].bufferInfo));
+  //    if (_showDynamicRendering)
+  //      afterComputeBarriers.emplace_back(pumex::PipelineBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, surface->presentationQueueFamilyIndex, surface->presentationQueueFamilyIndex, dynamicResultsBuffer[0].bufferInfo));
+  //    if(!afterComputeBarriers.empty())
+  //      currentCmdBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, afterComputeBarriers);
+
+  //    std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
+  //    currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+  //    currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+  //    currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+
+  //    if (_showStaticRendering)
+  //    {
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 4, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+  //      currentCmdBuffer->cmdBindPipeline(staticRenderPipeline.get());
+  //      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, staticRenderDescriptorSet.get());
+  //      staticAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+  //      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
+  //        currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset, staticDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+  //      else
+  //      {
+  //        for (uint32_t i = 0; i < staticDrawCount; ++i)
+  //          currentCmdBuffer->cmdDrawIndexedIndirect(staticResultsBuffer[0].bufferInfo.buffer, staticResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+  //      }
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 5, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+  //    }
+  //    if (_showDynamicRendering)
+  //    {
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 6, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+  //      currentCmdBuffer->cmdBindPipeline(dynamicRenderPipeline.get());
+  //      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, instancedRenderPipelineLayout.get(), 0, dynamicRenderDescriptorSet.get());
+  //      dynamicAssetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+  //      if (devicePtr->physical.lock()->features.multiDrawIndirect == 1)
+  //        currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset, dynamicDrawCount, sizeof(pumex::DrawIndexedIndirectCommand));
+  //      else
+  //      {
+  //        for (uint32_t i = 0; i < dynamicDrawCount; ++i)
+  //          currentCmdBuffer->cmdDrawIndexedIndirect(dynamicResultsBuffer[0].bufferInfo.buffer, dynamicResultsBuffer[0].bufferInfo.offset + i * sizeof(pumex::DrawIndexedIndirectCommand), 1, sizeof(pumex::DrawIndexedIndirectCommand));
+  //      }
+  //      if (measureTime)
+  //        timeStampQueryPool->queryTimeStamp(surfacePtr, currentCmdBuffer, activeIndex * 8 + 7, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+  //    }
+
+  //    currentCmdBuffer->cmdBindPipeline(textPipeline.get());
+  //    currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSet.get());
+  //    textDefault->cmdDraw(surfacePtr, currentCmdBuffer);
+
+  //    if (measureTime)
+  //    {
+  //      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, textPipelineLayout.get(), 0, textDescriptorSetSmall.get());
+  //      textSmall->cmdDraw(surfacePtr, currentCmdBuffer);
+  //    }
+
+  //    currentCmdBuffer->cmdEndRenderPass();
+  //    currentCmdBuffer->cmdEnd();
+  //  }
+  //  currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
+  //}
+
+  //void fillFPS()
+  //{
+  //  pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
+  //  double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
+  //  lastFrameStart = thisFrameStart;
+
+  //  std::wstringstream stream;
+  //  stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
+  //  textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+  //}
 
   void setSlaveViewMatrix(uint32_t index, const glm::mat4& matrix)
   {
@@ -1660,8 +1191,6 @@ struct GpuCullApplicationData
 
 
 };
-
-// thread that renders data to a Vulkan surface
 
 int main(int argc, char * argv[])
 {
@@ -1743,58 +1272,457 @@ int main(int argc, char * argv[])
     {
       windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Object culling on GPU" });
     }
-
-    std::vector<float> queuePriorities;
-    queuePriorities.resize(windowTraits.size(), 0.75f);
-    std::vector<pumex::QueueTraits> requestQueues = { { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, queuePriorities } };
-    std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-    std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
-    CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters" );
-
     std::vector<std::shared_ptr<pumex::Window>> windows;
     for (const auto& t : windowTraits)
       windows.push_back(pumex::Window::createWindow(t));
 
-    std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
-    {
-      { pumex::atSurface, VK_FORMAT_B8G8R8A8_UNORM,    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
-      { pumex::atDepth,   VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_SAMPLE_COUNT_1_BIT }
-    };
+    // all created surfaces will use the same device
+    std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
+
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
+    for (auto win : windows)
+      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
 
     // allocate 16 MB for frame buffers ( actually only depth buffer will be allocated )
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, frameBufferAllocator);
+    // alocate 32 MB for uniform and storage buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 4 MB memory for font textures
+    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 4 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
-    std::vector<pumex::AttachmentDefinition> renderPassAttachments =
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f } };
+
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("gpucull_workflow", frameBufferAllocator, queueTraits);
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", true));
+
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
+      workflow->addAttachmentDepthOutput("rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentOutput("rendering", "surface", "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+
+    if (showStaticRendering)
     {
-      { 0, VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0 },
-      { 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,         0 }
+      workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("static_filter", pumex::RenderOperation::Compute));
+        workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+        workflow->addBufferOutput("static_filter", "compute_results", "static_offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+
+        workflow->addBufferInput("rendering", "compute_results", "static_indirect_commands", VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+        workflow->addBufferInput("rendering", "compute_results", "static_offset_values",     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    }
+
+    if (showDynamicRendering)
+    {
+      workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("dynamic_filter", pumex::RenderOperation::Compute));
+        workflow->addBufferOutput("dynamic_filter", "compute_results", "dynamic_indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+        workflow->addBufferOutput("dynamic_filter", "compute_results", "dynamic_offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+
+        workflow->addBufferInput("rendering", "compute_results", "dynamic_indirect_commands", VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+        workflow->addBufferInput("rendering", "compute_results", "dynamic_offset_values",     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    }
+
+    std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(buffersAllocator);
+
+    auto renderingRoot = std::make_shared<pumex::Group>();
+    renderingRoot->setName("renderingRoot");
+    workflow->setSceneNode("rendering", renderingRoot);
+
+
+    std::vector<pumex::VertexSemantic>                        vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+    std::vector<pumex::TextureSemantic>                       textureSemantic = {};
+    std::vector<pumex::AssetBufferVertexSemantics>            assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
+    std::shared_ptr<pumex::AssetBuffer>                       staticAssetBuffer, dynamicAssetBuffer;
+    std::shared_ptr<pumex::AssetBufferInstancedResults>       staticInstancedResults, dynamicInstancedResults;
+
+    std::shared_ptr<pumex::TextureRegistryNull>               textureRegistryNull = std::make_shared<pumex::TextureRegistryNull>();
+    std::shared_ptr<pumex::MaterialRegistry<MaterialGpuCull>> staticMaterialRegistry, dynamicMaterialRegistry;
+    std::shared_ptr<pumex::MaterialSet>                       staticMaterialSet, dynamicMaterialSet;
+
+    std::shared_ptr<pumex::PipelineCache>                     pipelineCache = std::make_shared<pumex::PipelineCache>();
+    std::vector<uint32_t>                                     staticTypeIDs;
+    std::vector<StaticInstanceData>                           staticInstanceData;
+    std::unordered_map<uint32_t, std::shared_ptr<XXX>>        dynamicTypeIDs;
+    std::unordered_map<uint32_t, DynamicObjectData>           dynamicObjectData;
+    std::default_random_engine                                randomEngine;
+
+    std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT },
+      { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
     };
+    auto filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
+    auto filterDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
+    auto filterPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
 
-    std::vector<pumex::SubpassDefinition> renderPassSubpasses =
+    std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
     {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    auto instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
+    auto instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, instancedRenderLayoutBindings);
+    auto instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
+
+    if (showStaticRendering)
+    {
+      staticAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+      staticInstancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, staticAssetBuffer, buffersAllocator);
+      staticMaterialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialGpuCull>>(buffersAllocator);
+      staticMaterialSet      = std::make_shared<pumex::MaterialSet>(viewer, staticMaterialRegistry, textureRegistryNull, buffersAllocator, textureSemantic);
+
+      workflow->associateResource("static_indirect_commands", staticInstancedResults->getResults(MAIN_RENDER_MASK));
+      workflow->associateResource("static_offset_values", staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+
+      std::shared_ptr<pumex::Asset> groundAsset(createGround(staticAreaSize, glm::vec4(0.0f, 0.7f, 0.0f, 1.0f)));
+      pumex::BoundingBox groundBbox = pumex::calculateBoundingBox(*groundAsset, MAIN_RENDER_MASK);
+      uint32_t groundTypeID = staticAssetBuffer->registerType("ground", pumex::AssetTypeDefinition(groundBbox));
+      staticMaterialSet->registerMaterials(groundTypeID, groundAsset);
+      staticAssetBuffer->registerObjectLOD(groundTypeID, groundAsset, pumex::AssetLodDefinition(0.0f, 5.0f * staticAreaSize));
+      staticInstanceData.push_back(StaticInstanceData(glm::mat4(), groundTypeID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
+
+      std::shared_ptr<pumex::Asset> coniferTree0 ( createConiferTree( 0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> coniferTree1 ( createConiferTree(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> coniferTree2 ( createConiferTree(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+      pumex::BoundingBox coniferTreeBbox = pumex::calculateBoundingBox(*coniferTree0, MAIN_RENDER_MASK);
+      uint32_t coniferTreeID = staticAssetBuffer->registerType("coniferTree", pumex::AssetTypeDefinition(coniferTreeBbox));
+      staticMaterialSet->registerMaterials(coniferTreeID, coniferTree0);
+      staticMaterialSet->registerMaterials(coniferTreeID, coniferTree1);
+      staticMaterialSet->registerMaterials(coniferTreeID, coniferTree2);
+      staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree0, pumex::AssetLodDefinition(   0.0f * lodModifier,  100.0f * lodModifier ));
+      staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree1, pumex::AssetLodDefinition( 100.0f * lodModifier,  500.0f * lodModifier ));
+      staticAssetBuffer->registerObjectLOD(coniferTreeID, coniferTree2, pumex::AssetLodDefinition( 500.0f * lodModifier, 1200.0f * lodModifier ));
+      staticTypeIDs.push_back(coniferTreeID);
+
+      std::shared_ptr<pumex::Asset> decidousTree0 ( createDecidousTree(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> decidousTree1 ( createDecidousTree(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> decidousTree2 ( createDecidousTree(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+      pumex::BoundingBox decidousTreeBbox = pumex::calculateBoundingBox(*decidousTree0, MAIN_RENDER_MASK);
+      uint32_t decidousTreeID = staticAssetBuffer->registerType("decidousTree", pumex::AssetTypeDefinition(decidousTreeBbox));
+      staticMaterialSet->registerMaterials(decidousTreeID, decidousTree0);
+      staticMaterialSet->registerMaterials(decidousTreeID, decidousTree1);
+      staticMaterialSet->registerMaterials(decidousTreeID, decidousTree2);
+      staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree0, pumex::AssetLodDefinition(   0.0f * lodModifier,  120.0f * lodModifier ));
+      staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree1, pumex::AssetLodDefinition( 120.0f * lodModifier,  600.0f * lodModifier ));
+      staticAssetBuffer->registerObjectLOD(decidousTreeID, decidousTree2, pumex::AssetLodDefinition( 600.0f * lodModifier, 1400.0f * lodModifier ));
+      staticTypeIDs.push_back(decidousTreeID);
+
+      std::shared_ptr<pumex::Asset> simpleHouse0 ( createSimpleHouse(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> simpleHouse1 ( createSimpleHouse(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> simpleHouse2 ( createSimpleHouse(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+      pumex::BoundingBox simpleHouseBbox = pumex::calculateBoundingBox(*simpleHouse0, MAIN_RENDER_MASK);
+      uint32_t simpleHouseID = staticAssetBuffer->registerType("simpleHouse", pumex::AssetTypeDefinition(simpleHouseBbox));
+      staticMaterialSet->registerMaterials(simpleHouseID, simpleHouse0);
+      staticMaterialSet->registerMaterials(simpleHouseID, simpleHouse1);
+      staticMaterialSet->registerMaterials(simpleHouseID, simpleHouse2);
+      staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse0, pumex::AssetLodDefinition(  0.0f * lodModifier,  120.0f * lodModifier));
+      staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse1, pumex::AssetLodDefinition(120.0f * lodModifier,  600.0f * lodModifier));
+      staticAssetBuffer->registerObjectLOD(simpleHouseID, simpleHouse2, pumex::AssetLodDefinition(600.0f * lodModifier, 1400.0f * lodModifier));
+      staticTypeIDs.push_back(simpleHouseID);
+
+      float objectDensity[3]     = { 10000.0f * densityModifier, 1000.0f * densityModifier, 100.0f * densityModifier };
+      float amplitudeModifier[3] = { 1.0f, 1.0f, 0.0f }; // we don't want the house to wave in the wind
+
+      float fullArea = staticAreaSize * staticAreaSize;
+      std::uniform_real_distribution<float> randomX(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
+      std::uniform_real_distribution<float> randomY(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
+      std::uniform_real_distribution<float> randomRotation(-glm::pi<float>(), glm::pi<float>());
+      std::uniform_real_distribution<float> randomScale(0.8f, 1.2f);
+      std::uniform_real_distribution<float> randomBrightness(0.5f, 1.0f);
+      std::uniform_real_distribution<float> randomAmplitude(0.01f, 0.05f);
+      std::uniform_real_distribution<float> randomFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
+      std::uniform_real_distribution<float> randomOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
+
+      for (unsigned int i = 0; i<staticTypeIDs.size(); ++i)
       {
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        {},
-        { { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
-        {},
-        { 1, VK_IMAGE_LAYOUT_GENERAL },
-        {},
-        0
+        int objectQuantity = (int)floor(objectDensity[i] * fullArea / 1000000.0f);
+
+        for (int j = 0; j<objectQuantity; ++j)
+        {
+          glm::vec3 pos( randomX(randomEngine), randomY(randomEngine), 0.0f );
+          float rot             = randomRotation(randomEngine);
+          float scale           = randomScale(randomEngine);
+          float brightness      = randomBrightness(randomEngine);
+          float wavingAmplitude = randomAmplitude(randomEngine) * amplitudeModifier[i];
+          float wavingFrequency = randomFrequency(randomEngine);
+          float wavingOffset    = randomOffset(randomEngine);
+          glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::scale(glm::mat4(), glm::vec3(scale, scale, scale)));
+          staticInstanceData.push_back(StaticInstanceData(position, staticTypeIDs[i], 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
+        }
       }
+      staticInstancedResults->setup();
+      staticMaterialSet->refreshMaterialStructures();
+
+      applicationData->setupStaticRendering(staticAreaSize, staticTypeIDs, staticInstanceData, staticInstancedResults);
+
+      auto staticFilterRoot = std::make_shared<pumex::Group>();
+      staticFilterRoot->setName("staticFilterRoot");
+      workflow->setSceneNode("static_filter", staticFilterRoot);
+
+      auto staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
+      staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
+      staticFilterRoot->addChild(staticFilterPipeline);
+
+      uint32_t instanceCount = staticInstanceData.size();
+      auto staticDispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
+      staticDispatchNode->setName("staticDispatchNode");
+      staticFilterPipeline->addChild(staticDispatchNode);
+
+      auto staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
+      staticFilterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      staticFilterDescriptorSet->setDescriptor(1, applicationData->staticInstanceSbo);
+      staticFilterDescriptorSet->setDescriptor(2, staticAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+      staticFilterDescriptorSet->setDescriptor(3, staticAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+      staticFilterDescriptorSet->setDescriptor(4, staticInstancedResults->getResults(MAIN_RENDER_MASK));
+      staticFilterDescriptorSet->setDescriptor(5, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+      staticDispatchNode->setDescriptorSet(0,staticFilterDescriptorSet);
+
+      auto staticRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout);
+      staticRenderPipeline->shaderStages =
+      {
+        { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_static_render.vert.spv")), "main" },
+        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_static_render.frag.spv")), "main" }
+      };
+      staticRenderPipeline->vertexInput =
+      {
+        { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
+      };
+      staticRenderPipeline->blendAttachments =
+      {
+        { VK_FALSE, 0xF }
+      };
+      staticRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+      renderingRoot->addChild(staticRenderPipeline);
+
+      auto staticAssetBufferNode = std::make_shared<pumex::AssetBufferNode>(staticAssetBuffer, staticMaterialSet, MAIN_RENDER_MASK, 0);
+      staticAssetBufferNode->setName("staticAssetBufferNode");
+      staticRenderPipeline->addChild(staticAssetBufferNode);
+
+      auto staticAssetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(staticInstancedResults);
+      staticAssetBufferDrawIndirect->setName("staticAssetBufferDrawIndirect");
+      staticAssetBufferNode->addChild(staticAssetBufferDrawIndirect);
+
+      auto staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
+      staticRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      staticRenderDescriptorSet->setDescriptor(1, applicationData->staticInstanceSbo);
+      staticRenderDescriptorSet->setDescriptor(2, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+      staticRenderDescriptorSet->setDescriptor(3, staticMaterialSet->typeDefinitionSbo);
+      staticRenderDescriptorSet->setDescriptor(4, staticMaterialSet->materialVariantSbo);
+      staticRenderDescriptorSet->setDescriptor(5, staticMaterialRegistry->materialDefinitionSbo);
+      staticAssetBufferDrawIndirect->setDescriptorSet(0, staticRenderDescriptorSet);
+    }
+
+    if (showDynamicRendering)
+    {
+      dynamicAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+      dynamicInstancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, dynamicAssetBuffer, buffersAllocator);
+      dynamicMaterialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialGpuCull>>(buffersAllocator);
+      dynamicMaterialSet      = std::make_shared<pumex::MaterialSet>(viewer, dynamicMaterialRegistry, textureRegistryNull, buffersAllocator, textureSemantic);
+
+      workflow->associateResource("dynamic_indirect_commands", dynamicInstancedResults->getResults(MAIN_RENDER_MASK));
+      workflow->associateResource("dynamic_offset_values", dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+
+      std::shared_ptr<pumex::Asset> blimpLod0 ( createBlimp(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)) );
+      std::shared_ptr<pumex::Asset> blimpLod1 ( createBlimp(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)) );
+      std::shared_ptr<pumex::Asset> blimpLod2 ( createBlimp(0.20f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)) );
+      pumex::BoundingBox blimpBbox = pumex::calculateBoundingBox(*blimpLod0, MAIN_RENDER_MASK);
+      uint32_t blimpID = dynamicAssetBuffer->registerType("blimp", pumex::AssetTypeDefinition(blimpBbox));
+      dynamicMaterialSet->registerMaterials(blimpID, blimpLod0);
+      dynamicMaterialSet->registerMaterials(blimpID, blimpLod1);
+      dynamicMaterialSet->registerMaterials(blimpID, blimpLod2);
+      dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod0, pumex::AssetLodDefinition(  0.0f * lodModifier,  150.0f * lodModifier));
+      dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod1, pumex::AssetLodDefinition(150.0f * lodModifier,  800.0f * lodModifier));
+      dynamicAssetBuffer->registerObjectLOD(blimpID, blimpLod2, pumex::AssetLodDefinition(800.0f * lodModifier, 6500.0f * lodModifier));
+      dynamicTypeIDs.insert({ blimpID, std::make_shared<BlimpXXX>(pumex::calculateResetPosition(*blimpLod0), blimpLod0->skeleton.invBoneNames["propL"],blimpLod0->skeleton.invBoneNames["propR"]) });
+
+      std::shared_ptr<pumex::Asset> carLod0(createCar(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.3, 0.3, 0.3, 1.0)));
+      std::shared_ptr<pumex::Asset> carLod1(createCar(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> carLod2(createCar(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+      pumex::BoundingBox carBbox = pumex::calculateBoundingBox(*carLod0, MAIN_RENDER_MASK);
+      uint32_t carID = dynamicAssetBuffer->registerType("car", pumex::AssetTypeDefinition(carBbox));
+      dynamicMaterialSet->registerMaterials(carID, carLod0);
+      dynamicMaterialSet->registerMaterials(carID, carLod1);
+      dynamicMaterialSet->registerMaterials(carID, carLod2);
+      dynamicAssetBuffer->registerObjectLOD(carID, carLod0, pumex::AssetLodDefinition(  0.0f * lodModifier,   50.0f * lodModifier));
+      dynamicAssetBuffer->registerObjectLOD(carID, carLod1, pumex::AssetLodDefinition( 50.0f * lodModifier,  300.0f * lodModifier));
+      dynamicAssetBuffer->registerObjectLOD(carID, carLod2, pumex::AssetLodDefinition(300.0f * lodModifier, 1000.0f * lodModifier));
+      dynamicTypeIDs.insert({ carID, std::make_shared<CarXXX>(pumex::calculateResetPosition(*carLod0), carLod0->skeleton.invBoneNames["wheel0"], carLod0->skeleton.invBoneNames["wheel1"], carLod0->skeleton.invBoneNames["wheel2"], carLod0->skeleton.invBoneNames["wheel3"]) });
+
+      std::shared_ptr<pumex::Asset> airplaneLod0(createAirplane(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> airplaneLod1(createAirplane(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+      std::shared_ptr<pumex::Asset> airplaneLod2(createAirplane(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+      pumex::BoundingBox airplaneBbox = pumex::calculateBoundingBox(*airplaneLod0, MAIN_RENDER_MASK);
+      uint32_t airplaneID = dynamicAssetBuffer->registerType("airplane", pumex::AssetTypeDefinition(airplaneBbox));
+      dynamicMaterialSet->registerMaterials(airplaneID, airplaneLod0);
+      dynamicMaterialSet->registerMaterials(airplaneID, airplaneLod1);
+      dynamicMaterialSet->registerMaterials(airplaneID, airplaneLod2);
+      dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod0, pumex::AssetLodDefinition(  0.0f * lodModifier,   80.0f * lodModifier));
+      dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod1, pumex::AssetLodDefinition( 80.0f * lodModifier,  400.0f * lodModifier));
+      dynamicAssetBuffer->registerObjectLOD(airplaneID, airplaneLod2, pumex::AssetLodDefinition(400.0f * lodModifier, 1200.0f * lodModifier));
+      dynamicTypeIDs.insert({ airplaneID, std::make_shared<AirplaneXXX>(pumex::calculateResetPosition(*airplaneLod0), blimpLod0->skeleton.invBoneNames["prop"]) });
+
+      float objectZ[3]        = { 50.0f, 0.0f, 25.0f };
+      float objectDensity[3]  = { 100.0f * densityModifier, 100.0f * densityModifier, 100.0f * densityModifier };
+      float minObjectSpeed[3] = { 5.0f, 1.0f, 10.0f };
+      float maxObjectSpeed[3] = { 10.0f, 5.0f, 16.0f };
+
+      std::unordered_map<uint32_t, std::uniform_real_distribution<float>> randomObjectSpeed;
+      for (auto it = dynamicTypeIDs.begin(); it != dynamicTypeIDs.end(); ++it)
+        randomObjectSpeed.insert({ it->first,std::uniform_real_distribution<float>(minObjectSpeed[it->first], maxObjectSpeed[it->first]) });
+
+      float fullArea = dynamicAreaSize * dynamicAreaSize;
+      std::uniform_real_distribution<float> randomX(-0.5f*dynamicAreaSize, 0.5f * dynamicAreaSize);
+      std::uniform_real_distribution<float> randomY(-0.5f*dynamicAreaSize, 0.5f * dynamicAreaSize);
+      std::uniform_real_distribution<float> randomRotation(-glm::pi<float>(), glm::pi<float>());
+      std::uniform_real_distribution<float> randomBrightness(0.5f, 1.0f);
+      std::exponential_distribution<float>  randomTime2NextTurn(0.1f);
+
+      uint32_t objectID = 0;
+      for(auto it = dynamicTypeIDs.begin(); it!= dynamicTypeIDs.end(); ++it)
+      {
+
+        int objectQuantity = (int)floor(objectDensity[it->first] * fullArea / 1000000.0f);
+        for (int j = 0; j<objectQuantity; ++j)
+        {
+          objectID++;
+          DynamicObjectData objectData;
+          objectData.typeID                = it->first;
+          objectData.kinematic.position    = glm::vec3(randomX(randomEngine), randomY(randomEngine), objectZ[it->first]);
+          objectData.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+          objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[objectData.typeID](randomEngine);
+          objectData.brightness            = randomBrightness(randomEngine);
+          objectData.time2NextTurn         = randomTime2NextTurn(randomEngine);
+          dynamicObjectData.insert({ objectID,objectData });
+        }
+      }
+      dynamicInstancedResults->setup();
+      dynamicMaterialSet->refreshMaterialStructures();
+
+      applicationData->setupDynamicRendering(dynamicAreaSize, dynamicTypeIDs, randomObjectSpeed, dynamicObjectData, dynamicInstancedResults);
+
+      auto dynamicFilterRoot = std::make_shared<pumex::Group>();
+      dynamicFilterRoot->setName("staticFilterRoot");
+      workflow->setSceneNode("dynamic_filter", dynamicFilterRoot);
+
+      auto dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
+      dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_dynamic_filter_instances.comp.spv")), "main" };
+
+      uint32_t instanceCount = dynamicObjectData.size();
+      auto dynamicDispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
+      dynamicDispatchNode->setName("dynamicDispatchNode");
+      dynamicFilterPipeline->addChild(dynamicDispatchNode);
+
+      auto dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
+      dynamicFilterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      dynamicFilterDescriptorSet->setDescriptor(1, applicationData->dynamicInstanceSbo);
+      dynamicFilterDescriptorSet->setDescriptor(2, dynamicAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
+      dynamicFilterDescriptorSet->setDescriptor(3, dynamicAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
+      dynamicFilterDescriptorSet->setDescriptor(4, dynamicInstancedResults->getResults(MAIN_RENDER_MASK));
+      dynamicFilterDescriptorSet->setDescriptor(5, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+      dynamicDispatchNode->setDescriptorSet(0, dynamicFilterDescriptorSet);
+
+      auto dynamicRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout);
+      dynamicRenderPipeline->shaderStages =
+      {
+        { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_dynamic_render.vert.spv")), "main" },
+        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_dynamic_render.frag.spv")), "main" }
+      };
+      dynamicRenderPipeline->vertexInput =
+      {
+        { 0, VK_VERTEX_INPUT_RATE_VERTEX, vertexSemantic }
+      };
+      dynamicRenderPipeline->blendAttachments =
+      {
+        { VK_FALSE, 0xF }
+      };
+      dynamicRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+      renderingRoot->addChild(dynamicRenderPipeline);
+
+      auto dynamicAssetBufferNode = std::make_shared<pumex::AssetBufferNode>(dynamicAssetBuffer, dynamicMaterialSet, MAIN_RENDER_MASK, 0);
+      dynamicAssetBufferNode->setName("dynamicAssetBufferNode");
+      dynamicRenderPipeline->addChild(dynamicAssetBufferNode);
+
+      auto dynamicAssetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(dynamicInstancedResults);
+      dynamicAssetBufferDrawIndirect->setName("dynamicAssetBufferDrawIndirect");
+      dynamicAssetBufferNode->addChild(dynamicAssetBufferDrawIndirect);
+
+      auto dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
+      dynamicRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      dynamicRenderDescriptorSet->setDescriptor(1, applicationData->dynamicInstanceSbo);
+      dynamicRenderDescriptorSet->setDescriptor(2, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
+      dynamicRenderDescriptorSet->setDescriptor(3, dynamicMaterialSet->typeDefinitionSbo);
+      dynamicRenderDescriptorSet->setDescriptor(4, dynamicMaterialSet->materialVariantSbo);
+      dynamicRenderDescriptorSet->setDescriptor(5, dynamicMaterialRegistry->materialDefinitionSbo);
+    }
+
+    std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
+    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
+    auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+
+    auto fontSmall   = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512), 16, texturesAllocator, buffersAllocator);
+    auto textSmall   = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
+
+    // building text pipeline layout
+    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
-    std::vector<pumex::SubpassDependencyDefinition> renderPassDependencies;
+    auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
+    auto textDescriptorPool      = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
+    auto textPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
+    auto textPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
+    textPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+    };
+    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    textPipeline->blendAttachments =
+    {
+      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
+      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+    };
+    textPipeline->depthTestEnable  = VK_FALSE;
+    textPipeline->depthWriteEnable = VK_FALSE;
+    textPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+    };
+    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    renderingRoot->addChild(textPipeline);
 
-    std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
+    textPipeline->addChild(textDefault);
+    textPipeline->addChild(textSmall);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0,{ 0.75f } });
-    surfaceTraits.setDefaultRenderPass(renderPass);
-    surfaceTraits.setFrameBufferImages(frameBufferImages);
+    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
+    textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    textDefault->setDescriptorSet(0, textDescriptorSet);
 
-    std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(viewer);
-    applicationData->defaultRenderPass = renderPass;
-    applicationData->setup(showStaticRendering,showDynamicRendering, staticAreaSize, dynamicAreaSize, lodModifier, densityModifier, triangleModifier);
+    auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
+    textDescriptorSetSmall->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    textSmall->setDescriptorSet(0, textDescriptorSetSmall);
+
+
     if (render3windows)
     {
       applicationData->setSlaveViewMatrix(0, glm::rotate(glm::mat4(), glm::radians(-75.16f), glm::vec3(0.0f, 1.0f, 0.0f)));
@@ -1811,11 +1739,10 @@ int main(int argc, char * argv[])
       applicationData->setSlaveViewMatrix(0, glm::mat4());
     }
 
-    std::vector<std::shared_ptr<pumex::Surface>> surfaces;
-    for (auto win : windows)
-      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
+    // connecting workflow to all surfaces
+    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
     for (auto surf : surfaces)
-      applicationData->surfaceSetup(surf);
+      surf->setRenderWorkflow(workflow, workflowCompiler);
 
     // Making the update graph
     // The update in this example is "almost" singlethreaded. 
@@ -1829,63 +1756,17 @@ int main(int argc, char * argv[])
       for (auto surf : surfaces)
         applicationData->processInput(surf);
       auto updateBeginTime = applicationData->setTime(1010, inputBeginTime);
-      applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
+      applicationData->update(viewer, pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
       applicationData->setTime(1020, updateBeginTime);
     });
 
     tbb::flow::make_edge(viewer->startUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->endUpdateGraph);
 
-    // Making the render graph.
-    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
-    // Consider make_edge() in render graph :
-    // viewer->startRenderGraph should point to all root nodes.
-    // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg)
-    {
-      auto staticBeginTime = applicationData->now();
-      applicationData->fillFPS();
-      if (applicationData->_showStaticRendering)
-        applicationData->prepareStaticBuffersForRendering();
-      auto dynamicBeginTime = applicationData->setTime(2010, staticBeginTime);
-      if (applicationData->_showDynamicRendering)
-        applicationData->prepareDynamicBuffersForRendering();
-      applicationData->setTime(2011, dynamicBeginTime);
-
-    });
-    std::vector<tbb::flow::continue_node< tbb::flow::continue_msg >> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
-    for (auto& surf : surfaces)
-    {
-
-      startSurfaceFrame.emplace_back(viewer->renderGraph, [=](tbb::flow::continue_msg)
-      {
-        auto t = applicationData->now();
-        applicationData->prepareCameraForRendering(surf);
-        surf->beginFrame();
-        applicationData->setTime(2020 + surf->getID(), t);
-      });
-      drawSurfaceFrame.emplace_back(viewer->renderGraph, [=](tbb::flow::continue_msg)
-      {
-        auto t = applicationData->now();
-        applicationData->draw(surf);
-        applicationData->setTime(2030 + surf->getID(), t);
-      });
-      endSurfaceFrame.emplace_back(viewer->renderGraph, [=](tbb::flow::continue_msg)
-      {
-        auto t = applicationData->now();
-        surf->endFrame();
-        applicationData->setTime(2040 + surf->getID(), t);
-      });
-    }
-
-    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
-    for (uint32_t i = 0; i < startSurfaceFrame.size(); ++i)
-    {
-      tbb::flow::make_edge(prepareBuffers, startSurfaceFrame[i]);
-      tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);
-      tbb::flow::make_edge(drawSurfaceFrame[i], endSurfaceFrame[i]);
-      tbb::flow::make_edge(endSurfaceFrame[i], viewer->endRenderGraph);
-    }
+    // set render callbacks to application data
+    viewer->setEventRenderStart(std::bind(&GpuCullApplicationData::prepareBuffersForRendering, applicationData, std::placeholders::_1));
+    for (auto surf : surfaces)
+      surf->setEventSurfaceRenderStart(std::bind(&GpuCullApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
 
     viewer->run();
   }

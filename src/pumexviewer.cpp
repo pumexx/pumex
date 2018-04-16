@@ -85,7 +85,7 @@ struct RenderData
 
 struct ViewerApplicationData
 {
-  ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
+  ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
   {
     cameraUbo     = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
@@ -349,9 +349,16 @@ int main( int argc, char * argv[] )
   std::shared_ptr<pumex::Viewer> viewer;
   try
   {
-    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
     auto fullModelFileName = viewer->getFullFilePath(modelFileName);
     CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
+
+    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+
+    pumex::AssetLoaderAssimp loader;
+    std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
+    CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
+
+    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
@@ -385,9 +392,6 @@ int main( int argc, char * argv[] )
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
     workflow->setSceneNode("rendering", renderRoot);
-
-    std::vector<pumex::VertexSemantic>             requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics   = { { 1, requiredSemantic } };
 
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
     {
@@ -439,10 +443,6 @@ int main( int argc, char * argv[] )
     };
     boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderRoot->addChild(boxPipeline);
-
-    pumex::AssetLoaderAssimp loader;
-    std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
-    CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
 
     pumex::BoundingBox bbox;
     if (asset->animations.size() > 0)

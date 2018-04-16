@@ -42,7 +42,6 @@ const uint32_t MAX_BONES = 511;
 const uint32_t CLIPMAP_TEXTURE_COUNT = 4;
 const uint32_t CLIPMAP_TEXTURE_SIZE  = 128;
 
-
 struct PositionData
 {
   PositionData()
@@ -88,199 +87,28 @@ struct RenderData
   float                   cameraDistance;
 };
 
-
-
 struct VoxelizerApplicationData
 {
-  VoxelizerApplicationData(std::shared_ptr<pumex::Viewer> v, const std::string& mName, const std::string& aName)
-    : viewer{v}
+  VoxelizerApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DeviceMemoryAllocator> volumeAllocator, std::shared_ptr<pumex::Asset> a)
+    : asset{ a }
   {
-    modelName     = viewer->getFullFilePath(mName);
-    if(!aName.empty())
-      animationName = viewer->getFullFilePath(aName);
-  }
-  void setup()
-  {
-    // alocate 1 MB for uniform and storage buffers
-    buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT , 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 64 MB for vertex and index buffers
-    verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
-    std::vector<pumex::VertexSemantic> requiredSemantic           = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 }, { pumex::VertexSemantic::BoneWeight, 4 }, { pumex::VertexSemantic::BoneIndex, 4 } };
-    std::vector<pumex::VertexSemantic> boxSemantic                = requiredSemantic;//{ { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 } };
-    std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, requiredSemantic } };
-    std::vector<pumex::AssetBufferVertexSemantics> boxSemantics   = { { 1, boxSemantic } };
-
-    assetBuffer    = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    pumex::AssetLoaderAssimp loader;
-    std::shared_ptr<pumex::Asset> asset(loader.load(modelName, false, requiredSemantic));
-    CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelName);
-    if (!animationName.empty())
-    {
-      std::shared_ptr<pumex::Asset> animAsset(loader.load(animationName, true, requiredSemantic));
-      CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationName);
-      asset->animations = animAsset->animations;
-    }
-
-    pumex::BoundingBox bbox;
-    if (asset->animations.size() > 0)
-      bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
-    else
-      bbox = pumex::calculateBoundingBox(*asset,1);
-
-    modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
-    assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-    voxelBoundingBox = pumex::BoundingBox(glm::vec3(-10.0f, -10.0f, 0.0f), glm::vec3(10.0f, 10.0f, 20.0f));
-
-    pumex::Geometry voxelBox;
-    voxelBox.name = "voxelBox";
-    voxelBox.semantic = requiredSemantic;
-    voxelBox.materialIndex = 0;
-    pumex::addBox(voxelBox, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), false);
-    std::shared_ptr<pumex::Asset> voxelBoxAsset(pumex::createSimpleAsset(voxelBox, "voxelBox"));
-
-    voxelBoxTypeID = assetBuffer->registerType("voxelBox", pumex::AssetTypeDefinition(pumex::BoundingBox(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f))));
-    assetBuffer->registerObjectLOD(voxelBoxTypeID, voxelBoxAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-    // allocate memory for clipmaps
-    clipmapAllocator     = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, CLIPMAP_TEXTURE_COUNT * CLIPMAP_TEXTURE_SIZE * CLIPMAP_TEXTURE_SIZE * CLIPMAP_TEXTURE_SIZE * 4 * 2, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    pumex::ImageTraits   clipMapIt(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, VkExtent3D{}, false, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE, VK_IMAGE_VIEW_TYPE_3D);
-    pumex::SamplerTraits clipMapTt(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
-    clipMap = std::make_shared<pumex::Clipmap3>(CLIPMAP_TEXTURE_COUNT, CLIPMAP_TEXTURE_SIZE, pumex::makeColorClearValue(glm::vec4(0.0f,0.0f,0.0f,0.0f)), clipMapIt, clipMapTt, clipmapAllocator );
-
-    // create render pass for voxelization
-    std::vector<pumex::FrameBufferImageDefinition> voxelizeFrameBufferDefinitions =
-    {
-    };
-    voxelizeFrameBufferImages = std::make_shared<pumex::FrameBufferImages>(voxelizeFrameBufferDefinitions, clipmapAllocator);
-    std::vector<pumex::AttachmentDefinition> voxelizeRenderPassAttachments =
-    {
-    };
-    std::vector<pumex::SubpassDefinition> voxelizeRenderPassSubpasses =
-    {
-      {
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        {},
-        {},
-        {},
-        { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
-        {},
-        0
-      }
-    };
-    std::vector<pumex::SubpassDependencyDefinition> voxelizeRenderPassDependencies;
-    voxelizeRenderPass  = std::make_shared<pumex::RenderPass>(voxelizeRenderPassAttachments, voxelizeRenderPassSubpasses, voxelizeRenderPassDependencies);
-    voxelizeFrameBuffer = std::make_unique<pumex::FrameBuffer>(voxelizeRenderPass, voxelizeFrameBufferImages);
-
-    // create pipeline cache
-    pipelineCache = std::make_shared<pumex::PipelineCache>();
-
-    // create pipeline for voxelization
-    std::vector<pumex::DescriptorSetLayoutBinding> voxelizeLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    voxelizeDescriptorSetLayout   = std::make_shared<pumex::DescriptorSetLayout>(voxelizeLayoutBindings);
-    voxelizePipelineLayout        = std::make_shared<pumex::PipelineLayout>();
-    voxelizePipelineLayout->descriptorSetLayouts.push_back(voxelizeDescriptorSetLayout);
-    voxelizeDescriptorPool        = std::make_shared<pumex::DescriptorPool>(2, voxelizeLayoutBindings);
-    voxelizePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, voxelizePipelineLayout, voxelizeRenderPass, 0);
-    voxelizePipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
-    };
-    voxelizePipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_voxelize.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_voxelize.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_voxelize.frag.spv")), "main" }
-    };
-    voxelizePipeline->cullMode = VK_CULL_MODE_NONE;
-    voxelizePipeline->depthTestEnable = VK_FALSE;
-    voxelizePipeline->depthWriteEnable = VK_FALSE;
-    voxelizePipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    // create pipeline for ray marching
-    std::vector<pumex::DescriptorSetLayoutBinding> raymarchLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    raymarchDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(raymarchLayoutBindings);
-    raymarchPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    raymarchPipelineLayout->descriptorSetLayouts.push_back(raymarchDescriptorSetLayout);
-    raymarchDescriptorPool = std::make_shared<pumex::DescriptorPool>(2, raymarchLayoutBindings);
-    raymarchPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, raymarchPipelineLayout, defaultRenderPass, 0);
-    raymarchPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_raymarch.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_raymarch.frag.spv")), "main" }
-    };
-    raymarchPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
-    };
-    raymarchPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    raymarchPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    // create pipeline for basic model rendering
-    std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
-    };
-    descriptorSetLayout    = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
-    pipelineLayout         = std::make_shared<pumex::PipelineLayout>();
-    pipelineLayout->descriptorSetLayouts.push_back(descriptorSetLayout);
-    descriptorPool         = std::make_shared<pumex::DescriptorPool>(2, layoutBindings);
-    pipeline               = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout, defaultRenderPass, 0);
-    pipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_basic.frag.spv")), "main" }
-    };
-    pipeline->vertexInput  =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
-    };
-    pipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF }
-    };
-    pipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
     // build uniform buffers for camera
     cameraUbo         = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
     voxelizeCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    positionUbo       = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
+    voxelPositionUbo  = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
 
-    // is this the fastest way to calculate all global transformations for a model ?
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
     std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
-    positionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(modelData, buffersAllocator);
+    positionUbo->set(modelData);
     PositionData vbData;
-    voxelPositionUbo = std::make_shared<pumex::UniformBuffer<PositionData>>(vbData, buffersAllocator);
+    voxelPositionUbo->set(vbData);
 
-    voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout, voxelizeDescriptorPool);
-    voxelizeDescriptorSet->setDescriptor(0, voxelizeCameraUbo);
-    voxelizeDescriptorSet->setDescriptor(1, positionUbo);
-    voxelizeDescriptorSet->setDescriptor(2, clipMap);
-
-    raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout, raymarchDescriptorPool);
-    raymarchDescriptorSet->setDescriptor(0, cameraUbo);
-    raymarchDescriptorSet->setDescriptor(1, voxelPositionUbo);
-    raymarchDescriptorSet->setDescriptor(2, clipMap);
-
-    descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    descriptorSet->setDescriptor(0, cameraUbo);
-    descriptorSet->setDescriptor(1, positionUbo);
+    // build 3D texture
+    pumex::ImageTraits   volumeImageTraits(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, false, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE, VK_IMAGE_VIEW_TYPE_3D);
+    pumex::SamplerTraits volumeSamplerTraits(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
+    volumeTexture = std::make_shared<pumex::Texture>(volumeImageTraits, volumeSamplerTraits, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), volumeAllocator);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -291,57 +119,22 @@ struct VoxelizerApplicationData
     updateData.moveBackward                = false;
     updateData.moveLeft                    = false;
     updateData.moveRight                   = false;
-  }
 
-  void surfaceSetup(std::shared_ptr<pumex::Surface> surface)
-  {
-    pumex::Device*      devicePtr      = surface->device.lock().get();
-    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-
-    myCmdBuffer[surface.get()] = std::make_shared<pumex::CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, devicePtr, commandPoolPtr, surface->getImageCount());
-
-    cameraUbo->validate(surface.get());
-    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    voxelPositionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    voxelizeCameraUbo->validate(surface.get());
-
-    // loading models
-    assetBuffer->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-
-    clipMap->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-
-    pipelineCache->validate(devicePtr);
-
-    voxelizeDescriptorSetLayout->validate(devicePtr);
-    voxelizeDescriptorPool->validate(devicePtr);
-    voxelizePipelineLayout->validate(devicePtr);
-    voxelizePipeline->validate(devicePtr);
-
-    voxelizeFrameBufferImages->validate(surface.get());
-    voxelizeRenderPass->validate(devicePtr);
-    voxelizeFrameBuffer->validate(surface.get());
-
-    raymarchDescriptorSetLayout->validate(devicePtr);
-    raymarchDescriptorPool->validate(devicePtr);
-    raymarchPipelineLayout->validate(devicePtr);
-    raymarchPipeline->validate(devicePtr);
-
-    descriptorSetLayout->validate(devicePtr);
-    descriptorPool->validate(devicePtr);
-    pipelineLayout->validate(devicePtr);
-    pipeline->validate(devicePtr);
-
-    // preparing descriptor sets
-    voxelizeDescriptorSet->validate(surface.get());
-    raymarchDescriptorSet->validate(surface.get());
-    descriptorSet->validate(surface.get());
+    // FIXME - voxelBoundingBox should be calculated from asset bb
+    pumex::BoundingBox bbox;
+    if (asset->animations.size() > 0)
+      bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
+    else
+      bbox = pumex::calculateBoundingBox(*asset,1);
+    voxelBoundingBox = pumex::BoundingBox(glm::vec3(-10.0f, -10.0f, 0.0f), glm::vec3(10.0f, 10.0f, 20.0f));
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
-    std::shared_ptr<pumex::Window>  windowSh = surface->window.lock();
+    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
+    std::shared_ptr<pumex::Window> window = surface->window.lock();
 
-    std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
+    std::vector<pumex::InputEvent> mouseEvents = window->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
     for (const auto& m : mouseEvents)
     {
@@ -437,6 +230,7 @@ struct VoxelizerApplicationData
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
+    auto viewer = surface->viewer.lock();
     uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
 
@@ -483,12 +277,10 @@ struct VoxelizerApplicationData
     voxelizeCameraUbo->set(surface.get(), voxelizeCamera);
   }
 
-  void prepareModelForRendering()
+  void prepareModelForRendering( std::shared_ptr<pumex::Viewer> viewer )
   {
-    std::shared_ptr<pumex::Asset> assetX = assetBuffer->getAsset(modelTypeID, 0);
-    if (!assetX->animations.empty())
+    if (!asset->animations.empty())
     {
-
       uint32_t renderIndex = viewer->getRenderIndex();
       const RenderData& rData = renderData[renderIndex];
 
@@ -497,8 +289,8 @@ struct VoxelizerApplicationData
 
 
       PositionData positionData;
-      pumex::Animation& anim = assetX->animations[0];
-      pumex::Skeleton& skel = assetX->skeleton;
+      pumex::Animation& anim = asset->animations[0];
+      pumex::Skeleton& skel = asset->skeleton;
 
       uint32_t numAnimChannels = anim.channels.size();
       uint32_t numSkelBones = skel.bones.size();
@@ -534,81 +326,6 @@ struct VoxelizerApplicationData
     voxelPositionUbo->set(voxelPositionData);
   }
 
-  void draw(std::shared_ptr<pumex::Surface> surface)
-  {
-    pumex::Surface*     surfacePtr = surface.get();
-    pumex::Device*      devicePtr = surface->device.lock().get();
-    pumex::CommandPool* commandPoolPtr = surface->commandPool.get();
-    unsigned long long  frameNumber = surface->viewer.lock()->getFrameNumber();
-    uint32_t            activeIndex = frameNumber % 3;
-    uint32_t            renderWidth = surface->swapChainSize.width;
-    uint32_t            renderHeight = surface->swapChainSize.height;
-
-    cameraUbo->validate(surfacePtr);
-    positionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    voxelizeCameraUbo->validate(surfacePtr);
-    voxelPositionUbo->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-    clipMap->validate(devicePtr, commandPoolPtr, surface->presentationQueue);
-
-    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
-    currentCmdBuffer->setActiveIndex(activeIndex);
-
-    if (currentCmdBuffer->isDirty(activeIndex))
-    {
-//      std::vector<pumex::DescriptorSetValue> clipMapBuffer;
-//      clipMap->getDescriptorSetValues(devicePtr->device, 0, clipMapBuffer);
-
-      currentCmdBuffer->cmdBegin();
-
-//      currentCmdBuffer->setImageLayout(*clipMap->getHandleImage(devicePtr->device, 0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-      pumex::Image* image = clipMap->getHandleImage(devicePtr->device, 0);
-      VkImageSubresourceRange subRes{};
-      subRes.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-      subRes.baseMipLevel   = 0;
-      subRes.levelCount     = 1;
-      subRes.baseArrayLayer = 0;
-      subRes.layerCount     = 1;
-      std::vector<VkImageSubresourceRange> subResources;
-      subResources.push_back(subRes);
-      currentCmdBuffer->cmdClearColorImage(*image, VK_IMAGE_LAYOUT_GENERAL, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), subResources);
-
-      std::vector<VkClearValue> voxelClearValues = { pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)) };
-      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, voxelizeRenderPass.get(), voxelizeFrameBuffer.get(), 0, pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE), voxelClearValues);
-      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE, 0.0f, 1.0f) });
-      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE) });
-
-      currentCmdBuffer->cmdBindPipeline(voxelizePipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, voxelizePipelineLayout.get(), 0, voxelizeDescriptorSet.get());
-      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
-      currentCmdBuffer->cmdEndRenderPass();
-
-//      currentCmdBuffer->setImageLayout( *clipMap->getHandleImage(devicePtr->device,0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-
-      // voxel raymarching
-      currentCmdBuffer->cmdBindPipeline(raymarchPipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, raymarchPipelineLayout.get(), 0, raymarchDescriptorSet.get());
-      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, voxelBoxTypeID, 0, 50.0f);
-
-      // model render
-      currentCmdBuffer->cmdBindPipeline(pipeline.get());
-      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
-      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
-
-      currentCmdBuffer->cmdEndRenderPass();
-      currentCmdBuffer->cmdEnd();
-    }
-    currentCmdBuffer->queueSubmit(surface->presentationQueue, { surface->imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { surface->renderCompleteSemaphore }, VK_NULL_HANDLE);
-  }
-
-  std::shared_ptr<pumex::Viewer> viewer;
   std::string modelName;
   std::string animationName;
   uint32_t    modelTypeID;
@@ -617,47 +334,14 @@ struct VoxelizerApplicationData
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
 
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        buffersAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        verticesAllocator;
-  std::shared_ptr<pumex::DeviceMemoryAllocator>        clipmapAllocator;
-  
+  std::shared_ptr<pumex::Asset>                                  asset;
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> voxelizeCameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>  voxelPositionUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>            voxelPositionUbo;
+  std::shared_ptr<pumex::Texture>                                volumeTexture;
+
   pumex::BoundingBox                                   voxelBoundingBox;
-
-  std::shared_ptr<pumex::AssetBuffer>         assetBuffer;
-  
-  std::shared_ptr<pumex::Clipmap3>            clipMap;
-  
-  std::shared_ptr<pumex::RenderPass>          defaultRenderPass;
-
-  std::shared_ptr<pumex::PipelineCache>       pipelineCache;
-
-  std::shared_ptr<pumex::DescriptorSetLayout> descriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>      pipelineLayout;
-  std::shared_ptr<pumex::DescriptorPool>      descriptorPool;
-  std::shared_ptr<pumex::GraphicsPipeline>    pipeline;
-  std::shared_ptr<pumex::DescriptorSet>       descriptorSet;
-
-  std::shared_ptr<pumex::DescriptorSetLayout> raymarchDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>      raymarchPipelineLayout;
-  std::shared_ptr<pumex::DescriptorPool>      raymarchDescriptorPool;
-  std::shared_ptr<pumex::GraphicsPipeline>    raymarchPipeline;
-  std::shared_ptr<pumex::DescriptorSet>       raymarchDescriptorSet;
-
-  std::shared_ptr<pumex::DescriptorSetLayout> voxelizeDescriptorSetLayout;
-  std::shared_ptr<pumex::PipelineLayout>      voxelizePipelineLayout;
-  std::shared_ptr<pumex::DescriptorPool>      voxelizeDescriptorPool;
-  std::shared_ptr<pumex::GraphicsPipeline>    voxelizePipeline;
-  std::shared_ptr<pumex::DescriptorSet>       voxelizeDescriptorSet;
-
-  std::shared_ptr<pumex::FrameBufferImages>   voxelizeFrameBufferImages;
-  std::shared_ptr<pumex::RenderPass>          voxelizeRenderPass;
-  std::shared_ptr<pumex::FrameBuffer>         voxelizeFrameBuffer;
-
-  std::unordered_map<pumex::Surface*, std::shared_ptr<pumex::CommandBuffer>> myCmdBuffer;
 };
 
 int main( int argc, char * argv[] )
@@ -711,59 +395,280 @@ int main( int argc, char * argv[] )
   std::shared_ptr<pumex::Viewer> viewer;
   try
   {
+    auto fullModelFileName = viewer->getFullFilePath(modelFileName);
+    CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
+    auto fullAnimationFileName = viewer->getFullFilePath(animationFileName);
+
+    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+    pumex::AssetLoaderAssimp loader;
+    std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
+    CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelFileName);
+    if (!fullAnimationFileName.empty())
+    {
+      std::shared_ptr<pumex::Asset> animAsset(loader.load(fullAnimationFileName, true, requiredSemantic));
+      CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationFileName);
+      asset->animations = animAsset->animations;
+    }
+
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
-    std::vector<pumex::QueueTraits> requestQueues = { pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT , 0, { 0.75f } } };
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-    std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestQueues, requestDeviceExtensions);
-    CHECK_LOG_THROW(!device->isValid(), "Cannot create logical device with requested parameters");
+    std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    std::vector<pumex::FrameBufferImageDefinition> frameBufferDefinitions =
-    {
-      { pumex::atSurface, VK_FORMAT_B8G8R8A8_UNORM,    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         VK_IMAGE_ASPECT_COLOR_BIT,                               VK_SAMPLE_COUNT_1_BIT },
-      { pumex::atDepth,   VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_SAMPLE_COUNT_1_BIT }
-    };
-
-    // allocate 16 MB for frame buffers ( actually only depth buffer will be allocated )
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    std::shared_ptr<pumex::FrameBufferImages> frameBufferImages = std::make_shared<pumex::FrameBufferImages>(frameBufferDefinitions, frameBufferAllocator);
-
-    std::vector<pumex::AttachmentDefinition> renderPassAttachments =
-    {
-      { 0, VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0 },
-      { 1, VK_FORMAT_D24_UNORM_S8_UINT, VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,         0 }
-    };
-
-    std::vector<pumex::SubpassDefinition> renderPassSubpasses = 
-    {
-      {
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        {},
-        { { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } },
-        {},
-        { 1, VK_IMAGE_LAYOUT_GENERAL },
-        {},
-        0
-      }
-    };
-    std::vector<pumex::SubpassDependencyDefinition> renderPassDependencies;
-
-    std::shared_ptr<pumex::RenderPass> renderPass = std::make_shared<pumex::RenderPass>(renderPassAttachments, renderPassSubpasses, renderPassDependencies);
-
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    surfaceTraits.definePresentationQueue(pumex::QueueTraits{ VK_QUEUE_GRAPHICS_BIT, 0,{ 0.75f } });
-    surfaceTraits.setDefaultRenderPass(renderPass);
-    surfaceTraits.setFrameBufferImages(frameBufferImages);
-
-    std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(viewer, modelFileName, animationFileName);
-    applicationData->defaultRenderPass = renderPass;
-    applicationData->setup();
-
     std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
-    applicationData->surfaceSetup(surface);
+
+    // allocate 16 MB for frame buffer
+    auto frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // alocate 1 MB for uniform and storage buffers
+    auto buffersAllocator     = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    auto verticesAllocator    = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate memory for 3D texture
+    auto volumeAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, CLIPMAP_TEXTURE_COUNT * CLIPMAP_TEXTURE_SIZE * CLIPMAP_TEXTURE_SIZE * CLIPMAP_TEXTURE_SIZE * 4 * 2, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
+
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("voxelizer_workflow", frameBufferAllocator, queueTraits);
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("voxel_space",   false, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::Absolute,         glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D32_SFLOAT,     VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true, VK_FORMAT_B8G8R8A8_UNORM,  VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
+
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("voxelization", pumex::RenderOperation::Graphics));
+      workflow->addAttachmentOutput("voxelization", "voxel_space", "false_image", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
+
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
+      workflow->addAttachmentInput("rendering", "voxel_space", "false_image", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+
+    std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(buffersAllocator, volumeAllocator, asset);
+
+    // create pipeline cache
+    auto pipelineCache = std::make_shared<pumex::PipelineCache>();
+
+    // create pipeline for voxelization
+    std::vector<pumex::DescriptorSetLayoutBinding> voxelizeLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    auto voxelizeDescriptorSetLayout   = std::make_shared<pumex::DescriptorSetLayout>(voxelizeLayoutBindings);
+    auto voxelizePipelineLayout        = std::make_shared<pumex::PipelineLayout>();
+    voxelizePipelineLayout->descriptorSetLayouts.push_back(voxelizeDescriptorSetLayout);
+    auto voxelizeDescriptorPool        = std::make_shared<pumex::DescriptorPool>(2, voxelizeLayoutBindings);
+    auto voxelizePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, voxelizePipelineLayout);
+    voxelizePipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
+    };
+    voxelizePipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_voxelize.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_voxelize.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_voxelize.frag.spv")), "main" }
+    };
+    voxelizePipeline->cullMode         = VK_CULL_MODE_NONE;
+    voxelizePipeline->depthTestEnable  = VK_FALSE;
+    voxelizePipeline->depthWriteEnable = VK_FALSE;
+    voxelizePipeline->dynamicStates    = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    workflow->setSceneNode("voxelization", voxelizePipeline);
+
+    auto voxelizeGroup = std::make_shared<pumex::Group>();
+    voxelizeGroup->setName("voxelizeGroup");
+    voxelizePipeline->addChild(voxelizeGroup);
+
+    auto voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout, voxelizeDescriptorPool);
+    voxelizeDescriptorSet->setDescriptor(0, applicationData->voxelizeCameraUbo);
+    voxelizeDescriptorSet->setDescriptor(1, applicationData->positionUbo);
+    voxelizeDescriptorSet->setDescriptor(2, applicationData->volumeTexture);
+    voxelizeGroup->setDescriptorSet(0, voxelizeDescriptorSet);
+
+    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
+    assetNode->setName("assetNode");
+    voxelizeGroup->addChild(assetNode);
+
+    auto renderRoot = std::make_shared<pumex::Group>();
+    renderRoot->setName("renderRoot");
+    workflow->setSceneNode("rendering", renderRoot);
+
+    std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
+
+    // create pipeline for ray marching
+    std::vector<pumex::DescriptorSetLayoutBinding> raymarchLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    auto raymarchDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(raymarchLayoutBindings);
+    auto raymarchPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
+    raymarchPipelineLayout->descriptorSetLayouts.push_back(raymarchDescriptorSetLayout);
+    auto raymarchDescriptorPool      = std::make_shared<pumex::DescriptorPool>(2, raymarchLayoutBindings);
+    auto raymarchPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, raymarchPipelineLayout);
+    raymarchPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_raymarch.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_raymarch.frag.spv")), "main" }
+    };
+    raymarchPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, fullScreenTriangle->geometries[0].semantic }
+    };
+    raymarchPipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF }
+    };
+    raymarchPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    renderRoot->addChild(raymarchPipeline);
+
+    std::shared_ptr<pumex::AssetNode> fstAssetNode = std::make_shared<pumex::AssetNode>(fullScreenTriangle, verticesAllocator, 1, 0);
+    fstAssetNode->setName("fullScreenTriangleAssetNode");
+    raymarchPipeline->addChild(fstAssetNode);
+
+    auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout, raymarchDescriptorPool);
+    raymarchDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+    raymarchDescriptorSet->setDescriptor(1, applicationData->voxelPositionUbo);
+    raymarchDescriptorSet->setDescriptor(2, applicationData->volumeTexture);
+    fstAssetNode->setDescriptorSet(0, raymarchDescriptorSet);
+
+    // create pipeline for basic model rendering
+    std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
+    };
+    auto descriptorSetLayout    = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
+    auto pipelineLayout         = std::make_shared<pumex::PipelineLayout>();
+    pipelineLayout->descriptorSetLayouts.push_back(descriptorSetLayout);
+    auto descriptorPool         = std::make_shared<pumex::DescriptorPool>(2, layoutBindings);
+    auto pipeline               = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
+    pipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_basic.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/voxelizer_basic.frag.spv")), "main" }
+    };
+    pipeline->vertexInput  =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
+    };
+    pipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF }
+    };
+    pipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    renderRoot->addChild(pipeline);
+
+    auto renderGroup = std::make_shared<pumex::Group>();
+    renderGroup->setName("renderGroup");
+    pipeline->addChild(renderGroup);
+
+    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
+    descriptorSet->setDescriptor(0, applicationData->cameraUbo);
+    descriptorSet->setDescriptor(1, applicationData->positionUbo);
+    renderGroup->setDescriptorSet(0, descriptorSet);
+
+    renderGroup->addChild(assetNode);
+
+    //modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
+    //assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
+
+
+    //pumex::Geometry voxelBox;
+    //voxelBox.name = "voxelBox";
+    //voxelBox.semantic = requiredSemantic;
+    //voxelBox.materialIndex = 0;
+    //pumex::addBox(voxelBox, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), false);
+    //std::shared_ptr<pumex::Asset> voxelBoxAsset(pumex::createSimpleAsset(voxelBox, "voxelBox"));
+
+    //voxelBoxTypeID = assetBuffer->registerType("voxelBox", pumex::AssetTypeDefinition(pumex::BoundingBox(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f))));
+    //assetBuffer->registerObjectLOD(voxelBoxTypeID, voxelBoxAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
+
+    //// create render pass for voxelization
+    //std::vector<pumex::FrameBufferImageDefinition> voxelizeFrameBufferDefinitions =
+    //{
+    //};
+    //voxelizeFrameBufferImages = std::make_shared<pumex::FrameBufferImages>(voxelizeFrameBufferDefinitions, clipmapAllocator);
+    //std::vector<pumex::AttachmentDefinition> voxelizeRenderPassAttachments =
+    //{
+    //};
+    //std::vector<pumex::SubpassDefinition> voxelizeRenderPassSubpasses =
+    //{
+    //  {
+    //    VK_PIPELINE_BIND_POINT_GRAPHICS,
+    //    {},
+    //    {},
+    //    {},
+    //    { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
+    //    {},
+    //    0
+    //  }
+    //};
+    //std::vector<pumex::SubpassDependencyDefinition> voxelizeRenderPassDependencies;
+    //voxelizeRenderPass  = std::make_shared<pumex::RenderPass>(voxelizeRenderPassAttachments, voxelizeRenderPassSubpasses, voxelizeRenderPassDependencies);
+    //voxelizeFrameBuffer = std::make_unique<pumex::FrameBuffer>(voxelizeRenderPass, voxelizeFrameBufferImages);
+
+
+
+//    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
+//    currentCmdBuffer->setActiveIndex(activeIndex);
+//
+//    if (currentCmdBuffer->isDirty(activeIndex))
+//    {
+////      std::vector<pumex::DescriptorSetValue> clipMapBuffer;
+////      clipMap->getDescriptorSetValues(devicePtr->device, 0, clipMapBuffer);
+//
+//      currentCmdBuffer->cmdBegin();
+//
+////      currentCmdBuffer->setImageLayout(*clipMap->getHandleImage(devicePtr->device, 0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+//      pumex::Image* image = clipMap->getHandleImage(devicePtr->device, 0);
+//      VkImageSubresourceRange subRes{};
+//      subRes.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+//      subRes.baseMipLevel   = 0;
+//      subRes.levelCount     = 1;
+//      subRes.baseArrayLayer = 0;
+//      subRes.layerCount     = 1;
+//      std::vector<VkImageSubresourceRange> subResources;
+//      subResources.push_back(subRes);
+//      currentCmdBuffer->cmdClearColorImage(*image, VK_IMAGE_LAYOUT_GENERAL, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), subResources);
+//
+//      std::vector<VkClearValue> voxelClearValues = { pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)) };
+//      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, voxelizeRenderPass.get(), voxelizeFrameBuffer.get(), 0, pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE), voxelClearValues);
+//      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE, 0.0f, 1.0f) });
+//      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE) });
+//
+//      currentCmdBuffer->cmdBindPipeline(voxelizePipeline.get());
+//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, voxelizePipelineLayout.get(), 0, voxelizeDescriptorSet.get());
+//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
+//      currentCmdBuffer->cmdEndRenderPass();
+//
+////      currentCmdBuffer->setImageLayout( *clipMap->getHandleImage(devicePtr->device,0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+//
+//      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
+//      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
+//      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
+//      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
+//
+//      // voxel raymarching
+//      currentCmdBuffer->cmdBindPipeline(raymarchPipeline.get());
+//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, raymarchPipelineLayout.get(), 0, raymarchDescriptorSet.get());
+//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, voxelBoxTypeID, 0, 50.0f);
+//
+//      // model render
+//      currentCmdBuffer->cmdBindPipeline(pipeline.get());
+//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
+//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
+//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
+//
+//      currentCmdBuffer->cmdEndRenderPass();
+//      currentCmdBuffer->cmdEnd();
+//    }
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
@@ -774,21 +679,9 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(viewer->startUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->endUpdateGraph);
 
-    // Making the render graph.
-    // This one is also "single threaded" ( look at the make_edge() calls ), but presents a method of connecting graph nodes.
-    // Consider make_edge() in render graph :
-    // viewer->startRenderGraph should point to all root nodes.
-    // All leaf nodes should point to viewer->endRenderGraph.
-    tbb::flow::continue_node< tbb::flow::continue_msg > prepareBuffers(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareModelForRendering(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > startSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->prepareCameraForRendering(surface); surface->beginFrame(); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > drawSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { applicationData->draw(surface); });
-    tbb::flow::continue_node< tbb::flow::continue_msg > endSurfaceFrame(viewer->renderGraph, [=](tbb::flow::continue_msg) { surface->endFrame(); });
+    viewer->setEventRenderStart(std::bind(&VoxelizerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1));
 
-    tbb::flow::make_edge(viewer->startRenderGraph, prepareBuffers);
-    tbb::flow::make_edge(prepareBuffers, startSurfaceFrame);
-    tbb::flow::make_edge(startSurfaceFrame, drawSurfaceFrame);
-    tbb::flow::make_edge(drawSurfaceFrame, endSurfaceFrame);
-    tbb::flow::make_edge(endSurfaceFrame, viewer->endRenderGraph);
+    surface->setEventSurfaceRenderStart(std::bind(&VoxelizerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
 
     viewer->run();
   }

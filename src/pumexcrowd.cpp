@@ -404,11 +404,11 @@ struct CrowdApplicationData
 
   void processInput( std::shared_ptr<pumex::Surface> surface )
   {
-    std::shared_ptr<pumex::Window>  windowSh  = surface->window.lock();
+    std::shared_ptr<pumex::Window> window = surface->window.lock();
     std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
 
 
-    std::vector<pumex::InputEvent> mouseEvents = windowSh->getInputEvents();
+    std::vector<pumex::InputEvent> mouseEvents = window->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
     for (const auto& m : mouseEvents)
     {
@@ -1080,12 +1080,12 @@ int main(int argc, char * argv[])
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
     auto textSmall   = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
 
+    // building text rendering pipeline layout
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
       { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
-    // building text rendering pipeline layout
     auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
     auto textDescriptorPool      = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
     auto textPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
