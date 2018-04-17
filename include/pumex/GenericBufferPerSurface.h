@@ -57,7 +57,7 @@ public:
 
   void                      validate(const RenderContext& renderContext) override;
   void                      invalidate() override;
-  void                      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  DescriptorSetValue        getDescriptorSetValue(const RenderContext& renderContext) const override;
 
   VkBuffer                  getBufferHandle(const RenderContext& renderContext);
 
@@ -206,13 +206,13 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
 }
 
 template <typename T>
-void GenericBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue GenericBufferPerSurface<T>::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "GenericBufferPerSurface<T>::getDescriptorSetValues() : generic buffer was not validated");
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "GenericBufferPerSurface<T>::getDescriptorSetValue() : generic buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*(pddit->second.data))));
+  return DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*(pddit->second.data)));
 }
 
 template <typename T>

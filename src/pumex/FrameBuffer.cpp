@@ -23,7 +23,6 @@
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderPass.h>
 #include <pumex/Surface.h>
-#include <pumex/Command.h>
 #include <pumex/RenderContext.h>
 #include <pumex/utils/Log.h>
 
@@ -89,8 +88,8 @@ void FrameBufferImages::validate(Surface* surface)
       break;
     }
     }
-    ImageTraits imageTraits(definition.usage, definition.format, imSize, false, 1, 1,
-      definition.samples, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
+    ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, 
+      false, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
       VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
     pddit->second.frameBufferImages[i] = std::make_shared<Image>(surface->device.lock().get(), imageTraits, allocator);
   }
@@ -252,12 +251,12 @@ void InputAttachment::invalidate()
   invalidateDescriptors();
 }
 
-void InputAttachment::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == perSurfaceData.end())
-    return;
+    return DescriptorSetValue(VK_NULL_HANDLE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   auto frameBuffer = renderContext.surface->frameBuffer;
   uint32_t frameBufferIndex = UINT32_MAX;
   for (uint32_t i = 0; i < frameBuffer->getFrameBufferImages()->imageDefinitions.size(); ++i)
@@ -269,7 +268,7 @@ void InputAttachment::getDescriptorSetValues(const RenderContext& renderContext,
     }
   }
   CHECK_LOG_THROW(frameBufferIndex == UINT32_MAX, "Can't find input attachment with name : " << attachmentName);
-  values.push_back(DescriptorSetValue(VK_NULL_HANDLE, frameBuffer->getFrameBufferImages()->getImage(renderContext.surface, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+  return DescriptorSetValue(VK_NULL_HANDLE, frameBuffer->getFrameBufferImages()->getImage(renderContext.surface, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 }

@@ -57,7 +57,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
@@ -85,7 +85,6 @@ private:
   std::shared_ptr<DeviceMemoryAllocator>      allocator;
   VkBufferUsageFlagBits                       additionalFlags;
   uint32_t                                    activeCount = 1;
-
 };
 
 template <typename T>
@@ -184,13 +183,13 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
 }
 
 template <typename T>
-void UniformBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue UniformBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "UniformBuffer<T>::getDescriptorBufferInfo : uniform buffer was not validated");
+  CHECK_LOG_THROW(pddit == perDeviceData.end(), "UniformBuffer<T>::getDescriptorSetValue() : uniform buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)));
+  return DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T));
 }
 
 template <typename T>

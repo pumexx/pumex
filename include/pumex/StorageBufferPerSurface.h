@@ -58,7 +58,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
@@ -222,13 +222,13 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
 }
 
 template <typename T>
-void StorageBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue StorageBufferPerSurface<T>::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "StorageBufferPerSurface<T>::getDescriptorBufferInfo : uniform buffer was not validated");
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "StorageBufferPerSurface<T>::getDescriptorSetValue() : storage buffer was not validated");
 
-  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)*pddit->second.storageData.size()));
+  return DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)*pddit->second.storageData.size());
 }
 
 template <typename T>

@@ -57,7 +57,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
@@ -201,13 +201,13 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
 }
 
 template <typename T>
-void StorageBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue StorageBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "StorageBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
+  CHECK_LOG_THROW(pddit == perDeviceData.end(), "StorageBuffer<T>::getDescriptorSetValue() : storage buffer was not validated");
 
-  values.push_back(DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T) * storageData.size()));
+  return DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T) * storageData.size());
 }
 
 template <typename T>

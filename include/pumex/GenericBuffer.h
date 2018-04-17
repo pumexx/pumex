@@ -50,11 +50,11 @@ public:
   GenericBuffer& operator=(const GenericBuffer&) = delete;
   ~GenericBuffer();
 
-  void            validate(const RenderContext& renderContext) override;
-  void            invalidate() override;
-  void            getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  void               validate(const RenderContext& renderContext) override;
+  void               invalidate() override;
+  DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) const override;
 
-  VkBuffer        getBufferHandle(const RenderContext& renderContext);
+  VkBuffer           getBufferHandle(const RenderContext& renderContext);
 
 private:
   struct PerDeviceData
@@ -103,13 +103,13 @@ GenericBuffer<T>::~GenericBuffer()
 }
 
 template <typename T>
-void GenericBuffer<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue GenericBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "GenericBuffer<T>::getDescriptorBufferInfo : storage buffer was not validated");
+  CHECK_LOG_THROW(pddit == perDeviceData.end(), "GenericBuffer<T>::getDescriptorSetValue() : storage buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*data) ));
+  return DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*data) );
 }
 
 template <typename T>

@@ -63,7 +63,7 @@ public:
   virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
   virtual void validate(const RenderContext& context) = 0;
   virtual void invalidate() = 0;
-  virtual void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const = 0;
+  virtual DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) const = 0;
 protected:
   mutable std::mutex                     mutex;
   std::vector<std::weak_ptr<Descriptor>> descriptors;

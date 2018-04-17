@@ -87,7 +87,7 @@ protected:
   static uint32_t    fontCount;
   FT_Face            fontFace = nullptr;
 
-  gli::texture2d                      fontTexture2d;
+  std::shared_ptr<gli::texture2d>     fontTexture2d;
   std::unordered_map<wchar_t, size_t> registeredGlyphs;
   glm::uvec2                          textureSize;
   uint32_t                            fontPixelHeight;

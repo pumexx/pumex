@@ -80,7 +80,7 @@ public:
   virtual ~TextureRegistryBase();
 
   virtual void refreshStructures() = 0;
-  virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) = 0;
+  virtual void setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) = 0;
 };
 
 // abstract virtual class that is used to deal with the materials
@@ -114,7 +114,7 @@ public:
   void                                         validate(const RenderContext& renderContext);
 
   bool                                         getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;
-  bool                                         setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, const gli::texture& tex);
+  bool                                         setTargetTextureLayer(uint32_t index, uint32_t layer, const std::string& fileName, std::shared_ptr<gli::texture> tex);
 
   void                                         registerMaterials(uint32_t typeID, std::shared_ptr<Asset> asset);
   void                                         setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials);
@@ -183,7 +183,7 @@ public:
   std::shared_ptr<Texture>                     getTargetTexture(uint32_t slotIndex);
 
   void                                         refreshStructures() override;
-  void                                         setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
+  void                                         setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
 
   std::map<uint32_t, std::shared_ptr<Texture>> textures;
 };
@@ -197,7 +197,7 @@ public:
   std::vector<std::shared_ptr<Resource>>                     getTextures(uint32_t slotIndex);
 
   void                                                       refreshStructures() override;
-  void                                                       setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex) override;
+  void                                                       setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
 
 protected:
   std::shared_ptr<DeviceMemoryAllocator>                     textureAllocator;
@@ -212,7 +212,7 @@ public:
   void refreshStructures() override
   {
   }
-  void setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
+  void setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override
   {
   }
 };

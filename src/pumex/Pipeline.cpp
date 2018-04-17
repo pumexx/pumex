@@ -220,7 +220,7 @@ void Descriptor::invalidateCommandBuffers()
 void Descriptor::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
   for (auto res : resources)
-    res->getDescriptorSetValues(renderContext, values);
+    values.push_back(res->getDescriptorSetValue(renderContext));
 }
 
 

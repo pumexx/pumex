@@ -33,17 +33,19 @@
 #include <pumex/RenderWorkflow.h>
 #include <pumex/Node.h>
 #include <pumex/DeviceMemoryAllocator.h>
+#include <pumex/Image.h>
+#include <pumex/Resource.h>
 #include <pumex/Texture.h>
+#include <pumex/TexturePerSurface.h>
+#include <pumex/UniformBuffer.h>
+#include <pumex/UniformBufferPerSurface.h>
+#include <pumex/StorageBuffer.h>
+#include <pumex/StorageBufferPerSurface.h>
 #include <pumex/Pipeline.h>
 #include <pumex/RenderPass.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/Command.h>
 #include <pumex/Query.h>
-#include <pumex/UniformBuffer.h>
-#include <pumex/UniformBufferPerSurface.h>
-#include <pumex/StorageBuffer.h>
-#include <pumex/StorageBufferPerSurface.h>
-
 #include <pumex/Asset.h>
 #include <pumex/AssetBuffer.h>
 #include <pumex/AssetNode.h>
@@ -53,4 +55,3 @@
 #include <pumex/Text.h>
 #include <pumex/Camera.h>
 #include <pumex/Kinematic.h>
-

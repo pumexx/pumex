@@ -106,9 +106,9 @@ struct VoxelizerApplicationData
     voxelPositionUbo->set(vbData);
 
     // build 3D texture
-    pumex::ImageTraits   volumeImageTraits(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, false, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE, VK_IMAGE_VIEW_TYPE_3D);
-    pumex::SamplerTraits volumeSamplerTraits(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
-    volumeTexture = std::make_shared<pumex::Texture>(volumeImageTraits, volumeSamplerTraits, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), volumeAllocator);
+    pumex::ImageTraits   volumeImageTraits(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE, VK_IMAGE_VIEW_TYPE_3D);
+    pumex::SamplerTraits volumeSamplerTraits(false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
+    volumeTexture = std::make_shared<pumex::TexturePerSurface>(volumeImageTraits, volumeSamplerTraits, volumeAllocator, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -339,7 +339,7 @@ struct VoxelizerApplicationData
   std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
   std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> voxelizeCameraUbo;
   std::shared_ptr<pumex::UniformBuffer<PositionData>>            voxelPositionUbo;
-  std::shared_ptr<pumex::Texture>                                volumeTexture;
+  std::shared_ptr<pumex::TexturePerSurface>                      volumeTexture;
 
   pumex::BoundingBox                                   voxelBoundingBox;
 };
@@ -455,7 +455,7 @@ int main( int argc, char * argv[] )
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto voxelizeDescriptorSetLayout   = std::make_shared<pumex::DescriptorSetLayout>(voxelizeLayoutBindings);
     auto voxelizePipelineLayout        = std::make_shared<pumex::PipelineLayout>();
@@ -503,7 +503,7 @@ int main( int argc, char * argv[] )
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
       { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 2, CLIPMAP_TEXTURE_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto raymarchDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(raymarchLayoutBindings);
     auto raymarchPipelineLayout      = std::make_shared<pumex::PipelineLayout>();

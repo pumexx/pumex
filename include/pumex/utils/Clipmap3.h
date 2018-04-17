@@ -44,9 +44,9 @@ public:
 
   virtual ~Clipmap3();
 
-  Image*    getHandleImage(VkDevice device, uint32_t layer) const;
-  void      validate(Device* device, CommandPool* commandPool, VkQueue queue);
-  void      getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  Image*             getHandleImage(VkDevice device, uint32_t layer) const;
+  void               validate(Device* device, CommandPool* commandPool, VkQueue queue);
+  DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) const override;
 
 protected:
   uint32_t                             textureQuantity;

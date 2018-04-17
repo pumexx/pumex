@@ -64,7 +64,7 @@ bool MaterialSet::getTargetTextureNames(uint32_t index, std::vector<std::string>
   return true;
 }
 
-bool MaterialSet::setTargetTextureLayer(uint32_t slotIndex, uint32_t layerIndex, const std::string& fileName, const gli::texture& tex)
+bool MaterialSet::setTargetTextureLayer(uint32_t slotIndex, uint32_t layerIndex, const std::string& fileName, std::shared_ptr<gli::texture> tex)
 {
   auto nit = textureNames.find(slotIndex);
   if (nit == textureNames.end())
@@ -198,8 +198,8 @@ std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Ma
 
           std::string fullFileName = viewer.lock()->getFullFilePath(it->second);
           CHECK_LOG_THROW(fullFileName.empty(), "Cannot find file : " << it->second);
-          gli::texture tex(gli::load(fullFileName));
-          CHECK_LOG_THROW(tex.empty(), "Texture not loaded : " << it->second);
+          auto tex = std::make_shared<gli::texture>(gli::load(fullFileName));
+          CHECK_LOG_THROW(tex->empty(), "Texture not loaded : " << it->second);
           textureRegistry->setTexture(s.index, textureIndex, tex);
         }
         registeredTextures[s.type] = textureIndex;
@@ -226,14 +226,13 @@ void TextureRegistryTextureArray::refreshStructures()
 {
 }
 
-void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
+void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
   auto it = textures.find(slotIndex);
   if (it == textures.end())
     return;
   it->second->setLayer(layerIndex, tex);
 }
-
 
 TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc)
   : textureAllocator{ textureAlloc }
@@ -258,13 +257,14 @@ void TextureRegistryArrayOfTextures::refreshStructures()
 {
 }
 
-void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, const gli::texture& tex)
+void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
   auto it = textures.find(slotIndex);
   if (it == textures.end())
     return;// FIXME : CHECK_LOG_THROW ?
   if (layerIndex >= it->second.size())
     it->second.resize(layerIndex + 1);
-  it->second[layerIndex] = std::make_shared<Texture>(tex, textureTraits[slotIndex], textureAllocator);
+  // this texture will not be modified by GPU, so it is enough to declare it as OnceForAllSwapChainImages
+  it->second[layerIndex] = std::make_shared<Texture>(tex, textureTraits[slotIndex], textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
 }
 

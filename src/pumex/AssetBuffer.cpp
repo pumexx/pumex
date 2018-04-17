@@ -270,16 +270,16 @@ void AssetBuffer::cmdDrawObjectsIndirect(const RenderContext& renderContext, Com
 {
   std::lock_guard<std::mutex> lock(mutex);
 
-  std::vector<DescriptorSetValue> resultsBuffer;
-  instancedResults->getResults(renderMask)->getDescriptorSetValues(renderContext, resultsBuffer);
+  DescriptorSetValue dsv = instancedResults->getResults(renderMask)->getDescriptorSetValue(renderContext);
+
   uint32_t drawCount = instancedResults->getDrawCount(renderMask);
 
   if (renderContext.device->physical.lock()->features.multiDrawIndirect == 1)
-    commandBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset, drawCount, sizeof(DrawIndexedIndirectCommand));
+    commandBuffer->cmdDrawIndexedIndirect(dsv.bufferInfo.buffer, dsv.bufferInfo.offset, drawCount, sizeof(DrawIndexedIndirectCommand));
   else
   {
     for (uint32_t i = 0; i < drawCount; ++i)
-      commandBuffer->cmdDrawIndexedIndirect(resultsBuffer[0].bufferInfo.buffer, resultsBuffer[0].bufferInfo.offset + i * sizeof(DrawIndexedIndirectCommand), 1, sizeof(DrawIndexedIndirectCommand));
+      commandBuffer->cmdDrawIndexedIndirect(dsv.bufferInfo.buffer, dsv.bufferInfo.offset + i * sizeof(DrawIndexedIndirectCommand), 1, sizeof(DrawIndexedIndirectCommand));
   }
 }
 

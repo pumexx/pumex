@@ -116,15 +116,13 @@ void Clipmap3::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 
 }
 
-void Clipmap3::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue Clipmap3::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Clipmap3::getDescriptorSetValue : texture was not validated");
+  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Clipmap3::getDescriptorSetValue() : texture was not validated");
 
-  for (uint32_t i = 0; i<pddit->second.images.size(); ++i)
-    values.push_back(DescriptorSetValue(pddit->second.sampler, pddit->second.images[i]->getImageView(), pddit->second.images[i]->getImageLayout()));
-
+  return DescriptorSetValue(pddit->second.sampler, pddit->second.images[0]->getImageView(), pddit->second.images[0]->getImageLayout());
 }
 
 }

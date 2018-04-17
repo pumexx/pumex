@@ -57,7 +57,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
@@ -203,13 +203,13 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
 
 
 template <typename T>
-void UniformBufferPerSurface<T>::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
+DescriptorSetValue UniformBufferPerSurface<T>::getDescriptorSetValue(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "UniformBufferPerSurface<T>::getDescriptorBufferInfo : uniform buffer was not validated");
+  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "UniformBufferPerSurface<T>::getDescriptorSetValue() : uniform buffer was not validated");
 
-  values.push_back( DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)));
+  return DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T));
 }
 
 template <typename T>

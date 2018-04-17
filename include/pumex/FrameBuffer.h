@@ -27,11 +27,10 @@
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
-#include <pumex/Pipeline.h>
-#include <pumex/Command.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/RenderWorkflow.h>
-#include <pumex/Texture.h>
+#include <pumex/Image.h>
+#include <pumex/Resource.h>
 
 namespace pumex
 {
@@ -124,7 +123,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  void                              getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
 
 protected:
   std::string attachmentName;

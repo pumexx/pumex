@@ -24,12 +24,10 @@
 #include <pumex/Viewer.h>
 #include <pumex/Window.h>
 #include <pumex/PhysicalDevice.h>
-#include <pumex/Command.h>
 #include <pumex/RenderPass.h>
 #include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/utils/Log.h>
-#include <pumex/Texture.h>
 
 using namespace pumex;
 

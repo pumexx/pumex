@@ -21,7 +21,7 @@
 //
 
 #pragma once
-#include <pumex/Texture.h>
+#include <pumex/Image.h>
 
 namespace pumex
 {

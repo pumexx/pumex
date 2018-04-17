@@ -61,9 +61,11 @@ Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared
   fontCount++;
 
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);
-  fontTexture   = std::make_shared<Texture>(gli::texture(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1), SamplerTraits(), textureAllocator);
-  fontTexture->texture->clear<gli::u8>(0);
-  fontTexture2d = gli::texture2d( (*(fontTexture->texture.get())) );
+  auto ftex = std::make_shared<gli::texture>(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1);
+  ftex->clear<gli::u8>(0);
+  // this texture will not be modified by GPU, so it is enough to declare it as OnceForAllSwapChainImages
+  fontTexture   = std::make_shared<Texture>(ftex, SamplerTraits(), textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
+  fontTexture2d = std::make_shared<gli::texture2d>( *ftex );
 
   lastRegisteredPosition = glm::ivec2(PUMEX_GLYPH_MARGIN, PUMEX_GLYPH_MARGIN);
   // register first 128 char codes
@@ -123,7 +125,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
     CHECK_LOG_THROW(lastRegisteredPosition.y >= textureSize.y, "out of memory for a new glyph");
   }
 
-  gli::image fontImage = fontTexture2d[0];
+  gli::image fontImage = (*fontTexture2d)[0];
   // copy freetype bitmap to a texture
   for (unsigned int i = 0; i < fontFace->glyph->bitmap.rows; ++i)
   {

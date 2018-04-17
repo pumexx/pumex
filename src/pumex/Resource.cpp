@@ -42,8 +42,8 @@ DescriptorSetValue::DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkD
 DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
   : vType{ Image }
 {
-  imageInfo.sampler = sampler;
-  imageInfo.imageView = imageView;
+  imageInfo.sampler     = sampler;
+  imageInfo.imageView   = imageView;
   imageInfo.imageLayout = imageLayout;
 }
 

@@ -214,10 +214,9 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
 
   for (const auto& b : barriers)
   {
-    std::vector<DescriptorSetValue> values;
-    b.resource->getDescriptorSetValues(renderContext, values);
+    DescriptorSetValue dsv = b.resource->getDescriptorSetValue(renderContext);
 
-    switch (values[0].vType)
+    switch (dsv.vType)
     {
     case DescriptorSetValue::Buffer:
     {
@@ -228,9 +227,9 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         bufferBarrier.dstAccessMask       = b.dstAccessMask;
         bufferBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         bufferBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        bufferBarrier.buffer              = values[0].bufferInfo.buffer;
-        bufferBarrier.offset              = values[0].bufferInfo.offset;
-        bufferBarrier.size                = values[0].bufferInfo.range;
+        bufferBarrier.buffer              = dsv.bufferInfo.buffer;
+        bufferBarrier.offset              = dsv.bufferInfo.offset;
+        bufferBarrier.size                = dsv.bufferInfo.range;
       bufferBarriers.emplace_back(bufferBarrier);
       break;
     }
@@ -241,11 +240,11 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         break;
       // FIXME - for now the image barrier will always use the whole image
       VkImageSubresourceRange subRes{};
-        subRes.aspectMask = tex->imageTraits.aspectMask;
+        subRes.aspectMask = tex->getImageTraits().aspectMask;
         subRes.baseMipLevel = 0;
-        subRes.levelCount = tex->imageTraits.mipLevels;
+        subRes.levelCount = tex->getImageTraits().mipLevels;
         subRes.baseArrayLayer = 0;
-        subRes.layerCount = tex->imageTraits.arrayLayers;
+        subRes.layerCount = tex->getImageTraits().arrayLayers;
 
       VkImageMemoryBarrier imageBarrier;
         imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -256,7 +255,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         imageBarrier.newLayout           = b.newLayout;
         imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        imageBarrier.image               = tex->getHandleImage(renderContext.vkDevice)->getImage();
+        imageBarrier.image               = tex->getHandleImage(renderContext)->getImage();
         imageBarrier.subresourceRange    = subRes;
       imageBarriers.emplace_back(imageBarrier);
       break;
