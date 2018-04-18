@@ -85,8 +85,8 @@ WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<RenderW
 {
 }
 
-RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, VkSubpassContents sc)
-  : name{ n }, operationType{ t }, subpassContents{ sc }
+RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, AttachmentSize at, VkSubpassContents sc)
+  : name{ n }, operationType{ t }, attachmentSize{ at }, subpassContents { sc }
 {
 }
 
@@ -612,28 +612,16 @@ std::shared_ptr<RenderWorkflowSequences> SingleQueueWorkflowCompiler::compile(Re
 void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflow)
 {
   std::ostringstream os;
-  // check if all attachments have the same size in each operation
+  // check if all attachments have the same size as defined in operation
   auto operationNames = workflow.getRenderOperationNames();
   for (auto operationName : operationNames)
   {
-    std::vector<AttachmentSize> attachmentSizes;
+    auto operation     = workflow.getRenderOperation(operationName);
     auto opTransitions = workflow.getOperationIO(operationName, rttAllAttachments);
     for (auto transition : opTransitions)
-      attachmentSizes.push_back(transition->resource->resourceType->attachment.attachmentSize);
-    if (attachmentSizes.empty())
-      continue;
-    bool sameSize = true;
-    for (uint32_t i = 0; i < attachmentSizes.size() - 1; ++i)
     {
-      if ( attachmentSizes[i] != attachmentSizes[i + 1] )
-      {
-        sameSize = false;
-        break;
-      }
-    }
-    if (!sameSize)
-    {
-      os << "Error: Operation <" << operationName << "> : not all attachments have the same size" << std::endl;
+      if(transition->resource->resourceType->attachment.attachmentSize != operation->attachmentSize )
+        os << "Error: Operation <" << operationName << "> : attachment "<< transition->resource->name <<" has wrong size" << std::endl;
     }
   }
   // check if all resources have at most one output that generates them
@@ -651,7 +639,7 @@ void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflo
   // if there are some errors - throw exception
   std::string results;
   results = os.str();
-  CHECK_LOG_THROW(!results.empty(), "Errors in workflow operations :\n" + results);
+  CHECK_LOG_THROW(!results.empty(), "Errors in workflow definition :\n" + results);
 }
 
 std::vector<std::shared_ptr<RenderOperation>> SingleQueueWorkflowCompiler::calculatePartialOrdering(const RenderWorkflow& workflow)

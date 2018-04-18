@@ -57,7 +57,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
@@ -183,7 +183,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
 }
 
 template <typename T>
-DescriptorSetValue UniformBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue UniformBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);

@@ -182,21 +182,23 @@ class PUMEX_EXPORT RenderOperation
 public:
   enum Type { Graphics, Compute };
 
-  RenderOperation(const std::string& name, Type operationType, VkSubpassContents subpassContents = VK_SUBPASS_CONTENTS_INLINE);
+  RenderOperation(const std::string& name, Type operationType, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f)), VkSubpassContents subpassContents = VK_SUBPASS_CONTENTS_INLINE);
   virtual ~RenderOperation();
 
   void setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
   void setSceneNode(std::shared_ptr<Node> node);
 
 
-  std::string                                       name;
-  Type                                              operationType;
-  VkSubpassContents                                 subpassContents;
+  std::string                   name;
+  Type                          operationType;
+  AttachmentSize                attachmentSize;
 
-  std::weak_ptr<RenderWorkflow>                     renderWorkflow;
-  std::shared_ptr<Node>                             sceneNode;
+  VkSubpassContents             subpassContents;
 
-  bool                                              enabled; // not implemented
+  std::weak_ptr<RenderWorkflow> renderWorkflow;
+  std::shared_ptr<Node>         sceneNode;
+
+  bool                          enabled; // not implemented
 };
 
 enum ResourceTransitionType 

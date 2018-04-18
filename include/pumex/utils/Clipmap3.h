@@ -46,7 +46,7 @@ public:
 
   Image*             getHandleImage(VkDevice device, uint32_t layer) const;
   void               validate(Device* device, CommandPool* commandPool, VkQueue queue);
-  DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) const override;
+  DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) override;
 
 protected:
   uint32_t                             textureQuantity;

@@ -61,7 +61,7 @@ public:
 
   void                        validate(const RenderContext& renderContext) override;
   void                        invalidate() override;
-  DescriptorSetValue          getDescriptorSetValue(const RenderContext& renderContext) const override;
+  DescriptorSetValue          getDescriptorSetValue(const RenderContext& renderContext) override;
 
   void setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
 

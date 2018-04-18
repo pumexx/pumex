@@ -52,7 +52,7 @@ public:
 
   void               validate(const RenderContext& renderContext) override;
   void               invalidate() override;
-  DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) const override;
+  DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) override;
 
   VkBuffer           getBufferHandle(const RenderContext& renderContext);
 
@@ -103,7 +103,7 @@ GenericBuffer<T>::~GenericBuffer()
 }
 
 template <typename T>
-DescriptorSetValue GenericBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue GenericBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);

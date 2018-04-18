@@ -349,6 +349,8 @@ int main( int argc, char * argv[] )
   std::shared_ptr<pumex::Viewer> viewer;
   try
   {
+    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+
     auto fullModelFileName = viewer->getFullFilePath(modelFileName);
     CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
 
@@ -357,8 +359,6 @@ int main( int argc, char * argv[] )
     pumex::AssetLoaderAssimp loader;
     std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
     CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
-
-    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);

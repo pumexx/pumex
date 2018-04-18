@@ -57,7 +57,7 @@ public:
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
   VkBuffer                          getBufferHandle(const RenderContext& renderContext);
 
@@ -203,7 +203,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
 
 
 template <typename T>
-DescriptorSetValue UniformBufferPerSurface<T>::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue UniformBufferPerSurface<T>::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);

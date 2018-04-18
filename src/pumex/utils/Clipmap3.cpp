@@ -116,7 +116,7 @@ void Clipmap3::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 
 }
 
-DescriptorSetValue Clipmap3::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue Clipmap3::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);

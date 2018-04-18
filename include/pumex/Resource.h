@@ -48,7 +48,7 @@ struct PUMEX_EXPORT DescriptorSetValue
   };
 };
 
-class PUMEX_EXPORT Resource
+class PUMEX_EXPORT Resource : public std::enable_shared_from_this<Resource>
 {
 public:
   enum SwapChainImageBehaviour { Undefined, OnceForAllSwapChainImages, ForEachSwapChainImage };
@@ -63,7 +63,7 @@ public:
   virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
   virtual void validate(const RenderContext& context) = 0;
   virtual void invalidate() = 0;
-  virtual DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) const = 0;
+  virtual DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) = 0;
 protected:
   mutable std::mutex                     mutex;
   std::vector<std::weak_ptr<Descriptor>> descriptors;

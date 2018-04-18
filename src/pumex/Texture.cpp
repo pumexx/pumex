@@ -248,7 +248,7 @@ void Texture::invalidate()
   invalidateDescriptors();
 }
 
-DescriptorSetValue Texture::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue Texture::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);

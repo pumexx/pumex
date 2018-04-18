@@ -401,7 +401,6 @@ void DescriptorSet::removeNode(std::shared_ptr<Node> node)
     nodeOwners.erase(it);
 }
 
-
 PipelineLayout::PipelineLayout()
 {
 }
@@ -411,7 +410,6 @@ PipelineLayout::~PipelineLayout()
   for (auto& pddit : perDeviceData)
     vkDestroyPipelineLayout(pddit.first, pddit.second.pipelineLayout, nullptr);
 }
-
 
 void PipelineLayout::validate(const RenderContext& renderContext)
 {
@@ -453,7 +451,6 @@ PipelineCache::~PipelineCache()
     vkDestroyPipelineCache(pddit.first, pddit.second.pipelineCache, nullptr);
 }
 
-
 void PipelineCache::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -476,7 +473,6 @@ VkPipelineCache PipelineCache::getHandle(VkDevice device) const
   return pddit->second.pipelineCache;
 }
 
-
 ShaderModule::ShaderModule(const std::string& f)
   : fileName(f)
 {
@@ -494,7 +490,6 @@ ShaderModule::~ShaderModule()
   for (auto& pddit : perDeviceData)
     vkDestroyShaderModule(pddit.first, pddit.second.shaderModule, nullptr);
 }
-
 
 void ShaderModule::validate(const RenderContext& renderContext)
 {
@@ -580,7 +575,6 @@ void GraphicsPipeline::accept(NodeVisitor& visitor)
     visitor.pop();
   }
 }
-
 
 void GraphicsPipeline::validate(const RenderContext& renderContext)
 {

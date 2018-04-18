@@ -23,6 +23,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <set>
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
@@ -86,6 +87,7 @@ protected:
   std::shared_ptr<DeviceMemoryAllocator>           allocator;
 };
 
+class InputAttachment;
 
 class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
@@ -105,6 +107,8 @@ public:
   void          validate(uint32_t index, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
   VkFramebuffer getFrameBuffer(uint32_t index);
 
+  void addInputAttachment(std::shared_ptr<InputAttachment> inputAttachment);
+
 protected:
   std::weak_ptr<Surface>              surface;
   std::vector<bool>                   valid;
@@ -113,17 +117,22 @@ protected:
   mutable std::mutex                  mutex;
   std::weak_ptr<RenderPass>           renderPass;
   std::shared_ptr<FrameBufferImages>  frameBufferImages;
+
+  // framebuffer has a list of input attachments that need to be invalidated when framebuffer is recreated
+  std::vector<std::weak_ptr<InputAttachment>> inputAttachments;
+  void invalidateInputAttachments();
 };
 
 class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
   InputAttachment(const std::string& attachmentName);
+  virtual ~InputAttachment();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
-  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) const override;
+  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
 protected:
   std::string attachmentName;
@@ -136,6 +145,7 @@ protected:
     bool valid = false;
   };
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
+
 };
 
 std::shared_ptr<FrameBufferImages> FrameBuffer::getFrameBufferImages() { return frameBufferImages; }

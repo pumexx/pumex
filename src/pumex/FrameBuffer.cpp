@@ -163,6 +163,7 @@ void FrameBuffer::invalidate()
   std::lock_guard<std::mutex> lock(mutex);
   for (uint32_t i = 0; i<valid.size(); ++i)
     valid[i] = false;
+  invalidateInputAttachments();
 }
 
 
@@ -222,8 +223,27 @@ VkFramebuffer FrameBuffer::getFrameBuffer(uint32_t index)
   return frameBuffers[index];
 }
 
+void FrameBuffer::addInputAttachment(const std::shared_ptr<InputAttachment> inputAttachment)
+{
+  if (std::find_if(inputAttachments.begin(), inputAttachments.end(), [&inputAttachment](std::weak_ptr<InputAttachment> ia) { return !ia.expired() && ia.lock().get() == inputAttachment.get(); }) == inputAttachments.end())
+    inputAttachments.push_back(inputAttachment);
+}
+
+void FrameBuffer::invalidateInputAttachments()
+{
+  // remove expired attachments and invalidate remaining attachments
+  auto eit = std::remove_if(inputAttachments.begin(), inputAttachments.end(), [](std::weak_ptr<InputAttachment> ia) { return ia.expired();  });
+  for (auto it = inputAttachments.begin(); it != eit; ++it)
+    it->lock()->invalidate();
+  inputAttachments.erase(eit, inputAttachments.end());
+}
+
 InputAttachment::InputAttachment(const std::string& an)
   : Resource{ Resource::OnceForAllSwapChainImages }, attachmentName{ an }
+{
+}
+
+InputAttachment::~InputAttachment()
 {
 }
 
@@ -251,7 +271,7 @@ void InputAttachment::invalidate()
   invalidateDescriptors();
 }
 
-DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
@@ -263,6 +283,7 @@ DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& r
   {
     if (frameBuffer->getFrameBufferImages()->imageDefinitions[i].name == attachmentName)
     {
+      frameBuffer->addInputAttachment(std::dynamic_pointer_cast<InputAttachment>(shared_from_this()));
       frameBufferIndex = i;
       break;
     }

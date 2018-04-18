@@ -245,7 +245,7 @@ void TexturePerSurface::invalidate()
   invalidateDescriptors();
 }
 
-DescriptorSetValue TexturePerSurface::getDescriptorSetValue(const RenderContext& renderContext) const
+DescriptorSetValue TexturePerSurface::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);

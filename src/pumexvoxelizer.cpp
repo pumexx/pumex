@@ -395,6 +395,8 @@ int main( int argc, char * argv[] )
   std::shared_ptr<pumex::Viewer> viewer;
   try
   {
+    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+
     auto fullModelFileName = viewer->getFullFilePath(modelFileName);
     CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
     auto fullAnimationFileName = viewer->getFullFilePath(animationFileName);
@@ -409,8 +411,6 @@ int main( int argc, char * argv[] )
       CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationFileName);
       asset->animations = animAsset->animations;
     }
-
-    viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
     std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
@@ -437,11 +437,10 @@ int main( int argc, char * argv[] )
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D32_SFLOAT,     VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true, VK_FORMAT_B8G8R8A8_UNORM,  VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
 
-    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("voxelization", pumex::RenderOperation::Graphics));
+    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("voxelization", pumex::RenderOperation::Graphics, pumex::AttachmentSize( pumex::AttachmentSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)) ));
       workflow->addAttachmentOutput("voxelization", "voxel_space", "false_image", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
-      workflow->addAttachmentInput("rendering", "voxel_space", "false_image", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
@@ -485,7 +484,7 @@ int main( int argc, char * argv[] )
     auto voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout, voxelizeDescriptorPool);
     voxelizeDescriptorSet->setDescriptor(0, applicationData->voxelizeCameraUbo);
     voxelizeDescriptorSet->setDescriptor(1, applicationData->positionUbo);
-    voxelizeDescriptorSet->setDescriptor(2, applicationData->volumeTexture);
+    voxelizeDescriptorSet->setDescriptor(2, applicationData->volumeTexture, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     voxelizeGroup->setDescriptorSet(0, voxelizeDescriptorSet);
 
     std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
@@ -533,7 +532,7 @@ int main( int argc, char * argv[] )
     auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout, raymarchDescriptorPool);
     raymarchDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
     raymarchDescriptorSet->setDescriptor(1, applicationData->voxelPositionUbo);
-    raymarchDescriptorSet->setDescriptor(2, applicationData->volumeTexture);
+    raymarchDescriptorSet->setDescriptor(2, applicationData->volumeTexture, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     fstAssetNode->setDescriptorSet(0, raymarchDescriptorSet);
 
     // create pipeline for basic model rendering
