@@ -354,11 +354,15 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   // before it will be transitioned to the new layout
   VkAccessFlags srcAccessMask = 0;
   VkAccessFlags dstAccessMask = 0;
+  VkPipelineStageFlags srcStageFlags  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkPipelineStageFlags dstStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
   switch (oldImageLayout)
   {
   case VK_IMAGE_LAYOUT_GENERAL:
     // actually we don't know the usage of the image
     srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     break;
 
   case VK_IMAGE_LAYOUT_UNDEFINED:
@@ -366,37 +370,44 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     // Only valid as initial layout
     // No flags required, listed only for completeness
     srcAccessMask = 0;
+    srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     break;
   case VK_IMAGE_LAYOUT_PREINITIALIZED:
     // Image is preinitialized
     // Only valid as initial layout for linear images, preserves memory contents
     // Make sure host writes have been finished
     srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_HOST_BIT;
     break;
   case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
     // Image is a color attachment
     // Make sure any writes to the color buffer have been finished
     srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     break;
   case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
     // Image is a depth/stencil attachment
     // Make sure any writes to the depth/stencil buffer have been finished
     srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     break;
   case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
     // Image is a transfer source 
     // Make sure any reads from the image have been finished
     srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
     // Image is a transfer destination
     // Make sure any writes to the image have been finished
     srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
     // Image is read by a shader
     // Make sure any shader reads from the image have been finished
     srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    srcStageFlags = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   }
 
@@ -407,28 +418,35 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   case VK_IMAGE_LAYOUT_GENERAL:
     // actually we don't know the usage of the image
     dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT;
+    dstStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     break;
   case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
     // Image will be used as a transfer destination
     // Make sure any writes to the image have been finished
     dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    dstStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
     // Image will be used as a transfer source
     // Make sure any reads from and writes to the image have been finished
     srcAccessMask = srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
+    srcStageFlags = srcStageFlags | VK_PIPELINE_STAGE_TRANSFER_BIT;
     dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    dstStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
     // Image will be used as a color attachment
     // Make sure any writes to the color buffer have been finished
-    srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    srcAccessMask = srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
+    srcStageFlags = srcStageFlags | VK_PIPELINE_STAGE_TRANSFER_BIT;
     dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dstStageFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     break;
   case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
     // Image layout will be used as a depth/stencil attachment
     // Make sure any writes to depth/stencil buffer have been finished
     dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dstStageFlags = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     break;
   case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
     // Image will be read in a shader (sampler, input attachment)
@@ -436,14 +454,12 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     if (srcAccessMask == 0)
       srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
     dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dstStageFlags = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   }
 
-  // Put barrier on top
-  VkPipelineStageFlagBits srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkPipelineStageFlagBits destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   VkDependencyFlags dependencyFlags = 0;
-  cmdPipelineBarrier(srcStageFlags, destStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, 0, 0, image.getImage(), subresourceRange, oldImageLayout, newImageLayout ));
+  cmdPipelineBarrier(srcStageFlags, dstStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, 0, 0, image.getImage(), subresourceRange, oldImageLayout, newImageLayout ));
   image.setImageLayout(newImageLayout);
 }
 
