@@ -77,7 +77,7 @@ private:
     }
     void invalidate()
     {
-      std::fill(valid.begin(), valid.end(), false);
+      std::fill(begin(valid), end(valid), false);
     }
 
     T                               uboData;
@@ -129,7 +129,7 @@ void UniformBufferPerSurface<T>::set(Surface* surface, const T& data)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(surface->surface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     it = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount, surface->device.lock()->device) }).first;
   it->second.uboData = data;
   it->second.invalidate();
@@ -140,7 +140,7 @@ T UniformBufferPerSurface<T>::get(Surface* surface) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(surface->surface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     it = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount, surface->device.lock()->device) }).first;
   return it->second.uboData;
 }
@@ -162,7 +162,7 @@ void UniformBufferPerSurface<T>::validate(const RenderContext& renderContext)
       pdd.second.resize(activeCount);
   }
   auto it = perSurfaceData.find(renderContext.vkSurface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(renderContext.imageCount, renderContext.vkDevice) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (it->second.valid[activeIndex])
@@ -207,7 +207,7 @@ DescriptorSetValue UniformBufferPerSurface<T>::getDescriptorSetValue(const Rende
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "UniformBufferPerSurface<T>::getDescriptorSetValue() : uniform buffer was not validated");
+  CHECK_LOG_THROW(pddit == end(perSurfaceData), "UniformBufferPerSurface<T>::getDescriptorSetValue() : uniform buffer was not validated");
 
   return DescriptorSetValue(pddit->second.uboBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T));
 }
@@ -226,7 +226,7 @@ VkBuffer UniformBufferPerSurface<T>::getBufferHandle(const RenderContext& render
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(renderContext.vkSurface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     return VK_NULL_HANDLE;
   return it->second.uboBuffer[renderContext.activeIndex % activeCount];
 }

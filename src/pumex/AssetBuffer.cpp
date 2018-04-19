@@ -54,7 +54,7 @@ AssetBuffer::~AssetBuffer()
 
 uint32_t AssetBuffer::registerType(const std::string& typeName, const AssetTypeDefinition& tdef)
 {
-  if (invTypeNames.find(typeName) != invTypeNames.end())
+  if (invTypeNames.find(typeName) != end(invTypeNames))
     return 0;
   uint32_t typeID = typeNames.size();
   typeNames.push_back(typeName);
@@ -95,7 +95,7 @@ uint32_t AssetBuffer::registerObjectLOD(uint32_t typeID, std::shared_ptr<Asset> 
 uint32_t AssetBuffer::getTypeID(const std::string& typeName) const
 {
   auto it = invTypeNames.find(typeName);
-  if (it == invTypeNames.end())
+  if (it == end(invTypeNames))
     return 0;
   return it->second;
 }
@@ -120,7 +120,7 @@ uint32_t AssetBuffer::getLodID(uint32_t typeID, float distance) const
 std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
 {
   auto it = assetMapping.find(AssetKey(typeID, lodID));
-  if (it != assetMapping.end())
+  if (it != end(assetMapping))
     return it->second;
   return std::shared_ptr<Asset>();
 }
@@ -135,7 +135,7 @@ void AssetBuffer::validate(const RenderContext& renderContext)
     for (const auto& gd : geometryDefinitions)
     {
       auto it = geometryDefinitionsByRenderMask.find(gd.renderMask);
-      if (it == geometryDefinitionsByRenderMask.end())
+      if (it == end(geometryDefinitionsByRenderMask))
         it = geometryDefinitionsByRenderMask.insert({ gd.renderMask, std::vector<InternalGeometryDefinition>() }).first;
       it->second.push_back(gd);
     }
@@ -144,19 +144,19 @@ void AssetBuffer::validate(const RenderContext& renderContext)
     {
       // only create asset buffers for render masks that have nonempty vertex semantic defined
       auto pdmit = perRenderMaskData.find(gd.first);
-      if (pdmit == perRenderMaskData.end())
+      if (pdmit == end(perRenderMaskData))
         continue;
       PerRenderMaskData& rmData = pdmit->second;
 
       std::vector<VertexSemantic> requiredSemantic;
       auto sit = semantics.find(gd.first);
-      if (sit != semantics.end())
+      if (sit != end(semantics))
         requiredSemantic = sit->second;
       if (requiredSemantic.empty())
         continue;
 
       // Sort geometries according to typeID and lodID
-      std::sort(gd.second.begin(), gd.second.end(), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
+      std::sort(begin(gd.second), end(gd.second), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
 
       VkDeviceSize                verticesSoFar   = 0;
       VkDeviceSize                indicesSoFar    = 0;
@@ -168,7 +168,7 @@ void AssetBuffer::validate(const RenderContext& renderContext)
       std::vector<AssetGeometryDefinition> assetGeometries;
       for (uint32_t t = 0; t < assetTypes.size(); ++t)
       {
-        auto typePair = std::equal_range(gd.second.begin(), gd.second.end(), InternalGeometryDefinition(t, 0, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) {return lhs.typeID < rhs.typeID; });
+        auto typePair = std::equal_range(begin(gd.second), end(gd.second), InternalGeometryDefinition(t, 0, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) {return lhs.typeID < rhs.typeID; });
         assetTypes[t].lodFirst = assetLods.size();
         for (uint32_t l = 0; l < lodDefinitions[t].size(); ++l)
         {
@@ -192,7 +192,7 @@ void AssetBuffer::validate(const RenderContext& renderContext)
               copyAndConvertVertices(*(rmData.vertices), requiredSemantic, assets[it->assetIndex]->geometries[it->geometryIndex].vertices, assets[it->assetIndex]->geometries[it->geometryIndex].semantic);
               // copying indices to an index buffer
               const auto& indices = assets[it->assetIndex]->geometries[it->geometryIndex].indices;
-              std::copy(indices.begin(), indices.end(), std::back_inserter(*(rmData.indices)));
+              std::copy(begin(indices), end(indices), std::back_inserter(*(rmData.indices)));
             }
             lodDef.geomSize = assetGeometries.size() - lodDef.geomFirst;
             assetLods.push_back(lodDef);
@@ -219,7 +219,7 @@ void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, C
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
-  if (prmit == perRenderMaskData.end())
+  if (prmit == end(perRenderMaskData))
   {
     LOG_WARNING << "AssetBuffer::bindVertexIndexBuffer() does not have this render mask defined" << std::endl;
     return;
@@ -238,7 +238,7 @@ void AssetBuffer::cmdDrawObject(const RenderContext& renderContext, CommandBuffe
   std::lock_guard<std::mutex> lock(mutex);
 
   auto prmit = perRenderMaskData.find(renderMask);
-  if (prmit == perRenderMaskData.end())
+  if (prmit == end(perRenderMaskData))
   {
     LOG_WARNING << "AssetBuffer::drawObject() does not have this render mask defined" << std::endl;
     return;
@@ -288,21 +288,21 @@ std::shared_ptr<StorageBuffer<AssetTypeDefinition>> AssetBuffer::getTypeBuffer(u
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
-  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBuffer::getTypeBuffer() attempting to get a buffer for nonexisting render mask");
+  CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getTypeBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.typeBuffer;
 }
 std::shared_ptr<StorageBuffer<AssetLodDefinition>> AssetBuffer::getLodBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
-  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBuffer::getLodBuffer() attempting to get a buffer for nonexisting render mask");
+  CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getLodBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.lodBuffer;
 }
 std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> AssetBuffer::getGeomBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
-  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBuffer::getGeomBuffer() attempting to get a buffer for nonexisting render mask");
+  CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getGeomBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.geomBuffer;
 }
 
@@ -317,7 +317,7 @@ void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, s
       geomDefinitions.push_back(gd);
   }
 
-  std::sort(geomDefinitions.begin(), geomDefinitions.end(), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs){ if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
+  std::sort(begin(geomDefinitions), end(geomDefinitions), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs){ if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
 
   VkDeviceSize                       verticesSoFar = 0;
   VkDeviceSize                       indicesSoFar = 0;
@@ -327,7 +327,7 @@ void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, s
   std::vector<AssetGeometryDefinition> assetGeometries;
   for (uint32_t t = 0; t < typeDefinitions.size(); ++t)
   {
-    auto typePair = std::equal_range(geomDefinitions.begin(), geomDefinitions.end(), InternalGeometryDefinition(t, 0, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs){return lhs.typeID < rhs.typeID; });
+    auto typePair = std::equal_range(begin(geomDefinitions), end(geomDefinitions), InternalGeometryDefinition(t, 0, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs){return lhs.typeID < rhs.typeID; });
     for (uint32_t l = 0; l<lodDefinitions[t].size(); ++l)
     {
       auto lodPair = std::equal_range(typePair.first, typePair.second, InternalGeometryDefinition(t, l, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs){return lhs.lodID < rhs.lodID; });
@@ -400,7 +400,7 @@ std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> AssetBuffer
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
-  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getResults() attempting to get a buffer for nonexisting render mask");
+  CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBufferInstancedResults::getResults() attempting to get a buffer for nonexisting render mask");
   return it->second.resultsSbo;
 }
 
@@ -408,7 +408,7 @@ std::shared_ptr<StorageBufferPerSurface<uint32_t>> AssetBufferInstancedResults::
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
-  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getOffsetValues() attempting to get a buffer for nonexisting render mask");
+  CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBufferInstancedResults::getOffsetValues() attempting to get a buffer for nonexisting render mask");
   return it->second.offValuesSbo;
 }
 
@@ -416,7 +416,7 @@ uint32_t AssetBufferInstancedResults::getDrawCount(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
-  CHECK_LOG_THROW(it == perRenderMaskData.end(), "AssetBufferInstancedResults::getDrawCount() attempting to get a draw count for nonexisting render mask");
+  CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBufferInstancedResults::getDrawCount() attempting to get a draw count for nonexisting render mask");
   return it->second.initialResultValues.size();
 }
 

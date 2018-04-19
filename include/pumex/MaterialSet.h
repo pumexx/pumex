@@ -231,14 +231,14 @@ void MaterialRegistry<T>::registerMaterial(uint32_t typeID, uint32_t materialVar
   material.registerTextures(registeredTextures);
   material.registerProperties(mat);
   iMaterialDefinitions.push_back(InternalMaterialDefinition(typeID, materialVariant, assetIndex, materialIndex, material));
-  std::sort(iMaterialDefinitions.begin(), iMaterialDefinitions.end(), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; if (lhs.materialVariant != rhs.materialVariant) return lhs.materialVariant < rhs.materialVariant; if (lhs.assetIndex != rhs.assetIndex) return lhs.assetIndex < rhs.assetIndex; return lhs.materialIndex < rhs.materialIndex; });
+  std::sort(begin(iMaterialDefinitions), end(iMaterialDefinitions), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; if (lhs.materialVariant != rhs.materialVariant) return lhs.materialVariant < rhs.materialVariant; if (lhs.assetIndex != rhs.assetIndex) return lhs.assetIndex < rhs.assetIndex; return lhs.materialIndex < rhs.materialIndex; });
 }
 
 template <typename T>
 std::vector<std::pair<uint32_t, uint32_t>> MaterialRegistry<T>::getAssetMaterialIndices(uint32_t typeID) const
 {
   std::vector<std::pair<uint32_t, uint32_t>> results;
-  for (auto it = iMaterialDefinitions.begin(), eit = iMaterialDefinitions.end(); it != eit; ++it)
+  for (auto it = begin(iMaterialDefinitions), eit = end(iMaterialDefinitions); it != eit; ++it)
   {
     if (it->typeID == typeID && it->materialVariant == 0)
       results.push_back({ it->assetIndex, it->materialIndex });
@@ -250,7 +250,7 @@ template <typename T>
 uint32_t MaterialRegistry<T>::getMaterialVariantCount(uint32_t typeID) const
 {
   std::set<uint32_t> matVars;
-  for (auto it = iMaterialDefinitions.begin(), eit = iMaterialDefinitions.end(); it != eit; ++it)
+  for (auto it = begin(iMaterialDefinitions), eit = end(iMaterialDefinitions); it != eit; ++it)
   {
     if (it->typeID == typeID)
       matVars.insert(it->materialVariant);
@@ -264,7 +264,7 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
   // find the number of types
   uint32_t typeCount = 0;
   if (iMaterialDefinitions.size() > 0)
-    typeCount = std::max_element(iMaterialDefinitions.begin(), iMaterialDefinitions.end(), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) {return lhs.typeID < rhs.typeID; })->typeID + 1;
+    typeCount = std::max_element(begin(iMaterialDefinitions), end(iMaterialDefinitions), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) {return lhs.typeID < rhs.typeID; })->typeID + 1;
 
   typeDefinitions.resize(typeCount);
   variantDefinitions.resize(0);
@@ -273,7 +273,7 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
   for (uint32_t typeIndex = 0; typeIndex < typeDefinitions.size(); ++typeIndex)
   {
     typeDefinitions[typeIndex].variantFirst = variantDefinitions.size();
-    auto typePair = std::equal_range(iMaterialDefinitions.begin(), iMaterialDefinitions.end(), InternalMaterialDefinition(typeIndex, 0, 0, 0, T()), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) {return lhs.typeID < rhs.typeID; });
+    auto typePair = std::equal_range(begin(iMaterialDefinitions), end(iMaterialDefinitions), InternalMaterialDefinition(typeIndex, 0, 0, 0, T()), [](const InternalMaterialDefinition& lhs, const InternalMaterialDefinition& rhs) {return lhs.typeID < rhs.typeID; });
 
     uint32_t variantIndex = 0;
     while (true)

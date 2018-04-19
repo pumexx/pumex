@@ -49,7 +49,7 @@ void CommandPool::validate(Device* device)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
-  if (pddit != perDeviceData.end())
+  if (pddit != end(perDeviceData))
     return;
   pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
 
@@ -64,7 +64,7 @@ VkCommandPool CommandPool::getHandle(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.commandPool;
 }
@@ -90,7 +90,7 @@ CommandBuffer::~CommandBuffer()
 void CommandBuffer::invalidate(uint32_t index) 
 { 
   if (index == UINT32_MAX) 
-    std::fill(valid.begin(), valid.end(), false);
+    std::fill(begin(valid), end(valid), false);
   else 
     valid[index % commandBuffer.size()] = false;
 }

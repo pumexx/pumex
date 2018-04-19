@@ -180,7 +180,7 @@ HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStart
 HPClock::duration   Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
 HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
 HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
-void                Viewer::addDefaultDirectory(std::string directory) { std::replace( directory.begin(), directory.end(), '\\', '/'); defaultDirectories.push_back(directory); }
+void                Viewer::addDefaultDirectory(std::string directory) { std::replace( begin(directory), end(directory), '\\', '/'); defaultDirectories.push_back(directory); }
 void                Viewer::doNothing() const               {}
 void                Viewer::setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event)  { eventRenderStart = event; }
 void                Viewer::setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event) { eventRenderFinish = event; }

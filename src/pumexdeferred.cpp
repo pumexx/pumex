@@ -69,13 +69,13 @@ struct MaterialData
   void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
   {
     auto it = textureIndices.find(pumex::TextureSemantic::Diffuse);
-    diffuseTextureIndex   = (it == textureIndices.end()) ? 0 : it->second;
+    diffuseTextureIndex   = (it == end(textureIndices)) ? 0 : it->second;
     it = textureIndices.find(pumex::TextureSemantic::Specular);
-    roughnessTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
+    roughnessTextureIndex = (it == end(textureIndices)) ? 0 : it->second;
     it = textureIndices.find(pumex::TextureSemantic::LightMap);
-    metallicTextureIndex  = (it == textureIndices.end()) ? 0 : it->second;
+    metallicTextureIndex  = (it == end(textureIndices)) ? 0 : it->second;
     it = textureIndices.find(pumex::TextureSemantic::Normals);
-    normalTextureIndex    = (it == textureIndices.end()) ? 0 : it->second;
+    normalTextureIndex    = (it == end(textureIndices)) ? 0 : it->second;
   }
 };
 
@@ -345,7 +345,7 @@ struct DeferredApplicationData
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
     {
       auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-      boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+      boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
     }
 
     std::vector<glm::mat4> localTransforms(MAX_BONES);
@@ -578,7 +578,7 @@ int main( int argc, char * argv[] )
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
-    std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
+    std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
     modelData.typeID = modelTypeID;
     applicationData->positionUbo->set(modelData);
 

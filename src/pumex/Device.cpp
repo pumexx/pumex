@@ -67,7 +67,7 @@ void Device::realize()
     queueCount[i] = physicalDevice->queueFamilyProperties[i].queueCount;
 
   std::vector<uint32_t> chosenFamilies(requestedQueues.size());
-  std::fill(chosenFamilies.begin(), chosenFamilies.end(), UINT32_MAX);
+  std::fill(begin(chosenFamilies), end(chosenFamilies), UINT32_MAX);
   
   // at first - assign queues that have only one queue family available
   for (uint32_t i = 0; i < requestedQueues.size(); i++)
@@ -120,7 +120,7 @@ void Device::realize()
     enableDebugMarkers = true;
   }
 
-  std::copy( requestedExtensions.cbegin(), requestedExtensions.cend(), std::back_inserter(deviceExtensions) );
+  std::copy( cbegin(requestedExtensions), cend(requestedExtensions), std::back_inserter(deviceExtensions) );
 
   if (deviceExtensions.size() > 0)
   {
@@ -132,7 +132,7 @@ void Device::realize()
 
   // collect all created queues
   std::vector<uint32_t> queueIndex(physicalDevice->queueFamilyProperties.size());
-  std::fill(queueIndex.begin(), queueIndex.end(), 0);
+  std::fill(begin(queueIndex), end(queueIndex), 0);
   for (uint32_t i=0; i<requestedQueues.size(); ++i)
   {
     VkQueue queue;
@@ -194,7 +194,7 @@ std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(void* data, VkDevice
   VkDeviceSize smallestSize = std::numeric_limits<VkDeviceSize>::max();
   std::shared_ptr<StagingBuffer> resultBuffer;
   std::lock_guard<std::mutex> lock(stagingMutex);
-  for (auto it = stagingBuffers.begin(); it != stagingBuffers.end(); ++it)
+  for (auto it = begin(stagingBuffers); it != end(stagingBuffers); ++it)
   {
     if ( (*it)->isReserved() || (*it)->bufferSize() < size)
       continue;

@@ -81,7 +81,7 @@ private:
     }
     void invalidate()
     {
-      std::fill(valid.begin(), valid.end(), false);
+      std::fill(begin(valid), end(valid), false);
     }
 
     VkDevice                            device;

@@ -77,7 +77,7 @@ private:
     }
     void invalidate()
     {
-      std::fill(valid.begin(), valid.end(), false);
+      std::fill(begin(valid), end(valid), false);
     }
 
     std::shared_ptr<T>              data;
@@ -129,7 +129,7 @@ void GenericBufferPerSurface<T>::set(Surface* surface, std::shared_ptr<T> data)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount,surface->device.lock()->device) }).first;
   pddit->second.data = data;
   pddit->second.invalidate();
@@ -140,7 +140,7 @@ std::shared_ptr<T> GenericBufferPerSurface<T>::get(Surface* surface) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "GenericBufferPerSurface<T>::get() : generic buffer was not validated");
+  CHECK_LOG_THROW(pddit == end(perSurfaceData), "GenericBufferPerSurface<T>::get() : generic buffer was not validated");
   return pddit->second.data;
 }
 
@@ -155,7 +155,7 @@ void GenericBufferPerSurface<T>::validate(const RenderContext& renderContext)
       pdd.second.resize(activeCount);
   }
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
@@ -210,7 +210,7 @@ DescriptorSetValue GenericBufferPerSurface<T>::getDescriptorSetValue(const Rende
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "GenericBufferPerSurface<T>::getDescriptorSetValue() : generic buffer was not validated");
+  CHECK_LOG_THROW(pddit == end(perSurfaceData), "GenericBufferPerSurface<T>::getDescriptorSetValue() : generic buffer was not validated");
 
   return DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*(pddit->second.data)));
 }
@@ -229,7 +229,7 @@ VkBuffer GenericBufferPerSurface<T>::getBufferHandle(const RenderContext& render
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(renderContext.vkSurface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     return VK_NULL_HANDLE;
   return it->second.buffer[renderContext.activeIndex % activeCount];
 }

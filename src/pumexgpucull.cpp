@@ -175,9 +175,6 @@ protected:
   size_t                 _airplaneProp;
 };
 
-
-
-
 struct UpdateData
 {
   UpdateData()
@@ -424,7 +421,7 @@ pumex::Asset* createPropeller(const std::string& boneName, float detailRatio, in
     pumex::transformGeometry(matrix, oneProp);
     uint32_t verticesSoFar = propeller.vertices.size() / oneVertexSize;
     pumex::copyAndConvertVertices(propeller.vertices, propeller.semantic, oneProp.vertices, oneProp.semantic );
-    std::transform(oneProp.indices.begin(), oneProp.indices.end(), std::back_inserter(propeller.indices), [=](uint32_t x){ return verticesSoFar + x; });
+    std::transform(begin(oneProp.indices), end(oneProp.indices), std::back_inserter(propeller.indices), [=](uint32_t x){ return verticesSoFar + x; });
   }
   result->geometries.push_back(propeller);
 
@@ -825,7 +822,7 @@ struct GpuCullApplicationData
     if (_showDynamicRendering)
     {
       std::vector< std::unordered_map<uint32_t, DynamicObjectData>::iterator > iters;
-      for (auto it = updateData.dynamicObjectData.begin(); it != updateData.dynamicObjectData.end(); ++it)
+      for (auto it = begin(updateData.dynamicObjectData); it != end(updateData.dynamicObjectData); ++it)
         iters.push_back(it);
       tbb::parallel_for
       (
@@ -838,7 +835,7 @@ struct GpuCullApplicationData
       );
 
       renderData[updateIndex].dynamicObjectData.resize(0);
-      for (auto it = updateData.dynamicObjectData.begin(); it != updateData.dynamicObjectData.end(); ++it)
+      for (auto it = begin(updateData.dynamicObjectData); it != end(updateData.dynamicObjectData); ++it)
         renderData[updateIndex].dynamicObjectData.push_back(it->second);
 
     }
@@ -940,8 +937,9 @@ struct GpuCullApplicationData
       // Warning: if you want to change quantity and types of rendered objects then you have to recalculate instance offsets
       staticInstanceSbo->set(rData.staticInstanceData);
 
-      std::vector<uint32_t> typeCount(_staticTypeIDs.size());
-      std::fill(typeCount.begin(), typeCount.end(), 0);
+      uint32_t maxTypeID = _staticTypeIDs.empty() ? 0 : *std::max_element(begin(_staticTypeIDs), end(_staticTypeIDs));
+      std::vector<uint32_t> typeCount(maxTypeID+1);
+      std::fill(begin(typeCount), end(typeCount), 0);
 
       // compute how many instances of each type there is
       for (uint32_t i = 0; i < rData.staticInstanceData.size(); ++i)
@@ -952,8 +950,12 @@ struct GpuCullApplicationData
 
     if (_showDynamicRendering)
     {
-      std::vector<uint32_t> typeCount(_dynamicTypeIDs.size());
-      std::fill(typeCount.begin(), typeCount.end(), 0);
+      uint32_t maxTypeID = 0;
+      for (auto it = begin(_dynamicTypeIDs); it != end(_dynamicTypeIDs); ++it)
+        if (maxTypeID < it->first)
+          maxTypeID = it->first;
+      std::vector<uint32_t> typeCount(maxTypeID+1);
+      std::fill(begin(typeCount), end(typeCount), 0);
 
       // compute how many instances of each type there is
       for (uint32_t i = 0; i<rData.dynamicObjectData.size(); ++i)
@@ -962,7 +964,7 @@ struct GpuCullApplicationData
       _dynamicInstancedResults->prepareBuffers(typeCount);
 
       std::vector<DynamicInstanceData> dynamicInstanceData;
-      for (auto it = rData.dynamicObjectData.begin(); it != rData.dynamicObjectData.end(); ++it)
+      for (auto it = begin(rData.dynamicObjectData); it != end(rData.dynamicObjectData); ++it)
         dynamicInstanceData.emplace_back( _dynamicTypeIDs[it->typeID]->update(*it, deltaTime, renderTime) );
 
       dynamicInstanceSbo->set(dynamicInstanceData);
@@ -1581,7 +1583,7 @@ int main(int argc, char * argv[])
       float maxObjectSpeed[3] = { 10.0f, 5.0f, 16.0f };
 
       std::unordered_map<uint32_t, std::uniform_real_distribution<float>> randomObjectSpeed;
-      for (auto it = dynamicTypeIDs.begin(); it != dynamicTypeIDs.end(); ++it)
+      for (auto it = begin(dynamicTypeIDs); it != end(dynamicTypeIDs); ++it)
         randomObjectSpeed.insert({ it->first,std::uniform_real_distribution<float>(minObjectSpeed[it->first], maxObjectSpeed[it->first]) });
 
       float fullArea = dynamicAreaSize * dynamicAreaSize;
@@ -1592,7 +1594,7 @@ int main(int argc, char * argv[])
       std::exponential_distribution<float>  randomTime2NextTurn(0.1f);
 
       uint32_t objectID = 0;
-      for(auto it = dynamicTypeIDs.begin(); it!= dynamicTypeIDs.end(); ++it)
+      for(auto it = begin(dynamicTypeIDs); it!= end(dynamicTypeIDs); ++it)
       {
 
         int objectQuantity = (int)floor(objectDensity[it->first] * fullArea / 1000000.0f);
@@ -1721,7 +1723,6 @@ int main(int argc, char * argv[])
     textDescriptorSetSmall->setDescriptor(0, applicationData->textCameraUbo);
     textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     textSmall->setDescriptorSet(0, textDescriptorSetSmall);
-
 
     if (render3windows)
     {

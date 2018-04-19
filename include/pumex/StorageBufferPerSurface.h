@@ -79,7 +79,7 @@ private:
     }
     void invalidate()
     {
-      std::fill(valid.begin(), valid.end(), false);
+      std::fill(begin(valid), end(valid), false);
     }
 
     std::vector<T>                  storageData;
@@ -137,7 +137,7 @@ void StorageBufferPerSurface<T>::set(Surface* surface, const std::vector<T>& dat
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(surface->surface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     it = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount, surface->device.lock()->device) }).first;
   it->second.storageData = data;
   it->second.invalidate();
@@ -148,7 +148,7 @@ const std::vector<T>& StorageBufferPerSurface<T>::get(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(surface->surface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     it = perSurfaceData.insert({ surface->surface, PerSurfaceData(activeCount, surface->device.lock()->device) }).first;
   return it->second.storageData;
 }
@@ -170,7 +170,7 @@ void StorageBufferPerSurface<T>::validate(const RenderContext& renderContext)
       pdd.second.resize(activeCount);
   }
   auto it = perSurfaceData.find(renderContext.vkSurface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     it = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount, renderContext.vkDevice) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (it->second.valid[activeIndex])
@@ -226,7 +226,7 @@ DescriptorSetValue StorageBufferPerSurface<T>::getDescriptorSetValue(const Rende
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "StorageBufferPerSurface<T>::getDescriptorSetValue() : storage buffer was not validated");
+  CHECK_LOG_THROW(pddit == end(perSurfaceData), "StorageBufferPerSurface<T>::getDescriptorSetValue() : storage buffer was not validated");
 
   return DescriptorSetValue(pddit->second.storageBuffer[renderContext.activeIndex % activeCount], 0, sizeof(T)*pddit->second.storageData.size());
 }
@@ -245,7 +245,7 @@ VkBuffer StorageBufferPerSurface<T>::getBufferHandle(const RenderContext& render
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(renderContext.vkSurface);
-  if (it == perSurfaceData.end())
+  if (it == end(perSurfaceData))
     return VK_NULL_HANDLE;
   return it->second.storageBuffer[renderContext.activeIndex % activeCount];
 }

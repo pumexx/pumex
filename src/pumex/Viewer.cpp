@@ -362,7 +362,7 @@ std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std:
 Device*  Viewer::getDevice(uint32_t id)
 {
   auto it = devices.find(id);
-  if (it == devices.end())
+  if (it == end(devices))
     return nullptr;
   return it->second.get();
 }
@@ -370,7 +370,7 @@ Device*  Viewer::getDevice(uint32_t id)
 Surface* Viewer::getSurface(uint32_t id)
 {
   auto it = surfaces.find(id);
-  if (it == surfaces.end())
+  if (it == end(surfaces))
     return nullptr;
   return it->second.get();
 }
@@ -381,7 +381,7 @@ std::string Viewer::getFullFilePath(const std::string& shortFileName) const
   for ( auto d : defaultDirectories )
   {
 #if defined(_WIN32)
-    std::replace(d.begin(), d.end(), '/', '\\');
+    std::replace(begin(d), end(d), '/', '\\');
     std::string fullFilePath( d + "\\" + shortFileName );
 #else
     std::string fullFilePath(d + "/" + shortFileName);
@@ -434,7 +434,7 @@ void Viewer::buildRenderGraph()
       surface->beginFrame();
     });
     auto jit = primaryBuffers.find(surface);
-    if(jit == primaryBuffers.end())
+    if(jit == end(primaryBuffers))
       jit = primaryBuffers.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
 
     for (uint32_t i = 0; i < surface->queues.size(); ++i)
@@ -459,7 +459,7 @@ void Viewer::buildRenderGraph()
   {
     tbb::flow::make_edge(renderGraphStart, startSurfaceFrame[i]);
     auto jit = primaryBuffers.find(surfacePointers[i]);
-    if (jit == primaryBuffers.end() || jit->second.size() == 0)
+    if (jit == end(primaryBuffers) || jit->second.size() == 0)
     {
       // no command buffer building ? Maybe we should throw an error ?
       tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);

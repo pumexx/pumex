@@ -64,7 +64,7 @@ void AssetNode::validate(const RenderContext& renderContext)
       continue;
 
     copyAndConvertVertices(*vertices, asset->geometries[i].semantic, asset->geometries[i].vertices, asset->geometries[i].semantic);
-    std::transform(asset->geometries[i].indices.begin(), asset->geometries[i].indices.end(), std::back_inserter(*indices), [vertexCount](uint32_t value)->uint32_t { return value + vertexCount; });
+    std::transform(begin(asset->geometries[i].indices), end(asset->geometries[i].indices), std::back_inserter(*indices), [vertexCount](uint32_t value)->uint32_t { return value + vertexCount; });
     vertexCount += asset->geometries[i].getVertexCount();
   }
   vertexBuffer->invalidate();

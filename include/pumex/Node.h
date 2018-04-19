@@ -69,10 +69,10 @@ protected:
   std::string                                                  name;
   bool                                                         valid = false;
 public:
-  inline decltype(descriptorSets.begin()) descriptorSetBegin()        { return descriptorSets.begin(); }
-  inline decltype(descriptorSets.end()) descriptorSetEnd()            { return descriptorSets.end(); }
-  inline decltype(descriptorSets.cbegin()) descriptorSetBegin() const { return descriptorSets.cbegin(); }
-  inline decltype(descriptorSets.cend()) descriptorSetEnd() const     { return descriptorSets.cend(); }
+  inline decltype(begin(descriptorSets))  descriptorSetBegin()       { return begin(descriptorSets); }
+  inline decltype(end(descriptorSets))    descriptorSetEnd()         { return end(descriptorSets); }
+  inline decltype(cbegin(descriptorSets)) descriptorSetBegin() const { return cbegin(descriptorSets); }
+  inline decltype(cend(descriptorSets))   descriptorSetEnd() const   { return cend(descriptorSets); }
 };
 
 
@@ -95,10 +95,10 @@ protected:
   std::vector<std::shared_ptr<Node>> children;
 
 public:
-  inline decltype(children.begin())  begin()       { return children.begin(); }
-  inline decltype(children.end())    end()         { return children.end(); }
-  inline decltype(children.cbegin()) begin() const { return children.cbegin(); }
-  inline decltype(children.cend())   end() const   { return children.cend(); }
+  inline decltype(std::begin(children))  begin()       { return std::begin(children); }
+  inline decltype(std::end(children))    end()         { return std::end(children); }
+  inline decltype(std::cbegin(children)) begin() const { return std::cbegin(children); }
+  inline decltype(std::cend(children))    end() const  { return std::cend(children); }
 
 };
 

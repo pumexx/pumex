@@ -46,7 +46,7 @@ Image* Clipmap3::getHandleImage(VkDevice device, uint32_t layer) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return nullptr;
   if(pddit->second.images.size()<layer)
     return nullptr;
@@ -57,7 +57,7 @@ void Clipmap3::validate(Device* device, CommandPool* commandPool, VkQueue queue)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
   if (!pddit->second.images.empty())
     return;
@@ -120,7 +120,7 @@ DescriptorSetValue Clipmap3::getDescriptorSetValue(const RenderContext& renderCo
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "Clipmap3::getDescriptorSetValue() : texture was not validated");
+  CHECK_LOG_THROW(pddit == end(perDeviceData), "Clipmap3::getDescriptorSetValue() : texture was not validated");
 
   return DescriptorSetValue(pddit->second.sampler, pddit->second.images[0]->getImageView(), pddit->second.images[0]->getImageLayout());
 }

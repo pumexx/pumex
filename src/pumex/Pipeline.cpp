@@ -76,7 +76,7 @@ DescriptorSetLayout::~DescriptorSetLayout()
 void DescriptorSetLayout::validate(const RenderContext& renderContext)
 {
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit != perDeviceData.end())
+  if (pddit != end(perDeviceData))
     return;
   pddit = perDeviceData.insert( { renderContext.vkDevice, PerDeviceData()} ).first;
 
@@ -101,7 +101,7 @@ void DescriptorSetLayout::validate(const RenderContext& renderContext)
 VkDescriptorSetLayout DescriptorSetLayout::getHandle(VkDevice device) const
 {
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.descriptorSetLayout;
 }
@@ -143,7 +143,7 @@ void DescriptorPool::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit != perDeviceData.end())
+  if (pddit != end(perDeviceData))
     return;
   pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
 
@@ -168,7 +168,7 @@ VkDescriptorPool DescriptorPool::getHandle(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.descriptorPool;
 }
@@ -254,7 +254,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
       pdd.second.resize(activeCount);
   }
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
   if (pddit->second.valid[renderContext.activeIndex])
     return;
@@ -326,7 +326,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
 VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) const
 {
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     return VK_NULL_HANDLE;
   return pddit->second.descriptorSet[renderContext.activeIndex];
 }
@@ -381,7 +381,7 @@ void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> re
 void DescriptorSet::resetDescriptor(uint32_t binding)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (descriptors.find(binding) != descriptors.end())
+  if (descriptors.find(binding) != end(descriptors))
   {
     descriptors[binding]->unregisterFromResources();
     descriptors.erase(binding);
@@ -396,8 +396,8 @@ void DescriptorSet::addNode(std::shared_ptr<Node> node)
 
 void DescriptorSet::removeNode(std::shared_ptr<Node> node)
 {
-  auto it = std::find_if(nodeOwners.begin(), nodeOwners.end(), [node](std::weak_ptr<Node> p) -> bool { return p.lock() == node; });
-  if (it != nodeOwners.end())
+  auto it = std::find_if(begin(nodeOwners), end(nodeOwners), [node](std::weak_ptr<Node> p) -> bool { return p.lock() == node; });
+  if (it != end(nodeOwners))
     nodeOwners.erase(it);
 }
 
@@ -415,7 +415,7 @@ void PipelineLayout::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit != perDeviceData.end())
+  if (pddit != end(perDeviceData))
     return;
   pddit = perDeviceData.insert( { renderContext.vkDevice, PerDeviceData()}).first;
 
@@ -436,7 +436,7 @@ VkPipelineLayout PipelineLayout::getHandle(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.pipelineLayout;
 }
@@ -455,7 +455,7 @@ void PipelineCache::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit != perDeviceData.end())
+  if (pddit != end(perDeviceData))
     return;
   pddit = perDeviceData.insert({ renderContext.vkDevice,PerDeviceData()}).first;
 
@@ -468,7 +468,7 @@ VkPipelineCache PipelineCache::getHandle(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.pipelineCache;
 }
@@ -494,7 +494,7 @@ ShaderModule::~ShaderModule()
 void ShaderModule::validate(const RenderContext& renderContext)
 {
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit != perDeviceData.end())
+  if (pddit != end(perDeviceData))
     return;
   pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
 
@@ -508,7 +508,7 @@ void ShaderModule::validate(const RenderContext& renderContext)
 VkShaderModule ShaderModule::getHandle(VkDevice device) const
 {
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.shaderModule;
 }
@@ -534,7 +534,7 @@ VkPipeline Pipeline::getHandle(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == cend(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.pipeline;
 }
@@ -580,7 +580,7 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == perDeviceData.end())
+  if (pddit == cend(perDeviceData))
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
   if (pddit->second.valid)
   {
@@ -794,7 +794,7 @@ void ComputePipeline::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == perDeviceData.end())
+  if (pddit == cend(perDeviceData))
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
   if (pddit->second.valid)
   {

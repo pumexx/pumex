@@ -234,7 +234,7 @@ void RenderPass::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
   if (pddit->second.valid)
     return;
@@ -269,7 +269,7 @@ VkRenderPass RenderPass::getHandle(VkDevice device) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.renderPass;
 }
@@ -318,8 +318,8 @@ void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string,
 
     if (!resolveAttachments.empty())
     {
-      auto it = std::find_if(resolveAttachments.begin(), resolveAttachments.end(), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->attachment.resolveResource == outputAttachment->resource; });
-      if (it != resolveAttachments.end())
+      auto it = std::find_if(begin(resolveAttachments), end(resolveAttachments), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->attachment.resolveResource == outputAttachment->resource; });
+      if (it != end(resolveAttachments))
         ra.push_back({ attachmentIndex.at((*it)->resource->name), (*it)->attachment.layout });
       else
         ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
@@ -363,24 +363,36 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
 
   if (subpassIndex == 0)
   {
+    VkRect2D rectangle;
+    VkViewport viewport;
+    // FIXME : what about viewport Z coordinates ?
+    switch (operation->attachmentSize.attachmentSize)
+    {
+    case AttachmentSize::SurfaceDependent:
+      rectangle = makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.imageSize.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.imageSize.y);
+      viewport  = makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.imageSize.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.imageSize.y, 0.0f, 1.0f);
+      break;
+    case AttachmentSize::Absolute:
+      rectangle = makeVkRect2D(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y);
+      viewport  = makeViewport(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y, 0.0f, 1.0f);
+      break;
+    }
     commandVisitor.commandBuffer->cmdBeginRenderPass
     (
       commandVisitor.renderContext.surface,
       this,
       commandVisitor.renderContext.activeIndex,
-      makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height),
+      rectangle,
       renderPass->clearValues,
       operation->subpassContents
     );
+    commandVisitor.commandBuffer->cmdSetViewport(0, { viewport });
+    commandVisitor.commandBuffer->cmdSetScissor(0, { rectangle });
   }
   else
   {
     commandVisitor.commandBuffer->cmdNextSubPass(this, operation->subpassContents);
   }
-
-  // FIXME - this should be moved somewhere else
-  commandVisitor.commandBuffer->cmdSetViewport(0, { makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height, 0.0f, 1.0f) });
-  commandVisitor.commandBuffer->cmdSetScissor(0, { makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width, commandVisitor.renderContext.surface->swapChainSize.height) });
 
   if (operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
   {

@@ -107,7 +107,7 @@ DescriptorSetValue GenericBuffer<T>::getDescriptorSetValue(const RenderContext& 
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == perDeviceData.end(), "GenericBuffer<T>::getDescriptorSetValue() : storage buffer was not validated");
+  CHECK_LOG_THROW(pddit == end(perDeviceData), "GenericBuffer<T>::getDescriptorSetValue() : storage buffer was not validated");
 
   return DescriptorSetValue(pddit->second.buffer[renderContext.activeIndex % activeCount], 0, uglyGetSize(*data) );
 }
@@ -133,7 +133,7 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
       pdd.second.resize(activeCount);
   }
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
@@ -188,7 +188,7 @@ VkBuffer GenericBuffer<T>::getBufferHandle(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == perDeviceData.end())
+  if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.buffer[renderContext.activeIndex % activeCount];
 }

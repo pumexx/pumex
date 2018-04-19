@@ -111,7 +111,7 @@ void Font::validate(const RenderContext& renderContext)
 size_t Font::getGlyphIndex(wchar_t charCode)
 {
   auto it = registeredGlyphs.find(charCode);
-  if ( it != registeredGlyphs.end())
+  if ( it != end(registeredGlyphs))
     return it->second;
 
   // load glyph from freetype
@@ -183,7 +183,7 @@ void Text::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto sit = symbolData.find(renderContext.vkSurface);
-  if (sit == symbolData.end())
+  if (sit == end(symbolData))
   {
     sit = symbolData.insert({ renderContext.vkSurface, std::make_shared<std::vector<SymbolData>>() }).first;
     vertexBuffer->set(renderContext.surface, sit->second);
@@ -213,7 +213,7 @@ void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuf
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto sit = symbolData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(sit == symbolData.end(), "Text::cmdDraw() : text was not validated");
+  CHECK_LOG_THROW(sit == end(symbolData), "Text::cmdDraw() : text was not validated");
 
   VkBuffer     vBuffer = vertexBuffer->getBufferHandle(renderContext);
   VkDeviceSize offsets = 0;

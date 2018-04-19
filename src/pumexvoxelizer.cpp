@@ -100,7 +100,7 @@ struct VoxelizerApplicationData
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
-    std::copy(globalTransforms.begin(), globalTransforms.end(), std::begin(modelData.bones));
+    std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
     positionUbo->set(modelData);
     PositionData vbData;
     voxelPositionUbo->set(vbData);
@@ -299,7 +299,7 @@ struct VoxelizerApplicationData
       for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
       {
         auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-        boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+        boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
       }
 
       std::vector<glm::mat4> localTransforms(MAX_BONES);

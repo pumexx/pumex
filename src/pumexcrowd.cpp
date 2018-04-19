@@ -166,7 +166,7 @@ struct MaterialData
   void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
   {
     auto it = textureIndices.find(pumex::TextureSemantic::Diffuse);
-    diffuseTextureIndex = (it == textureIndices.end()) ? 0 : it->second;
+    diffuseTextureIndex = (it == end(textureIndices)) ? 0 : it->second;
   }
 };
 
@@ -524,7 +524,7 @@ struct CrowdApplicationData
   {
     // update people positions and state
     std::vector< std::unordered_map<uint32_t, ObjectData>::iterator > iters;
-    for (auto it = updateData.people.begin(); it != updateData.people.end(); ++it)
+    for (auto it = begin(updateData.people); it != end(updateData.people); ++it)
       iters.push_back(it);
     tbb::parallel_for
     (
@@ -540,14 +540,14 @@ struct CrowdApplicationData
 
     std::unordered_map<uint32_t, uint32_t> humanIndexByID;
     renderData[updateIndex].people.resize(0);
-    for (auto it = updateData.people.begin(); it != updateData.people.end(); ++it)
+    for (auto it = begin(updateData.people); it != end(updateData.people); ++it)
     {
       humanIndexByID.insert({ it->first,(uint32_t)renderData[updateIndex].people.size() });
       renderData[updateIndex].people.push_back(it->second);
     }
     renderData[updateIndex].clothes.resize(0);
     renderData[updateIndex].clothOwners.resize(0);
-    for (auto it = updateData.clothes.begin(); it != updateData.clothes.end(); ++it)
+    for (auto it = begin(updateData.clothes); it != end(updateData.clothes); ++it)
     {
       renderData[updateIndex].clothes.push_back(it->second);
       renderData[updateIndex].clothOwners.push_back(humanIndexByID[it->second.ownerID]);
@@ -655,7 +655,7 @@ struct CrowdApplicationData
     float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
     std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
-    std::fill(typeCount.begin(), typeCount.end(), 0);
+    std::fill(begin(typeCount), end(typeCount), 0);
     // compute how many instances of each type there is
     for (uint32_t i = 0; i < rData.people.size(); ++i)
       typeCount[rData.people[i].typeID]++;
@@ -668,7 +668,7 @@ struct CrowdApplicationData
     std::vector<InstanceData> instanceData;
     std::vector<uint32_t> animIndex;
     std::vector<float> animOffset;
-    for (auto it = rData.people.begin(); it != rData.people.end(); ++it)
+    for (auto it = begin(rData.people); it != end(rData.people); ++it)
     {
       uint32_t index = positionData.size();
       PositionData position(pumex::extrapolate(it->kinematic, deltaTime));
@@ -696,13 +696,13 @@ struct CrowdApplicationData
           SkelAnimKey saKey(instanceData[i].typeID, animIndex[i]);
 
           auto bmit = skelAnimBoneMapping.find(saKey);
-          if (bmit == skelAnimBoneMapping.end())
+          if (bmit == end(skelAnimBoneMapping))
           {
             std::vector<uint32_t> boneChannelMapping(numSkelBones);
             for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
             {
               auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-              boneChannelMapping[boneIndex] = (it != anim.invChannelNames.end()) ? it->second : UINT32_MAX;
+              boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
             }
             bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
           }
@@ -729,7 +729,7 @@ struct CrowdApplicationData
     );
 
     uint32_t ii = 0;
-    for (auto it = rData.clothes.begin(); it != rData.clothes.end(); ++it, ++ii)
+    for (auto it = begin(rData.clothes); it != end(rData.clothes); ++it, ++ii)
     {
       instanceData.emplace_back(InstanceData(rData.clothOwners[ii], it->typeID, it->materialVariant, 0));
     }
@@ -941,13 +941,13 @@ int main(int argc, char * argv[])
       }
 
       // register texture variants
-      for (auto it = materialVariants.begin(), eit = materialVariants.end(); it != eit; ++it)
+      for (auto it = begin(materialVariants), eit = end(materialVariants); it != eit; ++it)
       {
         if (it->first == skeletalNames[i].first)
         {
           uint32_t variantCount = materialSet->getMaterialVariantCount(typeID);
           std::vector<pumex::Material> materials = materialSet->getMaterials(typeID);
-          for (auto iit = it->second.begin(); iit != it->second.end(); ++iit)
+          for (auto iit = begin(it->second); iit != end(it->second); ++iit)
           {
             for ( auto& mat : materials )
             {

@@ -93,7 +93,7 @@ Image* TexturePerSurface::getHandleImage(const RenderContext& renderContext) con
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     return nullptr;
   return pddit->second.image[renderContext.activeIndex % activeCount].get();
 }
@@ -102,7 +102,7 @@ VkSampler TexturePerSurface::getHandleSampler(const RenderContext& renderContext
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     return VK_NULL_HANDLE;
   return pddit->second.sampler[renderContext.activeIndex % activeCount];
 }
@@ -117,7 +117,7 @@ void TexturePerSurface::validate(const RenderContext& renderContext)
       pdd.second.resize(activeCount);
   }
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(renderContext.imageCount, renderContext.vkDevice) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
@@ -249,7 +249,7 @@ DescriptorSetValue TexturePerSurface::getDescriptorSetValue(const RenderContext&
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(pddit == perSurfaceData.end(), "Texture::getDescriptorSetValue() : texture was not validated");
+  CHECK_LOG_THROW(pddit == end(perSurfaceData), "Texture::getDescriptorSetValue() : texture was not validated");
 
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   return DescriptorSetValue(pddit->second.sampler[activeIndex], pddit->second.image[activeIndex]->getImageView(), pddit->second.image[activeIndex]->getImageLayout());

@@ -64,8 +64,8 @@ void Node::addParent(std::shared_ptr<Group> parent)
 
 void Node::removeParent(std::shared_ptr<Group> parent)
 {
-  auto it = std::find_if(parents.begin(), parents.end(), [parent](std::weak_ptr<Group> p) -> bool { return p.lock() == parent; });
-  if (it != parents.end())
+  auto it = std::find_if(begin(parents), end(parents), [parent](std::weak_ptr<Group> p) -> bool { return p.lock() == parent; });
+  if (it != end(parents))
     parents.erase(it);
 }
 
@@ -78,7 +78,7 @@ void Node::setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descr
 void Node::resetDescriptorSet(uint32_t index)
 {
   auto it = descriptorSets.find(index);
-  if (it == descriptorSets.end())
+  if (it == end(descriptorSets))
     return;
   it->second->removeNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
   descriptorSets.erase(it);
@@ -137,8 +137,8 @@ void Group::addChild(std::shared_ptr<Node> child)
 
 bool Group::removeChild(std::shared_ptr<Node> child)
 {
-  auto it = std::find(children.begin(), children.end(), child);
-  if (it == children.end())
+  auto it = std::find(std::begin(children), std::end(children), child);
+  if (it == std::end(children))
     return false;
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   children.erase(it);

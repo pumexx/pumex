@@ -49,7 +49,7 @@ void FrameBufferImages::invalidate(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perSurfaceData.find(surface->surface);
-  if(it != perSurfaceData.end())
+  if(it != end(perSurfaceData))
     it->second.valid = false;
 }
 
@@ -57,7 +57,7 @@ void FrameBufferImages::validate(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device,imageDefinitions.size()) }).first;
   if (pddit->second.valid)
     return;
@@ -100,7 +100,7 @@ void FrameBufferImages::reset(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit != perSurfaceData.end())
+  if (pddit != end(perSurfaceData))
   {
     pddit->second.frameBufferImages.clear();
     perSurfaceData.erase(surface->surface);
@@ -111,7 +111,7 @@ Image* FrameBufferImages::getImage(Surface* surface, uint32_t imageIndex)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     return nullptr;
   if (pddit->second.frameBufferImages.size() <= imageIndex)
     return nullptr;
@@ -225,17 +225,17 @@ VkFramebuffer FrameBuffer::getFrameBuffer(uint32_t index)
 
 void FrameBuffer::addInputAttachment(const std::shared_ptr<InputAttachment> inputAttachment)
 {
-  if (std::find_if(inputAttachments.begin(), inputAttachments.end(), [&inputAttachment](std::weak_ptr<InputAttachment> ia) { return !ia.expired() && ia.lock().get() == inputAttachment.get(); }) == inputAttachments.end())
+  if (std::find_if(begin(inputAttachments), end(inputAttachments), [&inputAttachment](std::weak_ptr<InputAttachment> ia) { return !ia.expired() && ia.lock().get() == inputAttachment.get(); }) == end(inputAttachments))
     inputAttachments.push_back(inputAttachment);
 }
 
 void FrameBuffer::invalidateInputAttachments()
 {
   // remove expired attachments and invalidate remaining attachments
-  auto eit = std::remove_if(inputAttachments.begin(), inputAttachments.end(), [](std::weak_ptr<InputAttachment> ia) { return ia.expired();  });
-  for (auto it = inputAttachments.begin(); it != eit; ++it)
+  auto eit = std::remove_if(begin(inputAttachments), end(inputAttachments), [](std::weak_ptr<InputAttachment> ia) { return ia.expired();  });
+  for (auto it = begin(inputAttachments); it != eit; ++it)
     it->lock()->invalidate();
-  inputAttachments.erase(eit, inputAttachments.end());
+  inputAttachments.erase(eit, end(inputAttachments));
 }
 
 InputAttachment::InputAttachment(const std::string& an)
@@ -256,7 +256,7 @@ void InputAttachment::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData() }).first;
   if (pddit->second.valid)
     return;
@@ -275,7 +275,7 @@ DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& r
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == perSurfaceData.end())
+  if (pddit == end(perSurfaceData))
     return DescriptorSetValue(VK_NULL_HANDLE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   auto frameBuffer = renderContext.surface->frameBuffer;
   uint32_t frameBufferIndex = UINT32_MAX;

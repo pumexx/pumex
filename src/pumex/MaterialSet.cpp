@@ -58,7 +58,7 @@ void MaterialSet::validate(const RenderContext& renderContext)
 bool MaterialSet::getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const
 {
   auto it = textureNames.find(index);
-  if (it == textureNames.end())
+  if (it == end(textureNames))
     return false;
   texNames = it->second;
   return true;
@@ -67,7 +67,7 @@ bool MaterialSet::getTargetTextureNames(uint32_t index, std::vector<std::string>
 bool MaterialSet::setTargetTextureLayer(uint32_t slotIndex, uint32_t layerIndex, const std::string& fileName, std::shared_ptr<gli::texture> tex)
 {
   auto nit = textureNames.find(slotIndex);
-  if (nit == textureNames.end())
+  if (nit == end(textureNames))
     return false;
   if (nit->second.size() <= layerIndex)
     nit->second.resize(layerIndex + 1);
@@ -174,7 +174,7 @@ std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Ma
 {
   // register all found textures for a given material
   std::map<TextureSemantic::Type, uint32_t> registeredTextures;
-  for (auto it = mat.textures.cbegin(), eit = mat.textures.end(); it != eit; ++it)
+  for (auto it = cbegin(mat.textures), eit = cend(mat.textures); it != eit; ++it)
   {
     for (const TextureSemantic& s : semantics)
     {
@@ -217,7 +217,7 @@ void TextureRegistryTextureArray::setTargetTexture(uint32_t slotIndex, std::shar
 std::shared_ptr<Texture> TextureRegistryTextureArray::getTargetTexture(uint32_t slotIndex)
 {
   auto it = textures.find(slotIndex);
-  if (it == textures.end())
+  if (it == end(textures))
     return std::shared_ptr<Texture>();
   return textures[slotIndex];
 }
@@ -229,7 +229,7 @@ void TextureRegistryTextureArray::refreshStructures()
 void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
   auto it = textures.find(slotIndex);
-  if (it == textures.end())
+  if (it == end(textures))
     return;
   it->second->setLayer(layerIndex, tex);
 }
@@ -248,7 +248,7 @@ void TextureRegistryArrayOfTextures::setTargetSamplerTraits(uint32_t slotIndex, 
 std::vector<std::shared_ptr<Resource>> TextureRegistryArrayOfTextures::getTextures(uint32_t slotIndex)
 {
   auto it = textures.find(slotIndex);
-  if (it == textures.end())
+  if (it == end(textures))
     return std::vector<std::shared_ptr<Resource>>();
   return it->second;
 }
@@ -260,7 +260,7 @@ void TextureRegistryArrayOfTextures::refreshStructures()
 void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
   auto it = textures.find(slotIndex);
-  if (it == textures.end())
+  if (it == end(textures))
     return;// FIXME : CHECK_LOG_THROW ?
   if (layerIndex >= it->second.size())
     it->second.resize(layerIndex + 1);
