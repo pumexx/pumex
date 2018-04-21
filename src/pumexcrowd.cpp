@@ -837,7 +837,7 @@ int main(int argc, char * argv[])
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
-    for (auto win : windows)
+    for (auto& win : windows)
       surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
 
     // allocate 24 MB for frame buffers
@@ -848,15 +848,15 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples",   false, VK_FORMAT_D32_SFLOAT,        VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",         true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", true));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", false, pumex::RenderWorkflowResourceType::StorageBuffer));
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute));
       workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
       workflow->addBufferOutput( "crowd_compute", "compute_results", "offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
-      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
-      workflow->addBufferInput          ( "rendering", "compute_results", "offset_values",     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
+      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
+      workflow->addBufferInput          ( "rendering", "compute_results", "offset_values",     VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples",   "depth",             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput     ( "rendering", "surface",         "color",             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
@@ -996,11 +996,17 @@ int main(int argc, char * argv[])
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
     computeRoot->addChild(filterPipeline);
 
+    // Crowd filtering uses buffers from skeletalAssetBuffer, so we must ensure that they're compiled before we use them
+    // ( that's why skeletalAssetBuffer is connected two times in a tree )
+    auto filterAssetBufferNode = std::make_shared<pumex::AssetBufferNode>(skeletalAssetBuffer, materialSet, MAIN_RENDER_MASK, 0);
+    filterAssetBufferNode->setName("filterAssetBufferNode");
+    filterPipeline->addChild(filterAssetBufferNode);
+
     // FIXME : instance count
     uint32_t instanceCount = applicationData->updateData.people.size() + applicationData->updateData.clothes.size();
     auto dispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     dispatchNode->setName("dispatchNode");
-    filterPipeline->addChild(dispatchNode);
+    filterAssetBufferNode->addChild(dispatchNode);
   
     auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
     filterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
@@ -1145,7 +1151,7 @@ int main(int argc, char * argv[])
 
     // connecting workflow to all surfaces
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-    for (auto surf : surfaces)
+    for (auto& surf : surfaces)
       surf->setRenderWorkflow(workflow, workflowCompiler);
 
     // Making the update graph
@@ -1157,7 +1163,7 @@ int main(int argc, char * argv[])
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
       auto inputBeginTime = applicationData->now();
-      for (auto surf : surfaces)
+      for (auto& surf : surfaces)
         applicationData->processInput(surf);
       auto updateBeginTime = applicationData->setTime(1010, inputBeginTime);
       applicationData->update(viewer, pumex::inSeconds( viewer->getUpdateTime() - viewer->getApplicationStartTime() ), pumex::inSeconds(viewer->getUpdateDuration()));
@@ -1169,7 +1175,7 @@ int main(int argc, char * argv[])
 
     // set render callbacks to application data
     viewer->setEventRenderStart(std::bind(&CrowdApplicationData::prepareBuffersForRendering, applicationData, std::placeholders::_1));
-    for (auto surf : surfaces)
+    for (auto& surf : surfaces)
       surf->setEventSurfaceRenderStart(std::bind(&CrowdApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
 
     viewer->run();

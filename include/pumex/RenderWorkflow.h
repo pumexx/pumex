@@ -126,8 +126,13 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
+  enum BufferType { UniformBuffer, StorageBuffer };
+  enum ImageType { CombinedImageSampler=1, SampledImage=2, StorageImage=4  };
+  typedef VkFlags ImageTypeFlags;
+
   RenderWorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
-  RenderWorkflowResourceType(const std::string& typeName, bool persistent);
+  RenderWorkflowResourceType(const std::string& typeName, bool persistent, const BufferType& bufferType);
+  RenderWorkflowResourceType(const std::string& typeName, bool persistent, const ImageTypeFlags& imageType);
 
   bool isEqual(const RenderWorkflowResourceType& rhs) const;
 
@@ -153,16 +158,30 @@ public:
 
   struct BufferData
   {
-    BufferData()
+    BufferData(const BufferType& bt)
+      : bufferType{ bt }
     {
     }
     bool isEqual(const BufferData& rhs) const;
+    BufferType bufferType;
   };
+
+  struct ImageData
+  {
+    ImageData(const ImageTypeFlags& itf)
+      : imageType{ itf }
+    {
+    }
+    bool isEqual(const ImageData& rhs) const;
+    ImageTypeFlags imageType;
+  };
+
 
   union
   {
     AttachmentData attachment;
     BufferData     buffer;
+    ImageData      image;
   };
 };
 
@@ -434,9 +453,13 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
       srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
       srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+    case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+      srcStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+      dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+      break;
     }
     break;
-  case rttBufferInput:
   case rttBufferOutput:
     srcStageMask = generatingTransition->buffer.pipelineStage;
     break;
@@ -447,10 +470,14 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
   case rttAttachmentInput:
     switch (consumingTransition->attachment.layout)
     {
+    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+      dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+      dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-      dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; break;
+      dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
-      dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; break;
+      dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
     }
     break;
   case rttBufferInput:
@@ -473,6 +500,10 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
       srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
       srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; break;
+    case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+      srcAccessMask = VK_ACCESS_SHADER_READ_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+      srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT; break;
     }
     break;
   case rttBufferOutput:
@@ -485,6 +516,10 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
   case rttAttachmentInput:
     switch (consumingTransition->attachment.layout)
     {
+    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+      dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
+    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+      dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; break;
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
       dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:

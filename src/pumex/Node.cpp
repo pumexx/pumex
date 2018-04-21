@@ -53,7 +53,7 @@ void Node::traverse(NodeVisitor& visitor)
 
 void Node::ascend(NodeVisitor& nv)
 {
-  for (auto parent : parents)
+  for (auto& parent : parents)
     parent.lock()->accept(nv);
 }
 
@@ -96,7 +96,7 @@ void Node::invalidate()
   if (valid)
   {
     valid = false;
-    for (auto parent : parents)
+    for (auto& parent : parents)
       parent.lock()->invalidate();
     notifyCommandBuffers();
   }
@@ -124,7 +124,7 @@ void Group::accept(NodeVisitor& visitor)
 
 void Group::traverse(NodeVisitor& visitor)
 {
-  for (auto child : *this)
+  for (auto& child : *this)
     child->accept(visitor);
 }
 

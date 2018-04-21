@@ -227,13 +227,6 @@ endforeach()
 
 add_custom_target (shaders DEPENDS ${PUMEX_SHADERS_COMPILED} SOURCES ${PUMEX_SHADERS})
 
-add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
-target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
-target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
-add_dependencies( pumex glm-external gli-external ${PUMEX_DEPENDENCIES} )
-set_target_properties(pumex PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
-target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${Vulkan_LIBRARIES} ${TBB_LIBRARIES} ${ASSIMP_LIBRARIES} ${FREETYPE_LIBRARIES} )
-
 SET(CMAKE_DEBUG_POSTFIX "d")
 SET(CMAKE_RELEASE_POSTFIX "")
 SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
@@ -245,6 +238,15 @@ MACRO(set_executable_postfixes target)
   set_target_properties(${target} PROPERTIES RELWITHDEBINFO_OUTPUT_NAME "${target}${CMAKE_RELWITHDEBINFO_POSTFIX}")
   set_target_properties(${target} PROPERTIES MINSIZEREL_OUTPUT_NAME "${target}${CMAKE_MINSIZEREL_POSTFIX}")
 ENDMACRO(set_executable_postfixes)
+
+
+add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
+target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
+target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
+add_dependencies( pumex glm-external gli-external ${PUMEX_DEPENDENCIES} )
+set_target_properties(pumex PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
+target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${Vulkan_LIBRARIES} ${TBB_LIBRARIES} ${ASSIMP_LIBRARIES} ${FREETYPE_LIBRARIES} )
+set_executable_postfixes( pumex )
 
 add_executable( pumexviewer src/pumexviewer.cpp )
 add_dependencies( pumexviewer shaders args-external )

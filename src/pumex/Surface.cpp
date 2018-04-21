@@ -85,7 +85,7 @@ void Surface::realize()
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
   // get all queues and create command pools and command buffers for them
-  for (auto q : workflowSequences->queueTraits)
+  for (auto& q : workflowSequences->queueTraits)
   {
     std::shared_ptr<Queue> queue = deviceSh->getQueue(q, true);
     CHECK_LOG_THROW(queue.get() == nullptr, "Cannot get the queue for this surface");
@@ -140,7 +140,8 @@ void Surface::cleanup()
   }
   if (surface != VK_NULL_HANDLE)
   {
-    workflowSequences->frameBufferImages->reset(this);
+    if(workflowSequences != nullptr)
+      workflowSequences->frameBufferImages->reset(this);
 
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
@@ -236,7 +237,7 @@ void Surface::checkWorkflow()
       prepareCommandBuffer->invalidate(UINT32_MAX);
     if(presentCommandBuffer.get() != nullptr)
       presentCommandBuffer->invalidate(UINT32_MAX);
-    for (auto pcb : primaryCommandBuffers)
+    for (auto& pcb : primaryCommandBuffers)
       pcb->invalidate(UINT32_MAX);
   }
 }
@@ -262,10 +263,8 @@ void Surface::beginFrame()
   workflowSequences->frameBufferImages->validate(this);
   // create render passes for current surface - skip scene graphs
   ValidateGPUVisitor validateVisitor(this, workflowSequences->presentationQueueIndex, false);
-  for (auto command : workflowSequences->commands[workflowSequences->presentationQueueIndex])
-  {
+  for (auto& command : workflowSequences->commands[workflowSequences->presentationQueueIndex])
     command->validateGPUData(validateVisitor);
-  }
 
   frameBuffer->validate(swapChainImageIndex, swapChainImages);
 
@@ -353,7 +352,7 @@ void Surface::beginFrame()
 void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
 {
   ValidateGPUVisitor validateVisitor(this, queueNumber, true);
-  for (auto command : workflowSequences->commands[queueNumber])
+  for (auto& command : workflowSequences->commands[queueNumber])
   {
     if (command->operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
       command->validateGPUData(validateVisitor);
@@ -366,11 +365,9 @@ void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
 
     primaryCommandBuffers[queueNumber]->cmdBegin();
 
-    for (auto command : workflowSequences->commands[queueNumber])
-    {
+    for (auto& command : workflowSequences->commands[queueNumber])
       if (command->operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
         command->buildCommandBuffer(cbVisitor);
-    }
 
     primaryCommandBuffers[queueNumber]->cmdEnd();
   }

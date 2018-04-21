@@ -47,7 +47,8 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
   imageInfo.imageLayout = imageLayout;
 }
 
-Resource::Resource(SwapChainImageBehaviour swapChainImageBehaviour)
+Resource::Resource(SwapChainImageBehaviour scib)
+  : swapChainImageBehaviour{ scib }
 {
 
 }
@@ -70,13 +71,13 @@ void Resource::removeDescriptor(std::shared_ptr<Descriptor> descriptor)
 
 void Resource::invalidateDescriptors()
 {
-  for (auto ds : descriptors)
+  for (auto& ds : descriptors)
     ds.lock()->invalidate();
 }
 
 void Resource::invalidateCommandBuffers()
 {
-  for ( auto ds : descriptors )
+  for (auto& ds : descriptors)
     ds.lock()->invalidateCommandBuffers();
 }
 

@@ -89,7 +89,7 @@ void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color,
 {
   std::lock_guard<std::mutex> lock(mutex);
   glm::vec4 currentPosition(startPosition.x, startPosition.y, startPosition.x, startPosition.y);
-  for (auto c : text)
+  for (auto& c : text)
   {
     GlyphData& gData = glyphData[getGlyphIndex(c)];
     symbolData.emplace_back( SymbolData(

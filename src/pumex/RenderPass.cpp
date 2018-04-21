@@ -189,7 +189,7 @@ void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass,
   // fill attachment information with render subpass specifics ( initial layout, final layout, load op, clear values )
   std::shared_ptr<RenderWorkflow> rw = renderSubPass->operation->renderWorkflow.lock();
   auto allAttachmentTransitions = rw->getOperationIO(renderSubPass->operation->name, rttAllAttachments);
-  for (auto transition : allAttachmentTransitions)
+  for (auto& transition : allAttachmentTransitions)
   {
     uint32_t attIndex = attachmentIndex.at(transition->resource->name);
 
@@ -310,9 +310,9 @@ void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string,
   auto resolveAttachments = rw->getOperationIO(operation->name, rttAttachmentResolveOutput);
   auto depthAttachments   = rw->getOperationIO(operation->name, rttAttachmentDepthOutput);
 
-  for (auto inputAttachment : inputAttachments)
+  for (auto& inputAttachment : inputAttachments)
     ia.push_back({ attachmentIndex.at(inputAttachment->resource->name), inputAttachment->attachment.layout });
-  for (auto outputAttachment : outputAttachments)
+  for (auto& outputAttachment : outputAttachments)
   {
     oa.push_back({ attachmentIndex.at(outputAttachment->resource->name), outputAttachment->attachment.layout });
 
@@ -358,7 +358,7 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   commandVisitor.renderContext.setRenderPass(renderPass);
   commandVisitor.renderContext.setSubpassIndex(subpassIndex);
   commandVisitor.renderContext.setRenderOperation(operation);
-  for (auto barrierGroup : barriersBeforeOp)
+  for (auto& barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
   if (subpassIndex == 0)
@@ -409,7 +409,7 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
     commandVisitor.commandBuffer->cmdEndRenderPass();
   }
 
-  for (auto barrierGroup : barriersAfterOp)
+  for (auto& barrierGroup : barriersAfterOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
   commandVisitor.renderContext.setRenderOperation(nullptr);
@@ -446,7 +446,7 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 {
   commandVisitor.renderContext.setRenderOperation(operation);
 
-  for (auto barrierGroup : barriersBeforeOp)
+  for (auto& barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
   if (operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
@@ -459,7 +459,7 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
     // void vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers);
   }
 
-  for (auto barrierGroup : barriersAfterOp)
+  for (auto& barrierGroup : barriersAfterOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
   commandVisitor.renderContext.setRenderOperation(nullptr);

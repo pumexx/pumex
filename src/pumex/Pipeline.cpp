@@ -187,13 +187,13 @@ Descriptor::Descriptor(std::shared_ptr<DescriptorSet> o, const std::vector<std::
 
 void Descriptor::registerInResources()
 {
-  for (auto res : resources)
+  for (auto& res : resources)
     res->addDescriptor(shared_from_this());
 }
 
 void Descriptor::unregisterFromResources()
 {
-  for (auto res : resources)
+  for (auto& res : resources)
     res->removeDescriptor(shared_from_this());
 }
 
@@ -203,7 +203,7 @@ Descriptor::~Descriptor()
 
 void Descriptor::validate(const RenderContext& renderContext)
 {
-  for (auto res : resources)
+  for (auto& res : resources)
     res->validate(renderContext);
 }
 
@@ -219,8 +219,11 @@ void Descriptor::invalidateCommandBuffers()
 
 void Descriptor::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
 {
-  for (auto res : resources)
-    values.push_back(res->getDescriptorSetValue(renderContext));
+  for (auto& res : resources)
+  {
+    auto dsv = res->getDescriptorSetValue(renderContext);
+    values.push_back(dsv);
+  }
 }
 
 
@@ -231,7 +234,7 @@ DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared
 
 DescriptorSet::~DescriptorSet()
 {
-  for (auto desc : descriptors)
+  for (auto& desc : descriptors)
     desc.second->unregisterFromResources();
   descriptors.clear();
 
@@ -336,7 +339,7 @@ void DescriptorSet::invalidate()
   for (auto& pdd : perSurfaceData)
     for(auto&& v : pdd.second.valid)
       v = false;
-  for (auto n : nodeOwners)
+  for (auto& n : nodeOwners)
     n.lock()->invalidate();
 }
 
@@ -422,7 +425,7 @@ void PipelineLayout::validate(const RenderContext& renderContext)
   VkPipelineLayoutCreateInfo pipelineLayoutCI{};
     pipelineLayoutCI.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     std::vector<VkDescriptorSetLayout> descriptors;
-    for ( auto dsl : descriptorSetLayouts )
+    for (auto& dsl : descriptorSetLayouts)
     { 
       dsl->validate(renderContext);
       descriptors.push_back(dsl->getHandle(renderContext.vkDevice));

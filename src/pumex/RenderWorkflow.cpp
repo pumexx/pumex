@@ -37,10 +37,14 @@ RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bo
 {
 }
 
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p)
-  : metaType{ Buffer }, typeName{ tn }, persistent{ p }, buffer{}
+RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, const BufferType& bt)
+  : metaType{ Buffer }, typeName{ tn }, persistent{ p }, buffer{bt}
 {
+}
 
+RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, const ImageTypeFlags& itf)
+  : metaType{ Image }, typeName{ tn }, persistent{ p }, image{ itf }
+{
 }
 
 bool RenderWorkflowResourceType::isEqual(const RenderWorkflowResourceType& rhs) const
@@ -76,9 +80,17 @@ bool RenderWorkflowResourceType::AttachmentData::isEqual(const AttachmentData& r
 }
 bool RenderWorkflowResourceType::BufferData::isEqual(const BufferData& rhs) const
 {
+  if (bufferType != rhs.bufferType)
+    return false;
   return true;
 }
 
+bool RenderWorkflowResourceType::ImageData::isEqual(const ImageData& rhs) const
+{
+  if (imageType != rhs.imageType)
+    return false;
+  return true;
+}
 
 WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<RenderWorkflowResourceType> t)
   : name{ n }, resourceType{ t }
@@ -334,7 +346,7 @@ std::set<std::shared_ptr<RenderOperation>> RenderWorkflow::getInitialOperations(
   {
     bool isInitial     = true;
     auto inTransitions = getOperationIO(opName, rttAllInputs);
-    for (auto inTransition : inTransitions)
+    for (auto& inTransition : inTransitions)
     {
       auto outTransitions = getResourceIO(inTransition->resource->name, rttAllOutputs);
       if (!outTransitions.empty())
@@ -361,7 +373,7 @@ std::set<std::shared_ptr<RenderOperation>> RenderWorkflow::getFinalOperations() 
   {
     bool isFinal = true;
     auto outTransitions = getOperationIO(opName, rttAllOutputs);
-    for (auto outTransition : outTransitions)
+    for (auto& outTransition : outTransitions)
     {
       auto inTransitions = getResourceIO(outTransition->resource->name, rttAllInputs);
       if (!inTransitions.empty())
@@ -381,11 +393,11 @@ std::set<std::shared_ptr<RenderOperation>> RenderWorkflow::getPreviousOperations
   auto opTransitions = getOperationIO(opName, rttAllInputs);
 
   std::set<std::shared_ptr<RenderOperation>> previousOperations;
-  for (auto opTransition : opTransitions)
+  for (auto& opTransition : opTransitions)
   {
     // operation is final if all of its ouputs are inputs for final operations
     auto resTransitions = getResourceIO(opTransition->resource->name, rttAllOutputs);
-    for (auto resTransition : resTransitions)
+    for (auto& resTransition : resTransitions)
       previousOperations.insert(resTransition->operation);
   }
   return previousOperations;
@@ -396,11 +408,11 @@ std::set<std::shared_ptr<RenderOperation>> RenderWorkflow::getNextOperations(con
   auto outTransitions = getOperationIO(opName, rttAllOutputs);
 
   std::set<std::shared_ptr<RenderOperation>> nextOperations;
-  for (auto opTransition : outTransitions)
+  for (auto& opTransition : outTransitions)
   {
     // operation is final if all of its ouputs are inputs for final operations
     auto resTransitions = getResourceIO(opTransition->resource->name, rttAllInputs);
-    for (auto resTransition : resTransitions)
+    for (auto& resTransition : resTransitions)
       nextOperations.insert(resTransition->operation);
   }
   return nextOperations;
@@ -443,7 +455,7 @@ void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const Re
   int currentTag = 0;
 
   auto operationNames = workflow.getRenderOperationNames();
-  for (auto operationName : operationNames)
+  for (auto& operationName : operationNames)
   {
     auto operation = workflow.getRenderOperation(operationName);
     if (operation->operationType != RenderOperation::Graphics)
@@ -453,7 +465,7 @@ void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const Re
     }
     AttachmentSize attachmentSize = operation->attachmentSize;
     int tagFound = -1;
-    for (auto tit : tags)
+    for (auto& tit : tags)
     {
       if (tit.second == attachmentSize)
       {
@@ -495,7 +507,7 @@ std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(const 
   auto operationNames = workflow.getRenderOperationNames();
   if (doneOperations.empty())
   {
-    for (auto operationName : operationNames)
+    for (auto& operationName : operationNames)
     {
       auto operation = workflow.getRenderOperation(operationName);
       auto nextOperations = workflow.getNextOperations(operationName);
@@ -505,7 +517,7 @@ std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(const 
   }
   else
   {
-    for (auto operationName : operationNames)
+    for (auto& operationName : operationNames)
     {
       auto operation = workflow.getRenderOperation(operationName);
       if (doneOperations.find(operation) != end(doneOperations))
@@ -513,7 +525,7 @@ std::vector<std::shared_ptr<RenderOperation>> recursiveScheduleOperations(const 
       auto nextOperations = workflow.getNextOperations(operationName);
       bool final = true;
       // check if ALL outputs point at operations in doneOperations
-      for (auto nextOp : nextOperations)
+      for (auto& nextOp : nextOperations)
       {
         if (doneOperations.find(nextOp) == end(doneOperations))
         {
@@ -610,11 +622,11 @@ void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflo
   std::ostringstream os;
   // check if all attachments have the same size as defined in operation
   auto operationNames = workflow.getRenderOperationNames();
-  for (auto operationName : operationNames)
+  for (auto& operationName : operationNames)
   {
     auto operation     = workflow.getRenderOperation(operationName);
     auto opTransitions = workflow.getOperationIO(operationName, rttAllAttachments);
-    for (auto transition : opTransitions)
+    for (auto& transition : opTransitions)
     {
       if(transition->resource->resourceType->attachment.attachmentSize != operation->attachmentSize )
         os << "Error: Operation <" << operationName << "> : attachment "<< transition->resource->name <<" has wrong size" << std::endl;
@@ -622,7 +634,7 @@ void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflo
   }
   // check if all resources have at most one output that generates them
   auto resourceNames = workflow.getResourceNames();
-  for (auto resourceName : resourceNames)
+  for (auto& resourceName : resourceNames)
   {
     auto resource = workflow.getResource(resourceName);
     auto opTransitions = workflow.getResourceIO(resourceName, rttAllOutputs);
@@ -874,12 +886,8 @@ void SingleQueueWorkflowCompiler::collectResources(const RenderWorkflow& workflo
     }
   }
   for (auto& alias : resourceAlias)
-  {
     if (alias.first != alias.second)
-    {
       attachmentIndex.insert({ alias.first, attachmentIndex[alias.second] });
-    }
-  }
 }
 
 std::vector<std::shared_ptr<RenderCommand>> SingleQueueWorkflowCompiler::createCommandSequence(const std::vector<std::shared_ptr<RenderOperation>>& operationSequence, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex)
@@ -948,7 +956,7 @@ std::vector<VkImageLayout> SingleQueueWorkflowCompiler::calculateInitialLayouts(
     for (auto& operation : nextOperations)
     {
       auto opTransitions = workflow.getOperationIO(operation->name, rttAllAttachmentOutputs);
-      for (auto & transition : opTransitions)
+      for (auto& transition : opTransitions)
       {
         auto attIndex = attachmentIndex.at(transition->resource->name);
         if (results[attIndex] == VK_IMAGE_LAYOUT_UNDEFINED)
@@ -1084,7 +1092,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarriers(const RenderWorkflow& w
   }
 
   auto resourceNames = workflow.getResourceNames();
-  for (auto resourceName : resourceNames)
+  for (auto& resourceName : resourceNames)
   {
     auto resource = workflow.getResource(resourceName);
     auto generatingTransitions     = workflow.getResourceIO(resourceName, rttAllOutputs);
@@ -1115,7 +1123,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarriers(const RenderWorkflow& w
     });
 
     // for now we will create a barrier/subpass dependency for each transition. It should be later optimized ( some barriers are not necessary )
-    for (auto consumingTransition : consumingTransitions)
+    for (auto& consumingTransition : consumingTransitions)
     {
       if (resource->resourceType->metaType == pumex::RenderWorkflowResourceType::Attachment)
         createSubpassDependency(generatingTransitions[0], commandMap[generatingTransitions[0]->operation->name], consumingTransition, commandMap[consumingTransition->operation->name], queueNumber[generatingTransitions[0]->operation->name], queueNumber[consumingTransition->operation->name]);
@@ -1221,7 +1229,7 @@ std::shared_ptr<RenderPass> SingleQueueWorkflowCompiler::findOutputRenderPass(co
         continue;
       bool found = false;
       auto transitions = workflow.getOperationIO(commandSequence[i]->operation->name, rttAttachmentOutput | rttAttachmentResolveOutput);
-      for (auto transition : transitions)
+      for (auto& transition : transitions)
       {
         if (transition->resource->resourceType->attachment.attachmentType == atSurface)
         {

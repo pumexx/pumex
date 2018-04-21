@@ -464,7 +464,7 @@ void transformGeometry(const glm::mat4& matrix, Geometry& geometry)
     geometry.getVertex(i*vertexSize, acc);
     uint32_t texCoordChannel = 0;
     uint32_t colorChannel = 0;
-    for (auto s : geometry.semantic)
+    for (auto& s : geometry.semantic)
     {
       switch (s.type)
       {

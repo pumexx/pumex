@@ -294,14 +294,14 @@ void Viewer::cleanup()
   {
     if (isRealized())
     {
-      for (auto s : surfaces)
+      for (auto& s : surfaces)
         s.second->cleanup();
     }
     surfaces.clear();
     windows.clear();
     if (isRealized())
     {
-      for (auto d : devices)
+      for (auto& d : devices)
         d.second->cleanup();
     }
     devices.clear();
@@ -319,17 +319,17 @@ void Viewer::realize()
     return;
 
   // collect queues that are requested by surface workflows
-  for (auto d : devices)
+  for (auto& d : devices)
     d.second->resetRequestedQueues();
-  for (auto s : surfaces)
+  for (auto& s : surfaces)
   {
     auto device = s.second->device.lock();
-    for (auto qt : s.second->renderWorkflow->getQueueTraits())
+    for (auto& qt : s.second->renderWorkflow->getQueueTraits())
       device->addRequestedQueue(qt);
   }
-  for (auto d : devices)
+  for (auto& d : devices)
     d.second->realize();
-  for (auto s : surfaces)
+  for (auto& s : surfaces)
     s.second->realize();
 
   realized = true;
@@ -378,7 +378,7 @@ Surface* Viewer::getSurface(uint32_t id)
 std::string Viewer::getFullFilePath(const std::string& shortFileName) const
 {
   struct stat buf;
-  for ( auto d : defaultDirectories )
+  for (auto d : defaultDirectories)
   {
 #if defined(_WIN32)
     std::replace(begin(d), end(d), '/', '\\');

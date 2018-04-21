@@ -383,20 +383,16 @@ public:
 bool GraphicsPipeline::hasDynamicState(VkDynamicState state) const
 {
   for (const auto& d : dynamicStates)
-  {
     if (d==state)
       return true;
-  }
   return false;
 }
 
 bool GraphicsPipeline::hasShaderStage(VkShaderStageFlagBits stage) const
 {
   for (const auto& s : shaderStages)
-  {
     if (s.stage == stage)
       return true;
-  }
   return false;
 }
 
