@@ -28,20 +28,16 @@
 #include <vulkan/vulkan.h>
 #include <gli/load.hpp>
 #include <pumex/Export.h>
-#include <pumex/Texture.h>
-#include <pumex/Command.h>
-#include <pumex/Asset.h>
-#include <pumex/Node.h>
-#include <pumex/Device.h>
-#include <pumex/Viewer.h>
-#include <pumex/RenderContext.h>
-#include <pumex/utils/Buffer.h>
 #include <pumex/StorageBuffer.h>
 
 namespace pumex
 {
 
-
+class Asset;
+struct Material;
+class Sampler;
+class Texture;
+class Viewer;
 
 // Assimp does not load textures, but only its names and semantics ( diffuse, normal, etc )
 // TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet
@@ -193,7 +189,7 @@ class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
 public:
   TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc);
   
-  void                                                       setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait);
+  void                                                       setTextureSampler(uint32_t slotIndex, std::shared_ptr<Sampler> sampler);
   std::vector<std::shared_ptr<Resource>>                     getTextures(uint32_t slotIndex);
 
   void                                                       refreshStructures() override;
@@ -202,7 +198,7 @@ public:
 protected:
   std::shared_ptr<DeviceMemoryAllocator>                     textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<Resource>>> textures;
-  std::map<uint32_t, SamplerTraits>                          textureTraits;
+  std::map<uint32_t, std::shared_ptr<Sampler>>               textureSamplers;
 };
 
 

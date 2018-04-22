@@ -138,12 +138,6 @@ void Image::setImageLayout(VkImageLayout newLayout)
   imageLayout = newLayout;
 }
 
-SamplerTraits::SamplerTraits(bool lt, VkFilter maf, VkFilter mif, VkSamplerMipmapMode mm, VkSamplerAddressMode au, VkSamplerAddressMode av, VkSamplerAddressMode aw, float mlb, VkBool32 ae,
-  float maa, VkBool32 ce, VkCompareOp co, VkBorderColor bc, VkBool32 uc)
-  : linearTiling{ lt }, magFilter{ maf }, minFilter{ mif }, mipmapMode{ mm }, addressModeU{ au }, addressModeV{ av }, addressModeW{ aw }, mipLodBias{ mlb }, anisotropyEnable{ ae }, maxAnisotropy{ maa }, compareEnable{ ce }, compareOp{ co }, borderColor{ bc }, unnormalizedCoordinates{ uc }
-{
-}
-
 namespace pumex
 {
 

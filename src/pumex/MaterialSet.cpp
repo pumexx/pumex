@@ -21,8 +21,13 @@
 //
 
 #include <pumex/MaterialSet.h>
-using namespace pumex;
+#include <pumex/Asset.h>
+#include <pumex/Sampler.h>
+#include <pumex/Texture.h>
+#include <pumex/Command.h>
+#include <pumex/Viewer.h>
 
+using namespace pumex;
 
 TextureRegistryBase::~TextureRegistryBase()
 {
@@ -31,7 +36,6 @@ TextureRegistryBase::~TextureRegistryBase()
 MaterialRegistryBase::~MaterialRegistryBase()
 {
 }
-
 
 MaterialSet::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<MaterialRegistryBase> mr, std::shared_ptr<TextureRegistryBase> tr, std::shared_ptr<DeviceMemoryAllocator> a, const std::vector<TextureSemantic>& ts)
   : viewer{ v }, materialRegistry{ mr }, textureRegistry { tr }, allocator{ a }, semantics(ts)
@@ -53,7 +57,6 @@ void MaterialSet::validate(const RenderContext& renderContext)
 {
   // FIXME : missing material set validation
 }
-
 
 bool MaterialSet::getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const
 {
@@ -116,7 +119,6 @@ std::vector<Material> MaterialSet::getMaterials(uint32_t typeID) const
     materials.push_back(assets[m.first]->materials[m.second]);
   return materials;
 }
-
 
 uint32_t MaterialSet::getMaterialVariantCount(uint32_t typeID) const
 {
@@ -239,10 +241,10 @@ TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::shared_ptr<D
 {
 }
 
-void TextureRegistryArrayOfTextures::setTargetSamplerTraits(uint32_t slotIndex, const SamplerTraits& textureTrait)
+void TextureRegistryArrayOfTextures::setTextureSampler(uint32_t slotIndex, std::shared_ptr<Sampler> sampler)
 {
-  textureTraits[slotIndex] = textureTrait;
-  textures[slotIndex] = std::vector<std::shared_ptr<Resource>>();
+  textureSamplers[slotIndex] = sampler;
+  textures[slotIndex]        = std::vector<std::shared_ptr<Resource>>();
 }
 
 std::vector<std::shared_ptr<Resource>> TextureRegistryArrayOfTextures::getTextures(uint32_t slotIndex)
@@ -265,6 +267,6 @@ void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t lay
   if (layerIndex >= it->second.size())
     it->second.resize(layerIndex + 1);
   // this texture will not be modified by GPU, so it is enough to declare it as OnceForAllSwapChainImages
-  it->second[layerIndex] = std::make_shared<Texture>(tex, textureTraits[slotIndex], textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
+  it->second[layerIndex] = std::make_shared<Texture>(tex, textureSamplers[slotIndex], textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
 }
 

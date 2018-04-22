@@ -23,6 +23,7 @@
 #include <pumex/Resource.h>
 #include <algorithm>
 #include <pumex/Pipeline.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
@@ -48,7 +49,7 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
 }
 
 Resource::Resource(SwapChainImageBehaviour scib)
-  : swapChainImageBehaviour{ scib }
+  : swapChainImageBehaviour{ scib }, activeCount{ 1 }
 {
 
 }
@@ -83,5 +84,6 @@ void Resource::invalidateCommandBuffers()
 
 std::pair<bool, VkDescriptorType> Resource::getDefaultDescriptorType()
 {
+  CHECK_LOG_THROW(true, "This resource does not have default descriptor type");
   return{ false,VK_DESCRIPTOR_TYPE_MAX_ENUM };
 }

@@ -32,8 +32,6 @@
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 #include <pumex/Node.h>
-#include <pumex/UniformBuffer.h>
-#include <pumex/StorageBuffer.h>
 #include <pumex/GenericBufferPerSurface.h>
 
 namespace pumex

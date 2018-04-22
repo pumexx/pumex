@@ -49,7 +49,7 @@ public:
   explicit StorageBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   StorageBuffer(const StorageBuffer&)            = delete;
   StorageBuffer& operator=(const StorageBuffer&) = delete;
-  ~StorageBuffer();
+  virtual ~StorageBuffer();
 
   inline void                       set(const std::vector<T>& data);
   inline const std::vector<T>&      get() const;
@@ -84,7 +84,6 @@ private:
   std::vector<T>                              storageData;
   std::shared_ptr<DeviceMemoryAllocator>      allocator;
   VkBufferUsageFlagBits                       additionalFlags;
-  uint32_t                                    activeCount = 1;
 };
 
 template <typename T>
@@ -215,8 +214,7 @@ void StorageBuffer<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
-    for(uint32_t i=0; i<pdd.second.valid.size(); ++i)
-      pdd.second.valid[i] = false;
+    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
   invalidateDescriptors();
 }
 

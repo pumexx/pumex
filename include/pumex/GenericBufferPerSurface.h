@@ -49,7 +49,7 @@ public:
   explicit GenericBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   GenericBufferPerSurface(const GenericBufferPerSurface&)            = delete;
   GenericBufferPerSurface& operator=(const GenericBufferPerSurface&) = delete;
-  ~GenericBufferPerSurface();
+  virtual ~GenericBufferPerSurface();
 
   inline void               set(std::shared_ptr<T> data);
   inline                    void set(Surface* surface, std::shared_ptr<T>);
@@ -90,7 +90,6 @@ private:
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
   std::shared_ptr<DeviceMemoryAllocator>           allocator;
   VkBufferUsageFlagBits                            usage;
-  uint32_t                                         activeCount = 1;
 };
 
 template <typename T>

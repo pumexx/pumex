@@ -23,36 +23,33 @@
 #include <pumex/Texture.h>
 #include <pumex/Device.h>
 #include <pumex/Command.h>
-#include <pumex/PhysicalDevice.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Sampler.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
 
-Texture::Texture(const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a, VkClearValue iv, Resource::SwapChainImageBehaviour scib)
-  : Resource{ scib }, imageTraits{ it }, useSampler{ false }, samplerTraits(), allocator{ a }
+Texture::Texture(const ImageTraits& it, std::shared_ptr<Sampler> s, std::shared_ptr<DeviceMemoryAllocator> a, VkClearValue iv, Resource::SwapChainImageBehaviour scib)
+  : Resource{ scib }, imageTraits{ it }, sampler{ s }, allocator{ a }
 {
   initValue = iv;
 }
 
-Texture::Texture(const ImageTraits& it, const SamplerTraits& st, std::shared_ptr<DeviceMemoryAllocator> a, VkClearValue iv, Resource::SwapChainImageBehaviour scib)
-  : Resource{ scib }, imageTraits{ it }, useSampler{ true }, samplerTraits { st }, allocator{ a }
-{
-  initValue = iv;
-}
-
-Texture::Texture(std::shared_ptr<gli::texture> tex, std::shared_ptr<DeviceMemoryAllocator> a, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour scib)
-  : Resource{ scib }, useSampler{ false }, samplerTraits(), texture{ tex }, allocator{ a }
+Texture::Texture(std::shared_ptr<gli::texture> tex, std::shared_ptr<Sampler> s, std::shared_ptr<DeviceMemoryAllocator> a, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour scib)
+  : Resource{ scib }, sampler{ s }, texture{ tex }, allocator { a }
 {
   buildImageTraits(usage);
+  initValue = makeColorClearValue(glm::vec4(0.0f));
 }
 
-
-Texture::Texture(std::shared_ptr<gli::texture> tex, const SamplerTraits& st, std::shared_ptr<DeviceMemoryAllocator> a, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour scib)
-  : Resource{ scib }, useSampler{ true }, samplerTraits{ st }, texture{ tex }, allocator { a }
+Texture::~Texture()
 {
-  buildImageTraits(usage);
+  sampler = nullptr;
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perDeviceData)
+    for (uint32_t i = 0; i < pdd.second.image.size(); ++i)
+      pdd.second.image[i] = nullptr;
 }
 
 void Texture::buildImageTraits(VkImageUsageFlags usage)
@@ -60,35 +57,21 @@ void Texture::buildImageTraits(VkImageUsageFlags usage)
   auto textureExtents = texture->extent(0);
   bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  imageTraits.usage = usage;
-  imageTraits.linearTiling = false;
-  imageTraits.format = vulkanFormatFromGliFormat(texture->format());
-  imageTraits.extent = { uint32_t(textureExtents.x), uint32_t(textureExtents.y), uint32_t(textureExtents.z) };
-  imageTraits.mipLevels = texture->levels();
-  imageTraits.arrayLayers = texture->layers();
-  imageTraits.samples = VK_SAMPLE_COUNT_1_BIT;
-  imageTraits.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageTraits.imageCreate = 0;
-  imageTraits.imageType = vulkanImageTypeFromTextureExtents(textureExtents);
-  imageTraits.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  imageTraits.viewType = vulkanViewTypeFromGliTarget(texture->target());
-  imageTraits.swizzles = texture->swizzles();
-  imageTraits.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageTraits.usage          = usage;
+  imageTraits.linearTiling   = false;
+  imageTraits.format         = vulkanFormatFromGliFormat(texture->format());
+  imageTraits.extent         = { uint32_t(textureExtents.x), uint32_t(textureExtents.y), uint32_t(textureExtents.z) };
+  imageTraits.mipLevels      = texture->levels();
+  imageTraits.arrayLayers    = texture->layers();
+  imageTraits.samples        = VK_SAMPLE_COUNT_1_BIT;
+  imageTraits.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageTraits.imageCreate    = 0;
+  imageTraits.imageType      = vulkanImageTypeFromTextureExtents(textureExtents);
+  imageTraits.sharingMode    = VK_SHARING_MODE_EXCLUSIVE;
+  imageTraits.viewType       = vulkanViewTypeFromGliTarget(texture->target());
+  imageTraits.swizzles       = texture->swizzles();
+  imageTraits.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
   imageTraits.memoryProperty = memoryIsLocal ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-}
-
-Texture::~Texture()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
-  {
-    for (uint32_t i = 0; i < pdd.second.image.size(); ++i)
-    {
-      pdd.second.image[i] = nullptr;
-      if (pdd.second.sampler[i] != VK_NULL_HANDLE)
-        vkDestroySampler(pdd.first, pdd.second.sampler[i], nullptr);
-    }
-  }
 }
 
 Image* Texture::getHandleImage(const RenderContext& renderContext) const
@@ -100,17 +83,11 @@ Image* Texture::getHandleImage(const RenderContext& renderContext) const
   return pddit->second.image[renderContext.activeIndex % activeCount].get();
 }
 
-VkSampler Texture::getHandleSampler(const RenderContext& renderContext) const
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == end(perDeviceData))
-    return VK_NULL_HANDLE;
-  return pddit->second.sampler[renderContext.activeIndex % activeCount];
-}
-
 void Texture::validate(const RenderContext& renderContext)
 {
+  if (sampler != nullptr)
+    sampler->validate(renderContext);
+
   std::lock_guard<std::mutex> lock(mutex);
   if (swapChainImageBehaviour == Resource::ForEachSwapChainImage && renderContext.imageCount > activeCount)
   {
@@ -125,29 +102,6 @@ void Texture::validate(const RenderContext& renderContext)
   if (pddit->second.valid[activeIndex])
     return;
 
-  // Create sampler
-  if( useSampler && pddit->second.sampler[activeIndex] == VK_NULL_HANDLE )
-  {
-    VkSamplerCreateInfo sampler{};
-      sampler.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-      sampler.magFilter               = samplerTraits.magFilter;
-      sampler.minFilter               = samplerTraits.minFilter;
-      sampler.mipmapMode              = samplerTraits.mipmapMode;
-      sampler.addressModeU            = samplerTraits.addressModeU;
-      sampler.addressModeV            = samplerTraits.addressModeV;
-      sampler.addressModeW            = samplerTraits.addressModeW;
-      sampler.mipLodBias              = samplerTraits.mipLodBias;
-      sampler.anisotropyEnable        = samplerTraits.anisotropyEnable;
-      sampler.maxAnisotropy           = samplerTraits.maxAnisotropy;
-      sampler.compareEnable           = samplerTraits.compareEnable;
-      sampler.compareOp               = samplerTraits.compareOp;
-      sampler.minLod                  = 0.0f;
-      sampler.maxLod                  = (!samplerTraits.linearTiling) ? (float)texture->levels() : 0.0f;
-      sampler.borderColor             = samplerTraits.borderColor;
-      sampler.unnormalizedCoordinates = samplerTraits.unnormalizedCoordinates;
-    VK_CHECK_LOG_THROW( vkCreateSampler(renderContext.vkDevice, &sampler, nullptr, &pddit->second.sampler[activeIndex]) , "Cannot create sampler");
-  }
-
   if (pddit->second.image[activeIndex] == nullptr)
   {
     imageTraits.usage = imageTraits.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -155,7 +109,7 @@ void Texture::validate(const RenderContext& renderContext)
   }
 
   bool memoryIsLocal = ( imageTraits.memoryProperty == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-  CHECK_LOG_THROW(memoryIsLocal && samplerTraits.linearTiling, "Cannot have texture with linear tiling in device local memory");
+  CHECK_LOG_THROW(memoryIsLocal && ( sampler!=nullptr && sampler->getSamplerTraits().linearTiling ), "Cannot have texture with linear tiling in device local memory");
 
   if( texture.get() != nullptr )
   {
@@ -241,10 +195,11 @@ void Texture::validate(const RenderContext& renderContext)
 
 void Texture::invalidate()
 {
+  if (sampler != nullptr)
+    sampler->invalidate();
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
-    for (uint32_t i = 0; i<pdd.second.valid.size(); ++i)
-      pdd.second.valid[i] = false;
+    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
   invalidateDescriptors();
 }
 
@@ -253,8 +208,9 @@ DescriptorSetValue Texture::getDescriptorSetValue(const RenderContext& renderCon
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == end(perDeviceData), "Texture::getDescriptorSetValue() : texture was not validated");
-  uint32_t activeIndex = renderContext.activeIndex % activeCount;
-  return DescriptorSetValue(pddit->second.sampler[activeIndex], pddit->second.image[activeIndex]->getImageView(), pddit->second.image[activeIndex]->getImageLayout());
+  uint32_t  activeIndex = renderContext.activeIndex % activeCount;
+  VkSampler samp        = (sampler != nullptr) ? sampler->getHandleSampler(renderContext) : VK_NULL_HANDLE;
+  return DescriptorSetValue(samp, pddit->second.image[activeIndex]->getImageView(), pddit->second.image[activeIndex]->getImageLayout());
 }
 
 void Texture::setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)

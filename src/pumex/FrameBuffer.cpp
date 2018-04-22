@@ -24,6 +24,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/Surface.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Sampler.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex
@@ -161,8 +162,7 @@ void FrameBuffer::reset()
 void FrameBuffer::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (uint32_t i = 0; i<valid.size(); ++i)
-    valid[i] = false;
+  std::fill(begin(valid), end(valid), false);
   invalidateInputAttachments();
 }
 
@@ -238,13 +238,14 @@ void FrameBuffer::invalidateInputAttachments()
   inputAttachments.erase(eit, end(inputAttachments));
 }
 
-InputAttachment::InputAttachment(const std::string& an)
-  : Resource{ Resource::OnceForAllSwapChainImages }, attachmentName{ an }
+InputAttachment::InputAttachment(const std::string& an, std::shared_ptr<Sampler> s)
+  : Resource{ Resource::OnceForAllSwapChainImages }, attachmentName{ an }, sampler{ s }
 {
 }
 
 InputAttachment::~InputAttachment()
 {
+  sampler = nullptr;
 }
 
 std::pair<bool, VkDescriptorType> InputAttachment::getDefaultDescriptorType()
@@ -254,6 +255,8 @@ std::pair<bool, VkDescriptorType> InputAttachment::getDefaultDescriptorType()
 
 void InputAttachment::validate(const RenderContext& renderContext)
 {
+  if (sampler != nullptr)
+    sampler->validate(renderContext);
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perSurfaceData.find(renderContext.vkSurface);
   if (pddit == end(perSurfaceData))
@@ -265,6 +268,8 @@ void InputAttachment::validate(const RenderContext& renderContext)
 
 void InputAttachment::invalidate()
 {
+  if (sampler != nullptr)
+    sampler->invalidate();
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perSurfaceData)
     pdd.second.valid = false;
@@ -289,7 +294,8 @@ DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& r
     }
   }
   CHECK_LOG_THROW(frameBufferIndex == UINT32_MAX, "Can't find input attachment with name : " << attachmentName);
-  return DescriptorSetValue(VK_NULL_HANDLE, frameBuffer->getFrameBufferImages()->getImage(renderContext.surface, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  VkSampler samp = (sampler != nullptr) ? sampler->getHandleSampler(renderContext) : VK_NULL_HANDLE;
+  return DescriptorSetValue(samp, frameBuffer->getFrameBufferImages()->getImage(renderContext.surface, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 }

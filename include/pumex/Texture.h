@@ -33,6 +33,7 @@ namespace pumex
 {
 
 class RenderContext;
+class Sampler;
 
 // Uses gli::texture to hold texture on CPU
 // Texture may contain usual textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
@@ -43,29 +44,24 @@ class PUMEX_EXPORT Texture : public Resource
 public:
   Texture()                          = delete;
   // create single texture and clear it with specific value
-  explicit Texture(const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator, VkClearValue initValue, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
-  explicit Texture(const ImageTraits& imageTraits, const SamplerTraits& samplerTraits, std::shared_ptr<DeviceMemoryAllocator> allocator, VkClearValue initValue, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
+  explicit Texture(const ImageTraits& imageTraits, std::shared_ptr<Sampler> sampler, std::shared_ptr<DeviceMemoryAllocator> allocator, VkClearValue initValue, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   // create single texture and load it with provided data ( gli::texture )
-  explicit Texture(std::shared_ptr<gli::texture> texture, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
-  explicit Texture(std::shared_ptr<gli::texture> texture, const SamplerTraits& samplerTraits, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
+  explicit Texture(std::shared_ptr<gli::texture> texture, std::shared_ptr<Sampler> sampler, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
-
   virtual ~Texture();
 
-  Image*                      getHandleImage(const RenderContext& renderContext) const;
-  VkSampler                   getHandleSampler(const RenderContext& renderContext) const;
-  inline const ImageTraits&   getImageTraits() const;
-  inline bool                 usesSampler() const;
-  inline const SamplerTraits& getSamplerTraits() const;
+  Image*                          getHandleImage(const RenderContext& renderContext) const;
+  inline const ImageTraits&       getImageTraits() const;
+  inline std::shared_ptr<Sampler> getSampler() const;
 
-  void                        validate(const RenderContext& renderContext) override;
-  void                        invalidate() override;
-  DescriptorSetValue          getDescriptorSetValue(const RenderContext& renderContext) override;
+  void                            validate(const RenderContext& renderContext) override;
+  void                            invalidate() override;
+  DescriptorSetValue              getDescriptorSetValue(const RenderContext& renderContext) override;
 
-  void setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
+  void                            setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
 
-private:
+protected:
   struct PerDeviceData
   {
     PerDeviceData(uint32_t ac)
@@ -76,28 +72,23 @@ private:
     {
       valid.resize(ac, false);
       image.resize(ac, nullptr);
-      sampler.resize(ac, VK_NULL_HANDLE);
     }
 
     std::vector<bool>                   valid;
     std::vector<std::shared_ptr<Image>> image;
-    std::vector<VkSampler>              sampler;
   };
   void buildImageTraits(VkImageUsageFlags usage);
 
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   ImageTraits                                 imageTraits;
-  bool                                        useSampler;
-  SamplerTraits                               samplerTraits;
+  std::shared_ptr<Sampler>                    sampler;
   std::shared_ptr<gli::texture>               texture;
   VkClearValue                                initValue;
   std::shared_ptr<DeviceMemoryAllocator>      allocator;
-  uint32_t                                    activeCount = 1;
 };
 
-const ImageTraits&   Texture::getImageTraits() const   { return imageTraits; }
-bool                 Texture::usesSampler() const      { return useSampler;  }
-const SamplerTraits& Texture::getSamplerTraits() const { return samplerTraits; }
+const ImageTraits&              Texture::getImageTraits() const { return imageTraits; }
+inline std::shared_ptr<Sampler> Texture::getSampler() const     { return sampler; }
 
 }
 

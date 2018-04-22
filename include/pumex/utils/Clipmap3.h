@@ -38,10 +38,9 @@ class PUMEX_EXPORT Clipmap3 : public Resource
 {
 public:
   Clipmap3()                           = delete;
-  explicit Clipmap3( uint32_t textureQuantity, uint32_t textureSize, VkClearValue initValue, const ImageTraits& imageTraits, const SamplerTraits& textureTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
+  explicit Clipmap3( uint32_t textureQuantity, uint32_t textureSize, VkClearValue initValue, const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   Clipmap3(const Clipmap3&)            = delete;
   Clipmap3& operator=(const Clipmap3&) = delete;
-
   virtual ~Clipmap3();
 
   Image*             getHandleImage(VkDevice device, uint32_t layer) const;
@@ -49,11 +48,10 @@ public:
   DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) override;
 
 protected:
-  uint32_t                             textureQuantity;
-  uint32_t                             textureSize;
-  VkClearValue                         initValue;
-  ImageTraits                          imageTraits;
-  SamplerTraits                        textureTraits;
+  uint32_t                               textureQuantity;
+  uint32_t                               textureSize;
+  VkClearValue                           initValue;
+  ImageTraits                            imageTraits;
   std::shared_ptr<DeviceMemoryAllocator> allocator;
 private:
   struct PerDeviceData
@@ -62,8 +60,6 @@ private:
     {
     }
     std::vector<std::shared_ptr<Image>> images;
-    VkSampler                           sampler = VK_NULL_HANDLE;
-
   };
   mutable std::mutex                          mutex;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;

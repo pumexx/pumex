@@ -68,6 +68,7 @@ protected:
   mutable std::mutex                     mutex;
   std::vector<std::weak_ptr<Descriptor>> descriptors;
   SwapChainImageBehaviour                swapChainImageBehaviour;
+  uint32_t                               activeCount;
 };
 
 }

@@ -337,8 +337,7 @@ VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) con
 void DescriptorSet::invalidate()
 {
   for (auto& pdd : perSurfaceData)
-    for(auto&& v : pdd.second.valid)
-      v = false;
+    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
   for (auto& n : nodeOwners)
     n.lock()->invalidate();
 }

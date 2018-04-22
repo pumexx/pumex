@@ -26,22 +26,7 @@
 #include <pumex/utils/Log.h>
 #include <pumex/utils/Shapes.h>
 #include <pumex/Surface.h>
-
-/*
-std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
-if (fullFontFileName.empty())
-{
-  // file not exists
-}
-
-std::shared_ptr<Font> font = std::make_shared<Font>(fullFontFileName, 12, glm::vec2( 2048,2048 ), allocator );
-std::shared_ptr<Text> text = std::make_shared<Text>( font, glm::vec3(1.0f,0.0f,0.0f), glm::vec2(0,100), L"Napis jakiœ" );
-text->setText(L"Napis inny");
-text->validate(device);
-
-
-text->draw();
-*/
+#include <pumex/Sampler.h>
 
 using namespace pumex;
 
@@ -49,7 +34,6 @@ FT_Library Font::fontLibrary = nullptr;
 uint32_t Font::fontCount = 0;
 
 const uint32_t PUMEX_GLYPH_MARGIN = 4;
-
 
 Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator)
   : textureSize{ ts }, fontPixelHeight{ fph }
@@ -64,7 +48,8 @@ Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared
   auto ftex = std::make_shared<gli::texture>(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1);
   ftex->clear<gli::u8>(0);
   // this texture will not be modified by GPU, so it is enough to declare it as OnceForAllSwapChainImages
-  fontTexture   = std::make_shared<Texture>(ftex, SamplerTraits(), textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
+  auto sampler  = std::make_shared<Sampler>(SamplerTraits());
+  fontTexture   = std::make_shared<Texture>(ftex, sampler, textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
   fontTexture2d = std::make_shared<gli::texture2d>( *ftex );
 
   lastRegisteredPosition = glm::ivec2(PUMEX_GLYPH_MARGIN, PUMEX_GLYPH_MARGIN);
@@ -101,7 +86,6 @@ void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color,
     currentPosition.z += gData.advance;
   }
 }
-
 
 void Font::validate(const RenderContext& renderContext)
 {
@@ -156,7 +140,6 @@ size_t Font::getGlyphIndex(wchar_t charCode)
   registeredGlyphs.insert({ charCode, glyphData.size() - 1 });
   return glyphData.size()-1;
 }
-
 
 Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba)
   : Node(), font{ f }

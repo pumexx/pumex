@@ -541,10 +541,10 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 },{ pumex::TextureSemantic::LightMap, 2 },{ pumex::TextureSemantic::Normals, 3 } };
     std::shared_ptr<pumex::TextureRegistryArrayOfTextures> textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
-    textureRegistry->setTargetSamplerTraits(0, pumex::SamplerTraits());
-    textureRegistry->setTargetSamplerTraits(1, pumex::SamplerTraits());
-    textureRegistry->setTargetSamplerTraits(2, pumex::SamplerTraits());
-    textureRegistry->setTargetSamplerTraits(3, pumex::SamplerTraits());
+    textureRegistry->setTextureSampler(0, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setTextureSampler(1, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setTextureSampler(2, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setTextureSampler(3, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
@@ -645,10 +645,12 @@ int main( int argc, char * argv[] )
     assetNode->setName("fullScreenTriangleAssetNode");
     compositePipeline->addChild(assetNode);
 
-    auto input2 = std::make_shared<pumex::InputAttachment>("position");
-    auto input3 = std::make_shared<pumex::InputAttachment>("normals");
-    auto input4 = std::make_shared<pumex::InputAttachment>("albedo");
-    auto input5 = std::make_shared<pumex::InputAttachment>("pbr");
+    auto iaSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
+
+    auto input2 = std::make_shared<pumex::InputAttachment>("position", iaSampler);
+    auto input3 = std::make_shared<pumex::InputAttachment>("normals", iaSampler);
+    auto input4 = std::make_shared<pumex::InputAttachment>("albedo", iaSampler);
+    auto input5 = std::make_shared<pumex::InputAttachment>("pbr", iaSampler);
 
     auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
     compositeDescriptorSet->setDescriptor(0, applicationData->cameraUbo);

@@ -38,6 +38,7 @@ namespace pumex
 
 class Surface;
 class RenderPass;
+class Sampler;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
@@ -126,7 +127,7 @@ protected:
 class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
-  InputAttachment(const std::string& attachmentName);
+  InputAttachment(const std::string& attachmentName, std::shared_ptr<Sampler> sampler = nullptr);
   virtual ~InputAttachment();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
@@ -135,8 +136,6 @@ public:
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
 protected:
-  std::string attachmentName;
-
   struct PerSurfaceData
   {
     PerSurfaceData()
@@ -145,7 +144,8 @@ protected:
     bool valid = false;
   };
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-
+  std::string                                      attachmentName;
+  std::shared_ptr<Sampler>                         sampler;
 };
 
 std::shared_ptr<FrameBufferImages> FrameBuffer::getFrameBufferImages() { return frameBufferImages; }

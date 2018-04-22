@@ -35,6 +35,7 @@
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Image.h>
 #include <pumex/Resource.h>
+#include <pumex/Sampler.h>
 #include <pumex/Texture.h>
 #include <pumex/TexturePerSurface.h>
 #include <pumex/UniformBuffer.h>

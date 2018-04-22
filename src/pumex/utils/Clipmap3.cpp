@@ -27,19 +27,14 @@
 namespace pumex
 {
 
-Clipmap3::Clipmap3(uint32_t tq, uint32_t ts, VkClearValue iv, const ImageTraits& it, const SamplerTraits& tt, std::shared_ptr<DeviceMemoryAllocator> al)
-  : Resource{ Resource::OnceForAllSwapChainImages }, textureQuantity { tq }, textureSize{ ts }, imageTraits{ it }, textureTraits{ tt }, allocator{ al }
+Clipmap3::Clipmap3(uint32_t tq, uint32_t ts, VkClearValue iv, const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> al)
+  : Resource{ Resource::OnceForAllSwapChainImages }, textureQuantity { tq }, textureSize{ ts }, imageTraits{ it }, allocator{ al }
 {
   initValue = iv;
 }
 
 Clipmap3::~Clipmap3()
 {
-  for (auto& pdd : perDeviceData)
-  {
-    if (pdd.second.sampler != VK_NULL_HANDLE)
-      vkDestroySampler(pdd.first, pdd.second.sampler, nullptr);
-  }
 }
 
 Image* Clipmap3::getHandleImage(VkDevice device, uint32_t layer) const
@@ -61,30 +56,7 @@ void Clipmap3::validate(Device* device, CommandPool* commandPool, VkQueue queue)
     pddit = perDeviceData.insert({ device->device, PerDeviceData() }).first;
   if (!pddit->second.images.empty())
     return;
-
-  // Create sampler
-  if( pddit->second.sampler == VK_NULL_HANDLE )
-  {
-    VkSamplerCreateInfo sampler{};
-      sampler.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-      sampler.magFilter               = textureTraits.magFilter;
-      sampler.minFilter               = textureTraits.minFilter;
-      sampler.mipmapMode              = textureTraits.mipmapMode;
-      sampler.addressModeU            = textureTraits.addressModeU;
-      sampler.addressModeV            = textureTraits.addressModeV;
-      sampler.addressModeW            = textureTraits.addressModeW;
-      sampler.mipLodBias              = textureTraits.mipLodBias;
-      sampler.anisotropyEnable        = textureTraits.anisotropyEnable;
-      sampler.maxAnisotropy           = textureTraits.maxAnisotropy;
-      sampler.compareEnable           = textureTraits.compareEnable;
-      sampler.compareOp               = textureTraits.compareOp;
-      sampler.minLod                  = 0.0f;
-      sampler.maxLod                  = 0.0f;
-      sampler.borderColor             = textureTraits.borderColor;
-      sampler.unnormalizedCoordinates = textureTraits.unnormalizedCoordinates;
-    VK_CHECK_LOG_THROW( vkCreateSampler(device->device, &sampler, nullptr, &pddit->second.sampler) , "Cannot create sampler");
-  }
-  
+ 
   ImageTraits imTraits{ imageTraits };
   imTraits.usage = imTraits.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT; // so that we are able to clear the image
   imTraits.extent      = VkExtent3D{ textureSize, textureSize, textureSize };
@@ -122,7 +94,7 @@ DescriptorSetValue Clipmap3::getDescriptorSetValue(const RenderContext& renderCo
   auto pddit = perDeviceData.find(renderContext.vkDevice);
   CHECK_LOG_THROW(pddit == end(perDeviceData), "Clipmap3::getDescriptorSetValue() : texture was not validated");
 
-  return DescriptorSetValue(pddit->second.sampler, pddit->second.images[0]->getImageView(), pddit->second.images[0]->getImageLayout());
+  return DescriptorSetValue(VK_NULL_HANDLE, pddit->second.images[0]->getImageView(), pddit->second.images[0]->getImageLayout());
 }
 
 }

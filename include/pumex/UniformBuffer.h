@@ -49,7 +49,7 @@ public:
   explicit UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   UniformBuffer(const UniformBuffer&)            = delete;
   UniformBuffer& operator=(const UniformBuffer&) = delete;
-  ~UniformBuffer();
+  virtual ~UniformBuffer();
 
   inline void                       set( const T& data );
   inline T                          get() const;
@@ -84,7 +84,6 @@ private:
   T                                           uboData;
   std::shared_ptr<DeviceMemoryAllocator>      allocator;
   VkBufferUsageFlagBits                       additionalFlags;
-  uint32_t                                    activeCount = 1;
 };
 
 template <typename T>
@@ -197,8 +196,7 @@ void UniformBuffer<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
-    for (uint32_t i = 0; i<pdd.second.valid.size(); ++i)
-      pdd.second.valid[i] = false;
+    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
   invalidateDescriptors();
 }
 

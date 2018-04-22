@@ -48,7 +48,7 @@ public:
   explicit UniformBufferPerSurface(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits additionalFlags = (VkBufferUsageFlagBits)0, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   UniformBufferPerSurface(const UniformBufferPerSurface&)            = delete;
   UniformBufferPerSurface& operator=(const UniformBufferPerSurface&) = delete;
-  ~UniformBufferPerSurface();
+  virtual ~UniformBufferPerSurface();
 
   inline void                       set(const T& data);
   inline void                       set(Surface* surface, const T& data);
@@ -90,7 +90,6 @@ private:
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
   std::shared_ptr<DeviceMemoryAllocator>           allocator;
   VkBufferUsageFlagBits                            additionalFlags;
-  uint32_t                                         activeCount = 1;
 };
 
 template <typename T>

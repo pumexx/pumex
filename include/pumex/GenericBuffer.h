@@ -48,7 +48,7 @@ public:
   explicit GenericBuffer(std::shared_ptr<T> data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlagBits usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   GenericBuffer(const GenericBuffer&)            = delete;
   GenericBuffer& operator=(const GenericBuffer&) = delete;
-  ~GenericBuffer();
+  virtual ~GenericBuffer();
 
   void               validate(const RenderContext& renderContext) override;
   void               invalidate() override;
@@ -79,7 +79,6 @@ private:
   std::shared_ptr<T>                          data;
   std::shared_ptr<DeviceMemoryAllocator>      allocator;
   VkBufferUsageFlagBits                       usage;
-  uint32_t                                    activeCount = 1;
 };
 
 template <typename T>
@@ -117,8 +116,7 @@ void GenericBuffer<T>::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perDeviceData)
-    for (uint32_t i = 0; i<pdd.second.valid.size(); ++i)
-      pdd.second.valid[i] = false;
+    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
   invalidateDescriptors();
 }
 
