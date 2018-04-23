@@ -22,9 +22,9 @@
 
 #pragma once
 #include <memory>
+#include <mutex>
 #include <vector>
 #include <unordered_map>
-#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>

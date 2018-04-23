@@ -21,14 +21,14 @@
 //
 
 #include <pumex/AssetBuffer.h>
-#include <pumex/MaterialSet.h>
 #include <pumex/Export.h>
 #include <pumex/Node.h>
-#include <pumex/GenericBuffer.h>
 
 namespace pumex
 {
-	
+
+class MaterialSet;
+
 class PUMEX_EXPORT AssetBufferNode : public Group
 {
 public:

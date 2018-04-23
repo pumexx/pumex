@@ -28,16 +28,19 @@
 #include <vulkan/vulkan.h>
 #include <gli/load.hpp>
 #include <pumex/Export.h>
-#include <pumex/StorageBuffer.h>
 
 namespace pumex
 {
 
 class Asset;
 struct Material;
+class Resource;
 class Sampler;
 class Texture;
+class DeviceMemoryAllocator;
 class Viewer;
+class RenderContext;
+template <typename T> class StorageBuffer;
 
 // Assimp does not load textures, but only its names and semantics ( diffuse, normal, etc )
 // TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet

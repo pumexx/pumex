@@ -26,6 +26,7 @@
 #include <pumex/Texture.h>
 #include <pumex/Command.h>
 #include <pumex/Viewer.h>
+#include <pumex/StorageBuffer.h>
 
 using namespace pumex;
 

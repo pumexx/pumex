@@ -27,6 +27,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
+#include <pumex/Image.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;

@@ -21,14 +21,14 @@
 //
 
 #include <pumex/AssetBuffer.h>
-#include <cstring>
 #include <set>
-#include <iterator>
 #include <pumex/Device.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/RenderContext.h>
+#include <pumex/StorageBuffer.h>
+#include <pumex/StorageBufferPerSurface.h>
+#include <pumex/GenericBuffer.h>
 #include <pumex/Command.h>
-#include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex
@@ -350,6 +350,18 @@ void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, s
   }
 }
 
+AssetBuffer::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
+{
+  vertices     = std::make_shared<std::vector<float>>();
+  indices      = std::make_shared<std::vector<uint32_t>>();
+  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
+  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
+
+  typeBuffer   = std::make_shared<StorageBuffer<AssetTypeDefinition>>(bufferAllocator);
+  lodBuffer    = std::make_shared<StorageBuffer<AssetLodDefinition>>(bufferAllocator);
+  geomBuffer   = std::make_shared<StorageBuffer<AssetGeometryDefinition>>(bufferAllocator);
+}
+
 AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator)
   : assetBuffer{ ab }
 {
@@ -430,5 +442,10 @@ void AssetBufferInstancedResults::validate(const RenderContext& renderContext)
   }
 }
 
+AssetBufferInstancedResults::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator)
+{
+  resultsSbo   = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+  offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator);
+}
 
 }

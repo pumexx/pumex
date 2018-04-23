@@ -21,6 +21,7 @@
 //
 #include <pumex/Node.h>
 #include <pumex/NodeVisitor.h>
+#include <pumex/Descriptor.h>
 #include <pumex/RenderContext.h>
 #include <pumex/utils/Log.h>
 #include <algorithm>

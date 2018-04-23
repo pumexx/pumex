@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 #include <pumex/NodeVisitor.h>
+#include <pumex/Pipeline.h>
 #include <pumex/AssetBufferNode.h>
 #include <pumex/AssetNode.h>
 #include <pumex/DispatchNode.h>

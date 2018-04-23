@@ -28,15 +28,14 @@
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
-#include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/RenderWorkflow.h>
-#include <pumex/Image.h>
 #include <pumex/Resource.h>
 
 namespace pumex
 {
 
 class Surface;
+class DeviceMemoryAllocator;
 class RenderPass;
 class Sampler;
 

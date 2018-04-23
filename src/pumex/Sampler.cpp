@@ -40,6 +40,15 @@ Sampler::Sampler(const SamplerTraits& st, Resource::SwapChainImageBehaviour scib
 
 }
 
+Sampler::~Sampler()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perDeviceData)
+    for (uint32_t i = 0; i < activeCount; ++i)
+        vkDestroySampler(pdd.first, pdd.second.sampler[i], nullptr);
+}
+
+
 VkSampler Sampler::getHandleSampler(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -70,28 +79,32 @@ void Sampler::validate(const RenderContext& renderContext)
   if (pddit->second.valid[activeIndex])
     return;
 
-  // Create sampler
-  if (pddit->second.sampler[activeIndex] == VK_NULL_HANDLE)
+  // delete old sampler
+  if (pddit->second.sampler[activeIndex] != VK_NULL_HANDLE)
   {
-    VkSamplerCreateInfo sampler{};
-      sampler.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-      sampler.magFilter               = samplerTraits.magFilter;
-      sampler.minFilter               = samplerTraits.minFilter;
-      sampler.mipmapMode              = samplerTraits.mipmapMode;
-      sampler.addressModeU            = samplerTraits.addressModeU;
-      sampler.addressModeV            = samplerTraits.addressModeV;
-      sampler.addressModeW            = samplerTraits.addressModeW;
-      sampler.mipLodBias              = samplerTraits.mipLodBias;
-      sampler.anisotropyEnable        = samplerTraits.anisotropyEnable;
-      sampler.maxAnisotropy           = samplerTraits.maxAnisotropy;
-      sampler.compareEnable           = samplerTraits.compareEnable;
-      sampler.compareOp               = samplerTraits.compareOp;
-      sampler.minLod                  = samplerTraits.minLod;
-      sampler.maxLod                  = samplerTraits.maxLod;
-      sampler.borderColor             = samplerTraits.borderColor;
-      sampler.unnormalizedCoordinates = samplerTraits.unnormalizedCoordinates;
-    VK_CHECK_LOG_THROW(vkCreateSampler(renderContext.vkDevice, &sampler, nullptr, &pddit->second.sampler[activeIndex]), "Cannot create sampler");
+    vkDestroySampler(pddit->first, pddit->second.sampler[activeIndex], nullptr);
+    pddit->second.sampler[activeIndex] = VK_NULL_HANDLE;
   }
+
+  // Create sampler
+  VkSamplerCreateInfo sampler{};
+    sampler.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler.magFilter               = samplerTraits.magFilter;
+    sampler.minFilter               = samplerTraits.minFilter;
+    sampler.mipmapMode              = samplerTraits.mipmapMode;
+    sampler.addressModeU            = samplerTraits.addressModeU;
+    sampler.addressModeV            = samplerTraits.addressModeV;
+    sampler.addressModeW            = samplerTraits.addressModeW;
+    sampler.mipLodBias              = samplerTraits.mipLodBias;
+    sampler.anisotropyEnable        = samplerTraits.anisotropyEnable;
+    sampler.maxAnisotropy           = samplerTraits.maxAnisotropy;
+    sampler.compareEnable           = samplerTraits.compareEnable;
+    sampler.compareOp               = samplerTraits.compareOp;
+    sampler.minLod                  = samplerTraits.minLod;
+    sampler.maxLod                  = samplerTraits.maxLod;
+    sampler.borderColor             = samplerTraits.borderColor;
+    sampler.unnormalizedCoordinates = samplerTraits.unnormalizedCoordinates;
+  VK_CHECK_LOG_THROW(vkCreateSampler(renderContext.vkDevice, &sampler, nullptr, &pddit->second.sampler[activeIndex]), "Cannot create sampler");
 
   pddit->second.valid[activeIndex] = true;
 }

@@ -20,7 +20,8 @@
 // SOFTWARE.
 //
 #include <pumex/RenderVisitors.h>
-#include <pumex/RenderWorkflow.h>
+#include <pumex/Descriptor.h>
+#include <pumex/Pipeline.h>
 #include <pumex/AssetBufferNode.h>
 #include <pumex/AssetNode.h>
 #include <pumex/DispatchNode.h>

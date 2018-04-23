@@ -22,7 +22,6 @@
 
 #pragma once
 #include <pumex/Export.h>
-#include <pumex/Pipeline.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Texture.h>
 #include <pumex/Device.h>

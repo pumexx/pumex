@@ -27,6 +27,7 @@
 #include <pumex/utils/Shapes.h>
 #include <pumex/Surface.h>
 #include <pumex/Sampler.h>
+#include <pumex/GenericBufferPerSurface.h>
 
 using namespace pumex;
 
@@ -190,6 +191,11 @@ void Text::validate(const RenderContext& renderContext)
     valid = true;
   }
   vertexBuffer->validate(renderContext);
+}
+
+void Text::internalInvalidate() 
+{ 
+  vertexBuffer->invalidate(); invalidate(); 
 }
 
 void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const

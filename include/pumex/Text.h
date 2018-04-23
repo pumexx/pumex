@@ -32,13 +32,13 @@
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 #include <pumex/Node.h>
-#include <pumex/GenericBufferPerSurface.h>
 
 namespace pumex
 {
 
 class Texture;
 class DeviceMemoryAllocator;
+template <typename T> class GenericBufferPerSurface;
 
 struct PUMEX_EXPORT GlyphData
 {
@@ -101,14 +101,14 @@ public:
   Text& operator=(const Text&) = delete;
   virtual ~Text();
 
-  void            accept(NodeVisitor& visitor) override;
-  void            validate(const RenderContext& renderContext) override;
-  void            cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
+  void accept(NodeVisitor& visitor) override;
+  void validate(const RenderContext& renderContext) override;
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
 
-  void            setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
-  void            removeText(Surface* surface, uint32_t index);
-  void            clearTexts();
-  inline void     internalInvalidate();
+  void setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
+  void removeText(Surface* surface, uint32_t index);
+  void clearTexts();
+  void internalInvalidate();
 
   std::shared_ptr<GenericBufferPerSurface<std::vector<SymbolData>>> vertexBuffer;
   std::vector<VertexSemantic>                                       textVertexSemantic;
@@ -136,8 +136,5 @@ protected:
   std::unordered_map<VkSurfaceKHR,std::shared_ptr<std::vector<SymbolData>>>         symbolData;
   std::map<TextKey, std::tuple<glm::vec2, glm::vec4, std::wstring>, TextKeyCompare> texts;
 };
-
-void     Text::internalInvalidate()                     { vertexBuffer->invalidate(); invalidate(); }
-
 
 }

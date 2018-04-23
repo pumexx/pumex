@@ -22,6 +22,7 @@
 
 #include <pumex/AssetNode.h>
 #include <pumex/NodeVisitor.h>
+#include <pumex/GenericBuffer.h>
 #include <algorithm>
 
 using namespace pumex;

@@ -23,11 +23,14 @@
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
 #include <pumex/Node.h>
-#include <pumex/GenericBuffer.h>
 
 namespace pumex
 {
-	
+
+template <typename T> class GenericBuffer;
+class DeviceMemoryAllocator;
+
+
 class PUMEX_EXPORT AssetNode : public Node
 {
 public:

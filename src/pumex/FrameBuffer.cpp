@@ -21,9 +21,11 @@
 //
 
 #include <pumex/FrameBuffer.h>
-#include <pumex/RenderPass.h>
 #include <pumex/Surface.h>
+#include <pumex/RenderPass.h>
+#include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Image.h>
 #include <pumex/Sampler.h>
 #include <pumex/utils/Log.h>
 

@@ -29,11 +29,9 @@
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Device.h>
 #include <pumex/Command.h>
-#include <pumex/Pipeline.h>
 #include <pumex/RenderContext.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
-
 
 // Uniform buffer that stores different C++ struct per surface
 

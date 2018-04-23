@@ -29,8 +29,6 @@
 namespace pumex
 {
 
-class  Device;
-
 // struct representing all options required to create or describe VkImage
 struct PUMEX_EXPORT ImageTraits
 {

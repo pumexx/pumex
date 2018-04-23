@@ -22,15 +22,16 @@
 #pragma once
 #include <pumex/Export.h>
 #include <pumex/Node.h>
-#include <pumex/Pipeline.h>
 
 namespace pumex
 {
 
-class AssetNode;
+class GraphicsPipeline;
+class ComputePipeline;
 class AssetBufferNode;
 class AssetBufferDrawObject;
 class AssetBufferIndirectDrawObjects;
+class AssetNode;
 class DispatchNode;
 class Text;
 

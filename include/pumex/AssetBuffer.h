@@ -26,19 +26,17 @@
 #include <mutex>
 #include <pumex/Export.h>
 #include <pumex/Asset.h>
-#include <pumex/BoundingBox.h>
-#include <pumex/StorageBuffer.h>
-#include <pumex/StorageBufferPerSurface.h>
-#include <pumex/GenericBuffer.h>
-#include <pumex/Pipeline.h>
 
 namespace pumex
 {
 
-class Device;
+class RenderContext;
 class DeviceMemoryAllocator;
-class CommandPool;
+template <typename T> class StorageBuffer;
+template <typename T> class StorageBufferPerSurface;
+template <typename T> class GenericBuffer;
 class CommandBuffer;
+
 
 // AssetBuffer is a class that holds all assets in a single place in GPU memory.
 // Each asset may have different set of render aspects ( normal rendering with tangents, transluency, lights, etc ) defined by render mask.
@@ -181,18 +179,8 @@ protected:
   struct PerRenderMaskData
   {
     PerRenderMaskData() = default;
-    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
-    {
-      vertices     = std::make_shared<std::vector<float>>();
-      indices      = std::make_shared<std::vector<uint32_t>>();
-      vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
-      indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
+    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator);
 
-      typeBuffer   = std::make_shared<StorageBuffer<AssetTypeDefinition>>(bufferAllocator);
-      lodBuffer    = std::make_shared<StorageBuffer<AssetLodDefinition>>(bufferAllocator);
-      geomBuffer   = std::make_shared<StorageBuffer<AssetGeometryDefinition>>(bufferAllocator);
-
-    }
     std::shared_ptr<std::vector<float>>                   vertices;
     std::shared_ptr<std::vector<uint32_t>>                indices;
     std::shared_ptr<GenericBuffer<std::vector<float>>>    vertexBuffer;
@@ -279,11 +267,7 @@ protected:
   struct PerRenderMaskData
   {
     PerRenderMaskData() = default;
-    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator)
-    {
-      resultsSbo = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-      offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator);
-    }
+    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator);
 
     std::vector<DrawIndexedIndirectCommand>                              initialResultValues;
     std::vector<uint32_t>                                                resultsGeomToType;

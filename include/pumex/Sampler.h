@@ -68,6 +68,7 @@ public:
   explicit Sampler(const SamplerTraits& samplerTraits, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
   Sampler(const Sampler&)            = delete;
   Sampler& operator=(const Sampler&) = delete;
+  virtual ~Sampler();
 
   VkSampler                         getHandleSampler(const RenderContext& renderContext) const;
   inline const SamplerTraits&       getSamplerTraits() const;

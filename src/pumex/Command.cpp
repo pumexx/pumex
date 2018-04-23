@@ -26,6 +26,7 @@
 #include <pumex/FrameBuffer.h>
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
+#include <pumex/Descriptor.h>
 #include <pumex/Pipeline.h>
 #include <pumex/Texture.h>
 #include <pumex/utils/Log.h>

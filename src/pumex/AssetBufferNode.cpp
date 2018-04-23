@@ -22,6 +22,7 @@
 
 #include <pumex/AssetBufferNode.h>
 #include <pumex/NodeVisitor.h>
+#include <pumex/MaterialSet.h>
 
 using namespace pumex;
 

@@ -22,7 +22,7 @@
 
 #include <pumex/Resource.h>
 #include <algorithm>
-#include <pumex/Pipeline.h>
+#include <pumex/Descriptor.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
