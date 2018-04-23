@@ -28,6 +28,7 @@
 #include <pumex/Image.h>
 #include <pumex/Sampler.h>
 #include <pumex/utils/Log.h>
+#include <algorithm>
 
 namespace pumex
 {

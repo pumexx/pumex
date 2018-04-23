@@ -30,6 +30,7 @@
 #include <pumex/Export.h>
 #include <pumex/RenderWorkflow.h>
 #include <pumex/Resource.h>
+#include <pumex/Image.h>
 
 namespace pumex
 {

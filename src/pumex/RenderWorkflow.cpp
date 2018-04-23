@@ -792,7 +792,7 @@ void SingleQueueWorkflowCompiler::collectResources(const RenderWorkflow& workflo
     int outQueueIndex = outTransitions.empty() ? -1 : operationIndex.at(outTransitions[0]->operation->name).first;
     int outOpIndex    = outTransitions.empty() ? -1 : operationIndex.at(outTransitions[0]->operation->name).second;
 
-    aliasingPossible.insert( { resourceName,{ outQueueIndex, outOpIndex, inQueueIndex, inOpFirst, inOpLast } } );
+    aliasingPossible.insert( { resourceName,std::make_tuple( outQueueIndex, outOpIndex, inQueueIndex, inOpFirst, inOpLast ) } );
   }
 
   // OK, so we have a group of resources where resource reuse is possible. First - we build pairs of resources that may be reused
