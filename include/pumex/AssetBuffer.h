@@ -33,7 +33,6 @@ namespace pumex
 class RenderContext;
 class DeviceMemoryAllocator;
 template <typename T> class StorageBuffer;
-template <typename T> class StorageBufferPerSurface;
 template <typename T> class GenericBuffer;
 class CommandBuffer;
 
@@ -254,14 +253,14 @@ public:
   AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
   virtual ~AssetBufferInstancedResults();
 
-  void                                                                 setup();
-  void                                                                 prepareBuffers(const std::vector<uint32_t>& typeCount);
+  void                                                       setup();
+  void                                                       prepareBuffers(const std::vector<uint32_t>& typeCount);
 
-  std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
-  std::shared_ptr<StorageBufferPerSurface<uint32_t>>                   getOffsetValues(uint32_t renderMask);
-  uint32_t                                                             getDrawCount(uint32_t renderMask);
+  std::shared_ptr<StorageBuffer<DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
+  std::shared_ptr<StorageBuffer<uint32_t>>                   getOffsetValues(uint32_t renderMask);
+  uint32_t                                                   getDrawCount(uint32_t renderMask);
 
-  void                                                                 validate(const RenderContext& renderContext);
+  void                                                       validate(const RenderContext& renderContext);
 
 protected:
   struct PerRenderMaskData
@@ -271,8 +270,8 @@ protected:
 
     std::vector<DrawIndexedIndirectCommand>                              initialResultValues;
     std::vector<uint32_t>                                                resultsGeomToType;
-    std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> resultsSbo;
-    std::shared_ptr<StorageBufferPerSurface<uint32_t>>                   offValuesSbo;
+    std::shared_ptr<StorageBuffer<DrawIndexedIndirectCommand>> resultsSbo;
+    std::shared_ptr<StorageBuffer<uint32_t>>                   offValuesSbo;
   };
 
   mutable std::mutex                              mutex;

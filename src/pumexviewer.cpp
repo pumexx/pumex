@@ -87,8 +87,8 @@ struct ViewerApplicationData
 {
   ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
   {
-    cameraUbo     = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    cameraUbo     = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
+    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
     positionUbo   = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -294,10 +294,10 @@ struct ViewerApplicationData
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
 
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
-  pumex::HPClock::time_point                                     lastFrameStart;
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> textCameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
+  pumex::HPClock::time_point                           lastFrameStart;
 };
 
 int main( int argc, char * argv[] )

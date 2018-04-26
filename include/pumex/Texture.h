@@ -33,62 +33,111 @@ namespace pumex
 {
 
 class RenderContext;
-class Sampler;
+class ImageView;
 
-// Uses gli::texture to hold texture on CPU
+struct PUMEX_EXPORT ImageSubresourceRange
+{
+  ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
+
+  VkImageSubresourceRange getSubresource();
+
+  VkImageAspectFlags    aspectMask;
+  uint32_t              baseMipLevel;
+  uint32_t              levelCount;
+  uint32_t              baseArrayLayer;
+  uint32_t              layerCount;
+};
+
+// pumex::Texture class stores Vulkan images per sufrace or per device ( according to user's needs )
+// Class uses gli::texture to store texture data on CPU
 // Texture may contain usual textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
-// Texture may be used in a descriptor as as sampled image, combined image sampler and image store
-// Class stores information about images PER DEVICE. Additionally it also stores a VkSampler
-class PUMEX_EXPORT Texture : public Resource
+
+class PUMEX_EXPORT Texture
 {
 public:
   Texture()                          = delete;
   // create single texture and clear it with specific value
-  explicit Texture(const ImageTraits& imageTraits, std::shared_ptr<Sampler> sampler, std::shared_ptr<DeviceMemoryAllocator> allocator, VkClearValue initValue, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
+  explicit Texture(const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator, const glm::vec4& initValue, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
   // create single texture and load it with provided data ( gli::texture )
-  explicit Texture(std::shared_ptr<gli::texture> texture, std::shared_ptr<Sampler> sampler, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageUsageFlags usage, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
+  explicit Texture(std::shared_ptr<gli::texture> texture, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageUsageFlags usage, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
   virtual ~Texture();
 
-  Image*                          getHandleImage(const RenderContext& renderContext) const;
-  inline const ImageTraits&       getImageTraits() const;
-  inline std::shared_ptr<Sampler> getSampler() const;
+  Image*                                getImage(const RenderContext& renderContext) const;
+  inline const ImageTraits&             getImageTraits() const;
+  inline const PerObjectBehaviour&      getPerObjectBehaviour() const;
+  inline const SwapChainImageBehaviour& getSwapChainImageBehaviour() const;
 
-  void                            validate(const RenderContext& renderContext) override;
-  void                            invalidate() override;
-  DescriptorSetValue              getDescriptorSetValue(const RenderContext& renderContext) override;
+  void                                  validate(const RenderContext& renderContext);
+  void                                  invalidate();
 
-  void                            setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
+  void                                  setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
+  ImageSubresourceRange                 getFullImageRange();
 
+  void                                  addImageView( std::shared_ptr<ImageView> imageView );
 protected:
-  struct PerDeviceData
+  struct TextureInternal
   {
-    PerDeviceData(uint32_t ac)
-    {
-      resize(ac);
-    }
-    void resize(uint32_t ac)
-    {
-      valid.resize(ac, false);
-      image.resize(ac, nullptr);
-    }
-
-    std::vector<bool>                   valid;
-    std::vector<std::shared_ptr<Image>> image;
+    std::shared_ptr<Image> image;
   };
-  void buildImageTraits(VkImageUsageFlags usage);
+  std::unordered_map<void*, PerObjectData<TextureInternal>> perObjectData;
+  mutable std::mutex                                        mutex;
+  PerObjectBehaviour                                        perObjectBehaviour;
+  SwapChainImageBehaviour                                   swapChainImageBehaviour;
+  ImageTraits                                               imageTraits;
+  std::shared_ptr<gli::texture>                             texture;
+  std::shared_ptr<DeviceMemoryAllocator>                    allocator;
+  VkClearValue                                              initValue;
+  std::vector<std::weak_ptr<ImageView>>                     imageViews;
+  uint32_t                                                  activeCount;
 
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
-  ImageTraits                                 imageTraits;
-  std::shared_ptr<Sampler>                    sampler;
-  std::shared_ptr<gli::texture>               texture;
-  VkClearValue                                initValue;
-  std::shared_ptr<DeviceMemoryAllocator>      allocator;
+  void buildImageTraits(VkImageUsageFlags usage);
+  void invalidateImageViews();
 };
 
-const ImageTraits&              Texture::getImageTraits() const { return imageTraits; }
-inline std::shared_ptr<Sampler> Texture::getSampler() const     { return sampler; }
+class PUMEX_EXPORT ImageView : public std::enable_shared_from_this<ImageView>
+{
+public:
+  ImageView()                            = delete;
+  ImageView(std::shared_ptr<Texture> texture, const ImageSubresourceRange& subresourceRange, VkImageViewType viewType, VkFormat format = VK_FORMAT_UNDEFINED, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  ImageView(const ImageView&)            = delete;
+  ImageView& operator=(const ImageView&) = delete;
+  virtual ~ImageView();
+
+  VkImage      getHandleImage(const RenderContext& renderContext) const;
+  VkImageView  getImageView(const RenderContext& renderContext) const;
+
+  void         validate(const RenderContext& renderContext);
+  void         invalidate();
+
+  void         addResource(std::shared_ptr<Resource> resource);
+
+  std::shared_ptr<Texture> texture;
+  ImageSubresourceRange    subresourceRange;
+  VkImageViewType          viewType;
+  VkFormat                 format;
+  gli::swizzles            swizzles;
+protected:
+  struct ImageViewInternal
+  {
+    ImageViewInternal()
+      : imageView{VK_NULL_HANDLE}
+    {}
+    VkImageView imageView;
+  };
+  mutable std::mutex                                          mutex;
+  std::vector<std::weak_ptr<Resource>>                        resources;
+  std::unordered_map<void*, PerObjectData<ImageViewInternal>> perObjectData;
+  uint32_t                                                    activeCount;
+
+  void invalidateResources();
+
+};
+
+const ImageTraits&             Texture::getImageTraits() const { return imageTraits; }
+const PerObjectBehaviour&      Texture::getPerObjectBehaviour() const { return perObjectBehaviour; }
+const SwapChainImageBehaviour& Texture::getSwapChainImageBehaviour() const { return swapChainImageBehaviour; }
 
 }
 

@@ -188,7 +188,7 @@ void Device::releaseQueue(std::shared_ptr<Queue> queue)
   }
 }
 
-std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(void* data, VkDeviceSize size)
+std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(const void* data, VkDeviceSize size)
 {
   // find smallest staging buffer that is able to transfer data
   VkDeviceSize smallestSize = std::numeric_limits<VkDeviceSize>::max();

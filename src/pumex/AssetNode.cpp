@@ -32,8 +32,10 @@ AssetNode::AssetNode(std::shared_ptr<Asset> a, std::shared_ptr<DeviceMemoryAlloc
 {
   vertices     = std::make_shared<std::vector<float>>();
   indices      = std::make_shared<std::vector<uint32_t>>();
-  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
-  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
+  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swOnce);
+  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swOnce);
+  vertexBuffer->set(vertices);
+  indexBuffer->set(indices);
 }
 
 void AssetNode::accept(NodeVisitor& visitor)
@@ -84,8 +86,8 @@ void AssetNode::internalInvalidate()
 
 void AssetNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const
 {
-  VkBuffer vBuffer = vertexBuffer->getBufferHandle(renderContext);
-  VkBuffer iBuffer = indexBuffer->getBufferHandle(renderContext);
+  VkBuffer vBuffer = vertexBuffer->getHandleBuffer(renderContext);
+  VkBuffer iBuffer = indexBuffer->getHandleBuffer(renderContext);
   commandBuffer->addSource(vertexBuffer.get());
   commandBuffer->addSource(indexBuffer.get());
   VkDeviceSize offsets = 0;

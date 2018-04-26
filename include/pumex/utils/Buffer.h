@@ -70,7 +70,7 @@ public:
   inline bool         isReserved() const;
   inline void         setReserved(bool value);
 
-  void fillBuffer(void* data, VkDeviceSize size);
+  void fillBuffer(const void* data, VkDeviceSize size);
 
   VkBuffer       buffer     = VK_NULL_HANDLE;
 protected:

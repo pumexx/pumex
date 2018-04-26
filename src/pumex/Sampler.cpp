@@ -34,8 +34,8 @@ SamplerTraits::SamplerTraits(bool lt, VkFilter maf, VkFilter mif, VkSamplerMipma
 {
 }
 
-Sampler::Sampler(const SamplerTraits& st, Resource::SwapChainImageBehaviour scib)
-  : Resource{ scib }, samplerTraits{ st }
+Sampler::Sampler(const SamplerTraits& st, SwapChainImageBehaviour scib)
+  : Resource{ pbPerDevice, scib }, samplerTraits{ st }
 {
 
 }
@@ -43,19 +43,18 @@ Sampler::Sampler(const SamplerTraits& st, Resource::SwapChainImageBehaviour scib
 Sampler::~Sampler()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
-    for (uint32_t i = 0; i < activeCount; ++i)
-        vkDestroySampler(pdd.first, pdd.second.sampler[i], nullptr);
+  for (auto& pdd : perObjectData)
+    for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
+        vkDestroySampler(pdd.second.device, pdd.second.data[i].sampler, nullptr);
 }
-
 
 VkSampler Sampler::getHandleSampler(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == end(perDeviceData))
+  auto pddit = perObjectData.find(getKey(renderContext,perObjectBehaviour));
+  if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
-  return pddit->second.sampler[renderContext.activeIndex % activeCount];
+  return pddit->second.data[renderContext.activeIndex % activeCount].sampler;
 }
 
 std::pair<bool, VkDescriptorType> Sampler::getDefaultDescriptorType()
@@ -66,24 +65,25 @@ std::pair<bool, VkDescriptorType> Sampler::getDefaultDescriptorType()
 void Sampler::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (swapChainImageBehaviour == Resource::ForEachSwapChainImage && renderContext.imageCount > activeCount)
+  if (swapChainImageBehaviour == swForEachImage && renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;
-    for (auto& pdd : perDeviceData)
+    for (auto& pdd : perObjectData)
       pdd.second.resize(activeCount);
   }
-  auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == end(perDeviceData))
-    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData(activeCount) }).first;
+  auto keyValue = getKey(renderContext, perObjectBehaviour);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ keyValue, PerObjectData<SamplerInternal>(renderContext) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
 
   // delete old sampler
-  if (pddit->second.sampler[activeIndex] != VK_NULL_HANDLE)
+  if (pddit->second.data[activeIndex].sampler != VK_NULL_HANDLE)
   {
-    vkDestroySampler(pddit->first, pddit->second.sampler[activeIndex], nullptr);
-    pddit->second.sampler[activeIndex] = VK_NULL_HANDLE;
+    vkDestroySampler(pddit->second.device, pddit->second.data[activeIndex].sampler, nullptr);
+    pddit->second.data[activeIndex].sampler = VK_NULL_HANDLE;
   }
 
   // Create sampler
@@ -104,7 +104,7 @@ void Sampler::validate(const RenderContext& renderContext)
     sampler.maxLod                  = samplerTraits.maxLod;
     sampler.borderColor             = samplerTraits.borderColor;
     sampler.unnormalizedCoordinates = samplerTraits.unnormalizedCoordinates;
-  VK_CHECK_LOG_THROW(vkCreateSampler(renderContext.vkDevice, &sampler, nullptr, &pddit->second.sampler[activeIndex]), "Cannot create sampler");
+  VK_CHECK_LOG_THROW(vkCreateSampler(pddit->second.device, &sampler, nullptr, &pddit->second.data[activeIndex].sampler), "Cannot create sampler");
 
   pddit->second.valid[activeIndex] = true;
 }
@@ -112,7 +112,7 @@ void Sampler::validate(const RenderContext& renderContext)
 void Sampler::invalidate()
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perDeviceData)
+  for (auto& pdd : perObjectData)
     std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
   invalidateDescriptors();
 }
@@ -120,8 +120,8 @@ void Sampler::invalidate()
 DescriptorSetValue Sampler::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(renderContext.vkDevice);
-  CHECK_LOG_THROW(pddit == end(perDeviceData), "Texture::getDescriptorSetValue() : texture was not validated");
+  auto pddit = perObjectData.find(getKey(renderContext,perObjectBehaviour));
+  CHECK_LOG_THROW(pddit == end(perObjectData), "Texture::getDescriptorSetValue() : texture was not validated");
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
-  return DescriptorSetValue(pddit->second.sampler[activeIndex], VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
+  return DescriptorSetValue(pddit->second.data[activeIndex].sampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }

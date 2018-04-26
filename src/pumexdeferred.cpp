@@ -137,8 +137,8 @@ struct DeferredApplicationData
 {
   DeferredApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
   {
-    cameraUbo     = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    textCameraUbo = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    cameraUbo     = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
+    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
     positionUbo   = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
     lightsSbo     = std::make_shared<pumex::StorageBuffer<LightPointData>>(buffersAllocator);
     std::vector<LightPointData> lights;
@@ -383,15 +383,15 @@ struct DeferredApplicationData
   }
 
 
-  UpdateData                                           updateData;
-  std::array<RenderData, 3>                            renderData;
+  UpdateData                                            updateData;
+  std::array<RenderData, 3>                             renderData;
 
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>            positionUbo;
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<LightPointData>>          lightsSbo;
-  pumex::HPClock::time_point                                     lastFrameStart;
-  std::shared_ptr<pumex::Text>                                   textDefault;
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>  cameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<PositionData>>   positionUbo;
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>  textCameraUbo;
+  std::shared_ptr<pumex::StorageBuffer<LightPointData>> lightsSbo;
+  pumex::HPClock::time_point                            lastFrameStart;
+  std::shared_ptr<pumex::Text>                          textDefault;
 };
 
 
@@ -588,10 +588,10 @@ int main( int argc, char * argv[] )
     descriptorSet->setDescriptor(2, materialSet->typeDefinitionSbo);
     descriptorSet->setDescriptor(3, materialSet->materialVariantSbo);
     descriptorSet->setDescriptor(4, materialRegistry->materialDefinitionSbo);
-    descriptorSet->setDescriptor(5, textureRegistry->getTextures(0), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    descriptorSet->setDescriptor(6, textureRegistry->getTextures(1), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    descriptorSet->setDescriptor(7, textureRegistry->getTextures(2), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    descriptorSet->setDescriptor(8, textureRegistry->getTextures(3), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    descriptorSet->setDescriptor(5, textureRegistry->getCombinedImageSamplers(0));
+    descriptorSet->setDescriptor(6, textureRegistry->getCombinedImageSamplers(1));
+    descriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSamplers(2));
+    descriptorSet->setDescriptor(8, textureRegistry->getCombinedImageSamplers(3));
     modelDraw->setDescriptorSet(0, descriptorSet);
 
 /**********************/
@@ -704,9 +704,12 @@ int main( int argc, char * argv[] )
     lightingRoot->addChild(textPipeline);
     textPipeline->addChild(textDefault);
 
+    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
+
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
     textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
-    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
     // connect workflow to a surface

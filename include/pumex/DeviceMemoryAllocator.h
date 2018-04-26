@@ -79,7 +79,7 @@ public:
   void                         deallocate(VkDevice device, const DeviceMemoryBlock& block);
 
   // method that makes vkMapMemory() / memcpy() / vkUnmapMemory() behind a mutex - use it instead of performing is yourself
-  void                         copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags);
+  void                         copyToDeviceMemory(Device* device, VkDeviceSize offset, const void* data, VkDeviceSize size, VkMemoryMapFlags flags);
   void                         bindBufferMemory(Device* device, VkBuffer buffer, VkDeviceSize offset);
 
   inline VkMemoryPropertyFlags getMemoryPropertyFlags() const;

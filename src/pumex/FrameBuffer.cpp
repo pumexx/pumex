@@ -93,8 +93,7 @@ void FrameBufferImages::validate(Surface* surface)
     }
     }
     ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, 
-      false, VK_IMAGE_LAYOUT_UNDEFINED, definition.aspectMask, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE,
-      VK_IMAGE_VIEW_TYPE_2D, definition.swizzles);
+      false, VK_IMAGE_LAYOUT_UNDEFINED, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
     pddit->second.frameBufferImages[i] = std::make_shared<Image>(surface->device.lock().get(), imageTraits, allocator);
   }
   pddit->second.valid = true;

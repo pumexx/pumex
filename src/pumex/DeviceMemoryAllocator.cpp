@@ -89,7 +89,7 @@ void DeviceMemoryAllocator::deallocate(VkDevice device, const DeviceMemoryBlock&
   allocationStrategy->deallocate(pddit->second.freeBlocks, block);
 }
 
-void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offset, void* data, VkDeviceSize size, VkMemoryMapFlags flags) 
+void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offset, const void* data, VkDeviceSize size, VkMemoryMapFlags flags) 
 {
   if (size == 0)
     return;

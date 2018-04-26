@@ -96,7 +96,7 @@ public:
   std::shared_ptr<Queue>         getQueue(const QueueTraits& queueTraits, bool reserve = false);
   void                           releaseQueue(std::shared_ptr<Queue> queue);
 
-  std::shared_ptr<StagingBuffer> acquireStagingBuffer( void* data, VkDeviceSize size );
+  std::shared_ptr<StagingBuffer> acquireStagingBuffer( const void* data, VkDeviceSize size );
   void                           releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
   
   inline void                    setID(uint32_t newID);

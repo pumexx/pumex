@@ -189,7 +189,7 @@ WindowXcb* WindowXcb::getWindow(xcb_window_t windowID)
 {
   std::lock_guard<std::mutex> lock(regMutex);
   auto it = registeredWindows.find(windowID);
-  if (it == registeredWindows.end())
+  if (it == end(registeredWindows))
     return nullptr;
   return it->second;
 }
@@ -343,7 +343,7 @@ void WindowXcb::normalizeMouseCoordinates(float& x, float& y) const
 InputEvent::Key WindowXcb::xcbKeyCodeToPumex(xcb_keycode_t keycode) const
 {
   auto it = xcbKeycodes.find(keycode);
-  if(it != xcbKeycodes.end() )
+  if(it != end(xcbKeycodes) )
     return it->second;
 // Line below is handy for recognizing new keycodes.  
 //  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;

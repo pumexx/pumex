@@ -27,8 +27,8 @@
 using namespace pumex;
 
 ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, uint32_t m, uint32_t l, VkSampleCountFlagBits s, bool lt, VkImageLayout il,
-  VkImageAspectFlags am, VkMemoryPropertyFlags mp, VkImageCreateFlags ic, VkImageType it, VkSharingMode sm, VkImageViewType vt, const gli::swizzles& sw)
-  : usage{ u }, format{ f }, extent( e ), mipLevels{ m }, arrayLayers{ l }, samples{ s }, linearTiling{ lt }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }, viewType{ vt }, swizzles{ sw }, aspectMask{ am }, memoryProperty{ mp }
+  VkMemoryPropertyFlags mp, VkImageCreateFlags ic, VkImageType it, VkSharingMode sm)
+  : usage{ u }, format{ f }, extent( e ), mipLevels{ m }, arrayLayers{ l }, samples{ s }, linearTiling{ lt }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }, memoryProperty{ mp }
 {
 }
 
@@ -52,62 +52,27 @@ Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAlloc
     imageCI.initialLayout = imageTraits.initialLayout;
   VK_CHECK_LOG_THROW(vkCreateImage(device, &imageCI, nullptr, &image), "failed vkCreateImage");
 
-  imageLayout = imageTraits.initialLayout;
   VkMemoryRequirements memReqs;
   vkGetImageMemoryRequirements(device, image, &memReqs);
 
   memoryBlock = allocator->allocate(d, memReqs);
   CHECK_LOG_THROW(memoryBlock.alignedSize == 0, "Cannot allocate memory for Image");
   VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, memoryBlock.memory, memoryBlock.alignedOffset), "failed vkBindImageMemory");
-  
-  VkImageViewCreateInfo imageViewCI{};
-    imageViewCI.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCI.flags      = 0;
-    imageViewCI.image      = image;
-    imageViewCI.viewType   = imageTraits.viewType;
-    imageViewCI.format     = imageTraits.format;
-    imageViewCI.components = vulkanComponentMappingFromGliComponentMapping(imageTraits.swizzles);
-    imageViewCI.subresourceRange.aspectMask     = imageTraits.aspectMask;
-    imageViewCI.subresourceRange.baseMipLevel   = 0;
-    imageViewCI.subresourceRange.levelCount     = imageTraits.mipLevels;
-    imageViewCI.subresourceRange.baseArrayLayer = 0;
-    imageViewCI.subresourceRange.layerCount     = imageTraits.arrayLayers;
-  VK_CHECK_LOG_THROW(vkCreateImageView(device, &imageViewCI, nullptr, &imageView), "failed vkCreateImageView");
 }
 
-Image::Image(Device* d, VkImage i, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels, uint32_t arrayLayers, VkImageAspectFlags aspectMask, VkImageViewType viewType, const gli::swizzles& swizzles)
-  : device(d->device), image{ i }, ownsImage {  false }
+Image::Image(Device* d, VkImage i, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels, uint32_t arrayLayers)
+  : device(d->device), image{ i }, ownsImage{  false }
 {
   // gather all what we know about delivered image
   imageTraits.format      = format;
   imageTraits.extent      = extent;
   imageTraits.mipLevels   = mipLevels;
   imageTraits.arrayLayers = arrayLayers;
-  imageTraits.aspectMask  = aspectMask;
-  imageTraits.viewType    = viewType;
-  imageTraits.swizzles    = swizzles;
-  imageLayout             = VK_IMAGE_LAYOUT_UNDEFINED;
-
-  VkImageViewCreateInfo imageViewCI{};
-    imageViewCI.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCI.flags      = 0;
-    imageViewCI.image      = image;
-    imageViewCI.viewType   = viewType;
-    imageViewCI.format     = format;
-    imageViewCI.components = vulkanComponentMappingFromGliComponentMapping(swizzles);
-    imageViewCI.subresourceRange.aspectMask     = aspectMask;
-    imageViewCI.subresourceRange.baseMipLevel   = 0;
-    imageViewCI.subresourceRange.levelCount     = mipLevels;
-    imageViewCI.subresourceRange.baseArrayLayer = 0;
-    imageViewCI.subresourceRange.layerCount     = arrayLayers;
-  VK_CHECK_LOG_THROW(vkCreateImageView(device, &imageViewCI, nullptr, &imageView), "failed vkCreateImageView");
 }
 
 
 Image::~Image()
 {
-  if (imageView != VK_NULL_HANDLE)
-    vkDestroyImageView(device, imageView, nullptr);
   if (ownsImage)
   {
     if (image != VK_NULL_HANDLE)
@@ -131,11 +96,6 @@ void* Image::mapMemory(size_t offset, size_t range, VkMemoryMapFlags flags)
 void Image::unmapMemory()
 {
   vkUnmapMemory(device, memoryBlock.memory);
-}
-
-void Image::setImageLayout(VkImageLayout newLayout)
-{
-  imageLayout = newLayout;
 }
 
 namespace pumex

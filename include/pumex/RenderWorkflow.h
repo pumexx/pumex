@@ -176,7 +176,6 @@ public:
     ImageTypeFlags imageType;
   };
 
-
   union
   {
     AttachmentData attachment;

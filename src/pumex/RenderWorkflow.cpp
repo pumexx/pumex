@@ -59,6 +59,7 @@ bool RenderWorkflowResourceType::isEqual(const RenderWorkflowResourceType& rhs) 
   case Buffer:
     return buffer.isEqual(rhs.buffer);
   case Image:
+    return image.isEqual(rhs.image);
   default:
     return false;
   }

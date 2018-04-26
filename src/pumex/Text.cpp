@@ -27,7 +27,7 @@
 #include <pumex/utils/Shapes.h>
 #include <pumex/Surface.h>
 #include <pumex/Sampler.h>
-#include <pumex/GenericBufferPerSurface.h>
+#include <pumex/GenericBuffer.h>
 
 using namespace pumex;
 
@@ -49,8 +49,7 @@ Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared
   auto ftex = std::make_shared<gli::texture>(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1);
   ftex->clear<gli::u8>(0);
   // this texture will not be modified by GPU, so it is enough to declare it as OnceForAllSwapChainImages
-  auto sampler  = std::make_shared<Sampler>(SamplerTraits());
-  fontTexture   = std::make_shared<Texture>(ftex, sampler, textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, Resource::OnceForAllSwapChainImages);
+  fontTexture   = std::make_shared<Texture>(ftex, textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice, swForEachImage);
   fontTexture2d = std::make_shared<gli::texture2d>( *ftex );
 
   lastRegisteredPosition = glm::ivec2(PUMEX_GLYPH_MARGIN, PUMEX_GLYPH_MARGIN);
@@ -145,7 +144,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
 Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba)
   : Node(), font{ f }
 {
-  vertexBuffer = std::make_shared<GenericBufferPerSurface<std::vector<SymbolData>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+  vertexBuffer = std::make_shared<GenericBuffer<std::vector<SymbolData>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerSurface, swForEachImage);
   textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
 }
 
@@ -204,7 +203,7 @@ void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuf
   auto sit = symbolData.find(renderContext.vkSurface);
   CHECK_LOG_THROW(sit == end(symbolData), "Text::cmdDraw() : text was not validated");
 
-  VkBuffer     vBuffer = vertexBuffer->getBufferHandle(renderContext);
+  VkBuffer     vBuffer = vertexBuffer->getHandleBuffer(renderContext);
   VkDeviceSize offsets = 0;
   commandBuffer->addSource(vertexBuffer.get());
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);

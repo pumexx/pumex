@@ -48,8 +48,8 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
   imageInfo.imageLayout = imageLayout;
 }
 
-Resource::Resource(SwapChainImageBehaviour scib)
-  : swapChainImageBehaviour{ scib }, activeCount{ 1 }
+Resource::Resource(PerObjectBehaviour pob, SwapChainImageBehaviour scib)
+  : perObjectBehaviour{ pob }, swapChainImageBehaviour { scib }, activeCount{ 1 }
 {
 
 }

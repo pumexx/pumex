@@ -38,7 +38,7 @@ namespace pumex
 
 class Texture;
 class DeviceMemoryAllocator;
-template <typename T> class GenericBufferPerSurface;
+template <typename T> class GenericBuffer;
 
 struct PUMEX_EXPORT GlyphData
 {
@@ -110,8 +110,8 @@ public:
   void clearTexts();
   void internalInvalidate();
 
-  std::shared_ptr<GenericBufferPerSurface<std::vector<SymbolData>>> vertexBuffer;
-  std::vector<VertexSemantic>                                       textVertexSemantic;
+  std::shared_ptr<GenericBuffer<std::vector<SymbolData>>> vertexBuffer;
+  std::vector<VertexSemantic>                             textVertexSemantic;
 protected:
   struct TextKey
   {

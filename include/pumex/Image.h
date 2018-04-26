@@ -34,8 +34,8 @@ struct PUMEX_EXPORT ImageTraits
 {
   explicit ImageTraits() = default;
   explicit ImageTraits(VkImageUsageFlags usage, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT, 
-    bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlags memoryProperty = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VkImageCreateFlags imageCreate = 0,
-    VkImageType imageType = VK_IMAGE_TYPE_2D, VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+    bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkMemoryPropertyFlags memoryProperty = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VkImageCreateFlags imageCreate = 0,
+    VkImageType imageType = VK_IMAGE_TYPE_2D, VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE);
   
   VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;
@@ -48,9 +48,6 @@ struct PUMEX_EXPORT ImageTraits
   VkImageCreateFlags       imageCreate    = 0;
   VkImageType              imageType      = VK_IMAGE_TYPE_2D;
   VkSharingMode            sharingMode    = VK_SHARING_MODE_EXCLUSIVE;
-  VkImageViewType          viewType       = VK_IMAGE_VIEW_TYPE_2D;
-  gli::swizzles            swizzles       = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA);
-  VkImageAspectFlags       aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
   VkMemoryPropertyFlags    memoryProperty = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
 
@@ -62,38 +59,30 @@ public:
   // user creates VkImage and assigns memory to it
   explicit Image(Device* device, const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   // user delivers VkImage, Image does not own it, just creates VkImageView
-  explicit Image(Device* device, VkImage image, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
+  explicit Image(Device* device, VkImage image, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1);
   Image(const Image&)                = delete;
   Image& operator=(const Image&)     = delete;
   virtual ~Image();
 
-  inline VkImage            getImage() const;
-  inline VkImageView        getImageView() const;
-  inline VkImageLayout      getImageLayout() const;
+  inline VkImage            getHandleImage() const;
   inline VkDeviceSize       getMemorySize() const;
   inline const ImageTraits& getImageTraits() const;
 
   void                      getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceLayout& subResLayout) const;
   void*                     mapMemory(size_t offset, size_t range, VkMemoryMapFlags flags=0);
   void                      unmapMemory();
-
-  void setImageLayout(VkImageLayout newLayout);
 protected:
   ImageTraits                            imageTraits;
   VkDevice                               device       = VK_NULL_HANDLE;
   std::shared_ptr<DeviceMemoryAllocator> allocator;
   VkImage                                image        = VK_NULL_HANDLE;
   DeviceMemoryBlock                      memoryBlock;
-  VkImageView                            imageView    = VK_NULL_HANDLE;
-  VkImageLayout                          imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
   bool                                   ownsImage    = true;
 
 };
 
 // inlines 
-VkImage              Image::getImage() const       { return image; }
-VkImageView          Image::getImageView() const   { return imageView; }
-VkImageLayout        Image::getImageLayout() const { return imageLayout; }
+VkImage              Image::getHandleImage() const { return image; }
 VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }
 const ImageTraits&   Image::getImageTraits() const { return imageTraits; }
 

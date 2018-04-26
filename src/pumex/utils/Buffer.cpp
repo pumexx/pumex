@@ -149,7 +149,7 @@ StagingBuffer::~StagingBuffer()
   destroyBuffer(device, buffer, memory);
 }
 
-void StagingBuffer::fillBuffer(void* data, VkDeviceSize size)
+void StagingBuffer::fillBuffer(const void* data, VkDeviceSize size)
 {
   void *mapAddress;
   VK_CHECK_LOG_THROW(vkMapMemory(device, memory, 0, size, 0, &mapAddress), "Cannot map memory");

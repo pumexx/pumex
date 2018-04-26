@@ -65,7 +65,7 @@ class PUMEX_EXPORT Sampler : public Resource
 public:
   Sampler()                          = delete;
   // create single texture and clear it with specific value
-  explicit Sampler(const SamplerTraits& samplerTraits, Resource::SwapChainImageBehaviour swapChainImageBehaviour = Resource::ForEachSwapChainImage);
+  explicit Sampler(const SamplerTraits& samplerTraits, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
   Sampler(const Sampler&)            = delete;
   Sampler& operator=(const Sampler&) = delete;
   virtual ~Sampler();
@@ -80,24 +80,16 @@ public:
 
 
 protected:
-  struct PerDeviceData
+  struct SamplerInternal
   {
-    PerDeviceData(uint32_t ac)
-    {
-      resize(ac);
-    }
-    void resize(uint32_t ac)
-    {
-      valid.resize(ac, false);
-      sampler.resize(ac, VK_NULL_HANDLE);
-    }
-
-    std::vector<bool>      valid;
-    std::vector<VkSampler> sampler;
+    SamplerInternal()
+      : sampler{ VK_NULL_HANDLE }
+    {}
+    VkSampler sampler;
   };
 
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
-  SamplerTraits                               samplerTraits;
+  std::unordered_map<void*, PerObjectData<SamplerInternal>> perObjectData;
+  SamplerTraits                                             samplerTraits;
 };
 
 const SamplerTraits& Sampler::getSamplerTraits() const { return samplerTraits; }

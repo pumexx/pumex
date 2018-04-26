@@ -36,13 +36,13 @@
 #include <pumex/Image.h>
 #include <pumex/Resource.h>
 #include <pumex/Descriptor.h>
-#include <pumex/Sampler.h>
 #include <pumex/Texture.h>
-#include <pumex/TexturePerSurface.h>
+#include <pumex/Sampler.h>
+#include <pumex/CombinedImageSampler.h>
+#include <pumex/SampledImage.h>
+#include <pumex/StorageImage.h>
 #include <pumex/UniformBuffer.h>
-#include <pumex/UniformBufferPerSurface.h>
 #include <pumex/StorageBuffer.h>
-#include <pumex/StorageBufferPerSurface.h>
 #include <pumex/Pipeline.h>
 #include <pumex/RenderPass.h>
 #include <pumex/FrameBuffer.h>

@@ -633,8 +633,8 @@ struct GpuCullApplicationData
   std::shared_ptr<pumex::AssetBufferInstancedResults>                 _staticInstancedResults;
   std::shared_ptr<pumex::AssetBufferInstancedResults>                 _dynamicInstancedResults;
 
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>      cameraUbo;
-  std::shared_ptr<pumex::UniformBufferPerSurface<pumex::Camera>>      textCameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                cameraUbo;
+  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                textCameraUbo;
   std::shared_ptr<pumex::StorageBuffer<StaticInstanceData>>           staticInstanceSbo;
   std::shared_ptr<pumex::StorageBuffer<DynamicInstanceData>>          dynamicInstanceSbo;
 
@@ -653,8 +653,8 @@ struct GpuCullApplicationData
   GpuCullApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
     : _instancesPerCell{ 4096 }, _randomTime2NextTurn{ 0.1f }, _randomRotation(-glm::pi<float>(), glm::pi<float>())
   {
-    cameraUbo           = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
-    textCameraUbo       = std::make_shared<pumex::UniformBufferPerSurface<pumex::Camera>>(buffersAllocator);
+    cameraUbo           = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
+    textCameraUbo       = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
     staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>(buffersAllocator);
     dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>(buffersAllocator);
 
@@ -1724,14 +1724,19 @@ int main(int argc, char * argv[])
     textPipeline->addChild(textDefault);
     textPipeline->addChild(textSmall);
 
+    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
+
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
     textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
-    textDescriptorSet->setDescriptor(1, fontDefault->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
+
+    auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontTexture, fontSmall->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
 
     auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
     textDescriptorSetSmall->setDescriptor(0, applicationData->textCameraUbo);
-    textDescriptorSetSmall->setDescriptor(1, fontSmall->fontTexture, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    textDescriptorSetSmall->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(smallFontImageView, fontSampler));
     textSmall->setDescriptorSet(0, textDescriptorSetSmall);
 
     if (render3windows)

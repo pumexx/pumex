@@ -26,6 +26,7 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
+#include <pumex/RenderContext.h>
 
 namespace pumex
 {
@@ -48,11 +49,29 @@ struct PUMEX_EXPORT DescriptorSetValue
   };
 };
 
+enum SwapChainImageBehaviour { swOnce, swForEachImage };
+enum PerObjectBehaviour { pbPerDevice, pbPerSurface };
+
+template<typename T>
+struct PerObjectData
+{
+  PerObjectData(const RenderContext& context);
+  PerObjectData(VkDevice device, VkSurfaceKHR surface, uint32_t activeCount);
+  void resize(uint32_t ac);
+  void invalidate();
+
+  VkDevice          device;
+  VkSurfaceKHR      surface;
+  std::vector<bool> valid;
+  std::vector<T>    data;
+};
+
+inline void* getKey(const RenderContext& context, const PerObjectBehaviour& pob);
+
 class PUMEX_EXPORT Resource : public std::enable_shared_from_this<Resource>
 {
 public:
-  enum SwapChainImageBehaviour { Undefined, OnceForAllSwapChainImages, ForEachSwapChainImage };
-  Resource(SwapChainImageBehaviour swapChainImageBehaviour);
+  Resource(PerObjectBehaviour perObjectBehaviour, SwapChainImageBehaviour swapChainImageBehaviour);
   virtual ~Resource();
 
   void addDescriptor(std::shared_ptr<Descriptor> descriptor);
@@ -67,8 +86,48 @@ public:
 protected:
   mutable std::mutex                     mutex;
   std::vector<std::weak_ptr<Descriptor>> descriptors;
+  PerObjectBehaviour                     perObjectBehaviour;
   SwapChainImageBehaviour                swapChainImageBehaviour;
   uint32_t                               activeCount;
 };
+
+template<typename T>
+PerObjectData<T>::PerObjectData(const RenderContext& context)
+  : device{ context.vkDevice }, surface{ context.vkSurface }
+{
+  resize(context.imageCount);
+}
+
+template<typename T>
+PerObjectData<T>::PerObjectData(VkDevice d, VkSurfaceKHR s, uint32_t ac)
+  : device{ d }, surface{ s }
+{
+  resize(ac);
+}
+
+template<typename T>
+void PerObjectData<T>::resize(uint32_t ac)
+{
+  valid.resize(ac, false);
+  data.resize(ac, T());
+}
+
+template<typename T>
+void PerObjectData<T>::invalidate()
+{
+  std::fill(begin(valid), end(valid), false);
+}
+
+
+void* getKey(const RenderContext& context, const PerObjectBehaviour& pob)
+{
+  switch (pob)
+  {
+  case pbPerDevice:  return (void*)context.vkDevice;
+  case pbPerSurface: return (void*)context.vkSurface;
+  }
+  return nullptr;
+}
+
 
 }

@@ -26,7 +26,6 @@
 #include <pumex/PhysicalDevice.h>
 #include <pumex/RenderContext.h>
 #include <pumex/StorageBuffer.h>
-#include <pumex/StorageBufferPerSurface.h>
 #include <pumex/GenericBuffer.h>
 #include <pumex/Command.h>
 #include <pumex/utils/Log.h>
@@ -224,8 +223,8 @@ void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, C
     LOG_WARNING << "AssetBuffer::bindVertexIndexBuffer() does not have this render mask defined" << std::endl;
     return;
   }
-  VkBuffer vBuffer = prmit->second.vertexBuffer->getBufferHandle(renderContext);
-  VkBuffer iBuffer = prmit->second.indexBuffer->getBufferHandle(renderContext);
+  VkBuffer vBuffer = prmit->second.vertexBuffer->getHandleBuffer(renderContext);
+  VkBuffer iBuffer = prmit->second.indexBuffer->getHandleBuffer(renderContext);
   commandBuffer->addSource(prmit->second.vertexBuffer.get());
   commandBuffer->addSource(prmit->second.indexBuffer.get());
   VkDeviceSize offsets = 0;
@@ -354,8 +353,10 @@ AssetBuffer::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAl
 {
   vertices     = std::make_shared<std::vector<float>>();
   indices      = std::make_shared<std::vector<uint32_t>>();
-  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertices, vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
-  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(indices, vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Resource::OnceForAllSwapChainImages);
+  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swForEachImage);
+  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swForEachImage);
+  vertexBuffer->set(vertices);
+  indexBuffer->set(indices);
 
   typeBuffer   = std::make_shared<StorageBuffer<AssetTypeDefinition>>(bufferAllocator);
   lodBuffer    = std::make_shared<StorageBuffer<AssetLodDefinition>>(bufferAllocator);
@@ -408,7 +409,7 @@ void AssetBufferInstancedResults::prepareBuffers(const std::vector<uint32_t>& ty
   }
 }
 
-std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
+std::shared_ptr<StorageBuffer<DrawIndexedIndirectCommand>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
@@ -416,7 +417,7 @@ std::shared_ptr<StorageBufferPerSurface<DrawIndexedIndirectCommand>> AssetBuffer
   return it->second.resultsSbo;
 }
 
-std::shared_ptr<StorageBufferPerSurface<uint32_t>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
+std::shared_ptr<StorageBuffer<uint32_t>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
@@ -444,8 +445,8 @@ void AssetBufferInstancedResults::validate(const RenderContext& renderContext)
 
 AssetBufferInstancedResults::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator)
 {
-  resultsSbo   = std::make_shared<StorageBufferPerSurface<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-  offValuesSbo = std::make_shared<StorageBufferPerSurface<uint32_t>>(allocator);
+  resultsSbo   = std::make_shared<StorageBuffer<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, pbPerSurface, swForEachImage);
+  offValuesSbo = std::make_shared<StorageBuffer<uint32_t>>(allocator, 0, pbPerSurface, swForEachImage);
 }
 
 }
