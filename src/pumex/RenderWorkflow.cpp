@@ -131,8 +131,8 @@ ResourceTransition::~ResourceTransition()
 {
 }
 
-RenderWorkflowSequences::RenderWorkflowSequences(const std::vector<QueueTraits>& qt, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& com, std::shared_ptr<FrameBufferImages> fbi, const std::vector<VkImageLayout>& iil, std::shared_ptr<RenderPass> orp, uint32_t idx)
-  : queueTraits{ qt }, commands{ com }, frameBufferImages{ fbi }, initialImageLayouts{ iil }, outputRenderPass { orp }, presentationQueueIndex{ idx }
+RenderWorkflowSequences::RenderWorkflowSequences(const std::vector<QueueTraits>& qt, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& com, std::shared_ptr<FrameBuffer> fb, const std::vector<VkImageLayout>& iil, std::shared_ptr<RenderPass> orp, uint32_t idx)
+  : queueTraits{ qt }, commands{ com }, frameBuffer{ fb }, initialImageLayouts{ iil }, outputRenderPass { orp }, presentationQueueIndex{ idx }
 {
 }
 
@@ -613,9 +613,9 @@ std::shared_ptr<RenderWorkflowSequences> SingleQueueWorkflowCompiler::compile(Re
   std::shared_ptr<RenderPass> outputRenderPass = findOutputRenderPass(workflow, commands, presentationQueueIndex);;
 
   // create frame buffer
-  std::shared_ptr<FrameBufferImages> fbi = std::make_shared<FrameBufferImages>(frameBufferDefinitions, workflow.frameBufferAllocator);
+  std::shared_ptr<FrameBuffer> fb = std::make_shared<FrameBuffer>(frameBufferDefinitions, outputRenderPass, workflow.frameBufferAllocator);
 
-  return std::make_shared<RenderWorkflowSequences>(workflow.getQueueTraits(), commands, fbi, initialImageLayouts, outputRenderPass, presentationQueueIndex);
+  return std::make_shared<RenderWorkflowSequences>(workflow.getQueueTraits(), commands, fb, initialImageLayouts, outputRenderPass, presentationQueueIndex);
 }
 
 void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflow)

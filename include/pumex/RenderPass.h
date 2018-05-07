@@ -118,7 +118,7 @@ public:
   void updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
 
   void         validate(const RenderContext& renderContext);
-  VkRenderPass getHandle(VkDevice device) const;
+  VkRenderPass getHandle(const RenderContext& renderContext) const;
 
   std::vector<AttachmentDefinition>         attachments;
   std::vector<VkClearValue>                 clearValues;

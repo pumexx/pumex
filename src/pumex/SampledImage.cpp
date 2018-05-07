@@ -22,12 +22,14 @@
 
 #include <pumex/SampledImage.h>
 #include <pumex/Texture.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
 SampledImage::SampledImage(std::shared_ptr<ImageView> iv)
   : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }
 {
+  CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Sampled image resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
   imageView->addResource(shared_from_this());
 }
 
@@ -47,7 +49,7 @@ void SampledImage::validate(const RenderContext& renderContext)
 
 void SampledImage::invalidate()
 {
-  imageView->invalidate();
+  // FIXME - move this to more appropriate place ( validate() )
   invalidateDescriptors();
 }
 

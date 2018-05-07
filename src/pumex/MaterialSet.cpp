@@ -236,7 +236,7 @@ void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerI
   auto it = textures.find(slotIndex);
   if (it == end(textures))
     return;
-  it->second->setLayer(layerIndex, tex);
+  it->second->setImageLayer(layerIndex, tex);
 }
 
 TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc)
@@ -274,7 +274,7 @@ void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t lay
     rit->second.resize(layerIndex + 1);
   }
   // this texture will not be modified by GPU, so it is enough to declare it as swOnce
-  it->second[layerIndex] = std::make_shared<Texture>(tex, textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice, swOnce);
+  it->second[layerIndex] = std::make_shared<Texture>(tex, textureAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice);
   auto imageView = std::make_shared<ImageView>(it->second[layerIndex], it->second[layerIndex]->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
   rit->second[layerIndex] = std::make_shared<CombinedImageSampler>(imageView, textureSamplers[slotIndex]);
 }

@@ -430,7 +430,6 @@ void Viewer::buildRenderGraph()
     startSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->onEventSurfaceRenderStart();
-      surface->checkWorkflow();
       surface->beginFrame();
     });
     auto jit = primaryBuffers.find(surface);

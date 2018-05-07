@@ -23,12 +23,14 @@
 #include <pumex/CombinedImageSampler.h>
 #include <pumex/Texture.h>
 #include <pumex/Sampler.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
 CombinedImageSampler::CombinedImageSampler(std::shared_ptr<ImageView> iv, std::shared_ptr<Sampler> s)
   : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }, sampler{ s }
 {
+  CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Combined image sampler resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
   imageView->addResource(shared_from_this());
 }
 
@@ -49,8 +51,8 @@ void CombinedImageSampler::validate(const RenderContext& renderContext)
 
 void CombinedImageSampler::invalidate()
 {
-  imageView->invalidate();
   sampler->invalidate();
+  // FIXME - move this to more appropriate place ( validate() )
   invalidateDescriptors();
 }
 

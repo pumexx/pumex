@@ -73,6 +73,26 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
    	} \
 } 
 
+#define CHECK_LOG_RETURN_VOID( expression, loginfo ) \
+{ \
+	if((expression)) \
+    { \
+	  LOG_ERROR << "[ " << __FILE__<<" : " << __LINE__ << " ] : "<< loginfo << std::endl; \
+		return; \
+   	} \
+} 
+
+#define CHECK_LOG_RETURN_VALUE( expression, value, loginfo ) \
+{ \
+	if((expression)) \
+    { \
+	  LOG_ERROR << "[ " << __FILE__<<" : " << __LINE__ << " ] : "<< loginfo << std::endl; \
+		return (value); \
+   	} \
+} 
+
+
+
 extern PUMEX_EXPORT bool isLogEnabled(float severity);
 extern PUMEX_EXPORT std::ostream& doLog(float severity);
 extern PUMEX_EXPORT void setLogSeverity(float severity);

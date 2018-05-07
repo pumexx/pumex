@@ -22,12 +22,14 @@
 
 #include <pumex/StorageImage.h>
 #include <pumex/Texture.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
 StorageImage::StorageImage(std::shared_ptr<ImageView> iv)
   : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }
 {
+  CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0, "StorageImage resource connected to a texture that does not have VK_IMAGE_USAGE_STORAGE_BIT");
   imageView->addResource(shared_from_this());
 }
 
@@ -47,7 +49,7 @@ void StorageImage::validate(const RenderContext& renderContext)
 
 void StorageImage::invalidate()
 {
-  imageView->invalidate();
+  // FIXME - move this to more appropriate place ( validate() )
   invalidateDescriptors();
 }
 

@@ -21,6 +21,7 @@
 //
 
 #pragma once
+#include <pumex/Export.h>
 #include <pumex/Resource.h>
 
 namespace pumex
@@ -28,7 +29,7 @@ namespace pumex
 
 class ImageView;
 
-class StorageImage : public Resource
+class PUMEX_EXPORT StorageImage : public Resource
 {
 public:
   StorageImage()                               = delete;

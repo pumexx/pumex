@@ -62,7 +62,6 @@ public:
   VkBuffer           getHandleBuffer(const RenderContext& renderContext);
 
 private:
-  template<typename X>
   struct GenericBufferInternal
   {
     GenericBufferInternal()
@@ -70,12 +69,13 @@ private:
     {}
     VkBuffer           buffer;
     DeviceMemoryBlock  memoryBlock;
-    std::shared_ptr<X> data;
   };
-  std::unordered_map<void*, PerObjectData<GenericBufferInternal<T>>> perObjectData;
-  std::shared_ptr<T>                                                 data;
-  std::shared_ptr<DeviceMemoryAllocator>                             allocator;
-  VkBufferUsageFlags                                                 usage;
+  typedef PerObjectData<GenericBufferInternal, std::shared_ptr<T>> GenericBufferData;
+
+  std::unordered_map<void*, GenericBufferData> perObjectData;
+  std::shared_ptr<T>                           data;
+  std::shared_ptr<DeviceMemoryAllocator>       allocator;
+  VkBufferUsageFlags                           usage;
 };
 
 template <typename T>
@@ -107,9 +107,10 @@ void GenericBuffer<T>::set(std::shared_ptr<T> d)
   else
   {
     for (auto& pdd : perObjectData)
-      pdd.second.data[0].data = d;
+      pdd.second.commonData = d;
   }
-  invalidate();
+  for (auto& pdd : perObjectData)
+    pdd.second.invalidate();
 }
 
 template <typename T>
@@ -119,8 +120,8 @@ void GenericBuffer<T>::set(Surface* surface, std::shared_ptr<T> d)
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find((void*)(surface->surface));
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ (void*)(surface->surface), PerObjectData<GenericBufferInternal<T>>(surface->device.lock()->device, surface->surface, activeCount) }).first;
-  pddit->second.data[0].data = d;
+    pddit = perObjectData.insert({ (void*)(surface->surface), GenericBufferData(surface->device.lock()->device, surface->surface, activeCount) }).first;
+  pddit->second.commonData = d;
   pddit->second.invalidate();
   invalidateDescriptors();
 }
@@ -134,7 +135,7 @@ std::shared_ptr<T> GenericBuffer<T>::get() const
     auto pddit = begin(perObjectData);
     if (pddit == end(perObjectData))
       return std::shared_ptr<T>();
-    return pddit->second.data[0].data;
+    return pddit->second.commonData;
   }
   return data;
 }
@@ -147,7 +148,7 @@ std::shared_ptr<T> GenericBuffer<T>::get(Surface* surface) const
   auto pddit = begin(perObjectData);
   if (pddit == end(perObjectData))
     return std::shared_ptr<T>();
-  return pddit->second.data[0].data;
+  return pddit->second.commonData;
 }
 
 template <typename T>
@@ -163,12 +164,12 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, PerObjectData<GenericBufferInternal<T>>(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, GenericBufferData(renderContext) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
 
-  std::shared_ptr<T> sData = (perObjectBehaviour == pbPerDevice) ? data : pddit->second.data[0].data;
+  std::shared_ptr<T> sData = (perObjectBehaviour == pbPerDevice) ? data : pddit->second.commonData;
 
   if (pddit->second.data[activeIndex].buffer != VK_NULL_HANDLE  && pddit->second.data[activeIndex].memoryBlock.alignedSize < uglyGetSize(*sData))
   {
@@ -211,6 +212,7 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
       allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, uglyGetPointer(*sData), uglyGetSize(*sData), 0);
     }
   }
+  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
 }
 
@@ -220,7 +222,6 @@ void GenericBuffer<T>::invalidate()
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perObjectData)
     pdd.second.invalidate();
-  invalidateDescriptors();
 }
 
 template <typename T>
@@ -229,7 +230,7 @@ DescriptorSetValue GenericBuffer<T>::getDescriptorSetValue(const RenderContext& 
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find(getKey(renderContext, perObjectBehaviour));
   CHECK_LOG_THROW(pddit == end(perObjectData), "GenericBuffer<T>::getDescriptorSetValue() : storage buffer was not validated");
-  std::shared_ptr<T> sData = (perObjectBehaviour == pbPerDevice) ? data : pddit->second.data[0].data;
+  std::shared_ptr<T> sData = (perObjectBehaviour == pbPerDevice) ? data : pddit->second.commonData;
   return DescriptorSetValue(pddit->second.data[renderContext.activeIndex % activeCount].buffer, 0, uglyGetSize(*sData));
 }
 

@@ -27,8 +27,10 @@
 #include <pumex/RenderPass.h>
 #include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
+#include <pumex/Texture.h>
 #include <pumex/Image.h>
 #include <pumex/utils/Log.h>
+#include <pumex/RenderWorkflow.h>
 
 using namespace pumex;
 
@@ -74,9 +76,6 @@ void Surface::realize()
   supportsPresent.resize(queueFamilyCount);
   for (uint32_t i = 0; i < queueFamilyCount; i++)
     VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceSupportKHR(phDev, i, surface, &supportsPresent[i]), "failed vkGetPhysicalDeviceSurfaceSupportKHR for family " << i );
-
-  // create a frame buffer
-  frameBuffer = std::make_shared<FrameBuffer>(shared_from_this(), surfaceTraits.imageCount);
 
   CHECK_LOG_THROW(renderWorkflow.get() == nullptr, "Render workflow not defined for surface " << getID());
   CHECK_LOG_THROW(renderWorkflowCompiler.get() == nullptr, "Render workflow compiler not defined for surface " << getID());
@@ -142,7 +141,7 @@ void Surface::cleanup()
   if (surface != VK_NULL_HANDLE)
   {
     if(workflowSequences != nullptr)
-      workflowSequences->frameBufferImages->reset(this);
+      workflowSequences->frameBuffer->reset(this);
 
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
@@ -151,8 +150,10 @@ void Surface::cleanup()
       vkDestroySemaphore(dev, sem, nullptr);
     for (auto sem : frameBufferReadySemaphores)
       vkDestroySemaphore(dev, sem, nullptr);
-    vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
-    vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
+    if(renderFinishedSemaphore != VK_NULL_HANDLE)
+      vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
+    if (imageAvailableSemaphore != VK_NULL_HANDLE)
+      vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
     primaryCommandBuffers.clear();
     presentCommandBuffer = nullptr;
     prepareCommandBuffer = nullptr;
@@ -160,7 +161,6 @@ void Surface::cleanup()
     for(auto q : queues )
       device.lock()->releaseQueue(q);
     queues.clear();
-    frameBuffer = nullptr;
     vkDestroySurfaceKHR(viewer.lock()->getInstance(), surface, nullptr);
     surface = VK_NULL_HANDLE;
   }
@@ -180,7 +180,7 @@ void Surface::createSwapChain()
   swapChainSize = surfaceCapabilities.currentExtent;
 //  LOG_ERROR << "cs " << swapChainSize.width << "x" << swapChainSize.height << std::endl;
 
-  FrameBufferImageDefinition swapChainDefinition = workflowSequences->frameBufferImages->getSwapChainDefinition();
+  FrameBufferImageDefinition swapChainDefinition = workflowSequences->frameBuffer->getSwapChainImageDefinition();
 
   VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -215,23 +215,19 @@ void Surface::createSwapChain()
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
   VkExtent3D extent{ swapChainSize.width, swapChainSize.height, 1 };
   for (uint32_t i = 0; i < imageCount; i++)
-    swapChainImages.push_back(std::make_unique<Image>(deviceSh.get(), images[i], swapChainDefinition.format, extent, 1, 1, swapChainDefinition.aspectMask, VK_IMAGE_VIEW_TYPE_2D, swapChainDefinition.swizzles));
+    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], swapChainDefinition.format, extent, 1, 1));
 
-  workflowSequences->frameBufferImages->invalidate(this);
-  frameBuffer->invalidate();
   prepareCommandBuffer->invalidate(UINT32_MAX);
   presentCommandBuffer->invalidate(UINT32_MAX);
 }
 
-void Surface::checkWorkflow()
+bool Surface::checkWorkflow()
 {
   auto deviceSh = device.lock();
   renderWorkflow->compile(renderWorkflowCompiler);
   if (workflowSequences.get() != renderWorkflow->workflowSequences.get())
   {
     workflowSequences = renderWorkflow->workflowSequences;
-    frameBuffer->setRenderPass(workflowSequences->outputRenderPass);
-    frameBuffer->setFrameBufferImages(workflowSequences->frameBufferImages);
 
     // invalidate basic command buffers
     if (prepareCommandBuffer.get() != nullptr)
@@ -240,7 +236,9 @@ void Surface::checkWorkflow()
       presentCommandBuffer->invalidate(UINT32_MAX);
     for (auto& pcb : primaryCommandBuffers)
       pcb->invalidate(UINT32_MAX);
+    return true;
   }
+  return false;
 }
 
 void Surface::beginFrame()
@@ -248,26 +246,37 @@ void Surface::beginFrame()
   actions.performActions();
   auto deviceSh = device.lock();
 
+  bool newSwapChain = false;
   if (swapChain == VK_NULL_HANDLE)
+  {
     createSwapChain();
+    newSwapChain = true;
+  }
 
   VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
   if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
   {
     // recreate swapchain
     createSwapChain();
+    newSwapChain = true;
     // try to acquire images again - throw error for every reason other than VK_SUCCESS
     result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
   }
   VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
+  if (checkWorkflow() || newSwapChain)
+  {
+    workflowSequences->frameBuffer->prepareTextures(this, swapChainImages);
+    workflowSequences->frameBuffer->invalidate(this);
+  }
 
-  workflowSequences->frameBufferImages->validate(this);
+  RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
+
+  workflowSequences->frameBuffer->validate(renderContext);
+
   // create render passes for current surface - skip scene graphs
-  ValidateGPUVisitor validateVisitor(this, workflowSequences->presentationQueueIndex, false);
+  ValidateGPUVisitor validateVisitor(renderContext, false);
   for (auto& command : workflowSequences->commands[workflowSequences->presentationQueueIndex])
     command->validateGPUData(validateVisitor);
-
-  frameBuffer->validate(swapChainImageIndex, swapChainImages);
 
   VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
@@ -286,22 +295,19 @@ void Surface::beginFrame()
 
       VkImageLayout oldLayout;
       VkAccessFlags srcAccessFlags,dstAccessFlags;
-      VkImage image;
-      switch (workflowSequences->frameBufferImages->imageDefinitions[i].attachmentType)
+      switch (workflowSequences->frameBuffer->getImageDefinition(i).attachmentType)
       {
       case atSurface:
         srcAccessFlags = 0;
         dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        image          = swapChainImages[swapChainImageIndex]->getImage();
         break;
       case atColor:
         srcAccessFlags = 0;
         dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
         dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        image          = workflowSequences->frameBufferImages->getImage(this, i)->getImage();
         break;
       case atDepth:
       case atDepthStencil:
@@ -310,9 +316,10 @@ void Surface::beginFrame()
         dstAccessFlags = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
         dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        image          = workflowSequences->frameBufferImages->getImage(this, i)->getImage();
         break;
       }
+      VkImageAspectFlags aspectMask = workflowSequences->frameBuffer->getTexture(i)->getAspectMask();
+      VkImage image = workflowSequences->frameBuffer->getTexture(i)->getImage(renderContext)->getHandleImage();
 
       prepareBarriers.emplace_back( PipelineBarrier
       (
@@ -321,7 +328,7 @@ void Surface::beginFrame()
         VK_QUEUE_FAMILY_IGNORED,
         VK_QUEUE_FAMILY_IGNORED,
         image,
-        { getAspectMask(workflowSequences->frameBufferImages->imageDefinitions[i].attachmentType), 0, 1, 0, 1 },
+        { aspectMask, 0, 1, 0, 1 },
         oldLayout,
         workflowSequences->initialImageLayouts[i]
       ));
@@ -340,7 +347,7 @@ void Surface::beginFrame()
       VK_ACCESS_MEMORY_READ_BIT, 
       VK_QUEUE_FAMILY_IGNORED, 
       VK_QUEUE_FAMILY_IGNORED, 
-      swapChainImages[swapChainImageIndex]->getImage(), 
+      swapChainImages[swapChainImageIndex]->getHandleImage(), 
       { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }, 
       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
@@ -352,7 +359,8 @@ void Surface::beginFrame()
 
 void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
 {
-  ValidateGPUVisitor validateVisitor(this, queueNumber, true);
+  RenderContext renderContext(this, queueNumber);
+  ValidateGPUVisitor validateVisitor(renderContext, true);
   for (auto& command : workflowSequences->commands[queueNumber])
   {
     if (command->operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
@@ -362,7 +370,7 @@ void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
   primaryCommandBuffers[queueNumber]->setActiveIndex(swapChainImageIndex);
   if (!primaryCommandBuffers[queueNumber]->isValid(swapChainImageIndex))
   {
-    BuildCommandBufferVisitor cbVisitor(this, queueNumber, primaryCommandBuffers[queueNumber].get());
+    BuildCommandBufferVisitor cbVisitor(renderContext, primaryCommandBuffers[queueNumber].get());
 
     primaryCommandBuffers[queueNumber]->cmdBegin();
 
@@ -422,6 +430,13 @@ void Surface::setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::s
   renderWorkflow         = workflow;
   renderWorkflowCompiler = compiler;
 }
+
+std::shared_ptr<FrameBuffer> Surface::getFrameBuffer() const 
+{ 
+  CHECK_LOG_THROW(workflowSequences == nullptr, "workflow not compiled");
+  return workflowSequences->frameBuffer; 
+}
+
 
 std::shared_ptr<CommandPool> Surface::getPresentationCommandPool()
 {

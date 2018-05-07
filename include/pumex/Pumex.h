@@ -41,6 +41,7 @@
 #include <pumex/CombinedImageSampler.h>
 #include <pumex/SampledImage.h>
 #include <pumex/StorageImage.h>
+#include <pumex/InputAttachment.h>
 #include <pumex/UniformBuffer.h>
 #include <pumex/StorageBuffer.h>
 #include <pumex/Pipeline.h>

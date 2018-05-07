@@ -131,18 +131,18 @@ void CommandBuffer::cmdEnd()
   valid[activeIndex] = true;
 }
 
-void CommandBuffer::cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
+void CommandBuffer::cmdBeginRenderPass(const RenderContext& renderContext, RenderSubPass* renderSubPass, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
 {
   addSource(renderSubPass);
-  addSource(surface->frameBuffer.get());
+  addSource(renderContext.surface->getFrameBuffer().get());
   VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass      = renderSubPass->renderPass->getHandle(device);
+    renderPassBeginInfo.renderPass      = renderSubPass->renderPass->getHandle(renderContext);
     renderPassBeginInfo.renderArea      = renderArea;
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
-    renderPassBeginInfo.framebuffer     = surface->frameBuffer->getFrameBuffer(imageIndex);
-  vkCmdBeginRenderPass(commandBuffer[activeIndex], &renderPassBeginInfo, subpassContents);
+    renderPassBeginInfo.framebuffer     = renderContext.surface->getFrameBuffer()->getHandleFrameBuffer(renderContext);
+  vkCmdBeginRenderPass(commandBuffer[renderContext.activeIndex], &renderPassBeginInfo, subpassContents);
 }
 
 void CommandBuffer::cmdNextSubPass(RenderSubPass* renderSubPass, VkSubpassContents contents)
@@ -241,7 +241,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         break;
       // FIXME - for now the image barrier will always use the whole image
       VkImageSubresourceRange subRes{};
-        subRes.aspectMask = tex->getImageTraits().aspectMask;
+        subRes.aspectMask = tex->getAspectMask();
         subRes.baseMipLevel = 0;
         subRes.levelCount = tex->getImageTraits().mipLevels;
         subRes.baseArrayLayer = 0;
@@ -256,7 +256,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         imageBarrier.newLayout           = b.newLayout;
         imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        imageBarrier.image               = tex->getHandleImage(renderContext)->getImage();
+        imageBarrier.image               = tex->getImage(renderContext)->getHandleImage();
         imageBarrier.subresourceRange    = subRes;
       imageBarriers.emplace_back(imageBarrier);
       break;
@@ -336,17 +336,17 @@ void CommandBuffer::cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const
 
 void CommandBuffer::cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const
 {
-  vkCmdCopyBufferToImage(commandBuffer[activeIndex], srcBuffer, image.getImage(), dstImageLayout, regions.size(), regions.data());
+  vkCmdCopyBufferToImage(commandBuffer[activeIndex], srcBuffer, image.getHandleImage(), dstImageLayout, regions.size(), regions.data());
 }
 
 void CommandBuffer::cmdClearColorImage(const Image& image, VkImageLayout imageLayout, VkClearValue color, std::vector<VkImageSubresourceRange> subresourceRanges)
 {
-  vkCmdClearColorImage(commandBuffer[activeIndex], image.getImage(), imageLayout, &color.color, subresourceRanges.size(), subresourceRanges.data());
+  vkCmdClearColorImage(commandBuffer[activeIndex], image.getHandleImage(), imageLayout, &color.color, subresourceRanges.size(), subresourceRanges.data());
 }
 
 void CommandBuffer::cmdClearDepthStencilImage(const Image& image, VkImageLayout imageLayout, VkClearValue depthStencil, std::vector<VkImageSubresourceRange> subresourceRanges)
 {
-  vkCmdClearDepthStencilImage(commandBuffer[activeIndex], image.getImage(), imageLayout, &depthStencil.depthStencil, subresourceRanges.size(), subresourceRanges.data());
+  vkCmdClearDepthStencilImage(commandBuffer[activeIndex], image.getHandleImage(), imageLayout, &depthStencil.depthStencil, subresourceRanges.size(), subresourceRanges.data());
 }
 
 void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const
@@ -469,17 +469,18 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   }
 
   VkDependencyFlags dependencyFlags = 0;
-  cmdPipelineBarrier(srcStageFlags, dstStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, 0, 0, image.getImage(), subresourceRange, oldImageLayout, newImageLayout ));
-  image.setImageLayout(newImageLayout);
+  cmdPipelineBarrier(srcStageFlags, dstStageFlags, dependencyFlags, PipelineBarrier(srcAccessMask, dstAccessMask, 0, 0, image.getHandleImage(), subresourceRange, oldImageLayout, newImageLayout ));
+//  image.setImageLayout(newImageLayout);
 }
 
 void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const
 {
   VkImageSubresourceRange subresourceRange{};
-    subresourceRange.aspectMask   = aspectMask;
-    subresourceRange.baseMipLevel = 0;
-    subresourceRange.levelCount   = image.getImageTraits().mipLevels;
-    subresourceRange.layerCount   = image.getImageTraits().arrayLayers;
+    subresourceRange.aspectMask     = aspectMask;
+    subresourceRange.baseMipLevel   = 0;
+    subresourceRange.levelCount     = image.getImageTraits().mipLevels;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount     = image.getImageTraits().arrayLayers;
   setImageLayout(image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
 

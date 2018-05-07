@@ -91,7 +91,8 @@ public:
   void        cleanup();
 
   std::shared_ptr<CommandBuffer> beginSingleTimeCommands(CommandPool* commandPool);
-  void endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue);
+  // if user knows that he generated no commands, but started single commands already - he may skip queue submission
+  void endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue, bool submit = true);
 
   std::shared_ptr<Queue>         getQueue(const QueueTraits& queueTraits, bool reserve = false);
   void                           releaseQueue(std::shared_ptr<Queue> queue);

@@ -74,7 +74,7 @@ void Sampler::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, PerObjectData<SamplerInternal>(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, SamplerData(renderContext) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
@@ -106,6 +106,7 @@ void Sampler::validate(const RenderContext& renderContext)
     sampler.unnormalizedCoordinates = samplerTraits.unnormalizedCoordinates;
   VK_CHECK_LOG_THROW(vkCreateSampler(pddit->second.device, &sampler, nullptr, &pddit->second.data[activeIndex].sampler), "Cannot create sampler");
 
+  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
 }
 
@@ -114,7 +115,6 @@ void Sampler::invalidate()
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perObjectData)
     std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
-  invalidateDescriptors();
 }
 
 DescriptorSetValue Sampler::getDescriptorSetValue(const RenderContext& renderContext)

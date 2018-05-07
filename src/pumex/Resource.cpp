@@ -24,6 +24,9 @@
 #include <algorithm>
 #include <pumex/Descriptor.h>
 #include <pumex/utils/Log.h>
+#include <pumex/RenderContext.h>
+#include <pumex/Device.h>
+#include <pumex/Surface.h>
 
 using namespace pumex;
 
@@ -46,6 +49,19 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
   imageInfo.sampler     = sampler;
   imageInfo.imageView   = imageView;
   imageInfo.imageLayout = imageLayout;
+}
+
+namespace pumex 
+{
+uint32_t getKeyID(const RenderContext& context, const PerObjectBehaviour& pob)
+{
+  switch (pob)
+  {
+  case pbPerDevice:  return context.device->getID();
+  case pbPerSurface: return context.surface->getID();
+  }
+  return 0;
+}
 }
 
 Resource::Resource(PerObjectBehaviour pob, SwapChainImageBehaviour scib)

@@ -21,29 +21,41 @@
 //
 
 #pragma once
+#include <unordered_map>
 #include <pumex/Export.h>
 #include <pumex/Resource.h>
 
 namespace pumex
 {
 
+class Sampler;
 class ImageView;
 
-class PUMEX_EXPORT SampledImage : public Resource
+class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
-  SampledImage()                               = delete;
-  SampledImage(std::shared_ptr<ImageView> imageView);
-  SampledImage(const SampledImage&)            = delete;
-  SampledImage& operator=(const SampledImage&) = delete;
-  virtual ~SampledImage();
+  InputAttachment(const std::string& attachmentName, std::shared_ptr<Sampler> sampler = nullptr);
+  virtual ~InputAttachment();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   void                              invalidate() override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
-  std::shared_ptr<ImageView> imageView;
+protected:
+  struct InputAttachmentInternal
+  {
+  };
+  struct InputAttachmentImageView
+  {
+    std::shared_ptr<ImageView> imageView;
+  };
+
+  typedef PerObjectData<InputAttachmentInternal, InputAttachmentImageView> InputAttachmentData;
+  std::unordered_map<uint32_t, InputAttachmentData> perObjectData;
+  std::string                                       attachmentName;
+  std::shared_ptr<Sampler>                          sampler;
 };
-	
+
+
 }

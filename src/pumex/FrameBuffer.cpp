@@ -21,208 +21,188 @@
 //
 
 #include <pumex/FrameBuffer.h>
+#include <algorithm>
 #include <pumex/Surface.h>
 #include <pumex/RenderPass.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/RenderContext.h>
 #include <pumex/Image.h>
-#include <pumex/Sampler.h>
+#include <pumex/Texture.h>
+#include <pumex/InputAttachment.h>
 #include <pumex/utils/Log.h>
-#include <algorithm>
 
-namespace pumex
-{
+using namespace pumex;
 
 FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, const std::string& n, const AttachmentSize& as, const gli::swizzles& sw)
   : attachmentType{ at }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, name{ n }, attachmentSize { as }, swizzles{ sw }
 {
 }
 
-FrameBufferImages::FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<DeviceMemoryAllocator> a)
-  : imageDefinitions(fbid), allocator{ a }
+FrameBuffer::FrameBuffer(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::shared_ptr<DeviceMemoryAllocator> a)
+  : imageDefinitions(fbid), renderPass{ rp }, allocator{ a }, activeCount{ 1 }
 {
-}
-
-FrameBufferImages::~FrameBufferImages()
-{
-  for (auto it : perSurfaceData)
-    it.second.frameBufferImages.clear();
-}
-
-void FrameBufferImages::invalidate(Surface* surface)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto it = perSurfaceData.find(surface->surface);
-  if(it != end(perSurfaceData))
-    it->second.valid = false;
-}
-
-void FrameBufferImages::validate(Surface* surface)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == end(perSurfaceData))
-    pddit = perSurfaceData.insert({ surface->surface, PerSurfaceData(surface->device.lock()->device,imageDefinitions.size()) }).first;
-  if (pddit->second.valid)
-    return;
-
-  for (uint32_t i = 0; i < pddit->second.frameBufferImages.size(); ++i)
-    pddit->second.frameBufferImages[i] = nullptr;
-
-  for (uint32_t i = 0; i < imageDefinitions.size(); i++)
-  {
-    FrameBufferImageDefinition& definition = imageDefinitions[i];
-    if (definition.attachmentType == atSurface)
-      continue;
-    VkExtent3D imSize;
-    switch (definition.attachmentSize.attachmentSize)
-    {
-    case AttachmentSize::SurfaceDependent:
-    {
-      imSize.width  = surface->swapChainSize.width  * definition.attachmentSize.imageSize.x;
-      imSize.height = surface->swapChainSize.height * definition.attachmentSize.imageSize.y;
-      imSize.depth  = 1;
-      break;
-    }
-    case AttachmentSize::Absolute:
-    {
-      imSize.width  = definition.attachmentSize.imageSize.x;
-      imSize.height = definition.attachmentSize.imageSize.y;
-      imSize.depth  = 1;
-      break;
-    }
-    }
-    ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, 
-      false, VK_IMAGE_LAYOUT_UNDEFINED, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-    pddit->second.frameBufferImages[i] = std::make_shared<Image>(surface->device.lock().get(), imageTraits, allocator);
-  }
-  pddit->second.valid = true;
-}
-
-void FrameBufferImages::reset(Surface* surface)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit != end(perSurfaceData))
-  {
-    pddit->second.frameBufferImages.clear();
-    perSurfaceData.erase(surface->surface);
-  }
-}
-
-Image* FrameBufferImages::getImage(Surface* surface, uint32_t imageIndex)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(surface->surface);
-  if (pddit == end(perSurfaceData))
-    return nullptr;
-  if (pddit->second.frameBufferImages.size() <= imageIndex)
-    return nullptr;
-  return pddit->second.frameBufferImages[imageIndex].get();
-}
-
-FrameBufferImageDefinition FrameBufferImages::getSwapChainDefinition()
-{
-  for (const auto& d : imageDefinitions)
-    if (d.attachmentType == atSurface)
-      return d;
-  return FrameBufferImageDefinition(atSurface, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT, "swapchain");
-}
-
-FrameBuffer::FrameBuffer(std::shared_ptr<Surface> s, uint32_t count)
-  : surface{ s }
-{
-  valid.resize(count, false);
-  frameBuffers.resize(count, VK_NULL_HANDLE);
 }
 
 FrameBuffer::~FrameBuffer()
 {
-  reset();
-}
-
-void FrameBuffer::setFrameBufferImages(std::shared_ptr<FrameBufferImages> fbi)
-{
-  frameBufferImages = fbi;
-  invalidate();
-}
-
-void FrameBuffer::setRenderPass(std::shared_ptr<RenderPass> rp)
-{
-  renderPass = rp;
-  invalidate();
-}
-
-void FrameBuffer::reset()
-{
-  auto device = surface.lock()->device.lock();
   std::lock_guard<std::mutex> lock(mutex);
-  for (auto f : frameBuffers)
-    vkDestroyFramebuffer(device->device, f, nullptr);
+  for( auto& pdd : perObjectData)
+    for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
+      vkDestroyFramebuffer(pdd.second.device, pdd.second.data[i].frameBuffer, nullptr);
 }
 
-void FrameBuffer::invalidate()
+void FrameBuffer::validate(const RenderContext& renderContext)
 {
+  for (auto& imageView : imageViews)
+    imageView->validate(renderContext);
+
   std::lock_guard<std::mutex> lock(mutex);
-  std::fill(begin(valid), end(valid), false);
-  invalidateInputAttachments();
-}
-
-
-void FrameBuffer::validate(uint32_t index, const std::vector<std::unique_ptr<Image>>& swapChainImages)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-
-  uint32_t activeIndex = index % swapChainImages.size();
-  if (valid[activeIndex])
+  if (renderContext.imageCount > activeCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perObjectData)
+      pdd.second.resize(activeCount);
+  }
+  auto pddit = perObjectData.find(renderContext.vkSurface);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ renderContext.vkSurface, FrameBufferData(renderContext.vkDevice, renderContext.vkSurface, activeCount) }).first;
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (pddit->second.valid[activeIndex])
     return;
 
   CHECK_LOG_THROW(renderPass.use_count() == 0, "FrameBuffer::validate() : render pass was not defined");
-  std::shared_ptr<RenderPass> rp = renderPass.lock();
-  std::shared_ptr<Surface> surf  = surface.lock();
-  std::shared_ptr<Device> device = surf->device.lock();
 
-  if (frameBuffers[activeIndex] != VK_NULL_HANDLE)
-    vkDestroyFramebuffer(device->device, frameBuffers[activeIndex], nullptr);
+  if (pddit->second.data[activeIndex].frameBuffer != VK_NULL_HANDLE)
+    vkDestroyFramebuffer(renderContext.vkDevice, pddit->second.data[activeIndex].frameBuffer, nullptr);
 
   // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
-  std::vector<VkImageView> imageViews;
-  imageViews.resize(rp->attachments.size());
-  for (uint32_t i = 0; i < rp->attachments.size(); i++)
+  std::vector<VkImageView> iViews(imageDefinitions.size(), VK_NULL_HANDLE);
+  for (uint32_t i = 0; i < imageDefinitions.size(); i++)
+    iViews[i] = imageViews[i]->getImageView(renderContext);
+
+  // define frame buffers
+  std::shared_ptr<RenderPass> rp = renderPass.lock();
+  VkFramebufferCreateInfo frameBufferCreateInfo{};
+    frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    frameBufferCreateInfo.renderPass      = rp->getHandle(renderContext);
+    frameBufferCreateInfo.attachmentCount = iViews.size();
+    frameBufferCreateInfo.pAttachments    = iViews.data();
+    frameBufferCreateInfo.width           = renderContext.surface->swapChainSize.width;
+    frameBufferCreateInfo.height          = renderContext.surface->swapChainSize.height;
+    frameBufferCreateInfo.layers          = 1;
+  VK_CHECK_LOG_THROW(vkCreateFramebuffer(renderContext.vkDevice, &frameBufferCreateInfo, nullptr, &pddit->second.data[activeIndex].frameBuffer), "Could not create frame buffer " << activeIndex);
+  pddit->second.valid[activeIndex] = true;
+  notifyCommandBuffers();
+  invalidateInputAttachments();
+}
+
+void FrameBuffer::invalidate(Surface* surface)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perObjectData)
+    pdd.second.invalidate();
+}
+
+void FrameBuffer::prepareTextures(Surface* surface, std::vector<std::shared_ptr<Image>>& swapChainImages)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  if (textures.empty())
   {
-    AttachmentDefinition& definition          = rp->attachments[i];
-    FrameBufferImageDefinition& fbiDefinition = frameBufferImages->imageDefinitions[definition.imageDefinitionIndex];
-    if (fbiDefinition.attachmentType == atSurface)
+    for (uint32_t i = 0; i < imageDefinitions.size(); i++)
     {
-      imageViews[i] = swapChainImages[activeIndex]->getImageView();
-      continue;
+      FrameBufferImageDefinition& definition = imageDefinitions[i];
+      VkExtent3D imSize{ 1,1,1 };
+      ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      SwapChainImageBehaviour scib = (definition.attachmentType == atSurface) ? swForEachImage : swOnce;
+      auto texture = std::make_shared<Texture>(imageTraits, allocator, definition.aspectMask, pbPerSurface, scib, false, false);
+      textures.push_back(texture);
+      ImageSubresourceRange range(definition.aspectMask, 0, 1, 0, 1);
+      imageViews.push_back(std::make_shared<ImageView>(texture, range, VK_IMAGE_VIEW_TYPE_2D));
+    }
+  }
+  for (uint32_t i = 0; i < imageDefinitions.size(); i++)
+  {
+    FrameBufferImageDefinition& definition = imageDefinitions[i];
+    if (definition.attachmentType == atSurface)
+    {
+      textures[i]->setImages(surface, swapChainImages);
     }
     else
     {
-      imageViews[i] = frameBufferImages->getImage(surface.lock().get(), definition.imageDefinitionIndex)->getImageView();
+      VkExtent3D imSize;
+      switch (definition.attachmentSize.attachmentSize)
+      {
+      case AttachmentSize::SurfaceDependent:
+      {
+        imSize.width  = surface->swapChainSize.width  * definition.attachmentSize.imageSize.x;
+        imSize.height = surface->swapChainSize.height * definition.attachmentSize.imageSize.y;
+        imSize.depth  = 1;
+        break;
+      }
+      case AttachmentSize::Absolute:
+      {
+        imSize.width  = definition.attachmentSize.imageSize.x;
+        imSize.height = definition.attachmentSize.imageSize.y;
+        imSize.depth  = 1;
+        break;
+      }
+      }
+      ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      textures[i]->setImageTraits(surface, imageTraits);
     }
   }
-
-  // define frame buffers
-  VkFramebufferCreateInfo frameBufferCreateInfo{};
-    frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    frameBufferCreateInfo.renderPass      = rp->getHandle(device->device);
-    frameBufferCreateInfo.attachmentCount = imageViews.size();
-    frameBufferCreateInfo.pAttachments    = imageViews.data();
-    frameBufferCreateInfo.width           = surf->swapChainSize.width;
-    frameBufferCreateInfo.height          = surf->swapChainSize.height;
-    frameBufferCreateInfo.layers          = 1;
-  VK_CHECK_LOG_THROW(vkCreateFramebuffer(device->device, &frameBufferCreateInfo, nullptr, &frameBuffers[activeIndex]), "Could not create frame buffer " << activeIndex);
-  valid[activeIndex] = true;
-  notifyCommandBuffers();
 }
 
-VkFramebuffer FrameBuffer::getFrameBuffer(uint32_t index)
+void FrameBuffer::reset(Surface* surface)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (frameBuffers.size() <= index)
+  auto pddit = perObjectData.find(surface->surface);
+  if (pddit == end(perObjectData))
+    return;
+  for (uint32_t i = 0; i < pddit->second.data.size(); ++i)
+  {
+    vkDestroyFramebuffer(pddit->second.device, pddit->second.data[i].frameBuffer, nullptr);
+    pddit->second.data[i].frameBuffer = VK_NULL_HANDLE;
+  }
+  imageViews.clear();
+  textures.clear();
+}
+
+const FrameBufferImageDefinition& FrameBuffer::getSwapChainImageDefinition() const
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = std::find_if(begin(imageDefinitions), end(imageDefinitions), [](const FrameBufferImageDefinition& def) { return def.attachmentType == atSurface;  });
+  CHECK_LOG_THROW(it == end(imageDefinitions), "Framebuffer used by the surface does not have swapchain image defined");
+  return *it;
+}
+
+const FrameBufferImageDefinition& FrameBuffer::getImageDefinition(uint32_t index) const
+{
+  CHECK_LOG_THROW(index >=imageDefinitions.size(), "Image definition index out of bounds");
+  return imageDefinitions[index];
+}
+
+std::shared_ptr<Texture> FrameBuffer::getTexture(uint32_t index) const
+{
+  CHECK_LOG_THROW(index >= textures.size(), "Texture index out of bounds");
+  return textures[index];
+}
+
+std::shared_ptr<ImageView> FrameBuffer::getImageView(const std::string& name) const
+{
+  auto it = std::find_if(begin(imageDefinitions), end(imageDefinitions), [&name](const FrameBufferImageDefinition& def) { return def.name == name; });
+  if (it == end(imageDefinitions))
+    return std::shared_ptr<ImageView>();
+  return imageViews[std::distance(begin(imageDefinitions),it)];
+}
+
+VkFramebuffer FrameBuffer::getHandleFrameBuffer(const RenderContext& renderContext) const
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perObjectData.find(renderContext.vkSurface);
+  if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
-  return frameBuffers[index];
+  return pddit->second.data[renderContext.activeIndex % activeCount].frameBuffer;
 }
 
 void FrameBuffer::addInputAttachment(const std::shared_ptr<InputAttachment> inputAttachment)
@@ -238,66 +218,4 @@ void FrameBuffer::invalidateInputAttachments()
   for (auto it = begin(inputAttachments); it != eit; ++it)
     it->lock()->invalidate();
   inputAttachments.erase(eit, end(inputAttachments));
-}
-
-InputAttachment::InputAttachment(const std::string& an, std::shared_ptr<Sampler> s)
-  : Resource{ Resource::OnceForAllSwapChainImages }, attachmentName{ an }, sampler{ s }
-{
-}
-
-InputAttachment::~InputAttachment()
-{
-  sampler = nullptr;
-}
-
-std::pair<bool, VkDescriptorType> InputAttachment::getDefaultDescriptorType()
-{
-  return{ true, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT };
-}
-
-void InputAttachment::validate(const RenderContext& renderContext)
-{
-  if (sampler != nullptr)
-    sampler->validate(renderContext);
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == end(perSurfaceData))
-    pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData() }).first;
-  if (pddit->second.valid)
-    return;
-  pddit->second.valid = true;
-}
-
-void InputAttachment::invalidate()
-{
-  if (sampler != nullptr)
-    sampler->invalidate();
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perSurfaceData)
-    pdd.second.valid = false;
-  invalidateDescriptors();
-}
-
-DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& renderContext)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == end(perSurfaceData))
-    return DescriptorSetValue(VK_NULL_HANDLE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-  auto frameBuffer = renderContext.surface->frameBuffer;
-  uint32_t frameBufferIndex = UINT32_MAX;
-  for (uint32_t i = 0; i < frameBuffer->getFrameBufferImages()->imageDefinitions.size(); ++i)
-  {
-    if (frameBuffer->getFrameBufferImages()->imageDefinitions[i].name == attachmentName)
-    {
-      frameBuffer->addInputAttachment(std::dynamic_pointer_cast<InputAttachment>(shared_from_this()));
-      frameBufferIndex = i;
-      break;
-    }
-  }
-  CHECK_LOG_THROW(frameBufferIndex == UINT32_MAX, "Can't find input attachment with name : " << attachmentName);
-  VkSampler samp = (sampler != nullptr) ? sampler->getHandleSampler(renderContext) : VK_NULL_HANDLE;
-  return DescriptorSetValue(samp, frameBuffer->getFrameBufferImages()->getImage(renderContext.surface, frameBufferIndex)->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-}
-
 }

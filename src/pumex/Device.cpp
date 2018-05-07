@@ -193,6 +193,7 @@ std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(const void* data, Vk
   // find smallest staging buffer that is able to transfer data
   VkDeviceSize smallestSize = std::numeric_limits<VkDeviceSize>::max();
   std::shared_ptr<StagingBuffer> resultBuffer;
+
   std::lock_guard<std::mutex> lock(stagingMutex);
   for (auto it = begin(stagingBuffers); it != end(stagingBuffers); ++it)
   {
@@ -233,20 +234,22 @@ std::shared_ptr<CommandBuffer> Device::beginSingleTimeCommands(CommandPool* comm
   return commandBuffer;
 }
 
-void Device::endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue)
+void Device::endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue, bool submit)
 {
   commandBuffer->cmdEnd();
-
-  VkFence fence;
-  VkFenceCreateInfo fenceCreateInfo{};
+  if (submit)
+  {
+    VkFence fence;
+    VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = 0;
-  VK_CHECK_LOG_THROW( vkCreateFence(device, &fenceCreateInfo, nullptr, &fence), "Cannot create fence");
+    VK_CHECK_LOG_THROW(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence), "Cannot create fence");
 
-  commandBuffer->queueSubmit(queue, {}, {}, {}, fence);
-  VK_CHECK_LOG_THROW(vkWaitForFences(device, 1, &fence, VK_TRUE, 100000000000), "Waiting for a fence failed");
+    commandBuffer->queueSubmit(queue, {}, {}, {}, fence);
+    VK_CHECK_LOG_THROW(vkWaitForFences(device, 1, &fence, VK_TRUE, 100000000000), "Waiting for a fence failed");
 
-  vkDestroyFence(device, fence, nullptr);
+    vkDestroyFence(device, fence, nullptr);
+  }
   commandBuffer.reset();
 }
 
@@ -287,7 +290,7 @@ void Device::beginMarkerRegion(VkCommandBuffer cmdbuffer, const std::string& mar
   {
     VkDebugMarkerMarkerInfoEXT markerInfo{};
     markerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
-    memcpy(markerInfo.color, &color[0], sizeof(float) * 4);
+    std::memcpy(markerInfo.color, &color[0], sizeof(float) * 4);
     markerInfo.pMarkerName = markerName.c_str();
     pfnCmdDebugMarkerBegin(cmdbuffer, &markerInfo);
   }
@@ -301,7 +304,7 @@ void Device::insertMarker(VkCommandBuffer cmdbuffer, const std::string& markerNa
     VkDebugMarkerMarkerInfoEXT markerInfo{};
       markerInfo.sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
       markerInfo.pMarkerName = markerName.c_str();
-      memcpy(markerInfo.color, &color[0], sizeof(float) * 4);
+      std::memcpy(markerInfo.color, &color[0], sizeof(float) * 4);
     pfnCmdDebugMarkerInsert(cmdbuffer, &markerInfo);
   }
 }

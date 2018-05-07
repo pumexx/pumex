@@ -100,7 +100,7 @@ public:
   void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
   void            cmdEnd();
 
-  void            cmdBeginRenderPass(Surface* surface, RenderSubPass* renderSubPass, uint32_t imageIndex, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
+  void            cmdBeginRenderPass(const RenderContext& renderContext, RenderSubPass* renderSubPass, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);
   void            cmdNextSubPass(RenderSubPass* renderSubPass, VkSubpassContents contents);
   void            cmdEndRenderPass() const;
 
@@ -208,7 +208,7 @@ inline VkViewport makeViewport(float x, float y, float width, float height, floa
   return viewport;
 }
 
-inline VkClearValue makeColorClearValue(const glm::vec4 color)
+inline VkClearValue makeColorClearValue(const glm::vec4& color)
 {
   VkClearValue value;
     value.color.float32[0] = color.r;
@@ -224,6 +224,13 @@ inline VkClearValue makeDepthStencilClearValue(float depth, uint32_t stencil)
     value.depthStencil.depth = depth;
     value.depthStencil.stencil = stencil;
   return value;
+}
+
+inline VkClearValue makeClearValue(const glm::vec4& color, VkImageAspectFlags aspectMask)
+{
+  if (aspectMask | VK_IMAGE_ASPECT_COLOR_BIT)
+    return makeColorClearValue(color);
+  return makeDepthStencilClearValue(color.x, color.y);
 }
 
 }

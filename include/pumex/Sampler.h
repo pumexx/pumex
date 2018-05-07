@@ -87,9 +87,10 @@ protected:
     {}
     VkSampler sampler;
   };
+  typedef PerObjectData<SamplerInternal, uint32_t> SamplerData;
 
-  std::unordered_map<void*, PerObjectData<SamplerInternal>> perObjectData;
-  SamplerTraits                                             samplerTraits;
+  std::unordered_map<void*, SamplerData> perObjectData;
+  SamplerTraits                          samplerTraits;
 };
 
 const SamplerTraits& Sampler::getSamplerTraits() const { return samplerTraits; }

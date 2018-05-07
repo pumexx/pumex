@@ -35,13 +35,12 @@ namespace pumex
 
 class Viewer;
 class Window;
-class FrameBuffer;
-class FrameBufferImages;
 class RenderWorkflow;
 class RenderWorkflowCompiler;
 class RenderWorkflowSequences;
 class CommandPool;
 class CommandBuffer;
+class FrameBuffer;
 class Image;
   
 // struct representing information required to create a Vulkan surface
@@ -67,31 +66,32 @@ public:
   Surface& operator=(const Surface&) = delete;
   virtual ~Surface();
 
-  inline bool     isRealized() const;
-  void            realize();
-  void            cleanup();
-  void            checkWorkflow();
-  void            beginFrame();
-  void            buildPrimaryCommandBuffer(uint32_t queueNumber);
-  void            draw();
-  void            endFrame();
-  void            resizeSurface(uint32_t newWidth, uint32_t newHeight);
-  inline uint32_t getImageCount() const;
-  inline uint32_t getImageIndex() const;
+  inline bool                   isRealized() const;
+  void                          realize();
+  void                          cleanup();
+  void                          beginFrame();
+  void                          buildPrimaryCommandBuffer(uint32_t queueNumber);
+  void                          draw();
+  void                          endFrame();
+  void                          resizeSurface(uint32_t newWidth, uint32_t newHeight);
+  inline uint32_t               getImageCount() const;
+  inline uint32_t               getImageIndex() const;
 
-  void            setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler);
+  void                          setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler);
 
-  inline void     setID(uint32_t newID);
-  inline uint32_t getID() const;
+  inline void                   setID(uint32_t newID);
+  inline uint32_t               getID() const;
 
-  inline void     setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
-  inline void     setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);
+  std::shared_ptr<FrameBuffer>  getFrameBuffer() const;
 
-  inline void     onEventSurfaceRenderStart();
-  inline void     onEventSurfaceRenderFinish();
+  inline void                   setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
+  inline void                   setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);
 
-  std::shared_ptr<CommandPool> getPresentationCommandPool();
-  std::shared_ptr<Queue>       getPresentationQueue();
+  inline void                   onEventSurfaceRenderStart();
+  inline void                   onEventSurfaceRenderFinish();
+
+  std::shared_ptr<CommandPool>  getPresentationCommandPool();
+  std::shared_ptr<Queue>        getPresentationQueue();
 
   std::weak_ptr<Viewer>                         viewer;
   std::weak_ptr<Window>                         window;
@@ -108,13 +108,12 @@ public:
   std::vector<VkSurfaceFormatKHR>               surfaceFormats;
   std::vector<VkBool32>                         supportsPresent;
 
-  std::shared_ptr<FrameBuffer>                  frameBuffer;
   std::vector<std::shared_ptr<Queue>>           queues;
   std::vector<std::shared_ptr<CommandPool>>     commandPools;
 
   VkExtent2D                                    swapChainSize                = VkExtent2D{1,1};
   uint32_t                                      swapChainImageIndex          = 0;
-  std::vector<std::unique_ptr<Image>>           swapChainImages;
+  std::vector<std::shared_ptr<Image>>           swapChainImages;
 
   ActionQueue                                   actions;
 
@@ -137,19 +136,19 @@ protected:
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderFinish;
 
-  void createSwapChain();
+  void                                          createSwapChain();
+  bool                                          checkWorkflow();
 };
 
-bool     Surface::isRealized() const    { return realized; }
-void     Surface::setID(uint32_t newID) { id = newID; }
-uint32_t Surface::getID() const         { return id; }
-uint32_t Surface::getImageCount() const { return surfaceTraits.imageCount; }
-uint32_t Surface::getImageIndex() const { return swapChainImageIndex; }
-
-void     Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
-void     Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }
-void     Surface::onEventSurfaceRenderStart()                                                      { if (eventSurfaceRenderStart != nullptr)  eventSurfaceRenderStart(shared_from_this()); }
-void     Surface::onEventSurfaceRenderFinish()                                                     { if (eventSurfaceRenderFinish != nullptr)  eventSurfaceRenderFinish(shared_from_this()); }
+bool                         Surface::isRealized() const     { return realized; }
+void                         Surface::setID(uint32_t newID)  { id = newID; }
+uint32_t                     Surface::getID() const          { return id; }
+uint32_t                     Surface::getImageCount() const  { return surfaceTraits.imageCount; }
+uint32_t                     Surface::getImageIndex() const  { return swapChainImageIndex; }
+void                         Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
+void                         Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }
+void                         Surface::onEventSurfaceRenderStart()                                                      { if (eventSurfaceRenderStart != nullptr)  eventSurfaceRenderStart(shared_from_this()); }
+void                         Surface::onEventSurfaceRenderFinish()                                                     { if (eventSurfaceRenderFinish != nullptr)  eventSurfaceRenderFinish(shared_from_this()); }
 
 
 }

@@ -398,7 +398,7 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
   VkGraphicsPipelineCreateInfo pipelineCI{};
     pipelineCI.sType                           = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineCI.layout                          = pipelineLayout->getHandle(renderContext.vkDevice);
-    pipelineCI.renderPass                      = renderContext.renderPass->getHandle(renderContext.vkDevice);
+    pipelineCI.renderPass                      = renderContext.renderPass->getHandle(renderContext);
     pipelineCI.subpass                         = renderContext.subpassIndex;
     pipelineCI.stageCount                      = shaderStagesCI.size();
     pipelineCI.pStages                         = shaderStagesCI.data();

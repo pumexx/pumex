@@ -36,7 +36,7 @@ uint32_t Font::fontCount = 0;
 
 const uint32_t PUMEX_GLYPH_MARGIN = 4;
 
-Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator)
+Font::Font(const std::string& fileName, glm::ivec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator)
   : textureSize{ ts }, fontPixelHeight{ fph }
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -46,11 +46,9 @@ Font::Font(const std::string& fileName, glm::uvec2 ts, uint32_t fph, std::shared
   fontCount++;
 
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);
-  auto ftex = std::make_shared<gli::texture>(gli::target::TARGET_2D, gli::format::FORMAT_R8_UNORM_PACK8, gli::texture::extent_type(textureSize.x, textureSize.y, 1), 1, 1, 1);
-  ftex->clear<gli::u8>(0);
-  // this texture will not be modified by GPU, so it is enough to declare it as OnceForAllSwapChainImages
-  fontTexture   = std::make_shared<Texture>(ftex, textureAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice, swForEachImage);
-  fontTexture2d = std::make_shared<gli::texture2d>( *ftex );
+  fontTexture2d = std::make_shared<gli::texture2d>(gli::format::FORMAT_R8_UNORM_PACK8, gli::texture2d::extent_type(textureSize), 1);
+  fontTexture2d->clear<gli::u8>(0);
+  fontTexture = std::make_shared<Texture>(fontTexture2d, textureAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice);
 
   lastRegisteredPosition = glm::ivec2(PUMEX_GLYPH_MARGIN, PUMEX_GLYPH_MARGIN);
   // register first 128 char codes
@@ -116,9 +114,9 @@ size_t Font::getGlyphIndex(wchar_t charCode)
     gli::extent2d firstTexel(lastRegisteredPosition.x, lastRegisteredPosition.y + i);
     gli::u8* dstData = fontImage.data<gli::u8>() + (firstTexel.x + textureSize.x * firstTexel.y);
     gli::u8* srcData = fontFace->glyph->bitmap.buffer + fontFace->glyph->bitmap.width * i;
-    memcpy(dstData, srcData, fontFace->glyph->bitmap.width);
+    std::memcpy(dstData, srcData, fontFace->glyph->bitmap.width);
   }
-  fontTexture->invalidate();
+  fontTexture->invalidateImage();
   glyphData.emplace_back( GlyphData(
     glm::vec4(
       (float)lastRegisteredPosition.x / (float)textureSize.x,

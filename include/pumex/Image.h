@@ -34,8 +34,10 @@ struct PUMEX_EXPORT ImageTraits
 {
   explicit ImageTraits() = default;
   explicit ImageTraits(VkImageUsageFlags usage, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT, 
-    bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkMemoryPropertyFlags memoryProperty = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VkImageCreateFlags imageCreate = 0,
+    bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageCreateFlags imageCreate = 0,
     VkImageType imageType = VK_IMAGE_TYPE_2D, VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE);
+  ImageTraits(const ImageTraits& traits);
+  ImageTraits& operator=(const ImageTraits& traits);
   
   VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;
@@ -48,10 +50,9 @@ struct PUMEX_EXPORT ImageTraits
   VkImageCreateFlags       imageCreate    = 0;
   VkImageType              imageType      = VK_IMAGE_TYPE_2D;
   VkSharingMode            sharingMode    = VK_SHARING_MODE_EXCLUSIVE;
-  VkMemoryPropertyFlags    memoryProperty = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
 
-// Class implementing Vulkan image and imageview
+// Class implementing Vulkan image
 class PUMEX_EXPORT Image
 {
 public:
@@ -64,6 +65,7 @@ public:
   Image& operator=(const Image&)     = delete;
   virtual ~Image();
 
+  inline VkDevice           getDevice() const;
   inline VkImage            getHandleImage() const;
   inline VkDeviceSize       getMemorySize() const;
   inline const ImageTraits& getImageTraits() const;
@@ -78,16 +80,18 @@ protected:
   VkImage                                image        = VK_NULL_HANDLE;
   DeviceMemoryBlock                      memoryBlock;
   bool                                   ownsImage    = true;
-
 };
 
 // inlines 
+VkDevice             Image::getDevice() const      { return device; }
 VkImage              Image::getHandleImage() const { return image; }
 VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }
 const ImageTraits&   Image::getImageTraits() const { return imageTraits; }
 
 
 // helper functions
+PUMEX_EXPORT ImageTraits        getImageTraitsFromTexture(const gli::texture& texture, VkImageUsageFlags usage);
+
 PUMEX_EXPORT VkFormat           vulkanFormatFromGliFormat(gli::texture::format_type format);
 PUMEX_EXPORT VkImageViewType    vulkanViewTypeFromGliTarget(gli::texture::target_type target);
 PUMEX_EXPORT VkImageType        vulkanImageTypeFromTextureExtents(const gli::extent3d& extents);

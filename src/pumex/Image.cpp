@@ -27,9 +27,34 @@
 using namespace pumex;
 
 ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, uint32_t m, uint32_t l, VkSampleCountFlagBits s, bool lt, VkImageLayout il,
-  VkMemoryPropertyFlags mp, VkImageCreateFlags ic, VkImageType it, VkSharingMode sm)
-  : usage{ u }, format{ f }, extent( e ), mipLevels{ m }, arrayLayers{ l }, samples{ s }, linearTiling{ lt }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }, memoryProperty{ mp }
+  VkImageCreateFlags ic, VkImageType it, VkSharingMode sm)
+  : usage{ u }, format{ f }, extent( e ), mipLevels{ m }, arrayLayers{ l }, samples{ s }, linearTiling{ lt }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }
 {
+}
+
+ImageTraits::ImageTraits(const ImageTraits& traits)
+  : usage{ traits.usage }, format{ traits.format }, extent(traits.extent), mipLevels{ traits.mipLevels }, arrayLayers{ traits.arrayLayers }, samples{ traits.samples }, 
+  linearTiling{ traits.linearTiling }, initialLayout{ traits.initialLayout }, imageCreate{ traits.imageCreate }, imageType{ traits.imageType }, sharingMode{ traits.sharingMode }
+{
+}
+
+ImageTraits& ImageTraits::operator=(const ImageTraits& traits)
+{
+  if (this != &traits)
+  {
+    usage = traits.usage;
+    format = traits.format;
+    extent = traits.extent;
+    mipLevels = traits.mipLevels;
+    arrayLayers = traits.arrayLayers;
+    samples = traits.samples;
+    linearTiling = traits.linearTiling;
+    initialLayout = traits.initialLayout;
+    imageCreate = traits.imageCreate;
+    imageType = traits.imageType;
+    sharingMode = traits.sharingMode;
+  }
+  return *this;
 }
 
 Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a)
@@ -70,7 +95,6 @@ Image::Image(Device* d, VkImage i, VkFormat format, const VkExtent3D& extent, ui
   imageTraits.arrayLayers = arrayLayers;
 }
 
-
 Image::~Image()
 {
   if (ownsImage)
@@ -83,6 +107,7 @@ Image::~Image()
 
 void Image::getImageSubresourceLayout(VkImageSubresource& subRes, VkSubresourceLayout& subResLayout) const
 {
+  // FIXME : remember - it only works when tiling is linear
   vkGetImageSubresourceLayout(device, image, &subRes, &subResLayout);
 }
 
@@ -100,6 +125,14 @@ void Image::unmapMemory()
 
 namespace pumex
 {
+
+ImageTraits getImageTraitsFromTexture(const gli::texture& texture, VkImageUsageFlags usage)
+{
+  auto t = texture.extent(0);
+  return ImageTraits(usage, vulkanFormatFromGliFormat(texture.format()), { uint32_t(t.x), uint32_t(t.y), uint32_t(t.z) },
+    texture.levels(), texture.layers(), VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, vulkanImageTypeFromTextureExtents(t), VK_SHARING_MODE_EXCLUSIVE);
+}
+
 
 VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)
 {

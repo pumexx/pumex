@@ -126,7 +126,7 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
-  enum BufferType { UniformBuffer, StorageBuffer };
+  enum BufferType { UniformBuffer=1, StorageBuffer=2 };
   enum ImageType { CombinedImageSampler=1, SampledImage=2, StorageImage=4  };
   typedef VkFlags ImageTypeFlags;
 
@@ -281,11 +281,11 @@ inline void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransit
 class PUMEX_EXPORT RenderWorkflowSequences
 {
 public:
-  RenderWorkflowSequences(const std::vector<QueueTraits>& queueTraits, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, std::shared_ptr<FrameBufferImages> frameBufferImages, const std::vector<VkImageLayout>& initialImageLayouts, std::shared_ptr<RenderPass> outputRenderPass, uint32_t presentationQueueIndex);
+  RenderWorkflowSequences(const std::vector<QueueTraits>& queueTraits, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, std::shared_ptr<FrameBuffer> frameBuffer, const std::vector<VkImageLayout>& initialImageLayouts, std::shared_ptr<RenderPass> outputRenderPass, uint32_t presentationQueueIndex);
 
   std::vector<QueueTraits>                                 queueTraits;
   std::vector<std::vector<std::shared_ptr<RenderCommand>>> commands;
-  std::shared_ptr<FrameBufferImages>                       frameBufferImages;
+  std::shared_ptr<FrameBuffer>                             frameBuffer;
   std::vector<VkImageLayout>                               initialImageLayouts;
   std::shared_ptr<RenderPass>                              outputRenderPass;
   uint32_t                                                 presentationQueueIndex = 0;

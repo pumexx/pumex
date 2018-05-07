@@ -64,7 +64,6 @@ public:
   VkBuffer                          getHandleBuffer(const RenderContext& renderContext);
 
 private:
-  template<typename X> 
   struct UniformBufferInternal
   {
     UniformBufferInternal()
@@ -72,13 +71,14 @@ private:
     {}
     VkBuffer           uboBuffer;
     DeviceMemoryBlock  memoryBlock;
-    X                  uboData;
+    T                  uboData;
   };
+  typedef PerObjectData<UniformBufferInternal, T> UniformBufferData;
 
-  std::unordered_map<void*, PerObjectData<UniformBufferInternal<T>>> perObjectData;
-  T                                                                  uboData;
-  std::shared_ptr<DeviceMemoryAllocator>                             allocator;
-  VkBufferUsageFlags                                                 additionalFlags;
+  std::unordered_map<void*, UniformBufferData> perObjectData;
+  T                                            uboData;
+  std::shared_ptr<DeviceMemoryAllocator>       allocator;
+  VkBufferUsageFlags                           additionalFlags;
 };
 
 template <typename T>
@@ -117,7 +117,7 @@ void UniformBuffer<T>::set(const T& data)
   else
   {
     for (auto& pdd : perObjectData)
-      pdd.second.data[0].uboData = data;
+      pdd.second.commonData = data;
   }
   invalidate();
 }
@@ -129,8 +129,8 @@ void UniformBuffer<T>::set(Surface* surface, const T& data)
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find((void*)(surface->surface));
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ (void*)(surface->surface), PerObjectData<UniformBufferInternal<T>>(surface->device.lock()->device, surface->surface, activeCount) }).first;
-  pddit->second.data[0].uboData = data;
+    pddit = perObjectData.insert({ (void*)(surface->surface), UniformBufferData(surface->device.lock()->device, surface->surface, activeCount) }).first;
+  pddit->second.commonData = data;
   pddit->second.invalidate();
 }
 
@@ -143,7 +143,7 @@ T UniformBuffer<T>::get() const
     auto pddit = begin(perObjectData);
     if (pddit == end(perObjectData))
       return T();
-    return pddit->second.data[0].uboData;
+    return pddit->second.commonData;
   }
   return uboData;
 }
@@ -156,7 +156,7 @@ T UniformBuffer<T>::get(Surface* surface) const
   auto pddit = perObjectData.find((void*)(surface->surface));
   if (pddit == end(perObjectData))
     return T();
-  return pddit->second.data[0].uboData;
+  return pddit->second.commonData;
 }
 
 template <typename T>
@@ -178,7 +178,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, PerObjectData<UniformBufferInternal<T>>(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, UniformBufferData(renderContext) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
@@ -204,7 +204,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
     if(perObjectBehaviour == pbPerDevice)
       stagingBuffer = renderContext.device->acquireStagingBuffer(&uboData, sizeof(T));
     else
-      stagingBuffer = renderContext.device->acquireStagingBuffer(&pddit->second.data[0].uboData, sizeof(T));
+      stagingBuffer = renderContext.device->acquireStagingBuffer(&pddit->second.commonData, sizeof(T));
     auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
     VkBufferCopy copyRegion{};
     copyRegion.size = sizeof(T);
@@ -217,8 +217,9 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
     if (perObjectBehaviour == pbPerDevice)
       allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, &uboData, sizeof(T), 0);
     else
-      allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, &pddit->second.data[0].uboData, sizeof(T), 0);
+      allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, &pddit->second.commonData, sizeof(T), 0);
   }
+  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
 }
 
@@ -227,7 +228,6 @@ void UniformBuffer<T>::invalidate()
 {
   for (auto& pdd : perObjectData)
     pdd.second.invalidate();
-  invalidateDescriptors();
 }
 
 template <typename T>

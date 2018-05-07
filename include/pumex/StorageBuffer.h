@@ -63,7 +63,6 @@ public:
   VkBuffer                          getHandleBuffer(const RenderContext& renderContext);
 
 private:
-  template<typename X>
   struct StorageBufferInternal
   {
     StorageBufferInternal()
@@ -71,13 +70,13 @@ private:
     {}
     VkBuffer           storageBuffer;
     DeviceMemoryBlock  memoryBlock;
-    std::vector<X>     storageData;
   };
+  typedef PerObjectData<StorageBufferInternal, std::vector<T>> StorageBufferData;
 
-  std::unordered_map<void*, PerObjectData<StorageBufferInternal<T>>> perObjectData;
-  std::vector<T>                                                     storageData;
-  std::shared_ptr<DeviceMemoryAllocator>                             allocator;
-  VkBufferUsageFlags                                                 additionalFlags;
+  std::unordered_map<void*, StorageBufferData> perObjectData;
+  std::vector<T>                               storageData;
+  std::shared_ptr<DeviceMemoryAllocator>       allocator;
+  VkBufferUsageFlags                           additionalFlags;
 };
 
 template <typename T>
@@ -121,11 +120,11 @@ void StorageBuffer<T>::set(const std::vector<T>& data)
     for (auto& pdd : perObjectData)
     {
       if (!data.empty())
-        pdd.second.data[0].storageData = data;
+        pdd.second.commonData = data;
       else
       {
-        pdd.second.data[0].storageData.resize(0);
-        pdd.second.data[0].storageData.push_back(T());
+        pdd.second.commonData.resize(0);
+        pdd.second.commonData.push_back(T());
       }
     }
   }
@@ -139,16 +138,15 @@ void StorageBuffer<T>::set(Surface* surface, const std::vector<T>& data)
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find((void*)(surface->surface));
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ (void*)(surface->surface), PerObjectData<StorageBufferInternal<T>>(surface->device.lock()->device, surface->surface, activeCount) }).first;
+    pddit = perObjectData.insert({ (void*)(surface->surface), StorageBufferData(surface->device.lock()->device, surface->surface, activeCount) }).first;
   if (!data.empty())
-    pddit->second.data[0].storageData = data;
+    pddit->second.commonData = data;
   else
   {
-    pddit->second.data[0].storageData.resize(0);
-    pddit->second.data[0].storageData.push_back(T());
+    pddit->second.commonData.resize(0);
+    pddit->second.commonData.push_back(T());
   }
   pddit->second.invalidate();
-  invalidateDescriptors();
 }
 
 template <typename T>
@@ -158,9 +156,10 @@ const std::vector<T>& StorageBuffer<T>::get() const
   if (perObjectBehaviour == pbPerSurface)
   {
     auto pddit = begin(perObjectData);
+    // FIXME : local variable
     if (pddit == end(perObjectData))
       return std::vector<T>();
-    return pddit->second.data[0].storageData;
+    return pddit->second.commonData;
   }
   return storageData;
 }
@@ -171,9 +170,10 @@ const std::vector<T>& StorageBuffer<T>::get(Surface* surface)
   CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot get data per surface for this storage buffer");
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find((void*)(surface->surface));
+  // FIXME : local variable
   if (pddit == end(perObjectData))
     return std::vector<T>();
-  return pddit->second.data[0].storageData;
+  return pddit->second.commonData;
 }
 
 template <typename T>
@@ -195,14 +195,14 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, PerObjectData<StorageBufferInternal<T>>(renderContext) }).first;
-  if(perObjectBehaviour == pbPerSurface && pddit->second.data[0].storageData.empty())
-    pddit->second.data[0].storageData.push_back(T());
+    pddit = perObjectData.insert({ keyValue, StorageBufferData(renderContext) }).first;
+  if(perObjectBehaviour == pbPerSurface && pddit->second.commonData.empty())
+    pddit->second.commonData.push_back(T());
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
 
-  const std::vector<T>& sData = (perObjectBehaviour == pbPerDevice) ? storageData : pddit->second.data[0].storageData;
+  const std::vector<T>& sData = (perObjectBehaviour == pbPerDevice) ? storageData : pddit->second.commonData;
 
   if (pddit->second.data[activeIndex].storageBuffer != VK_NULL_HANDLE  && pddit->second.data[activeIndex].memoryBlock.alignedSize < sizeof(T)*sData.size())
   {
@@ -245,6 +245,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
       allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, sData.data(), sizeof(T)*sData.size(), 0);
     }
   }
+  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
 }
 
@@ -253,7 +254,6 @@ void StorageBuffer<T>::invalidate()
 {
   for (auto& pdd : perObjectData)
     pdd.second.invalidate();
-  invalidateDescriptors();
 }
 
 template <typename T>
@@ -262,7 +262,7 @@ DescriptorSetValue StorageBuffer<T>::getDescriptorSetValue(const RenderContext& 
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find(getKey(renderContext, perObjectBehaviour));
   CHECK_LOG_THROW(pddit == end(perObjectData), "StorageBuffer<T>::getDescriptorSetValue() : storage buffer was not validated");
-  const std::vector<T>& sData = (perObjectBehaviour == pbPerDevice) ? storageData : pddit->second.data[0].storageData;
+  const std::vector<T>& sData = (perObjectBehaviour == pbPerDevice) ? storageData : pddit->second.commonData;
   return DescriptorSetValue(pddit->second.data[renderContext.activeIndex % activeCount].storageBuffer, 0, uglyGetSize(sData));
 }
 

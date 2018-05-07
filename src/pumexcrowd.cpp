@@ -871,14 +871,14 @@ int main(int argc, char * argv[])
     std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
 
     auto skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    auto instancedResults = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
+    auto instancedResults    = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
     workflow->associateResource("indirect_commands", instancedResults->getResults(MAIN_RENDER_MASK));
     workflow->associateResource("offset_values",     instancedResults->getOffsetValues(MAIN_RENDER_MASK));
 
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
     auto sampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
-    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(regTex, texturesAllocator, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice, pumex::swOnce), sampler);
+    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
     std::vector<pumex::TextureSemantic>                    textureSemantic  = { { pumex::TextureSemantic::Diffuse, 0 } };
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet>                    materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);

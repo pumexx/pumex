@@ -23,6 +23,7 @@
 #pragma once
 #include <unordered_map>
 #include <memory>
+#include <list>
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
@@ -33,6 +34,7 @@ namespace pumex
 {
 
 class RenderContext;
+class CommandBuffer;
 class ImageView;
 
 struct PUMEX_EXPORT ImageSubresourceRange
@@ -40,6 +42,7 @@ struct PUMEX_EXPORT ImageSubresourceRange
   ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
 
   VkImageSubresourceRange getSubresource();
+  bool contains(const ImageSubresourceRange& range) const;
 
   VkImageAspectFlags    aspectMask;
   uint32_t              baseMipLevel;
@@ -56,44 +59,102 @@ class PUMEX_EXPORT Texture
 {
 public:
   Texture()                          = delete;
-  // create single texture and clear it with specific value
-  explicit Texture(const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator, const glm::vec4& initValue, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
-  // create single texture and load it with provided data ( gli::texture )
-  explicit Texture(std::shared_ptr<gli::texture> texture, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageUsageFlags usage, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
+  explicit Texture(const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageAspectFlags aspectMask, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage, bool sameTraitsPerObject = true, bool useSetImageMethods = true);
+  explicit Texture(std::shared_ptr<gli::texture> texture, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_SAMPLED_BIT, PerObjectBehaviour perObjectBehaviour = pbPerDevice);
   Texture(const Texture&)            = delete;
   Texture& operator=(const Texture&) = delete;
   virtual ~Texture();
 
-  Image*                                getImage(const RenderContext& renderContext) const;
-  inline const ImageTraits&             getImageTraits() const;
-  inline const PerObjectBehaviour&      getPerObjectBehaviour() const;
-  inline const SwapChainImageBehaviour& getSwapChainImageBehaviour() const;
+  void setImageTraits(const ImageTraits& traits);
+  void setImageTraits(Surface* surface, const ImageTraits& traits);
+  void setImageTraits(Device* device, const ImageTraits& traits);
 
-  void                                  validate(const RenderContext& renderContext);
-  void                                  invalidate();
+  void invalidateImage();
+  void setImage(Surface* surface, std::shared_ptr<gli::texture> tex);
+  void setImage(Device* device, std::shared_ptr<gli::texture> tex);
+  void setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
+  // Use outside created images ( method created to catch swapchain images )
+  void setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images);
+  void setImages(Device* device, std::vector<std::shared_ptr<Image>>& images);
 
-  void                                  setLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
-  ImageSubresourceRange                 getFullImageRange();
+  void clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
+  void clearImage(Surface* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
+  void clearImage(Device* device, const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
 
-  void                                  addImageView( std::shared_ptr<ImageView> imageView );
-protected:
+  Image*                                        getImage(const RenderContext& renderContext) const;
+  inline const ImageTraits&                     getImageTraits() const;
+  inline VkImageAspectFlags                     getAspectMask() const;
+  inline const PerObjectBehaviour&              getPerObjectBehaviour() const;
+  inline const SwapChainImageBehaviour&         getSwapChainImageBehaviour() const;
+  inline std::shared_ptr<DeviceMemoryAllocator> getAllocator() const;
+  inline std::shared_ptr<gli::texture>          getTexture() const;
+
+  void                                          validate(const RenderContext& renderContext);
+  void                                          invalidate();
+
+  ImageSubresourceRange                         getFullImageRange();
+
+  void                                          addImageView( std::shared_ptr<ImageView> imageView );
+  void                                          invalidateImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range);
+
   struct TextureInternal
   {
     std::shared_ptr<Image> image;
   };
-  std::unordered_map<void*, PerObjectData<TextureInternal>> perObjectData;
-  mutable std::mutex                                        mutex;
-  PerObjectBehaviour                                        perObjectBehaviour;
-  SwapChainImageBehaviour                                   swapChainImageBehaviour;
-  ImageTraits                                               imageTraits;
-  std::shared_ptr<gli::texture>                             texture;
-  std::shared_ptr<DeviceMemoryAllocator>                    allocator;
-  VkClearValue                                              initValue;
-  std::vector<std::weak_ptr<ImageView>>                     imageViews;
-  uint32_t                                                  activeCount;
+  // struct that defines all operations that may be performed on that Texture ( set new image traits, clear it, set new data )
+  struct Operation
+  {
+    enum Type { SetImageTraits, ClearImage, SetImage };
+    Operation(Texture* o, Type t, const ImageSubresourceRange& r, uint32_t ac)
+      : owner{ o }, type{ t }, imageRange{ r }
+    {
+      resize(ac);
+    }
+    void resize(uint32_t ac)
+    {
+      updated.resize(ac, false);
+    }
+    bool allUpdated()
+    {
+      for (auto& u : updated)
+        if (!u)
+          return false;
+      return true;
+    }
+    // perform() should return true when it added commands to commandBuffer
+    virtual bool perform(const RenderContext& renderContext, TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) = 0;
+    virtual void releaseResources(const RenderContext& renderContext)
+    {
+    }
 
-  void buildImageTraits(VkImageUsageFlags usage);
-  void invalidateImageViews();
+    Texture*              owner;
+    Type                  type;
+    ImageSubresourceRange imageRange;
+    std::vector<bool>     updated;
+  };
+protected:
+  struct TextureLoadData
+  {
+    std::list<std::shared_ptr<Operation>> imageOperations;
+  };
+  typedef PerObjectData<TextureInternal, TextureLoadData> TextureData;
+
+  std::unordered_map<uint32_t, TextureData> perObjectData;
+  mutable std::mutex                        mutex;
+  PerObjectBehaviour                        perObjectBehaviour;
+  SwapChainImageBehaviour                   swapChainImageBehaviour;
+  bool                                      sameTraitsPerObject;
+  ImageTraits                               imageTraits;
+  std::shared_ptr<gli::texture>             texture;
+  std::shared_ptr<DeviceMemoryAllocator>    allocator;
+  VkImageAspectFlags                        aspectMask;
+  uint32_t                                  activeCount;
+  std::vector<std::weak_ptr<ImageView>>     imageViews;
+
+  void internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR surface, const ImageTraits& traits, VkImageAspectFlags aMask);
+  void internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::shared_ptr<gli::texture> texture);
+  void internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::vector<std::shared_ptr<Image>>& images);
+  void internalClearImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, const glm::vec4& clearValue, const ImageSubresourceRange& range);
 };
 
 class PUMEX_EXPORT ImageView : public std::enable_shared_from_this<ImageView>
@@ -109,7 +170,7 @@ public:
   VkImageView  getImageView(const RenderContext& renderContext) const;
 
   void         validate(const RenderContext& renderContext);
-  void         invalidate();
+  void         invalidateView(const RenderContext& renderContext);
 
   void         addResource(std::shared_ptr<Resource> resource);
 
@@ -126,18 +187,21 @@ protected:
     {}
     VkImageView imageView;
   };
-  mutable std::mutex                                          mutex;
-  std::vector<std::weak_ptr<Resource>>                        resources;
-  std::unordered_map<void*, PerObjectData<ImageViewInternal>> perObjectData;
-  uint32_t                                                    activeCount;
+  typedef PerObjectData<ImageViewInternal, uint32_t> ImageViewData;
+  mutable std::mutex                          mutex;
+  std::vector<std::weak_ptr<Resource>>        resources;
+  std::unordered_map<uint32_t, ImageViewData> perObjectData;
+  uint32_t                                    activeCount;
 
-  void invalidateResources();
+  void invalidateResources(const RenderContext& renderContext);
 
 };
 
-const ImageTraits&             Texture::getImageTraits() const { return imageTraits; }
-const PerObjectBehaviour&      Texture::getPerObjectBehaviour() const { return perObjectBehaviour; }
-const SwapChainImageBehaviour& Texture::getSwapChainImageBehaviour() const { return swapChainImageBehaviour; }
+const ImageTraits&                     Texture::getImageTraits() const { return imageTraits; }
+VkImageAspectFlags                     Texture::getAspectMask() const { return aspectMask; }
+const PerObjectBehaviour&              Texture::getPerObjectBehaviour() const { return perObjectBehaviour; }
+const SwapChainImageBehaviour&         Texture::getSwapChainImageBehaviour() const { return swapChainImageBehaviour; }
+std::shared_ptr<DeviceMemoryAllocator> Texture::getAllocator() const { return allocator; }
+std::shared_ptr<gli::texture>          Texture::getTexture() const { return texture; }
 
 }
-

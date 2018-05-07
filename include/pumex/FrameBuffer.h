@@ -38,7 +38,8 @@ namespace pumex
 class Surface;
 class DeviceMemoryAllocator;
 class RenderPass;
-class Sampler;
+class Texture;
+class ImageView;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
@@ -53,101 +54,53 @@ struct PUMEX_EXPORT FrameBufferImageDefinition
   gli::swizzles         swizzles;
 };
 
-class PUMEX_EXPORT FrameBufferImages
-{
-public:
-  FrameBufferImages()                                    = delete;
-  explicit FrameBufferImages(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<DeviceMemoryAllocator> allocator);
-  FrameBufferImages(const FrameBufferImages&)            = delete;
-  FrameBufferImages& operator=(const FrameBufferImages&) = delete;
-  virtual ~FrameBufferImages();
-
-  void                       invalidate(Surface* surface);
-  void                       validate(Surface* surface);
-  void                       reset(Surface* surface);
-  Image*                     getImage(Surface* surface, uint32_t imageIndex);
-  FrameBufferImageDefinition getSwapChainDefinition();
-
-
-  std::vector<FrameBufferImageDefinition> imageDefinitions;
-protected:
-  struct PerSurfaceData
-  {
-    PerSurfaceData(VkDevice d, uint32_t imCount)
-      : device{ d }
-    {
-      frameBufferImages.resize(imCount);
-    }
-    VkDevice                             device;
-    std::vector<std::shared_ptr<Image>>  frameBufferImages;
-    bool                                 valid = false;
-  };
-
-  mutable std::mutex                               mutex;
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  std::shared_ptr<DeviceMemoryAllocator>           allocator;
-};
-
 class InputAttachment;
 
 class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
-  explicit FrameBuffer(std::shared_ptr<Surface> surface, uint32_t cbCount = 1);
+  FrameBuffer()                              = delete;
+  explicit FrameBuffer(const std::vector<FrameBufferImageDefinition>& imageDefinitions, std::shared_ptr<RenderPass> renderPass, std::shared_ptr<DeviceMemoryAllocator> allocator);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   virtual ~FrameBuffer();
 
-  void setFrameBufferImages(std::shared_ptr<FrameBufferImages> frameBufferImages);
-  inline std::shared_ptr<FrameBufferImages> getFrameBufferImages();
+  void                              validate(const RenderContext& renderContext);
+  void                              invalidate(Surface* surface);
+  void                              prepareTextures(Surface* surface, std::vector<std::shared_ptr<Image>>& swapChainImages);
+  void                              reset(Surface* surface);
 
-  void setRenderPass(std::shared_ptr<RenderPass> renderPass);
+  const FrameBufferImageDefinition& getSwapChainImageDefinition() const;
+  const FrameBufferImageDefinition& getImageDefinition(uint32_t index) const;
+  std::shared_ptr<Texture>          getTexture(uint32_t index) const;
+  std::shared_ptr<ImageView>        getImageView(const std::string& name) const;
+  VkFramebuffer                     getHandleFrameBuffer(const RenderContext& renderContext) const;
 
-  void          reset();
-  void          invalidate();
-  void          validate(uint32_t index, const std::vector<std::unique_ptr<Image>>& swapChainImages = std::vector<std::unique_ptr<Image>>());
-  VkFramebuffer getFrameBuffer(uint32_t index);
-
-  void addInputAttachment(std::shared_ptr<InputAttachment> inputAttachment);
+  void                              addInputAttachment(std::shared_ptr<InputAttachment> inputAttachment);
 
 protected:
-  std::weak_ptr<Surface>              surface;
-  std::vector<bool>                   valid;
-  std::vector<VkFramebuffer>          frameBuffers;
+  struct FrameBufferInternal
+  {
+    FrameBufferInternal()
+      : frameBuffer{ VK_NULL_HANDLE }
+    {}
+    VkFramebuffer frameBuffer;
+  };
+  typedef PerObjectData<FrameBufferInternal, uint32_t> FrameBufferData;
 
-  mutable std::mutex                  mutex;
-  std::weak_ptr<RenderPass>           renderPass;
-  std::shared_ptr<FrameBufferImages>  frameBufferImages;
+  std::unordered_map<VkSurfaceKHR, FrameBufferData> perObjectData;
+
+  std::vector<FrameBufferImageDefinition>           imageDefinitions;
+  std::weak_ptr<RenderPass>                         renderPass;
+  std::shared_ptr<DeviceMemoryAllocator>            allocator;
+  std::vector<std::shared_ptr<Texture>>             textures;
+  std::vector<std::shared_ptr<ImageView>>           imageViews;
+  mutable std::mutex                                mutex;
+  uint32_t                                          activeCount;
 
   // framebuffer has a list of input attachments that need to be invalidated when framebuffer is recreated
-  std::vector<std::weak_ptr<InputAttachment>> inputAttachments;
-  void invalidateInputAttachments();
+  std::vector<std::weak_ptr<InputAttachment>>       inputAttachments;
+  void                                              invalidateInputAttachments();
 };
-
-class PUMEX_EXPORT InputAttachment : public Resource
-{
-public:
-  InputAttachment(const std::string& attachmentName, std::shared_ptr<Sampler> sampler = nullptr);
-  virtual ~InputAttachment();
-
-  std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
-  void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
-  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
-
-protected:
-  struct PerSurfaceData
-  {
-    PerSurfaceData()
-    {
-    }
-    bool valid = false;
-  };
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
-  std::string                                      attachmentName;
-  std::shared_ptr<Sampler>                         sampler;
-};
-
-std::shared_ptr<FrameBufferImages> FrameBuffer::getFrameBufferImages() { return frameBufferImages; }
 
 }

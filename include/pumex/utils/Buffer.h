@@ -70,7 +70,12 @@ public:
   inline bool         isReserved() const;
   inline void         setReserved(bool value);
 
-  void fillBuffer(const void* data, VkDeviceSize size);
+  // method that maps buffer memory, copies data and unmaps it
+  void  fillBuffer(const void* data, VkDeviceSize size);
+  // methods for user to copy data by himself
+  void* mapMemory(VkDeviceSize size);
+  void  unmapMemory();
+
 
   VkBuffer       buffer     = VK_NULL_HANDLE;
 protected:

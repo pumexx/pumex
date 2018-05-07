@@ -265,10 +265,10 @@ void RenderPass::validate(const RenderContext& renderContext)
   pddit->second.valid = true;
 }
 
-VkRenderPass RenderPass::getHandle(VkDevice device) const
+VkRenderPass RenderPass::getHandle(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(device);
+  auto pddit = perDeviceData.find(renderContext.vkDevice);
   if (pddit == end(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.renderPass;
@@ -377,11 +377,11 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
       viewport  = makeViewport(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y, 0.0f, 1.0f);
       break;
     }
+    
     commandVisitor.commandBuffer->cmdBeginRenderPass
     (
-      commandVisitor.renderContext.surface,
+      commandVisitor.renderContext,
       this,
-      commandVisitor.renderContext.activeIndex,
       rectangle,
       renderPass->clearValues,
       operation->subpassContents
