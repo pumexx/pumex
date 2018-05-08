@@ -20,34 +20,19 @@
 // SOFTWARE.
 //
 
-#pragma once
-#include <pumex/Export.h>
-#include <pumex/Resource.h>
+#include <pumex/PerObjectData.h>
+#include <pumex/Device.h>
+#include <pumex/Surface.h>
 
-namespace pumex
+namespace pumex 
 {
-
-class ImageView;
-class Sampler;
-
-class PUMEX_EXPORT CombinedImageSampler : public Resource
+uint32_t getKeyID(const RenderContext& context, const PerObjectBehaviour& pob)
 {
-public:
-  CombinedImageSampler()                                       = delete;
-  CombinedImageSampler(std::shared_ptr<ImageView> imageView, std::shared_ptr<Sampler> sampler);
-  CombinedImageSampler(const CombinedImageSampler&)            = delete;
-  CombinedImageSampler& operator=(const CombinedImageSampler&) = delete;
-  virtual ~CombinedImageSampler();
-
-  std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
-  void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
-  DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
-
-  std::shared_ptr<ImageView> imageView;
-  std::shared_ptr<Sampler>   sampler;
-protected:
-  bool                       registered = false;
-};
-	
+  switch (pob)
+  {
+  case pbPerDevice:  return context.device->getID();
+  case pbPerSurface: return context.surface->getID();
+  }
+  return 0;
+}
 }

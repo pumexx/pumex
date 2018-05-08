@@ -25,6 +25,7 @@
 #include <pumex/Device.h>
 #include <pumex/Command.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Resource.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 #include <algorithm>
@@ -65,6 +66,7 @@ struct SetImageTraitsOperation : public Texture::Operation
   {}
   bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
+    internals.image = nullptr; // release image before creating a new one
     internals.image = std::make_shared<Image>(renderContext.device, imageTraits, owner->getAllocator());
     owner->invalidateImageViews(renderContext, imageRange);
     // no operations sent to command buffer
@@ -181,6 +183,19 @@ struct SetImageOperation : public Texture::Operation
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
 };
 
+struct InvalidateImageViewsOperation : public Texture::Operation
+{
+  InvalidateImageViewsOperation(Texture* o, const ImageSubresourceRange& r, uint32_t ac)
+    : Texture::Operation(o, Texture::Operation::InvalidateImageViews, r, ac)
+  {}
+  bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
+  {
+    owner->invalidateImageViews(renderContext, imageRange);
+    // no operations sent to command buffer
+    return false;
+  }
+};
+
 struct ClearImageOperation : public Texture::Operation
 {
   ClearImageOperation(Texture* o, const ImageSubresourceRange& r, VkClearValue cv, uint32_t ac)
@@ -295,7 +310,7 @@ void Texture::setImage(Device* device, std::shared_ptr<gli::texture> tex)
 void Texture::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
 {
   CHECK_LOG_THROW(texture == nullptr, "Cannot set texture layer - wrong constructor used to create an object");
-  CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set texture when each device/surface may use different traits");
+  CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set texture layer when each device/surface may use different traits");
   CHECK_LOG_THROW((layer >= texture->layers()), "Layer out of bounds : " << layer << " should be between 0 and " << texture->layers() - 1);
   CHECK_LOG_THROW(tex->format() != texture->format(), "Input texture has wrong format : " << tex->format() << " should be " << texture->format());
   CHECK_LOG_THROW(tex->layers() > 1, "Cannot call setTextureLayer() with texture that has more than one layer");
@@ -330,7 +345,7 @@ void Texture::setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& i
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot set foreign images per surface for this texture");
   CHECK_LOG_THROW(texture != nullptr, "Cannot set foreign images - wrong constructor used to create an object");
-  CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set foreign images when each device/surface must use the same traits");
+  CHECK_LOG_THROW(sameTraitsPerObject, "Cannot set foreign images when each device/surface must use the same traits");
   std::lock_guard<std::mutex> lock(mutex);
   internalSetImages(surface->getID(), surface->device.lock()->device, surface->surface, images);
 }
@@ -339,7 +354,7 @@ void Texture::setImages(Device* device, std::vector<std::shared_ptr<Image>>& ima
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerDevice, "Cannot set foreign images per device for this texture");
   CHECK_LOG_THROW(texture != nullptr, "Cannot set foreign images - wrong constructor used to create an object");
-  CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set foreign images when each device/surface must use the same traits");
+  CHECK_LOG_THROW(sameTraitsPerObject, "Cannot set foreign images when each device/surface must use the same traits");
   std::lock_guard<std::mutex> lock(mutex);
   internalSetImages(device->getID(), device->device, VK_NULL_HANDLE, images);
 }
@@ -401,7 +416,7 @@ void Texture::validate(const RenderContext& renderContext)
   auto keyValue = getKeyID(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, TextureData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, TextureData(renderContext, swapChainImageBehaviour) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
@@ -475,7 +490,7 @@ void Texture::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR
 {
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount) }).first;
+    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
 
   // remove all previous calls to setImageTraits
   pddit->second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::SetImageTraits; });
@@ -490,7 +505,7 @@ void Texture::internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surfa
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
   {
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount) }).first;
+    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
     // image does not exist at that moment - we should add imageTraits
     // image usage is always taken from main imageTraits
     auto traits = getImageTraitsFromTexture(*tex, imageTraits.usage);
@@ -526,10 +541,15 @@ void Texture::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surf
   }
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount) }).first;
+    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
   for (uint32_t i = 0; i < images.size(); i++)
+  {
+    pddit->second.data[i].image = nullptr;
     pddit->second.data[i].image = images[i];
+  }
   pddit->second.commonData.imageOperations.clear();
+  ImageSubresourceRange range(aspectMask, 0, images[0]->getImageTraits().mipLevels, 0, images[0]->getImageTraits().arrayLayers);
+  pddit->second.commonData.imageOperations.push_back(std::make_shared<InvalidateImageViewsOperation>(this, range, activeCount));
   pddit->second.invalidate();
 }
 
@@ -544,7 +564,7 @@ void Texture::internalClearImage(uint32_t key, VkDevice device, VkSurfaceKHR sur
 
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount) }).first;
+    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
 
   // remove all previous calls for image clearing
   pddit->second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::ClearImage; });
@@ -554,10 +574,9 @@ void Texture::internalClearImage(uint32_t key, VkDevice device, VkSurfaceKHR sur
 }
 
 ImageView::ImageView(std::shared_ptr<Texture> t, const ImageSubresourceRange& sr, VkImageViewType vt, VkFormat f, const gli::swizzles& sw)
-  : texture{ t }, subresourceRange{ sr }, viewType{ vt }, swizzles{ sw }, activeCount{ 1 }
+  : std::enable_shared_from_this<ImageView>(), texture{ t }, subresourceRange{ sr }, viewType{ vt }, swizzles{ sw }, activeCount{ 1 }
 {
   format = (f == VK_FORMAT_UNDEFINED) ? texture->getImageTraits().format : f;
-  texture->addImageView(shared_from_this());
 }
 
 ImageView::~ImageView()
@@ -585,6 +604,11 @@ VkImageView ImageView::getImageView(const RenderContext& renderContext) const
 
 void ImageView::validate(const RenderContext& renderContext)
 {
+  if (!registered)
+  {
+    texture->addImageView(shared_from_this());
+    registered = true;
+  }
   texture->validate(renderContext);
   std::lock_guard<std::mutex> lock(mutex);
   if (texture->getSwapChainImageBehaviour() == swForEachImage && renderContext.imageCount > activeCount)
@@ -596,7 +620,7 @@ void ImageView::validate(const RenderContext& renderContext)
   auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext, texture->getSwapChainImageBehaviour()) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
@@ -627,9 +651,8 @@ void ImageView::invalidateView(const RenderContext& renderContext)
   auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext) }).first;
-
-  std::fill(begin(pddit->second.valid), end(pddit->second.valid), false);
+    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext, texture->getSwapChainImageBehaviour()) }).first;
+  pddit->second.invalidate();
 }
 
 void ImageView::addResource(std::shared_ptr<Resource> resource)

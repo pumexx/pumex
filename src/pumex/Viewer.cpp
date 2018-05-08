@@ -185,6 +185,8 @@ void Viewer::run()
 {
   if (!isRealized())
     realize();
+  bool renderContinueRun = true;
+  bool updateContinueRun = true;
 
   std::thread renderThread([&]
   {
@@ -211,25 +213,30 @@ void Viewer::run()
       //case 2:
       //  LOG_INFO << "R:  +" << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //}
-      bool continueRun = true;
       try
       {
         frameNumber++;
-        continueRun = !terminating();
-        if (continueRun)
+        renderContinueRun = !terminating();
+        if (renderContinueRun)
         {
           renderGraphStart.try_put(tbb::flow::continue_msg());
           renderGraph.wait_for_all();
         }
       }
+      catch (const std::exception e)
+      {
+        LOG_ERROR << "Error from render thread : " << e.what() << std::endl;
+        renderContinueRun = false;
+      }
       catch (...)
       {
-        continueRun = false;
+        LOG_ERROR << "Unknown error from render thread" << std::endl;
+        renderContinueRun = false;
       }
 
       auto renderEndTime = HPClock::now();
       lastRenderDuration = renderEndTime - renderStartTime;
-      if (!continueRun)
+      if (!renderContinueRun || !updateContinueRun)
         break;
     }
   }
@@ -254,29 +261,34 @@ void Viewer::run()
     //}
     auto realUpdateStartTime = HPClock::now();
 
-    bool continueRun = true;
 #if defined(_WIN32)
-    continueRun = WindowWin32::checkWindowMessages();
+    updateContinueRun = WindowWin32::checkWindowMessages();
 #elif defined (__linux__)
-    continueRun = WindowXcb::checkWindowMessages();
+    updateContinueRun = WindowXcb::checkWindowMessages();
 #endif
 
-    if (continueRun)
+    if (updateContinueRun)
     {
       try
       {
         startUpdateGraph.try_put(tbb::flow::continue_msg());
         updateGraph.wait_for_all();
       }
+      catch (const std::exception e)
+      {
+        LOG_ERROR << "Error from update thread : " << e.what() << std::endl;
+        updateContinueRun = false;
+      }
       catch (...)
       {
-        continueRun = false;
+        LOG_ERROR << "Unknown error from update thread" << std::endl;
+        updateContinueRun = false;
       }
     }
 
     auto realUpdateEndTime = HPClock::now();
     lastUpdateDuration = realUpdateEndTime - realUpdateStartTime;
-    if (!continueRun)
+    if (!renderContinueRun || !updateContinueRun)
       break;
   }
   renderThread.join();

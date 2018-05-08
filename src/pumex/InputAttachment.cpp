@@ -58,14 +58,14 @@ void InputAttachment::validate(const RenderContext& renderContext)
   auto keyValue = getKeyID(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, InputAttachmentData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, InputAttachmentData(renderContext, swForEachImage) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
 
   auto frameBuffer                   = renderContext.surface->getFrameBuffer();
   pddit->second.commonData.imageView = frameBuffer->getImageView(attachmentName);
-  frameBuffer->addInputAttachment(std::dynamic_pointer_cast<InputAttachment>(shared_from_this()));
+  pddit->second.commonData.imageView->addResource(shared_from_this());
   invalidateDescriptors();
 
   pddit->second.valid[activeIndex] = true;
@@ -86,7 +86,7 @@ DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& r
   auto keyValue = getKeyID(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, InputAttachmentData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, InputAttachmentData(renderContext, swForEachImage) }).first;
 
   VkSampler samp = (sampler != nullptr) ? sampler->getHandleSampler(renderContext) : VK_NULL_HANDLE;
   VkImageView iv = (pddit->second.commonData.imageView != nullptr) ? pddit->second.commonData.imageView->getImageView(renderContext) : VK_NULL_HANDLE;

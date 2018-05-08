@@ -29,7 +29,7 @@
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
 #include <pumex/RenderWorkflow.h>
-#include <pumex/Resource.h>
+#include <pumex/PerObjectData.h>
 #include <pumex/Image.h>
 
 namespace pumex
@@ -54,8 +54,6 @@ struct PUMEX_EXPORT FrameBufferImageDefinition
   gli::swizzles         swizzles;
 };
 
-class InputAttachment;
-
 class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
@@ -66,8 +64,8 @@ public:
   virtual ~FrameBuffer();
 
   void                              validate(const RenderContext& renderContext);
-  void                              invalidate(Surface* surface);
-  void                              prepareTextures(Surface* surface, std::vector<std::shared_ptr<Image>>& swapChainImages);
+  void                              invalidate(const RenderContext& renderContext);
+  void                              prepareTextures(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                              reset(Surface* surface);
 
   const FrameBufferImageDefinition& getSwapChainImageDefinition() const;
@@ -75,8 +73,6 @@ public:
   std::shared_ptr<Texture>          getTexture(uint32_t index) const;
   std::shared_ptr<ImageView>        getImageView(const std::string& name) const;
   VkFramebuffer                     getHandleFrameBuffer(const RenderContext& renderContext) const;
-
-  void                              addInputAttachment(std::shared_ptr<InputAttachment> inputAttachment);
 
 protected:
   struct FrameBufferInternal
@@ -97,10 +93,6 @@ protected:
   std::vector<std::shared_ptr<ImageView>>           imageViews;
   mutable std::mutex                                mutex;
   uint32_t                                          activeCount;
-
-  // framebuffer has a list of input attachments that need to be invalidated when framebuffer is recreated
-  std::vector<std::weak_ptr<InputAttachment>>       inputAttachments;
-  void                                              invalidateInputAttachments();
 };
 
 }

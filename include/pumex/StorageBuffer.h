@@ -138,7 +138,7 @@ void StorageBuffer<T>::set(Surface* surface, const std::vector<T>& data)
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find((void*)(surface->surface));
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ (void*)(surface->surface), StorageBufferData(surface->device.lock()->device, surface->surface, activeCount) }).first;
+    pddit = perObjectData.insert({ (void*)(surface->surface), StorageBufferData(surface->device.lock()->device, surface->surface, activeCount, swapChainImageBehaviour) }).first;
   if (!data.empty())
     pddit->second.commonData = data;
   else
@@ -195,7 +195,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, StorageBufferData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, StorageBufferData(renderContext,swapChainImageBehaviour) }).first;
   if(perObjectBehaviour == pbPerSurface && pddit->second.commonData.empty())
     pddit->second.commonData.push_back(T());
   uint32_t activeIndex = renderContext.activeIndex % activeCount;

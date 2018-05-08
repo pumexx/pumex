@@ -243,14 +243,14 @@ bool Surface::checkWorkflow()
 
 void Surface::beginFrame()
 {
+  resized = false;
   actions.performActions();
   auto deviceSh = device.lock();
 
-  bool newSwapChain = false;
   if (swapChain == VK_NULL_HANDLE)
   {
     createSwapChain();
-    newSwapChain = true;
+    resized = true;
   }
 
   VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
@@ -258,18 +258,21 @@ void Surface::beginFrame()
   {
     // recreate swapchain
     createSwapChain();
-    newSwapChain = true;
+    resized = true;
     // try to acquire images again - throw error for every reason other than VK_SUCCESS
     result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
   }
   VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
-  if (checkWorkflow() || newSwapChain)
-  {
-    workflowSequences->frameBuffer->prepareTextures(this, swapChainImages);
-    workflowSequences->frameBuffer->invalidate(this);
-  }
+
+  VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
+  VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 
   RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
+  if (checkWorkflow() || resized)
+  {
+    workflowSequences->frameBuffer->prepareTextures(renderContext, swapChainImages);
+    workflowSequences->frameBuffer->invalidate(renderContext);
+  }
 
   workflowSequences->frameBuffer->validate(renderContext);
 
@@ -277,9 +280,6 @@ void Surface::beginFrame()
   ValidateGPUVisitor validateVisitor(renderContext, false);
   for (auto& command : workflowSequences->commands[workflowSequences->presentationQueueIndex])
     command->validateGPUData(validateVisitor);
-
-  VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
-  VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 
   // at the beginning of render we must transform frame buffer images into appropriate image layouts
   prepareCommandBuffer->setActiveIndex(swapChainImageIndex);
@@ -359,7 +359,7 @@ void Surface::beginFrame()
 
 void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
 {
-  RenderContext renderContext(this, queueNumber);
+  RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
   ValidateGPUVisitor validateVisitor(renderContext, true);
   for (auto& command : workflowSequences->commands[queueNumber])
   {
@@ -421,8 +421,11 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
 {
   if (!isRealized())
     return;
-  if(swapChainSize.width != newWidth && swapChainSize.height != newHeight )
+  if (swapChainSize.width != newWidth && swapChainSize.height != newHeight)
+  {
     createSwapChain();
+    resized = true;
+  }
 }
 
 void Surface::setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler)

@@ -129,7 +129,7 @@ void UniformBuffer<T>::set(Surface* surface, const T& data)
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find((void*)(surface->surface));
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ (void*)(surface->surface), UniformBufferData(surface->device.lock()->device, surface->surface, activeCount) }).first;
+    pddit = perObjectData.insert({ (void*)(surface->surface), UniformBufferData(surface->device.lock()->device, surface->surface, activeCount, swapChainImageBehaviour) }).first;
   pddit->second.commonData = data;
   pddit->second.invalidate();
 }
@@ -178,7 +178,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, UniformBufferData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, UniformBufferData(renderContext, swapChainImageBehaviour) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;

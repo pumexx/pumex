@@ -74,7 +74,7 @@ void Sampler::validate(const RenderContext& renderContext)
   auto keyValue = getKey(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, SamplerData(renderContext) }).first;
+    pddit = perObjectData.insert({ keyValue, SamplerData(renderContext, swapChainImageBehaviour) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;

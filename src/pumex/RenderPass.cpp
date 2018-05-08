@@ -141,14 +141,17 @@ VkSubpassDependency SubpassDependencyDefinition::getDependency() const
 }
 
 RenderPass::RenderPass()
+  : activeCount{ 1 }
 {
 
 }
 
 RenderPass::~RenderPass()
 {
-  for (auto& pddit : perDeviceData)
-    vkDestroyRenderPass(pddit.first, pddit.second.renderPass, nullptr);
+  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perObjectData)
+    for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
+      vkDestroyRenderPass(pdd.second.device, pdd.second.data[i].renderPass, nullptr);
 }
 
 void RenderPass::initializeAttachments(const std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout)
@@ -230,16 +233,34 @@ void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass,
   }
 }
 
+void RenderPass::invalidate(const RenderContext& renderContext)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perObjectData.find(renderContext.vkDevice);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ renderContext.vkDevice, RenderPassData(renderContext, swForEachImage) }).first;
+  pddit->second.invalidate();
+}
+
+
 void RenderPass::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == end(perDeviceData))
-    pddit = perDeviceData.insert({ renderContext.vkDevice, PerDeviceData() }).first;
-  if (pddit->second.valid)
+  if (renderContext.imageCount > activeCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perObjectData)
+      pdd.second.resize(activeCount);
+  }
+
+  auto pddit = perObjectData.find(renderContext.vkDevice);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ renderContext.vkDevice, RenderPassData(renderContext, swForEachImage) }).first;
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (pddit->second.valid[activeIndex])
     return;
-  if (pddit->second.renderPass != VK_NULL_HANDLE)
-    vkDestroyRenderPass(pddit->first, pddit->second.renderPass, nullptr);
+  if (pddit->second.data[activeIndex].renderPass != VK_NULL_HANDLE)
+    vkDestroyRenderPass(pddit->first, pddit->second.data[activeIndex].renderPass, nullptr);
 
   std::vector<VkAttachmentDescription> attachmentDescriptions;
   for (const auto& ad : attachments)
@@ -261,18 +282,19 @@ void RenderPass::validate(const RenderContext& renderContext)
     renderPassCI.pSubpasses      = subpassDescriptions.data();
     renderPassCI.dependencyCount = dependencyDescriptors.size();
     renderPassCI.pDependencies   = dependencyDescriptors.data();
-  VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.renderPass), "Could not create default render pass" );
-  pddit->second.valid = true;
+  VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.data[activeIndex].renderPass), "Could not create default render pass" );
+  pddit->second.valid[activeIndex] = true;
 }
 
 VkRenderPass RenderPass::getHandle(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perDeviceData.find(renderContext.vkDevice);
-  if (pddit == end(perDeviceData))
+  auto pddit = perObjectData.find(renderContext.vkDevice);
+  if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
-  return pddit->second.renderPass;
+  return pddit->second.data[renderContext.activeIndex % activeCount].renderPass;
 }
+
 ResourceBarrier::ResourceBarrier(std::shared_ptr<Resource> r, VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, VkImageLayout ol, VkImageLayout nl)
   : resource{ r }, srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, oldLayout{ ol }, newLayout{ nl }
 {

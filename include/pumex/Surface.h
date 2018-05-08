@@ -121,6 +121,7 @@ protected:
   uint32_t                                      id                           = 0;
   VkSwapchainKHR                                swapChain                    = VK_NULL_HANDLE;
   bool                                          realized                     = false;
+  bool                                          resized                      = false;
 
   std::vector<VkFence>                          waitFences;
   std::shared_ptr<CommandBuffer>                prepareCommandBuffer;

@@ -28,6 +28,7 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
+#include <pumex/PerObjectData.h>
 #include <pumex/Command.h>
 
 namespace pumex
@@ -117,6 +118,7 @@ public:
   void addSubPass(std::shared_ptr<RenderSubPass> renderSubPass);
   void updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
 
+  void         invalidate(const RenderContext& renderContext);
   void         validate(const RenderContext& renderContext);
   VkRenderPass getHandle(const RenderContext& renderContext) const;
 
@@ -127,14 +129,18 @@ public:
   std::vector<SubpassDependencyDefinition>  dependencies;
 
 protected:
-  struct PerDeviceData
+  struct RenderPassInternal
   {
-    VkRenderPass renderPass = VK_NULL_HANDLE;
-    bool         valid      = false;
+    RenderPassInternal()
+      : renderPass{ VK_NULL_HANDLE }
+    {}
+    VkRenderPass renderPass;
   };
+  typedef PerObjectData<RenderPassInternal, uint32_t> RenderPassData;
 
-  mutable std::mutex                          mutex;
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  mutable std::mutex                           mutex;
+  std::unordered_map<VkDevice, RenderPassData> perObjectData;
+  uint32_t                                     activeCount;
 };
 
 class PUMEX_EXPORT ResourceBarrier

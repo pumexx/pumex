@@ -26,7 +26,7 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
-#include <pumex/RenderContext.h>
+#include <pumex/PerObjectData.h>
 
 namespace pumex
 {
@@ -48,29 +48,6 @@ struct PUMEX_EXPORT DescriptorSetValue
     VkDescriptorImageInfo  imageInfo;
   };
 };
-
-enum SwapChainImageBehaviour { swOnce, swForEachImage };
-enum PerObjectBehaviour { pbPerDevice, pbPerSurface };
-
-template<typename T, typename U>
-struct PerObjectData
-{
-  PerObjectData(const RenderContext& context);
-  PerObjectData(VkDevice device, VkSurfaceKHR surface, uint32_t activeCount);
-  void resize(uint32_t ac);
-  void invalidate();
-  bool allValidExceptFor(uint32_t index);
-
-  VkDevice          device;
-  VkSurfaceKHR      surface;
-  std::vector<bool> valid;
-  std::vector<T>    data;
-  U                 commonData;
-};
-
-inline void* getKey(const RenderContext& context, const PerObjectBehaviour& pob);
-uint32_t getKeyID(const RenderContext& context, const PerObjectBehaviour& pob);
-
 
 class PUMEX_EXPORT Resource : public std::enable_shared_from_this<Resource>
 {
@@ -94,55 +71,5 @@ protected:
   SwapChainImageBehaviour                swapChainImageBehaviour;
   uint32_t                               activeCount;
 };
-
-template<typename T, typename U>
-PerObjectData<T,U>::PerObjectData(const RenderContext& context)
-  : device{ context.vkDevice }, surface{ context.vkSurface }, commonData()
-{
-  resize(context.imageCount);
-}
-
-template<typename T, typename U>
-PerObjectData<T,U>::PerObjectData(VkDevice d, VkSurfaceKHR s, uint32_t ac)
-  : device{ d }, surface{ s }, commonData()
-{
-  resize(ac);
-}
-
-template<typename T, typename U>
-void PerObjectData<T,U>::resize(uint32_t ac)
-{
-  valid.resize(ac, false);
-  data.resize(ac, T());
-}
-
-template<typename T, typename U>
-void PerObjectData<T,U>::invalidate()
-{
-  std::fill(begin(valid), end(valid), false);
-}
-
-template<typename T, typename U>
-bool PerObjectData<T, U>::allValidExceptFor(uint32_t index)
-{
-  for (uint32_t i = 0; i < valid.size(); ++i)
-  {
-    if (i == index)
-      continue;
-    if (!valid[i])
-      return false;
-  }
-  return true;
-}
-
-void* getKey(const RenderContext& context, const PerObjectBehaviour& pob)
-{
-  switch (pob)
-  {
-  case pbPerDevice:  return (void*)context.vkDevice;
-  case pbPerSurface: return (void*)context.vkSurface;
-  }
-  return nullptr;
-}
 
 }

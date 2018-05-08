@@ -205,12 +205,12 @@ void AssetBuffer::validate(const RenderContext& renderContext)
       rmData.lodBuffer->set(assetLods);
       rmData.geomBuffer->set(assetGeometries);
     }
-    for (auto& prm : perRenderMaskData)
-    {
-      prm.second.vertexBuffer->validate(renderContext);
-      prm.second.indexBuffer->validate(renderContext);
-    }
     valid = true;
+  }
+  for (auto& prm : perRenderMaskData)
+  {
+    prm.second.vertexBuffer->validate(renderContext);
+    prm.second.indexBuffer->validate(renderContext);
   }
 }
 

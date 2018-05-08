@@ -30,7 +30,6 @@ StorageImage::StorageImage(std::shared_ptr<ImageView> iv)
   : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }
 {
   CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0, "StorageImage resource connected to a texture that does not have VK_IMAGE_USAGE_STORAGE_BIT");
-  imageView->addResource(shared_from_this());
 }
 
 StorageImage::~StorageImage()
@@ -44,6 +43,11 @@ std::pair<bool, VkDescriptorType> StorageImage::getDefaultDescriptorType()
 
 void StorageImage::validate(const RenderContext& renderContext)
 {
+  if (!registered)
+  {
+    imageView->addResource(shared_from_this());
+    registered = true;
+  }
   imageView->validate(renderContext);
 }
 

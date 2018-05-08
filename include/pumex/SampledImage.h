@@ -44,6 +44,8 @@ public:
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
   std::shared_ptr<ImageView> imageView;
+protected:
+  bool                       registered = false;
 };
 	
 }

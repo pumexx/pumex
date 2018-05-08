@@ -51,19 +51,6 @@ DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView,
   imageInfo.imageLayout = imageLayout;
 }
 
-namespace pumex 
-{
-uint32_t getKeyID(const RenderContext& context, const PerObjectBehaviour& pob)
-{
-  switch (pob)
-  {
-  case pbPerDevice:  return context.device->getID();
-  case pbPerSurface: return context.surface->getID();
-  }
-  return 0;
-}
-}
-
 Resource::Resource(PerObjectBehaviour pob, SwapChainImageBehaviour scib)
   : perObjectBehaviour{ pob }, swapChainImageBehaviour { scib }, activeCount{ 1 }
 {

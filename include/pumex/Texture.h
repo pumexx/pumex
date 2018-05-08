@@ -27,12 +27,13 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
-#include <pumex/Resource.h>
+#include <pumex/PerObjectData.h>
 #include <pumex/Image.h>
 
 namespace pumex
 {
 
+class Resource;
 class RenderContext;
 class CommandBuffer;
 class ImageView;
@@ -104,7 +105,7 @@ public:
   // struct that defines all operations that may be performed on that Texture ( set new image traits, clear it, set new data )
   struct Operation
   {
-    enum Type { SetImageTraits, ClearImage, SetImage };
+    enum Type { SetImageTraits, SetImage, InvalidateImageViews, ClearImage };
     Operation(Texture* o, Type t, const ImageSubresourceRange& r, uint32_t ac)
       : owner{ o }, type{ t }, imageRange{ r }
     {
@@ -192,6 +193,7 @@ protected:
   std::vector<std::weak_ptr<Resource>>        resources;
   std::unordered_map<uint32_t, ImageViewData> perObjectData;
   uint32_t                                    activeCount;
+  bool                                        registered = false;
 
   void invalidateResources(const RenderContext& renderContext);
 
