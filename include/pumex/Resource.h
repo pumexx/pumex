@@ -55,21 +55,19 @@ public:
   Resource(PerObjectBehaviour perObjectBehaviour, SwapChainImageBehaviour swapChainImageBehaviour);
   virtual ~Resource();
 
-  void addDescriptor(std::shared_ptr<Descriptor> descriptor);
-  void removeDescriptor(std::shared_ptr<Descriptor> descriptor);
-  void invalidateDescriptors();
-  void invalidateCommandBuffers();
+  void                                     addDescriptor(std::shared_ptr<Descriptor> descriptor);
+  void                                     removeDescriptor(std::shared_ptr<Descriptor> descriptor);
+  virtual void                             notifyDescriptors(const RenderContext& renderContext);
 
   virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
-  virtual void validate(const RenderContext& context) = 0;
-  virtual void invalidate() = 0;
-  virtual DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) = 0;
+  virtual void                             validate(const RenderContext& renderContext) = 0;
+  virtual DescriptorSetValue               getDescriptorSetValue(const RenderContext& renderContext) = 0;
 protected:
-  mutable std::mutex                     mutex;
-  std::vector<std::weak_ptr<Descriptor>> descriptors;
-  PerObjectBehaviour                     perObjectBehaviour;
-  SwapChainImageBehaviour                swapChainImageBehaviour;
-  uint32_t                               activeCount;
+  mutable std::mutex                       mutex;
+  std::vector<std::weak_ptr<Descriptor>>   descriptors;
+  PerObjectBehaviour                       perObjectBehaviour;
+  SwapChainImageBehaviour                  swapChainImageBehaviour;
+  uint32_t                                 activeCount;
 };
 
 }

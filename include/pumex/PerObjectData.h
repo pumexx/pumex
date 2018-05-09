@@ -34,7 +34,7 @@ enum SwapChainImageBehaviour { swOnce, swForEachImage };
 template<typename T, typename U>
 struct PerObjectData
 {
-  PerObjectData(const RenderContext& context, SwapChainImageBehaviour scib);
+  PerObjectData(const RenderContext& renderContext, SwapChainImageBehaviour scib);
   PerObjectData(VkDevice device, VkSurfaceKHR surface, uint32_t activeCount, SwapChainImageBehaviour scib);
   void resize(uint32_t ac);
   void invalidate();
@@ -48,14 +48,14 @@ struct PerObjectData
   SwapChainImageBehaviour swapChainImageBehaviour;
 };
 
-inline void* getKey(const RenderContext& context, const PerObjectBehaviour& pob);
-uint32_t getKeyID(const RenderContext& context, const PerObjectBehaviour& pob);
+inline void* getKey(const RenderContext& renderContext, const PerObjectBehaviour& pob);
+uint32_t getKeyID(const RenderContext& renderContext, const PerObjectBehaviour& pob);
 
 template<typename T, typename U>
-PerObjectData<T,U>::PerObjectData(const RenderContext& context, SwapChainImageBehaviour scib)
-  : device{ context.vkDevice }, surface{ context.vkSurface }, commonData(), swapChainImageBehaviour{ scib }
+PerObjectData<T,U>::PerObjectData(const RenderContext& renderContext, SwapChainImageBehaviour scib)
+  : device{ renderContext.vkDevice }, surface{ renderContext.vkSurface }, commonData(), swapChainImageBehaviour{ scib }
 {
-  resize( context.imageCount );
+  resize(renderContext.imageCount );
 }
 
 template<typename T, typename U>
@@ -92,12 +92,12 @@ bool PerObjectData<T, U>::allValidExceptFor(uint32_t index)
   return true;
 }
 
-void* getKey(const RenderContext& context, const PerObjectBehaviour& pob)
+void* getKey(const RenderContext& renderContext, const PerObjectBehaviour& pob)
 {
   switch (pob)
   {
-  case pbPerDevice:  return (void*)context.vkDevice;
-  case pbPerSurface: return (void*)context.vkSurface;
+  case pbPerDevice:  return (void*)renderContext.vkDevice;
+  case pbPerSurface: return (void*)renderContext.vkSurface;
   }
   return nullptr;
 }

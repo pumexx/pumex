@@ -47,17 +47,13 @@ void CombinedImageSampler::validate(const RenderContext& renderContext)
   if (!registered)
   {
     imageView->addResource(shared_from_this());
+    if(sampler!=nullptr)
+      sampler->addOwner(shared_from_this());
     registered = true;
   }
   imageView->validate(renderContext);
-  sampler->validate(renderContext);
-}
-
-void CombinedImageSampler::invalidate()
-{
-  sampler->invalidate();
-  // FIXME - move this to more appropriate place ( validate() )
-  invalidateDescriptors();
+  if (sampler != nullptr)
+    sampler->validate(renderContext);
 }
 
 DescriptorSetValue CombinedImageSampler::getDescriptorSetValue(const RenderContext& renderContext)

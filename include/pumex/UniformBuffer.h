@@ -58,7 +58,6 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
   VkBuffer                          getHandleBuffer(const RenderContext& renderContext);
@@ -119,7 +118,8 @@ void UniformBuffer<T>::set(const T& data)
     for (auto& pdd : perObjectData)
       pdd.second.commonData = data;
   }
-  invalidate();
+  for (auto& pdd : perObjectData)
+    pdd.second.invalidate();
 }
 
 template <typename T>
@@ -196,7 +196,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
     pddit->second.data[activeIndex].memoryBlock = allocator->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(pddit->second.data[activeIndex].memoryBlock.alignedSize == 0, "Cannot create UBO");
     allocator->bindBufferMemory(renderContext.device, pddit->second.data[activeIndex].uboBuffer, pddit->second.data[activeIndex].memoryBlock.alignedOffset);
-    invalidateCommandBuffers();
+    notifyDescriptors(renderContext);
   }
   if (memoryIsLocal)
   {
@@ -219,15 +219,7 @@ void UniformBuffer<T>::validate(const RenderContext& renderContext)
     else
       allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, &pddit->second.commonData, sizeof(T), 0);
   }
-  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
-}
-
-template <typename T>
-void UniformBuffer<T>::invalidate()
-{
-  for (auto& pdd : perObjectData)
-    pdd.second.invalidate();
 }
 
 template <typename T>

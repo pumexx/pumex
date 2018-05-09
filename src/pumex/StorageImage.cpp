@@ -51,12 +51,6 @@ void StorageImage::validate(const RenderContext& renderContext)
   imageView->validate(renderContext);
 }
 
-void StorageImage::invalidate()
-{
-  // FIXME - move this to more appropriate place ( validate() )
-  invalidateDescriptors();
-}
-
 DescriptorSetValue StorageImage::getDescriptorSetValue(const RenderContext& renderContext)
 {
   return DescriptorSetValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);

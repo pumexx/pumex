@@ -39,7 +39,6 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
 protected:
@@ -55,6 +54,7 @@ protected:
   std::unordered_map<uint32_t, InputAttachmentData> perObjectData;
   std::string                                       attachmentName;
   std::shared_ptr<Sampler>                          sampler;
+  bool                                              registered = false;
 };
 
 

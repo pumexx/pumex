@@ -82,6 +82,7 @@ void AssetNode::validate(const RenderContext& renderContext)
 void AssetNode::internalInvalidate()
 {
   geometryValid = false;
+  invalidate();
 }
 
 void AssetNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const

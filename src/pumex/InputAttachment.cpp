@@ -44,6 +44,12 @@ std::pair<bool, VkDescriptorType> InputAttachment::getDefaultDescriptorType()
 
 void InputAttachment::validate(const RenderContext& renderContext)
 {
+  if (!registered)
+  {
+    if (sampler != nullptr)
+      sampler->addOwner(shared_from_this());
+    registered = true;
+  }
   if (sampler != nullptr)
     sampler->validate(renderContext);
 
@@ -66,18 +72,9 @@ void InputAttachment::validate(const RenderContext& renderContext)
   auto frameBuffer                   = renderContext.surface->getFrameBuffer();
   pddit->second.commonData.imageView = frameBuffer->getImageView(attachmentName);
   pddit->second.commonData.imageView->addResource(shared_from_this());
-  invalidateDescriptors();
+  notifyDescriptors(renderContext);
 
   pddit->second.valid[activeIndex] = true;
-}
-
-void InputAttachment::invalidate()
-{
-  if (sampler != nullptr)
-    sampler->invalidate();
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perObjectData)
-    pdd.second.invalidate();
 }
 
 DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& renderContext)

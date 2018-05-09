@@ -70,12 +70,14 @@ public:
   Sampler& operator=(const Sampler&) = delete;
   virtual ~Sampler();
 
+  void                              addOwner(std::shared_ptr<Resource> resource);
+
   VkSampler                         getHandleSampler(const RenderContext& renderContext) const;
   inline const SamplerTraits&       getSamplerTraits() const;
 
+  void                              notifyDescriptors(const RenderContext& renderContext) override;
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
 
@@ -89,10 +91,13 @@ protected:
   };
   typedef PerObjectData<SamplerInternal, uint32_t> SamplerData;
 
-  std::unordered_map<void*, SamplerData> perObjectData;
-  SamplerTraits                          samplerTraits;
+  std::unordered_map<uint32_t, SamplerData> perObjectData;
+  SamplerTraits                             samplerTraits;
+  // some resources ( InputAttachment, CombinedImageSampler ) use Sampler internally, so it cannot inform descriptors about changes itself - it must inform owners
+  std::vector<std::weak_ptr<Resource>>      owners;
+
 };
 
-const SamplerTraits& Sampler::getSamplerTraits() const { return samplerTraits; }
+const SamplerTraits& Sampler::getSamplerTraits() const                     { return samplerTraits; }
 
 }

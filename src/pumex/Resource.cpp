@@ -73,16 +73,10 @@ void Resource::removeDescriptor(std::shared_ptr<Descriptor> descriptor)
     descriptors.erase(it);
 }
 
-void Resource::invalidateDescriptors()
+void Resource::notifyDescriptors(const RenderContext& renderContext)
 {
   for (auto& ds : descriptors)
-    ds.lock()->invalidate();
-}
-
-void Resource::invalidateCommandBuffers()
-{
-  for (auto& ds : descriptors)
-    ds.lock()->invalidateCommandBuffers();
+    ds.lock()->notifyDescriptorSet(renderContext);
 }
 
 std::pair<bool, VkDescriptorType> Resource::getDefaultDescriptorType()

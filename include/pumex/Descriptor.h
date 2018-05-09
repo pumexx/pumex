@@ -110,8 +110,7 @@ public:
   void unregisterFromResources();
 
   void validate(const RenderContext& renderContext);
-  void invalidate();
-  void invalidateCommandBuffers();
+  void notifyDescriptorSet(const RenderContext& renderContext);
   void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const;
 
   std::weak_ptr<DescriptorSet>           owner;
@@ -131,6 +130,7 @@ public:
 
   void            validate(const RenderContext& renderContext);
   void            invalidate();
+  void            invalidate(const RenderContext& renderContext);
 
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources);

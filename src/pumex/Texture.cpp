@@ -68,7 +68,7 @@ struct SetImageTraitsOperation : public Texture::Operation
   {
     internals.image = nullptr; // release image before creating a new one
     internals.image = std::make_shared<Image>(renderContext.device, imageTraits, owner->getAllocator());
-    owner->invalidateImageViews(renderContext, imageRange);
+    owner->notifyImageViews(renderContext, imageRange);
     // no operations sent to command buffer
     return false;
   }
@@ -183,14 +183,14 @@ struct SetImageOperation : public Texture::Operation
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
 };
 
-struct InvalidateImageViewsOperation : public Texture::Operation
+struct NotifyImageViewsOperation : public Texture::Operation
 {
-  InvalidateImageViewsOperation(Texture* o, const ImageSubresourceRange& r, uint32_t ac)
-    : Texture::Operation(o, Texture::Operation::InvalidateImageViews, r, ac)
+  NotifyImageViewsOperation(Texture* o, const ImageSubresourceRange& r, uint32_t ac)
+    : Texture::Operation(o, Texture::Operation::NotifyImageViews, r, ac)
   {}
   bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
-    owner->invalidateImageViews(renderContext, imageRange);
+    owner->notifyImageViews(renderContext, imageRange);
     // no operations sent to command buffer
     return false;
   }
@@ -317,8 +317,8 @@ void Texture::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
   CHECK_LOG_THROW(tex->base_level() != texture->base_level(), "Cannot set image layer when there are different base mip levels");
   CHECK_LOG_THROW(tex->levels() != texture->levels(), "Cannot set image layer when there is different count of mip levels");
   gli::texture::extent_type extent = tex->extent();
-  gli::texture::extent_type myExtent = tex->extent();
-  CHECK_LOG_THROW((extent.x != myExtent.x) || (extent.y != myExtent.y) || (extent.z != myExtent.x), "Texture has wrong size : ( " << extent.x << " x " << extent.y << " x " << extent.z << " ) should be ( " << myExtent.x << " x " << myExtent.y << " x " << myExtent.z << " )");
+  gli::texture::extent_type myExtent = texture->extent();
+  CHECK_LOG_THROW((extent.x != myExtent.x) || (extent.y != myExtent.y) , "Texture has wrong size : ( " << extent.x << " x " << extent.y << " ) should be ( " << myExtent.x << " x " << myExtent.y << " )");
 
   // place the data in a texture, so that texture on CPU side is in sync with texture on GPU side
   std::lock_guard<std::mutex> lock(mutex);
@@ -429,7 +429,7 @@ void Texture::validate(const RenderContext& renderContext)
   if (pddit->second.data[activeIndex].image == nullptr && sameTraitsPerObject)
   {
     pddit->second.data[activeIndex].image = std::make_shared<Image>(renderContext.device, imageTraits, allocator);
-    invalidateImageViews(renderContext, ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers));
+    notifyImageViews(renderContext, ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers));
     // if there's a texture - it must be sent now
     if (texture != nullptr)
       internalSetImage(keyValue, renderContext.vkDevice, renderContext.vkSurface, texture);
@@ -458,13 +458,6 @@ void Texture::validate(const RenderContext& renderContext)
   pddit->second.valid[activeIndex] = true;
 }
 
-void Texture::invalidate()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perObjectData)
-    pdd.second.invalidate();
-}
-
 ImageSubresourceRange Texture::getFullImageRange()
 {
   return ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers);
@@ -476,12 +469,12 @@ void Texture::addImageView(std::shared_ptr<ImageView> imageView)
     imageViews.push_back(imageView);
 }
 
-void Texture::invalidateImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range)
+void Texture::notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range)
 {
   auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> ia) { return ia.expired();  });
   for (auto it = begin(imageViews); it != eit; ++it)
     if( range.contains(it->lock()->subresourceRange) )
-      it->lock()->invalidateView(renderContext);
+      it->lock()->notifyImageView(renderContext);
   imageViews.erase(eit, end(imageViews));
 }
 
@@ -549,7 +542,7 @@ void Texture::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surf
   }
   pddit->second.commonData.imageOperations.clear();
   ImageSubresourceRange range(aspectMask, 0, images[0]->getImageTraits().mipLevels, 0, images[0]->getImageTraits().arrayLayers);
-  pddit->second.commonData.imageOperations.push_back(std::make_shared<InvalidateImageViewsOperation>(this, range, activeCount));
+  pddit->second.commonData.imageOperations.push_back(std::make_shared<NotifyImageViewsOperation>(this, range, activeCount));
   pddit->second.invalidate();
 }
 
@@ -641,11 +634,11 @@ void ImageView::validate(const RenderContext& renderContext)
     imageViewCI.subresourceRange = subresourceRange.getSubresource();
   VK_CHECK_LOG_THROW(vkCreateImageView(pddit->second.device, &imageViewCI, nullptr, &pddit->second.data[activeIndex].imageView), "failed vkCreateImageView");
   
-  invalidateResources(renderContext);
+  notifyResources(renderContext);
   pddit->second.valid[activeIndex] = true;
 }
 
-void ImageView::invalidateView(const RenderContext& renderContext)
+void ImageView::notifyImageView(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
@@ -661,10 +654,10 @@ void ImageView::addResource(std::shared_ptr<Resource> resource)
     resources.push_back(resource);
 }
 
-void ImageView::invalidateResources(const RenderContext& renderContext)
+void ImageView::notifyResources(const RenderContext& renderContext)
 {
   auto eit = std::remove_if(begin(resources), end(resources), [](std::weak_ptr<Resource> r) { return r.expired();  });
   for (auto it = begin(resources); it != eit; ++it)
-    it->lock()->invalidate();
+    it->lock()->notifyDescriptors(renderContext);
   resources.erase(eit, end(resources));
 }

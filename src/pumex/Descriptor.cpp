@@ -179,14 +179,9 @@ void Descriptor::validate(const RenderContext& renderContext)
     res->validate(renderContext);
 }
 
-void Descriptor::invalidate()
+void Descriptor::notifyDescriptorSet(const RenderContext& renderContext)
 {
-  owner.lock()->invalidate();
-}
-
-void Descriptor::invalidateCommandBuffers()
-{
-  owner.lock()->notifyCommandBuffers();
+  owner.lock()->invalidate(renderContext);
 }
 
 void Descriptor::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
@@ -307,8 +302,18 @@ VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) con
 
 void DescriptorSet::invalidate()
 {
-  for (auto& pdd : perSurfaceData)
+  for(auto& pdd : perSurfaceData)
     std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
+  for (auto& n : nodeOwners)
+    n.lock()->invalidate();
+}
+
+void DescriptorSet::invalidate(const RenderContext& renderContext)
+{
+  auto pddit = perSurfaceData.find(renderContext.vkSurface);
+  if (pddit == end(perSurfaceData))
+    pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
+  std::fill(begin(pddit->second.valid), end(pddit->second.valid), false);
   for (auto& n : nodeOwners)
     n.lock()->invalidate();
 }

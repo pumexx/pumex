@@ -40,7 +40,6 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
   std::shared_ptr<ImageView> imageView;

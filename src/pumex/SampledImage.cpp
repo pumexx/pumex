@@ -51,12 +51,6 @@ void SampledImage::validate(const RenderContext& renderContext)
   imageView->validate(renderContext);
 }
 
-void SampledImage::invalidate()
-{
-  // FIXME - move this to more appropriate place ( validate() )
-  invalidateDescriptors();
-}
-
 DescriptorSetValue SampledImage::getDescriptorSetValue(const RenderContext& renderContext)
 {
   return DescriptorSetValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);

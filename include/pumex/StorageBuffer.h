@@ -57,7 +57,6 @@ public:
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
-  void                              invalidate() override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
   VkBuffer                          getHandleBuffer(const RenderContext& renderContext);
@@ -128,7 +127,8 @@ void StorageBuffer<T>::set(const std::vector<T>& data)
       }
     }
   }
-  invalidate();
+  for (auto& pdd : perObjectData)
+    pdd.second.invalidate();
 }
 
 template <typename T>
@@ -226,7 +226,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
     CHECK_LOG_THROW(pddit->second.data[activeIndex].memoryBlock.alignedSize == 0, "Cannot create SBO");
     allocator->bindBufferMemory(renderContext.device, pddit->second.data[activeIndex].storageBuffer, pddit->second.data[activeIndex].memoryBlock.alignedOffset);
 
-    invalidateCommandBuffers();
+    notifyDescriptors(renderContext);
   }
   if (sData.size() > 0)
   {
@@ -245,15 +245,7 @@ void StorageBuffer<T>::validate(const RenderContext& renderContext)
       allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, sData.data(), sizeof(T)*sData.size(), 0);
     }
   }
-  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
-}
-
-template <typename T>
-void StorageBuffer<T>::invalidate()
-{
-  for (auto& pdd : perObjectData)
-    pdd.second.invalidate();
 }
 
 template <typename T>

@@ -48,10 +48,29 @@ Sampler::~Sampler()
         vkDestroySampler(pdd.second.device, pdd.second.data[i].sampler, nullptr);
 }
 
+void Sampler::addOwner(std::shared_ptr<Resource> resource) 
+{ 
+  if (std::find_if(begin(owners), end(owners), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(owners))
+    owners.push_back(resource);
+}
+
+
+void Sampler::notifyDescriptors(const RenderContext& renderContext)
+{
+  // inform all owners about crucial sampler changes
+  auto eit = std::remove_if(begin(owners), end(owners), [](std::weak_ptr<Resource> r) { return r.expired();  });
+  for (auto it = begin(owners); it != eit; ++it)
+    it->lock()->notifyDescriptors(renderContext);
+  owners.erase(eit, end(owners));
+  // notify sampler's own descriptors
+  Resource::notifyDescriptors(renderContext);
+}
+
 VkSampler Sampler::getHandleSampler(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perObjectData.find(getKey(renderContext,perObjectBehaviour));
+  auto keyValue = getKeyID(renderContext, perObjectBehaviour);
+  auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
   return pddit->second.data[renderContext.activeIndex % activeCount].sampler;
@@ -71,7 +90,7 @@ void Sampler::validate(const RenderContext& renderContext)
     for (auto& pdd : perObjectData)
       pdd.second.resize(activeCount);
   }
-  auto keyValue = getKey(renderContext, perObjectBehaviour);
+  auto keyValue = getKeyID(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ keyValue, SamplerData(renderContext, swapChainImageBehaviour) }).first;
@@ -106,22 +125,15 @@ void Sampler::validate(const RenderContext& renderContext)
     sampler.unnormalizedCoordinates = samplerTraits.unnormalizedCoordinates;
   VK_CHECK_LOG_THROW(vkCreateSampler(pddit->second.device, &sampler, nullptr, &pddit->second.data[activeIndex].sampler), "Cannot create sampler");
 
-  invalidateDescriptors();
+  notifyDescriptors(renderContext);
   pddit->second.valid[activeIndex] = true;
-}
-
-void Sampler::invalidate()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perObjectData)
-    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
 }
 
 DescriptorSetValue Sampler::getDescriptorSetValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perObjectData.find(getKey(renderContext,perObjectBehaviour));
-  CHECK_LOG_THROW(pddit == end(perObjectData), "Texture::getDescriptorSetValue() : texture was not validated");
+  auto pddit = perObjectData.find(getKeyID(renderContext,perObjectBehaviour));
+  CHECK_LOG_THROW(pddit == end(perObjectData), "Sampler::getDescriptorSetValue() : sampler  was not validated");
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   return DescriptorSetValue(pddit->second.data[activeIndex].sampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }

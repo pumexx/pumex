@@ -26,12 +26,12 @@
 
 namespace pumex 
 {
-uint32_t getKeyID(const RenderContext& context, const PerObjectBehaviour& pob)
+uint32_t getKeyID(const RenderContext& renderContext, const PerObjectBehaviour& pob)
 {
   switch (pob)
   {
-  case pbPerDevice:  return context.device->getID();
-  case pbPerSurface: return context.surface->getID();
+  case pbPerDevice:  return renderContext.device->getID();
+  case pbPerSurface: return renderContext.surface->getID();
   }
   return 0;
 }

@@ -192,7 +192,8 @@ void Text::validate(const RenderContext& renderContext)
 
 void Text::internalInvalidate() 
 { 
-  vertexBuffer->invalidate(); invalidate(); 
+  vertexBuffer->invalidate(); 
+  invalidate(); 
 }
 
 void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const

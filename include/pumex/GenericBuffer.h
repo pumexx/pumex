@@ -56,7 +56,7 @@ public:
   inline std::shared_ptr<T> get(Surface* surface) const;
 
   void               validate(const RenderContext& renderContext) override;
-  void               invalidate() override;
+  void               invalidate();
   DescriptorSetValue getDescriptorSetValue(const RenderContext& renderContext) override;
 
   VkBuffer           getHandleBuffer(const RenderContext& renderContext);
@@ -123,7 +123,6 @@ void GenericBuffer<T>::set(Surface* surface, std::shared_ptr<T> d)
     pddit = perObjectData.insert({ (void*)(surface->surface), GenericBufferData(surface->device.lock()->device, surface->surface, activeCount, swapChainImageBehaviour) }).first;
   pddit->second.commonData = d;
   pddit->second.invalidate();
-  invalidateDescriptors();
 }
 
 template <typename T>
@@ -193,7 +192,7 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
     CHECK_LOG_THROW(pddit->second.data[activeIndex].memoryBlock.alignedSize == 0, "Cannot create a buffer " << usage);
     allocator->bindBufferMemory(renderContext.device, pddit->second.data[activeIndex].buffer, pddit->second.data[activeIndex].memoryBlock.alignedOffset);
 
-    invalidateCommandBuffers();
+    notifyDescriptors(renderContext);
   }
   if ( uglyGetSize(*sData) > 0)
   {
@@ -212,7 +211,6 @@ void GenericBuffer<T>::validate(const RenderContext& renderContext)
       allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, uglyGetPointer(*sData), uglyGetSize(*sData), 0);
     }
   }
-  invalidateDescriptors();
   pddit->second.valid[activeIndex] = true;
 }
 

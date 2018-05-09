@@ -91,12 +91,11 @@ public:
   inline std::shared_ptr<gli::texture>          getTexture() const;
 
   void                                          validate(const RenderContext& renderContext);
-  void                                          invalidate();
 
   ImageSubresourceRange                         getFullImageRange();
 
   void                                          addImageView( std::shared_ptr<ImageView> imageView );
-  void                                          invalidateImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range);
+  void                                          notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range);
 
   struct TextureInternal
   {
@@ -105,7 +104,7 @@ public:
   // struct that defines all operations that may be performed on that Texture ( set new image traits, clear it, set new data )
   struct Operation
   {
-    enum Type { SetImageTraits, SetImage, InvalidateImageViews, ClearImage };
+    enum Type { SetImageTraits, SetImage, NotifyImageViews, ClearImage };
     Operation(Texture* o, Type t, const ImageSubresourceRange& r, uint32_t ac)
       : owner{ o }, type{ t }, imageRange{ r }
     {
@@ -171,7 +170,7 @@ public:
   VkImageView  getImageView(const RenderContext& renderContext) const;
 
   void         validate(const RenderContext& renderContext);
-  void         invalidateView(const RenderContext& renderContext);
+  void         notifyImageView(const RenderContext& renderContext);
 
   void         addResource(std::shared_ptr<Resource> resource);
 
@@ -195,7 +194,7 @@ protected:
   uint32_t                                    activeCount;
   bool                                        registered = false;
 
-  void invalidateResources(const RenderContext& renderContext);
+  void notifyResources(const RenderContext& renderContext);
 
 };
 
