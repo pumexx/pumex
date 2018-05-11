@@ -26,7 +26,6 @@
 #include <pumex/Texture.h>
 #include <pumex/Command.h>
 #include <pumex/Viewer.h>
-#include <pumex/StorageBuffer.h>
 #include <pumex/CombinedImageSampler.h>
 
 using namespace pumex;
@@ -42,8 +41,8 @@ MaterialRegistryBase::~MaterialRegistryBase()
 MaterialSet::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<MaterialRegistryBase> mr, std::shared_ptr<TextureRegistryBase> tr, std::shared_ptr<DeviceMemoryAllocator> a, const std::vector<TextureSemantic>& ts)
   : viewer{ v }, materialRegistry{ mr }, textureRegistry { tr }, allocator{ a }, semantics(ts)
 {
-  typeDefinitionSbo = std::make_shared<StorageBuffer<MaterialTypeDefinition>>(a);
-  materialVariantSbo = std::make_shared<StorageBuffer<MaterialVariantDefinition>>(a);
+  typeDefinitionBuffer = std::make_shared<Buffer<std::vector<MaterialTypeDefinition>>>(std::make_shared<std::vector<MaterialTypeDefinition>>(), a, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
+  materialVariantBuffer = std::make_shared<Buffer<std::vector<MaterialVariantDefinition>>>(std::make_shared<std::vector<MaterialVariantDefinition>>(), a, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
 
   for (const auto& s : semantics)
     textureNames[s.index] = std::vector<std::string>();
@@ -169,8 +168,8 @@ void MaterialSet::refreshMaterialStructures()
     }
   }
 
-  typeDefinitionSbo->set(typeDefinitions);
-  materialVariantSbo->set(variantDefinitions);
+  typeDefinitionBuffer->setData(typeDefinitions);
+  materialVariantBuffer->setData(variantDefinitions);
   textureRegistry->refreshStructures();
 }
 

@@ -43,7 +43,7 @@ struct PUMEX_EXPORT ImageSubresourceRange
   ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
 
   VkImageSubresourceRange getSubresource();
-  bool contains(const ImageSubresourceRange& range) const;
+  bool contains(const ImageSubresourceRange& subRange) const;
 
   VkImageAspectFlags    aspectMask;
   uint32_t              baseMipLevel;

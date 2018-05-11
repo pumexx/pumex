@@ -92,17 +92,14 @@ struct VoxelizerApplicationData
     : asset{ a }
   {
     // build uniform buffers for camera
-    cameraUbo         = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    voxelizeCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    positionUbo       = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
-    voxelPositionUbo  = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
-
+    cameraBuffer         = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    voxelizeCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    positionData         = std::make_shared<PositionData>();
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
-    PositionData modelData;
-    std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
-    positionUbo->set(modelData);
-    PositionData vbData;
-    voxelPositionUbo->set(vbData);
+    std::copy(begin(globalTransforms), end(globalTransforms), std::begin(positionData->bones));
+    positionBuffer       = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
+    voxelPositionData    = std::make_shared<PositionData>();
+    voxelPositionBuffer  = std::make_shared<pumex::Buffer<PositionData>>(voxelPositionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
     // build 3D texture
     pumex::ImageTraits   volumeImageTraits( VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
@@ -270,7 +267,7 @@ struct VoxelizerApplicationData
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
 
-    cameraUbo->set(surface.get(), camera);
+    cameraBuffer->setData(surface.get(), camera);
 
     pumex::Camera voxelizeCamera;
     voxelizeCamera.setObserverPosition(realEye);
@@ -278,7 +275,7 @@ struct VoxelizerApplicationData
     // near and far values must be multiplied by -1
     voxelizeCamera.setProjectionMatrix(pumex::orthoGL(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMax.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMax.y, -1.0f*voxelBoundingBox.bbMin.z, -1.0f*voxelBoundingBox.bbMax.z),false);
 
-    voxelizeCameraUbo->set(surface.get(), voxelizeCamera);
+    voxelizeCameraBuffer->setData(surface.get(), voxelizeCamera);
   }
 
   void prepareModelForRendering( std::shared_ptr<pumex::Viewer> viewer )
@@ -291,8 +288,6 @@ struct VoxelizerApplicationData
       float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
       float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
-
-      PositionData positionData;
       pumex::Animation& anim = asset->animations[0];
       pumex::Skeleton& skel = asset->skeleton;
 
@@ -320,14 +315,13 @@ struct VoxelizerApplicationData
         globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
       }
       for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-        positionData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
-      positionUbo->set(positionData);
+        positionData->bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+      positionBuffer->invalidateData();
     }
 
-    PositionData voxelPositionData;
-    voxelPositionData.position = glm::translate(glm::mat4(), glm::vec3(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMin.z)) * 
+    voxelPositionData->position = glm::translate(glm::mat4(), glm::vec3(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMin.z)) * 
                                  glm::scale(glm::mat4(), glm::vec3(voxelBoundingBox.bbMax.x - voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMax.y - voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMax.z - voxelBoundingBox.bbMin.z));
-    voxelPositionUbo->set(voxelPositionData);
+    voxelPositionBuffer->invalidateData();
   }
 
   std::string modelName;
@@ -339,10 +333,13 @@ struct VoxelizerApplicationData
   std::array<RenderData, 3>                            renderData;
 
   std::shared_ptr<pumex::Asset>                        asset;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> voxelizeCameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>  voxelPositionUbo;
+
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>        cameraBuffer;
+  std::shared_ptr<PositionData>                        positionData;
+  std::shared_ptr<pumex::Buffer<PositionData>>         positionBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>        voxelizeCameraBuffer;
+  std::shared_ptr<PositionData>                        voxelPositionData;
+  std::shared_ptr<pumex::Buffer<PositionData>>         voxelPositionBuffer;
   std::shared_ptr<pumex::Texture>                      volumeTexture;
   std::shared_ptr<pumex::StorageImage>                 volumeStorageImage;
 
@@ -489,9 +486,12 @@ int main( int argc, char * argv[] )
     voxelizeGroup->setName("voxelizeGroup");
     voxelizePipeline->addChild(voxelizeGroup);
 
+    auto cameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
+    auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
+
     auto voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout, voxelizeDescriptorPool);
-    voxelizeDescriptorSet->setDescriptor(0, applicationData->voxelizeCameraUbo);
-    voxelizeDescriptorSet->setDescriptor(1, applicationData->positionUbo);
+    voxelizeDescriptorSet->setDescriptor(0, std::make_shared<pumex::UniformBuffer>(applicationData->voxelizeCameraBuffer));
+    voxelizeDescriptorSet->setDescriptor(1, positionUbo);
     voxelizeDescriptorSet->setDescriptor(2, applicationData->volumeStorageImage);
     voxelizeGroup->setDescriptorSet(0, voxelizeDescriptorSet);
 
@@ -538,8 +538,8 @@ int main( int argc, char * argv[] )
     raymarchPipeline->addChild(fstAssetNode);
 
     auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout, raymarchDescriptorPool);
-    raymarchDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    raymarchDescriptorSet->setDescriptor(1, applicationData->voxelPositionUbo);
+    raymarchDescriptorSet->setDescriptor(0, cameraUbo);
+    raymarchDescriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->voxelPositionBuffer));
     raymarchDescriptorSet->setDescriptor(2, applicationData->volumeStorageImage);
     fstAssetNode->setDescriptorSet(0, raymarchDescriptorSet);
 
@@ -575,8 +575,8 @@ int main( int argc, char * argv[] )
     pipeline->addChild(renderGroup);
 
     auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-    descriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    descriptorSet->setDescriptor(1, applicationData->positionUbo);
+    descriptorSet->setDescriptor(0, cameraUbo);
+    descriptorSet->setDescriptor(1, positionUbo);
     renderGroup->setDescriptorSet(0, descriptorSet);
 
     renderGroup->addChild(assetNode);

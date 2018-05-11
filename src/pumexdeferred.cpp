@@ -137,16 +137,17 @@ struct DeferredApplicationData
 {
   DeferredApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
   {
-    cameraUbo     = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    positionUbo   = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
-    lightsSbo     = std::make_shared<pumex::StorageBuffer<LightPointData>>(buffersAllocator);
-    std::vector<LightPointData> lights;
-    lights.push_back( LightPointData(glm::vec3(-6.178, -1.434, 1.439), glm::vec3(5.0, 5.0, 5.0), glm::vec3(0.0, 0.0, 1.0)) );
-    lights.push_back( LightPointData(glm::vec3(-6.178, 2.202, 1.439),  glm::vec3(5.0, 0.1, 0.1), glm::vec3(0.0, 0.0, 1.0)) );
-    lights.push_back( LightPointData(glm::vec3(4.883, 2.202, 1.439),   glm::vec3(0.1, 0.1, 5.0), glm::vec3(0.0, 0.0, 1.0)) );
-    lights.push_back( LightPointData(glm::vec3(4.883, -1.434, 1.439),  glm::vec3(0.1, 5.0, 0.1), glm::vec3(0.0, 0.0, 1.0)) );
-    lightsSbo->set(lights);
+    cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    positionData     = std::make_shared<PositionData>();
+    positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
+
+    auto lights = std::make_shared<std::vector<LightPointData>>();
+    lights->push_back( LightPointData(glm::vec3(-6.178, -1.434, 1.439), glm::vec3(5.0, 5.0, 5.0), glm::vec3(0.0, 0.0, 1.0)) );
+    lights->push_back( LightPointData(glm::vec3(-6.178, 2.202, 1.439),  glm::vec3(5.0, 0.1, 0.1), glm::vec3(0.0, 0.0, 1.0)) );
+    lights->push_back( LightPointData(glm::vec3(4.883, 2.202, 1.439),   glm::vec3(0.1, 0.1, 5.0), glm::vec3(0.0, 0.0, 1.0)) );
+    lights->push_back( LightPointData(glm::vec3(4.883, -1.434, 1.439),  glm::vec3(0.1, 5.0, 0.1), glm::vec3(0.0, 0.0, 1.0)) );
+    lightsBuffer = std::make_shared<pumex::Buffer<std::vector<LightPointData>>>(lights, buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
     lastFrameStart = pumex::HPClock::now();
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.5f);
@@ -312,11 +313,11 @@ struct DeferredApplicationData
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
-    cameraUbo->set(surface.get(), camera);
+    cameraBuffer->setData(surface.get(), camera);
 
     pumex::Camera textCamera;
     textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
-    textCameraUbo->set(surface.get(), textCamera);
+    textCameraBuffer->setData(surface.get(), textCamera);
   }
 
   void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::AssetBuffer> assetBuffer, uint32_t modelTypeID)
@@ -333,8 +334,6 @@ struct DeferredApplicationData
     float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
     float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
-
-    PositionData positionData;
     pumex::Animation& anim = assetX->animations[0];
     pumex::Skeleton& skel = assetX->skeleton;
 
@@ -362,9 +361,9 @@ struct DeferredApplicationData
       globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
     }
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-      positionData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+      positionData->bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
 
-    positionUbo->set(positionData);
+    positionBuffer->invalidateData();
   }
 
   void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
@@ -386,10 +385,12 @@ struct DeferredApplicationData
   UpdateData                                            updateData;
   std::array<RenderData, 3>                             renderData;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>  cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>   positionUbo;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>  textCameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<LightPointData>> lightsSbo;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>         cameraBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>         textCameraBuffer;
+  std::shared_ptr<PositionData>                         positionData;
+  std::shared_ptr<pumex::Buffer<PositionData>>          positionBuffer;
+
+  std::shared_ptr<pumex::Buffer<std::vector<LightPointData>>> lightsBuffer;
   pumex::HPClock::time_point                            lastFrameStart;
   std::shared_ptr<pumex::Text>                          textDefault;
 };
@@ -580,14 +581,16 @@ int main( int argc, char * argv[] )
     PositionData modelData;
     std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
     modelData.typeID = modelTypeID;
-    applicationData->positionUbo->set(modelData);
+    (*applicationData->positionData)  = modelData;
+
+    auto cameraUbo             = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
 
     std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
-    descriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    descriptorSet->setDescriptor(1, applicationData->positionUbo);
-    descriptorSet->setDescriptor(2, materialSet->typeDefinitionSbo);
-    descriptorSet->setDescriptor(3, materialSet->materialVariantSbo);
-    descriptorSet->setDescriptor(4, materialRegistry->materialDefinitionSbo);
+    descriptorSet->setDescriptor(0, cameraUbo);
+    descriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer));
+    descriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
+    descriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
+    descriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
     descriptorSet->setDescriptor(5, textureRegistry->getCombinedImageSamplers(0));
     descriptorSet->setDescriptor(6, textureRegistry->getCombinedImageSamplers(1));
     descriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSamplers(2));
@@ -647,18 +650,13 @@ int main( int argc, char * argv[] )
 
     auto iaSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
-    auto input2 = std::make_shared<pumex::InputAttachment>("position", iaSampler);
-    auto input3 = std::make_shared<pumex::InputAttachment>("normals", iaSampler);
-    auto input4 = std::make_shared<pumex::InputAttachment>("albedo", iaSampler);
-    auto input5 = std::make_shared<pumex::InputAttachment>("pbr", iaSampler);
-
     auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
-    compositeDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    compositeDescriptorSet->setDescriptor(1, applicationData->lightsSbo);
-    compositeDescriptorSet->setDescriptor(2, input2);
-    compositeDescriptorSet->setDescriptor(3, input3);
-    compositeDescriptorSet->setDescriptor(4, input4);
-    compositeDescriptorSet->setDescriptor(5, input5);
+    compositeDescriptorSet->setDescriptor(0, cameraUbo);
+    compositeDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(applicationData->lightsBuffer));
+    compositeDescriptorSet->setDescriptor(2, std::make_shared<pumex::InputAttachment>("position", iaSampler));
+    compositeDescriptorSet->setDescriptor(3, std::make_shared<pumex::InputAttachment>("normals", iaSampler));
+    compositeDescriptorSet->setDescriptor(4, std::make_shared<pumex::InputAttachment>("albedo", iaSampler));
+    compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
@@ -707,8 +705,10 @@ int main( int argc, char * argv[] )
     auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
     auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
+    auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
+
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
-    textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSet->setDescriptor(0, textCameraUbo);
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 

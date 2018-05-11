@@ -87,9 +87,10 @@ struct ViewerApplicationData
 {
   ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
   {
-    cameraUbo     = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    positionUbo   = std::make_shared<pumex::UniformBuffer<PositionData>>(buffersAllocator);
+    cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    positionData     = std::make_shared<PositionData>();
+    positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -239,11 +240,11 @@ struct ViewerApplicationData
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
 
-    cameraUbo->set(surface.get(), camera);
+    cameraBuffer->setData(surface.get(), camera);
 
     pumex::Camera textCamera;
     textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
-    textCameraUbo->set(surface.get(), textCamera);
+    textCameraBuffer->setData(surface.get(), textCamera);
   }
 
   void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Asset> asset)
@@ -257,8 +258,6 @@ struct ViewerApplicationData
     float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
     float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
-
-    PositionData positionData;
     pumex::Animation& anim = asset->animations[0];
     pumex::Skeleton& skel = asset->skeleton;
 
@@ -286,18 +285,18 @@ struct ViewerApplicationData
       globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
     }
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-      positionData.bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+      positionData->bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
 
-    positionUbo->set(positionData);
+    positionBuffer->invalidateData();
   }
 
   UpdateData                                           updateData;
   std::array<RenderData, 3>                            renderData;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>> textCameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<PositionData>>  positionUbo;
-  pumex::HPClock::time_point                           lastFrameStart;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>        cameraBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>        textCameraBuffer;
+  std::shared_ptr<PositionData>                        positionData;
+  std::shared_ptr<pumex::Buffer<PositionData>>         positionBuffer;
 };
 
 int main( int argc, char * argv[] )
@@ -478,16 +477,19 @@ int main( int argc, char * argv[] )
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
     std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
-    applicationData->positionUbo->set(modelData);
+    (*applicationData->positionData) = modelData;
+
+    auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
+    auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 
     auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-      descriptorSet->setDescriptor(0, applicationData->cameraUbo);
-      descriptorSet->setDescriptor(1, applicationData->positionUbo);
+      descriptorSet->setDescriptor(0, cameraUbo);
+      descriptorSet->setDescriptor(1, positionUbo);
     pipeline->setDescriptorSet(0, descriptorSet);
 
     auto boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
-      boxDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
-      boxDescriptorSet->setDescriptor(1, applicationData->positionUbo);
+      boxDescriptorSet->setDescriptor(0, cameraUbo);
+      boxDescriptorSet->setDescriptor(1, positionUbo);
     boxPipeline->setDescriptorSet(0, boxDescriptorSet);
 
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();

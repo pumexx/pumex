@@ -633,10 +633,10 @@ struct GpuCullApplicationData
   std::shared_ptr<pumex::AssetBufferInstancedResults>                 _staticInstancedResults;
   std::shared_ptr<pumex::AssetBufferInstancedResults>                 _dynamicInstancedResults;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>                textCameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<StaticInstanceData>>           staticInstanceSbo;
-  std::shared_ptr<pumex::StorageBuffer<DynamicInstanceData>>          dynamicInstanceSbo;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>                       cameraBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>                       textCameraBuffer;
+  std::shared_ptr<pumex::Buffer<std::vector<StaticInstanceData>>>     staticInstanceBuffer;
+  std::shared_ptr<pumex::Buffer<std::vector<DynamicInstanceData>>>    dynamicInstanceBuffer;
 
   std::vector<uint32_t>                                               _staticTypeIDs;
   std::unordered_map<uint32_t, std::shared_ptr<XXX>>                  _dynamicTypeIDs;
@@ -653,10 +653,10 @@ struct GpuCullApplicationData
   GpuCullApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
     : _instancesPerCell{ 4096 }, _randomTime2NextTurn{ 0.1f }, _randomRotation(-glm::pi<float>(), glm::pi<float>())
   {
-    cameraUbo           = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    textCameraUbo       = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    staticInstanceSbo   = std::make_shared<pumex::StorageBuffer<StaticInstanceData>>(buffersAllocator);
-    dynamicInstanceSbo  = std::make_shared<pumex::StorageBuffer<DynamicInstanceData>>(buffersAllocator);
+    cameraBuffer          = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    textCameraBuffer      = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    staticInstanceBuffer  = std::make_shared<pumex::Buffer<std::vector<StaticInstanceData>>>(buffersAllocator);
+    dynamicInstanceBuffer = std::make_shared<pumex::Buffer<std::vector<StaticInstanceData>>>(buffersAllocator);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -917,11 +917,11 @@ struct GpuCullApplicationData
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-    cameraUbo->set(surface.get(), camera);
+    cameraBuffer->setData(surface.get(), camera);
 
     pumex::Camera textCamera;
     textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
-    textCameraUbo->set(surface.get(), textCamera);
+    textCameraBuffer->setData(surface.get(), textCamera);
   }
 
   void prepareBuffersForRendering(std::shared_ptr<pumex::Viewer> viewer)
@@ -1380,6 +1380,8 @@ int main(int argc, char * argv[])
     auto instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
 
+    auto cameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
+
     if (showStaticRendering)
     {
       staticAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
@@ -1489,7 +1491,7 @@ int main(int argc, char * argv[])
       staticFilterAssetBufferNode->addChild(staticDispatchNode);
 
       auto staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
-      staticFilterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      staticFilterDescriptorSet->setDescriptor(0, cameraUbo);
       staticFilterDescriptorSet->setDescriptor(1, applicationData->staticInstanceSbo);
       staticFilterDescriptorSet->setDescriptor(2, staticAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
       staticFilterDescriptorSet->setDescriptor(3, staticAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
@@ -1523,7 +1525,7 @@ int main(int argc, char * argv[])
       staticAssetBufferNode->addChild(staticAssetBufferDrawIndirect);
 
       auto staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
-      staticRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      staticRenderDescriptorSet->setDescriptor(0, cameraUbo);
       staticRenderDescriptorSet->setDescriptor(1, applicationData->staticInstanceSbo);
       staticRenderDescriptorSet->setDescriptor(2, staticInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
       staticRenderDescriptorSet->setDescriptor(3, staticMaterialSet->typeDefinitionSbo);
@@ -1638,7 +1640,7 @@ int main(int argc, char * argv[])
       dynamicFilterAssetBufferNode->addChild(dynamicDispatchNode);
 
       auto dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
-      dynamicFilterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      dynamicFilterDescriptorSet->setDescriptor(0, cameraUbo);
       dynamicFilterDescriptorSet->setDescriptor(1, applicationData->dynamicInstanceSbo);
       dynamicFilterDescriptorSet->setDescriptor(2, dynamicAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
       dynamicFilterDescriptorSet->setDescriptor(3, dynamicAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
@@ -1672,7 +1674,7 @@ int main(int argc, char * argv[])
       dynamicAssetBufferNode->addChild(dynamicAssetBufferDrawIndirect);
 
       auto dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
-      dynamicRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
+      dynamicRenderDescriptorSet->setDescriptor(0, cameraUbo);
       dynamicRenderDescriptorSet->setDescriptor(1, applicationData->dynamicInstanceSbo);
       dynamicRenderDescriptorSet->setDescriptor(2, dynamicInstancedResults->getOffsetValues(MAIN_RENDER_MASK));
       dynamicRenderDescriptorSet->setDescriptor(3, dynamicMaterialSet->typeDefinitionSbo);
@@ -1727,15 +1729,18 @@ int main(int argc, char * argv[])
     auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
     auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
+
+    auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
+
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
-    textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSet->setDescriptor(0, textCameraUbo);
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
     auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontTexture, fontSmall->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
 
     auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
-    textDescriptorSetSmall->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
     textDescriptorSetSmall->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(smallFontImageView, fontSampler));
     textSmall->setDescriptorSet(0, textDescriptorSetSmall);
 

@@ -25,7 +25,7 @@
 #include <pumex/Device.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/RenderContext.h>
-#include <pumex/StorageBuffer.h>
+#include <pumex/MemoryBuffer.h>
 #include <pumex/GenericBuffer.h>
 #include <pumex/Command.h>
 #include <pumex/utils/Log.h>
@@ -201,9 +201,12 @@ void AssetBuffer::validate(const RenderContext& renderContext)
       }
       rmData.vertexBuffer->invalidate();
       rmData.indexBuffer->invalidate();
-      rmData.typeBuffer->set(assetTypes);
-      rmData.lodBuffer->set(assetLods);
-      rmData.geomBuffer->set(assetGeometries);
+      (*rmData.aTypes)    = assetTypes;
+      (*rmData.aLods)     = assetLods;
+      (*rmData.aGeomDefs) = assetGeometries;
+      rmData.typeBuffer->invalidateData();
+      rmData.lodBuffer->invalidateData();
+      rmData.geomBuffer->invalidateData();
     }
     valid = true;
   }
@@ -242,9 +245,9 @@ void AssetBuffer::cmdDrawObject(const RenderContext& renderContext, CommandBuffe
     LOG_WARNING << "AssetBuffer::drawObject() does not have this render mask defined" << std::endl;
     return;
   }
-  std::vector<AssetTypeDefinition>     assetTypes      = prmit->second.typeBuffer->get();
-  std::vector<AssetLodDefinition>      assetLods       = prmit->second.lodBuffer->get();
-  std::vector<AssetGeometryDefinition> assetGeometries = prmit->second.geomBuffer->get();
+  auto& assetTypes      = *prmit->second.aTypes;
+  auto& assetLods       = *prmit->second.aLods;
+  auto& assetGeometries = *prmit->second.aGeomDefs;
 
   uint32_t lodFirst = assetTypes[typeID].lodFirst;
   uint32_t lodSize  = assetTypes[typeID].lodSize;
@@ -269,35 +272,34 @@ void AssetBuffer::cmdDrawObjectsIndirect(const RenderContext& renderContext, Com
 {
   std::lock_guard<std::mutex> lock(mutex);
 
-  DescriptorSetValue dsv = instancedResults->getResults(renderMask)->getDescriptorSetValue(renderContext);
+  auto buffer = instancedResults->getResults(renderMask)->getHandleBuffer(renderContext);
 
   uint32_t drawCount = instancedResults->getDrawCount(renderMask);
 
   if (renderContext.device->physical.lock()->features.multiDrawIndirect == 1)
-    commandBuffer->cmdDrawIndexedIndirect(dsv.bufferInfo.buffer, dsv.bufferInfo.offset, drawCount, sizeof(DrawIndexedIndirectCommand));
+    commandBuffer->cmdDrawIndexedIndirect(buffer, 0, drawCount, sizeof(DrawIndexedIndirectCommand));
   else
   {
     for (uint32_t i = 0; i < drawCount; ++i)
-      commandBuffer->cmdDrawIndexedIndirect(dsv.bufferInfo.buffer, dsv.bufferInfo.offset + i * sizeof(DrawIndexedIndirectCommand), 1, sizeof(DrawIndexedIndirectCommand));
+      commandBuffer->cmdDrawIndexedIndirect(buffer, 0 + i * sizeof(DrawIndexedIndirectCommand), 1, sizeof(DrawIndexedIndirectCommand));
   }
 }
 
-
-std::shared_ptr<StorageBuffer<AssetTypeDefinition>> AssetBuffer::getTypeBuffer(uint32_t renderMask)
+std::shared_ptr<Buffer<std::vector<AssetTypeDefinition>>> AssetBuffer::getTypeBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getTypeBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.typeBuffer;
 }
-std::shared_ptr<StorageBuffer<AssetLodDefinition>> AssetBuffer::getLodBuffer(uint32_t renderMask)
+std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>> AssetBuffer::getLodBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getLodBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.lodBuffer;
 }
-std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> AssetBuffer::getGeomBuffer(uint32_t renderMask)
+std::shared_ptr<Buffer<std::vector<AssetGeometryDefinition>>> AssetBuffer::getGeomBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
@@ -358,9 +360,13 @@ AssetBuffer::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAl
   vertexBuffer->set(vertices);
   indexBuffer->set(indices);
 
-  typeBuffer   = std::make_shared<StorageBuffer<AssetTypeDefinition>>(bufferAllocator);
-  lodBuffer    = std::make_shared<StorageBuffer<AssetLodDefinition>>(bufferAllocator);
-  geomBuffer   = std::make_shared<StorageBuffer<AssetGeometryDefinition>>(bufferAllocator);
+  aTypes    = std::make_shared<std::vector<AssetTypeDefinition>>();
+  aLods     = std::make_shared<std::vector<AssetLodDefinition>>();
+  aGeomDefs = std::make_shared<std::vector<AssetGeometryDefinition>>();
+
+  typeBuffer   = std::make_shared<Buffer<std::vector<AssetTypeDefinition>>>(aTypes, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
+  lodBuffer    = std::make_shared<Buffer<std::vector<AssetLodDefinition>>>(aLods, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
+  geomBuffer   = std::make_shared<Buffer<std::vector<AssetGeometryDefinition>>>(aGeomDefs, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
 }
 
 AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator)
@@ -404,25 +410,25 @@ void AssetBufferInstancedResults::prepareBuffers(const std::vector<uint32_t>& ty
       offsets[i] = tmp;
       results[i].firstInstance = tmp;
     }
-    rmData.resultsSbo->set(results);
-    rmData.offValuesSbo->set(std::vector<uint32_t>(offsetSum));
+    rmData.resultsBuffer->setData(results);
+    rmData.offValuesBuffer->setData(std::vector<uint32_t>(offsetSum));
   }
 }
 
-std::shared_ptr<StorageBuffer<DrawIndexedIndirectCommand>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
+std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> AssetBufferInstancedResults::getResults(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBufferInstancedResults::getResults() attempting to get a buffer for nonexisting render mask");
-  return it->second.resultsSbo;
+  return it->second.resultsBuffer;
 }
 
-std::shared_ptr<StorageBuffer<uint32_t>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
+std::shared_ptr<Buffer<std::vector<uint32_t>>> AssetBufferInstancedResults::getOffsetValues(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = perRenderMaskData.find(renderMask);
   CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBufferInstancedResults::getOffsetValues() attempting to get a buffer for nonexisting render mask");
-  return it->second.offValuesSbo;
+  return it->second.offValuesBuffer;
 }
 
 uint32_t AssetBufferInstancedResults::getDrawCount(uint32_t renderMask)
@@ -438,15 +444,15 @@ void AssetBufferInstancedResults::validate(const RenderContext& renderContext)
   for (auto& prm : perRenderMaskData)
   {
     PerRenderMaskData& rmData = prm.second;
-    rmData.resultsSbo->validate(renderContext);
-    rmData.offValuesSbo->validate(renderContext);
+    rmData.resultsBuffer->validate(renderContext);
+    rmData.offValuesBuffer->validate(renderContext);
   }
 }
 
 AssetBufferInstancedResults::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator)
 {
-  resultsSbo   = std::make_shared<StorageBuffer<DrawIndexedIndirectCommand>>(allocator, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, pbPerSurface, swForEachImage);
-  offValuesSbo = std::make_shared<StorageBuffer<uint32_t>>(allocator, 0, pbPerSurface, swForEachImage);
+  resultsBuffer   = std::make_shared<Buffer<std::vector<DrawIndexedIndirectCommand>>>(std::make_shared<std::vector<DrawIndexedIndirectCommand>>(), allocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, pbPerSurface, swForEachImage);
+  offValuesBuffer = std::make_shared<Buffer<std::vector<uint32_t>>>(std::make_shared<std::vector<uint32_t>>(), allocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerSurface, swForEachImage);
 }
 
 }

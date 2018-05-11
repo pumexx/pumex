@@ -21,225 +21,32 @@
 //
 
 #pragma once
-#include <memory>
-#include <unordered_map>
-#include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
-#include <pumex/DeviceMemoryAllocator.h>
-#include <pumex/Device.h>
-#include <pumex/Command.h>
 #include <pumex/Resource.h>
-#include <pumex/RenderContext.h>
-#include <pumex/utils/Buffer.h>
-#include <pumex/utils/Log.h>
+#include <pumex/MemoryBuffer.h>
 
-
-// Simple uniform buffer that stores THE SAME C++ struct on EACH of the Vulkan devices
+// Uniform buffer resource class
 
 namespace pumex
 {
 
-template <typename T>
-class UniformBuffer : public Resource
+class PUMEX_EXPORT UniformBuffer : public Resource
 {
 public:
   UniformBuffer()                                = delete;
-  explicit UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlags additionalFlags = 0, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
-  explicit UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlags additionalFlags = 0, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
+  UniformBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
   UniformBuffer(const UniformBuffer&)            = delete;
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   virtual ~UniformBuffer();
-
-  inline void                       set( const T& data );
-  inline void                       set(Surface* surface, const T& data);
-  inline T                          get() const;
-  inline T                          get(Surface* surface) const;
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;
   DescriptorSetValue                getDescriptorSetValue(const RenderContext& renderContext) override;
 
-  VkBuffer                          getHandleBuffer(const RenderContext& renderContext);
-
-private:
-  struct UniformBufferInternal
-  {
-    UniformBufferInternal()
-      : uboBuffer(VK_NULL_HANDLE), memoryBlock(), uboData()
-    {}
-    VkBuffer           uboBuffer;
-    DeviceMemoryBlock  memoryBlock;
-    T                  uboData;
-  };
-  typedef PerObjectData<UniformBufferInternal, T> UniformBufferData;
-
-  std::unordered_map<void*, UniformBufferData> perObjectData;
-  T                                            uboData;
-  std::shared_ptr<DeviceMemoryAllocator>       allocator;
-  VkBufferUsageFlags                           additionalFlags;
+  std::shared_ptr<MemoryBuffer> memoryBuffer;
+protected:
+  bool                       registered = false;
 };
-
-template <typename T>
-UniformBuffer<T>::UniformBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlags af, PerObjectBehaviour pob, SwapChainImageBehaviour scib)
-  : Resource{ pob, scib }, uboData(), allocator{ a }, additionalFlags{ af }
-{
-}
-
-template <typename T>
-UniformBuffer<T>::UniformBuffer(const T& data, std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlags af, PerObjectBehaviour pob, SwapChainImageBehaviour scib)
-  : Resource{ pob, scib }, uboData(data), allocator{ a }, additionalFlags{ af }
-{
-}
-
-template <typename T>
-UniformBuffer<T>::~UniformBuffer()
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  for (auto& pdd : perObjectData)
-  {
-    for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
-    {
-      vkDestroyBuffer(pdd.second.device, pdd.second.data[i].uboBuffer, nullptr);
-      allocator->deallocate(pdd.second.device, pdd.second.data[i].memoryBlock);
-    }
-  }
-}
-
-
-template <typename T>
-void UniformBuffer<T>::set(const T& data)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  if (perObjectBehaviour == pbPerDevice)
-    uboData = data;
-  else
-  {
-    for (auto& pdd : perObjectData)
-      pdd.second.commonData = data;
-  }
-  for (auto& pdd : perObjectData)
-    pdd.second.invalidate();
-}
-
-template <typename T>
-void UniformBuffer<T>::set(Surface* surface, const T& data)
-{
-  CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot set data per surface for this uniform buffer");
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perObjectData.find((void*)(surface->surface));
-  if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ (void*)(surface->surface), UniformBufferData(surface->device.lock()->device, surface->surface, activeCount, swapChainImageBehaviour) }).first;
-  pddit->second.commonData = data;
-  pddit->second.invalidate();
-}
-
-template <typename T>
-T UniformBuffer<T>::get() const
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  if (perObjectBehaviour == pbPerSurface)
-  {
-    auto pddit = begin(perObjectData);
-    if (pddit == end(perObjectData))
-      return T();
-    return pddit->second.commonData;
-  }
-  return uboData;
-}
-
-template <typename T>
-T UniformBuffer<T>::get(Surface* surface) const
-{
-  CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot get data per surface for this uniform buffer");
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perObjectData.find((void*)(surface->surface));
-  if (pddit == end(perObjectData))
-    return T();
-  return pddit->second.commonData;
-}
-
-template <typename T>
-std::pair<bool, VkDescriptorType> UniformBuffer<T>::getDefaultDescriptorType()
-{
-  return{ true, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
-}
-
-template <typename T>
-void UniformBuffer<T>::validate(const RenderContext& renderContext)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  if (swapChainImageBehaviour == swForEachImage && renderContext.imageCount > activeCount)
-  {
-    activeCount = renderContext.imageCount;
-    for (auto& pdd : perObjectData)
-      pdd.second.resize(activeCount);
-  }
-  auto keyValue = getKey(renderContext, perObjectBehaviour);
-  auto pddit = perObjectData.find(keyValue);
-  if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, UniformBufferData(renderContext, swapChainImageBehaviour) }).first;
-  uint32_t activeIndex = renderContext.activeIndex % activeCount;
-  if (pddit->second.valid[activeIndex])
-    return;
-
-  bool memoryIsLocal = ((allocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  if (pddit->second.data[activeIndex].uboBuffer == VK_NULL_HANDLE)
-  {
-    VkBufferCreateInfo bufferCreateInfo{};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | additionalFlags | (memoryIsLocal ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
-    bufferCreateInfo.size = std::max<VkDeviceSize>(1, sizeof(T));
-    VK_CHECK_LOG_THROW(vkCreateBuffer(pddit->second.device, &bufferCreateInfo, nullptr, &pddit->second.data[activeIndex].uboBuffer), "Cannot create buffer");
-    VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(pddit->second.device, pddit->second.data[activeIndex].uboBuffer, &memReqs);
-    pddit->second.data[activeIndex].memoryBlock = allocator->allocate(renderContext.device, memReqs);
-    CHECK_LOG_THROW(pddit->second.data[activeIndex].memoryBlock.alignedSize == 0, "Cannot create UBO");
-    allocator->bindBufferMemory(renderContext.device, pddit->second.data[activeIndex].uboBuffer, pddit->second.data[activeIndex].memoryBlock.alignedOffset);
-    notifyDescriptors(renderContext);
-  }
-  if (memoryIsLocal)
-  {
-    std::shared_ptr<StagingBuffer> stagingBuffer;
-    if(perObjectBehaviour == pbPerDevice)
-      stagingBuffer = renderContext.device->acquireStagingBuffer(&uboData, sizeof(T));
-    else
-      stagingBuffer = renderContext.device->acquireStagingBuffer(&pddit->second.commonData, sizeof(T));
-    auto staggingCommandBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
-    VkBufferCopy copyRegion{};
-    copyRegion.size = sizeof(T);
-    staggingCommandBuffer->cmdCopyBuffer(stagingBuffer->buffer, pddit->second.data[activeIndex].uboBuffer, copyRegion);
-    renderContext.device->endSingleTimeCommands(staggingCommandBuffer, renderContext.queue);
-    renderContext.device->releaseStagingBuffer(stagingBuffer);
-  }
-  else
-  {
-    if (perObjectBehaviour == pbPerDevice)
-      allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, &uboData, sizeof(T), 0);
-    else
-      allocator->copyToDeviceMemory(renderContext.device, pddit->second.data[activeIndex].memoryBlock.alignedOffset, &pddit->second.commonData, sizeof(T), 0);
-  }
-  pddit->second.valid[activeIndex] = true;
-}
-
-template <typename T>
-DescriptorSetValue UniformBuffer<T>::getDescriptorSetValue(const RenderContext& renderContext)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perObjectData.find(getKey(renderContext,perObjectBehaviour));
-  CHECK_LOG_THROW(pddit == end(perObjectData), "UniformBuffer<T>::getDescriptorSetValue() : uniform buffer was not validated");
-  return DescriptorSetValue(pddit->second.data[renderContext.activeIndex % activeCount].uboBuffer, 0, sizeof(T));
-}
-
-template <typename T>
-VkBuffer UniformBuffer<T>::getHandleBuffer(const RenderContext& renderContext)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto pddit = perObjectData.find(getKey(renderContext, perObjectBehaviour));
-  if (pddit == end(perObjectData))
-    return VK_NULL_HANDLE;
-  return pddit->second.data[renderContext.activeIndex % activeCount].uboBuffer;
-}
-
 
 }

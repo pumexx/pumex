@@ -32,7 +32,7 @@ namespace pumex
 
 class RenderContext;
 class DeviceMemoryAllocator;
-template <typename T> class StorageBuffer;
+template <typename T> class Buffer;
 template <typename T> class GenericBuffer;
 class CommandBuffer;
 
@@ -170,9 +170,9 @@ public:
 
   void                   prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const;
 
-  std::shared_ptr<StorageBuffer<AssetTypeDefinition>>     getTypeBuffer(uint32_t renderMask);
-  std::shared_ptr<StorageBuffer<AssetLodDefinition>>      getLodBuffer(uint32_t renderMask);
-  std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> getGeomBuffer(uint32_t renderMask);
+  std::shared_ptr<Buffer<std::vector<AssetTypeDefinition>>>     getTypeBuffer(uint32_t renderMask);
+  std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>>      getLodBuffer(uint32_t renderMask);
+  std::shared_ptr<Buffer<std::vector<AssetGeometryDefinition>>> getGeomBuffer(uint32_t renderMask);
 
 protected:
   struct PerRenderMaskData
@@ -185,9 +185,13 @@ protected:
     std::shared_ptr<GenericBuffer<std::vector<float>>>    vertexBuffer;
     std::shared_ptr<GenericBuffer<std::vector<uint32_t>>> indexBuffer;
 
-    std::shared_ptr<StorageBuffer<AssetTypeDefinition>>     typeBuffer;
-    std::shared_ptr<StorageBuffer<AssetLodDefinition>>      lodBuffer;
-    std::shared_ptr<StorageBuffer<AssetGeometryDefinition>> geomBuffer;
+    std::shared_ptr<std::vector<AssetTypeDefinition>>     aTypes;
+    std::shared_ptr<std::vector<AssetLodDefinition>>      aLods;
+    std::shared_ptr<std::vector<AssetGeometryDefinition>> aGeomDefs;
+
+    std::shared_ptr<Buffer<std::vector<AssetTypeDefinition>>>     typeBuffer;
+    std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>>      lodBuffer;
+    std::shared_ptr<Buffer<std::vector<AssetGeometryDefinition>>> geomBuffer;
   };
 
 
@@ -253,12 +257,12 @@ public:
   AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
   virtual ~AssetBufferInstancedResults();
 
-  void                                                       setup();
-  void                                                       prepareBuffers(const std::vector<uint32_t>& typeCount);
+  void                                                             setup();
+  void                                                             prepareBuffers(const std::vector<uint32_t>& typeCount);
 
-  std::shared_ptr<StorageBuffer<DrawIndexedIndirectCommand>> getResults(uint32_t renderMask);
-  std::shared_ptr<StorageBuffer<uint32_t>>                   getOffsetValues(uint32_t renderMask);
-  uint32_t                                                   getDrawCount(uint32_t renderMask);
+  std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getResults(uint32_t renderMask);
+  std::shared_ptr<Buffer<std::vector<uint32_t>>>                   getOffsetValues(uint32_t renderMask);
+  uint32_t                                                         getDrawCount(uint32_t renderMask);
 
   void                                                       validate(const RenderContext& renderContext);
 
@@ -268,10 +272,10 @@ protected:
     PerRenderMaskData() = default;
     PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator);
 
-    std::vector<DrawIndexedIndirectCommand>                              initialResultValues;
-    std::vector<uint32_t>                                                resultsGeomToType;
-    std::shared_ptr<StorageBuffer<DrawIndexedIndirectCommand>> resultsSbo;
-    std::shared_ptr<StorageBuffer<uint32_t>>                   offValuesSbo;
+    std::vector<DrawIndexedIndirectCommand>                          initialResultValues;
+    std::vector<uint32_t>                                            resultsGeomToType;
+    std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> resultsBuffer;
+    std::shared_ptr<Buffer<std::vector<uint32_t>>>                   offValuesBuffer;
   };
 
   mutable std::mutex                              mutex;

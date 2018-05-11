@@ -48,13 +48,13 @@ VkImageSubresourceRange ImageSubresourceRange::getSubresource()
   return result;
 }
 
-bool ImageSubresourceRange::contains(const ImageSubresourceRange& range) const
+bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) const
 {
   // check layers
-  if ((baseArrayLayer > range.baseArrayLayer) || (baseArrayLayer + layerCount < range.baseArrayLayer + range.layerCount))
+  if ((baseArrayLayer > subRange.baseArrayLayer) || (baseArrayLayer + layerCount < subRange.baseArrayLayer + subRange.layerCount))
     return false;
   // check mip levels
-  if ((baseMipLevel > range.baseMipLevel) || (baseMipLevel + levelCount < range.baseMipLevel + range.levelCount))
+  if ((baseMipLevel > subRange.baseMipLevel) || (baseMipLevel + levelCount < subRange.baseMipLevel + subRange.levelCount))
     return false;
   return true;
 }
@@ -174,7 +174,7 @@ struct SetImageOperation : public Texture::Operation
   void releaseResources(const RenderContext& renderContext) override
   {
     for (auto& s : stagingBuffers)
-      s->setReserved(false);
+      renderContext.device->releaseStagingBuffer(s);
     stagingBuffers.clear();
   }
 
@@ -465,13 +465,13 @@ ImageSubresourceRange Texture::getFullImageRange()
 
 void Texture::addImageView(std::shared_ptr<ImageView> imageView)
 {
-  if (std::find_if(begin(imageViews), end(imageViews), [&imageView](std::weak_ptr<ImageView> ia) { return !ia.expired() && ia.lock().get() == imageView.get(); }) == end(imageViews))
+  if (std::find_if(begin(imageViews), end(imageViews), [&imageView](std::weak_ptr<ImageView> iv) { return !iv.expired() && iv.lock().get() == imageView.get(); }) == end(imageViews))
     imageViews.push_back(imageView);
 }
 
 void Texture::notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range)
 {
-  auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> ia) { return ia.expired();  });
+  auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> iv) { return iv.expired();  });
   for (auto it = begin(imageViews); it != eit; ++it)
     if( range.contains(it->lock()->subresourceRange) )
       it->lock()->notifyImageView(renderContext);
@@ -650,7 +650,7 @@ void ImageView::notifyImageView(const RenderContext& renderContext)
 
 void ImageView::addResource(std::shared_ptr<Resource> resource)
 {
-  if (std::find_if(begin(resources), end(resources), [&resource](std::weak_ptr<Resource> ia) { return !ia.expired() && ia.lock().get() == resource.get(); }) == end(resources))
+  if (std::find_if(begin(resources), end(resources), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(resources))
     resources.push_back(resource);
 }
 

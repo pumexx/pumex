@@ -301,10 +301,12 @@ struct CrowdApplicationData
   std::shared_ptr<pumex::AssetBuffer>                    skeletalAssetBuffer;
   std::shared_ptr<pumex::AssetBufferInstancedResults>    instancedResults;
 
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>   cameraUbo;
-  std::shared_ptr<pumex::UniformBuffer<pumex::Camera>>   textCameraUbo;
-  std::shared_ptr<pumex::StorageBuffer<PositionData>>    positionSbo;
-  std::shared_ptr<pumex::StorageBuffer<InstanceData>>    instanceSbo;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>             cameraBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>             textCameraBuffer;
+  std::shared_ptr<std::vector<PositionData>>                positionData;
+  std::shared_ptr<std::vector<InstanceData>>                instanceData;
+  std::shared_ptr<pumex::Buffer<std::vector<PositionData>>> positionBuffer;
+  std::shared_ptr<pumex::Buffer<std::vector<InstanceData>>> instanceBuffer;
 
   //std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
 
@@ -381,10 +383,12 @@ struct CrowdApplicationData
       }
     }
 
-    cameraUbo     = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    textCameraUbo = std::make_shared<pumex::UniformBuffer<pumex::Camera>>(buffersAllocator, 0, pumex::pbPerSurface);
-    positionSbo   = std::make_shared<pumex::StorageBuffer<PositionData>>(buffersAllocator);
-    instanceSbo   = std::make_shared<pumex::StorageBuffer<InstanceData>>(buffersAllocator);
+    cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    positionData     = std::make_shared<std::vector<PositionData>>();
+    instanceData     = std::make_shared<std::vector<InstanceData>>();
+    positionBuffer   = std::make_shared<pumex::Buffer<std::vector<PositionData>>>(positionData, buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerDevice, pumex::swForEachImage);
+    instanceBuffer   = std::make_shared<pumex::Buffer<std::vector<InstanceData>>>(instanceData, buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerDevice, pumex::swForEachImage);
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -635,11 +639,11 @@ struct CrowdApplicationData
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
-    cameraUbo->set(surface.get(), camera);
+    cameraBuffer->setData(surface.get(), camera);
 
     pumex::Camera textCamera;
     textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
-    textCameraUbo->set(surface.get(), textCamera);
+    textCameraBuffer->setData(surface.get(), textCamera);
   }
 
   void prepareBuffersForRendering( std::shared_ptr<pumex::Viewer> viewer )
@@ -664,17 +668,19 @@ struct CrowdApplicationData
 
     instancedResults->prepareBuffers(typeCount);
 
-    std::vector<PositionData> positionData;
-    std::vector<InstanceData> instanceData;
+//    std::vector<PositionData> positionData;
+//    std::vector<InstanceData> instanceData;
+    positionData->resize(0);
+    instanceData->resize(0);
     std::vector<uint32_t> animIndex;
     std::vector<float> animOffset;
     for (auto it = begin(rData.people); it != end(rData.people); ++it)
     {
-      uint32_t index = positionData.size();
+      uint32_t index = positionData->size();
       PositionData position(pumex::extrapolate(it->kinematic, deltaTime));
 
-      positionData.emplace_back(position);
-      instanceData.emplace_back(InstanceData(index, it->typeID, it->materialVariant, 1));
+      positionData->emplace_back(position);
+      instanceData->emplace_back(InstanceData(index, it->typeID, it->materialVariant, 1));
 
       animIndex.emplace_back(it->animation);
       animOffset.emplace_back(it->animationOffset);
@@ -683,17 +689,17 @@ struct CrowdApplicationData
     // calculate bone matrices for the people
     tbb::parallel_for
     (
-      tbb::blocked_range<size_t>(0, positionData.size()),
+      tbb::blocked_range<size_t>(0, positionData->size()),
       [&](const tbb::blocked_range<size_t>& r)
       {
         for (size_t i = r.begin(); i != r.end(); ++i)
         {
           pumex::Animation& anim = animations[animIndex[i]];
-          pumex::Skeleton&  skel = skeletons[instanceData[i].typeID];
+          pumex::Skeleton&  skel = skeletons[(*instanceData)[i].typeID];
 
           uint32_t numAnimChannels = anim.channels.size();
           uint32_t numSkelBones = skel.bones.size();
-          SkelAnimKey saKey(instanceData[i].typeID, animIndex[i]);
+          SkelAnimKey saKey((*instanceData)[i].typeID, animIndex[i]);
 
           auto bmit = skelAnimBoneMapping.find(saKey);
           if (bmit == end(skelAnimBoneMapping))
@@ -722,7 +728,7 @@ struct CrowdApplicationData
             globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
           }
           for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
-            positionData[i].bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
+            (*positionData)[i].bones[boneIndex] = globalTransforms[boneIndex] * skel.bones[boneIndex].offsetMatrix;
 
         }
       }
@@ -731,10 +737,10 @@ struct CrowdApplicationData
     uint32_t ii = 0;
     for (auto it = begin(rData.clothes); it != end(rData.clothes); ++it, ++ii)
     {
-      instanceData.emplace_back(InstanceData(rData.clothOwners[ii], it->typeID, it->materialVariant, 0));
+      instanceData->emplace_back(InstanceData(rData.clothOwners[ii], it->typeID, it->materialVariant, 0));
     }
-    positionSbo->set(positionData);
-    instanceSbo->set(instanceData);
+    positionBuffer->invalidateData();
+    instanceBuffer->invalidateData();
 
 //    std::wstringstream stream;
 //    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
@@ -870,10 +876,13 @@ int main(int argc, char * argv[])
     std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
 
-    auto skeletalAssetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    auto instancedResults    = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
-    workflow->associateResource("indirect_commands", instancedResults->getResults(MAIN_RENDER_MASK));
-    workflow->associateResource("offset_values",     instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    auto skeletalAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+    auto instancedResults         = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
+    auto instancedResultsSbo      = std::make_shared<pumex::StorageBuffer>(instancedResults->getResults(MAIN_RENDER_MASK));
+    auto instancedOffsetValuesSbo = std::make_shared<pumex::StorageBuffer>(instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+
+    workflow->associateResource("indirect_commands", instancedResultsSbo);
+    workflow->associateResource("offset_values", instancedOffsetValuesSbo);
 
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
@@ -1008,15 +1017,19 @@ int main(int argc, char * argv[])
     auto dispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     dispatchNode->setName("dispatchNode");
     filterAssetBufferNode->addChild(dispatchNode);
+
+    auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
+    auto positionSbo = std::make_shared<pumex::StorageBuffer>(applicationData->positionBuffer);
+    auto instanceSbo = std::make_shared<pumex::StorageBuffer>(applicationData->instanceBuffer);
   
     auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
-    filterDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    filterDescriptorSet->setDescriptor(1, applicationData->positionSbo);
-    filterDescriptorSet->setDescriptor(2, applicationData->instanceSbo);
-    filterDescriptorSet->setDescriptor(3, skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(4, skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(5, instancedResults->getResults(MAIN_RENDER_MASK));
-    filterDescriptorSet->setDescriptor(6, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
+    filterDescriptorSet->setDescriptor(0, cameraUbo);
+    filterDescriptorSet->setDescriptor(1, positionSbo);
+    filterDescriptorSet->setDescriptor(2, instanceSbo);
+    filterDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
+    filterDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
+    filterDescriptorSet->setDescriptor(5, instancedResultsSbo);
+    filterDescriptorSet->setDescriptor(6, instancedOffsetValuesSbo);
     dispatchNode->setDescriptorSet(0, filterDescriptorSet);
 
     //    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
@@ -1070,13 +1083,13 @@ int main(int argc, char * argv[])
     assetBufferNode->addChild(assetBufferDrawIndirect);
 
     auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
-    instancedRenderDescriptorSet->setDescriptor(0, applicationData->cameraUbo);
-    instancedRenderDescriptorSet->setDescriptor(1, applicationData->positionSbo);
-    instancedRenderDescriptorSet->setDescriptor(2, applicationData->instanceSbo);
-    instancedRenderDescriptorSet->setDescriptor(3, instancedResults->getOffsetValues(MAIN_RENDER_MASK));
-    instancedRenderDescriptorSet->setDescriptor(4, materialSet->typeDefinitionSbo);
-    instancedRenderDescriptorSet->setDescriptor(5, materialSet->materialVariantSbo);
-    instancedRenderDescriptorSet->setDescriptor(6, materialRegistry->materialDefinitionSbo);
+    instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
+    instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
+    instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);
+    instancedRenderDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(instancedResults->getOffsetValues(MAIN_RENDER_MASK)));
+    instancedRenderDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
+    instancedRenderDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
+    instancedRenderDescriptorSet->setDescriptor(6, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
     instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSampler(0));
     assetBufferDrawIndirect->setDescriptorSet(0, instancedRenderDescriptorSet);
 
@@ -1127,15 +1140,17 @@ int main(int argc, char * argv[])
     auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
     auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
+    auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
+
     auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
-    textDescriptorSet->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSet->setDescriptor(0, textCameraUbo);
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
     auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontTexture, fontSmall->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
 
     auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
-    textDescriptorSetSmall->setDescriptor(0, applicationData->textCameraUbo);
+    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
     textDescriptorSetSmall->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(smallFontImageView, fontSampler));
     textSmall->setDescriptorSet(0, textDescriptorSetSmall);
 

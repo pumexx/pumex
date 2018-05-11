@@ -28,6 +28,7 @@
 #include <vulkan/vulkan.h>
 #include <gli/load.hpp>
 #include <pumex/Export.h>
+#include <pumex/MemoryBuffer.h>
 
 namespace pumex
 {
@@ -41,7 +42,7 @@ class CombinedImageSampler;
 class DeviceMemoryAllocator;
 class Viewer;
 class RenderContext;
-template <typename T> class StorageBuffer;
+template <typename T> class Buffer;
 
 // Assimp does not load textures, but only its names and semantics ( diffuse, normal, etc )
 // TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet
@@ -123,8 +124,8 @@ public:
   uint32_t                                     getMaterialVariantCount(uint32_t typeID) const;
   void                                         refreshMaterialStructures();
 
-  std::shared_ptr<StorageBuffer<MaterialTypeDefinition>>    typeDefinitionSbo;
-  std::shared_ptr<StorageBuffer<MaterialVariantDefinition>> materialVariantSbo;
+  std::shared_ptr<Buffer<std::vector<MaterialTypeDefinition>>>    typeDefinitionBuffer;
+  std::shared_ptr<Buffer<std::vector<MaterialVariantDefinition>>> materialVariantBuffer;
 
 private:
 
@@ -150,8 +151,8 @@ class MaterialRegistry : public MaterialRegistryBase
 public:
   MaterialRegistry(std::shared_ptr<DeviceMemoryAllocator> allocator);
 
-  std::vector<T>                             materialDefinitions;
-  std::shared_ptr<StorageBuffer<T>>          materialDefinitionSbo;
+  std::shared_ptr<std::vector<T>>            materialDefinitions;
+  std::shared_ptr<Buffer<std::vector<T>>>    materialDefinitionBuffer;
 
   void                                       registerMaterial(uint32_t typeID, uint32_t materialVariant, uint32_t assetIndex, uint32_t materialIndex, const Material& mat, const std::map<TextureSemantic::Type, uint32_t>& registeredTextures) override;
   std::vector<std::pair<uint32_t, uint32_t>> getAssetMaterialIndices(uint32_t typeID) const override;
@@ -222,7 +223,8 @@ public:
 template <typename T>
 MaterialRegistry<T>::MaterialRegistry(std::shared_ptr<DeviceMemoryAllocator> allocator)
 {
-  materialDefinitionSbo = std::make_shared<StorageBuffer<T>>(allocator);
+  materialDefinitions = std::make_shared<std::vector<T>>();
+  materialDefinitionBuffer = std::make_shared<Buffer<std::vector<T>>>(materialDefinitions, allocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
 }
 
 
@@ -270,7 +272,7 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
 
   typeDefinitions.resize(typeCount);
   variantDefinitions.resize(0);
-  materialDefinitions.resize(0);
+  materialDefinitions->resize(0);
 
   for (uint32_t typeIndex = 0; typeIndex < typeDefinitions.size(); ++typeIndex)
   {
@@ -286,17 +288,17 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
         break;
 
       MaterialVariantDefinition varDef;
-      varDef.materialFirst = materialDefinitions.size();
+      varDef.materialFirst = materialDefinitions->size();
       for (auto it = variantPair.first; it != variantPair.second; ++it)
-        materialDefinitions.push_back(it->materialDefinition);
+        materialDefinitions->push_back(it->materialDefinition);
 
-      varDef.materialSize = materialDefinitions.size() - varDef.materialFirst;
+      varDef.materialSize = materialDefinitions->size() - varDef.materialFirst;
       variantDefinitions.push_back(varDef);
       variantIndex++;
     }
     typeDefinitions[typeIndex].variantSize = variantDefinitions.size() - typeDefinitions[typeIndex].variantFirst;
   }
-  materialDefinitionSbo->set(materialDefinitions);
+  materialDefinitionBuffer->invalidateData();
 }
 
 
