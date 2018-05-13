@@ -129,7 +129,6 @@ public:
   virtual ~DescriptorSet();
 
   void            validate(const RenderContext& renderContext);
-  void            invalidate();
   void            invalidate(const RenderContext& renderContext);
 
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
@@ -146,28 +145,23 @@ public:
   std::shared_ptr<DescriptorSetLayout> layout;
   std::shared_ptr<DescriptorPool>      pool;
 protected:
-  struct PerSurfaceData
+  struct DescriptorSetInternal
   {
-    PerSurfaceData(uint32_t ac, VkDevice d)
-      : device{ d }
+    DescriptorSetInternal()
+      : descriptorSet{ VK_NULL_HANDLE }
     {
-      resize(ac);
     }
-    void resize(uint32_t ac)
-    {
-      descriptorSet.resize(ac,VK_NULL_HANDLE);
-      valid.resize(ac,false);
-    }
-    std::vector<VkDescriptorSet> descriptorSet;
-    std::vector<bool>            valid;
-    VkDevice                     device;
+    VkDescriptorSet descriptorSet;
   };
+  typedef PerObjectData<DescriptorSetInternal, uint32_t> DescriptorSetData;
 
   mutable std::mutex                                        mutex;
-  std::unordered_map<VkSurfaceKHR, PerSurfaceData>          perSurfaceData;
+  std::unordered_map<uint32_t, DescriptorSetData>           perObjectData;
   std::unordered_map<uint32_t, std::shared_ptr<Descriptor>> descriptors; // descriptor set indirectly owns buffers, images and whatnot
   std::vector<std::weak_ptr<Node>>                          nodeOwners;
   uint32_t                                                  activeCount = 1;
+
+  void            invalidate();
 };
 
 }

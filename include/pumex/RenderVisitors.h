@@ -37,7 +37,6 @@ public:
   ValidateGPUVisitor(const RenderContext& renderContext, bool validateRenderGraphs);
 
   void apply(Node& node) override;
-  void applyDescriptorSets(Node& node);
 
   RenderContext renderContext;
   bool validateRenderGraphs;

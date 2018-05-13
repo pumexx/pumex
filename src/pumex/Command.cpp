@@ -279,16 +279,16 @@ void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const 
   vkCmdCopyBuffer(commandBuffer[activeIndex], srcBuffer, dstBuffer, 1, &bufferCopy);
 }
 
-void CommandBuffer::cmdBindPipeline(ComputePipeline* pipeline)
+void CommandBuffer::cmdBindPipeline(const RenderContext& renderContext, ComputePipeline* pipeline)
 {
   addSource(pipeline);
-  vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandle(device));
+  vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getHandlePipeline(renderContext));
 }
 
-void CommandBuffer::cmdBindPipeline(GraphicsPipeline* pipeline)
+void CommandBuffer::cmdBindPipeline(const RenderContext& renderContext, GraphicsPipeline* pipeline)
 {
   addSource(pipeline);
-  vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandle(device));
+  vkCmdBindPipeline(commandBuffer[activeIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getHandlePipeline(renderContext));
 }
 
 void CommandBuffer::cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets)

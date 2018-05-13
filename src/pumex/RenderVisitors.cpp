@@ -36,15 +36,8 @@ ValidateGPUVisitor::ValidateGPUVisitor(const RenderContext& rc, bool vrg)
 
 void ValidateGPUVisitor::apply(Node& node)
 {
-  node.validate(renderContext);
-  applyDescriptorSets(node);
-  traverse(node);
-}
-
-void ValidateGPUVisitor::applyDescriptorSets(Node& node)
-{
-  for (auto it = node.descriptorSetBegin(); it != node.descriptorSetEnd(); ++it)
-    it->second->validate(renderContext);
+  if (node.nodeValidate(renderContext))
+    traverse(node);
 }
 
 BuildCommandBufferVisitor::BuildCommandBufferVisitor(const RenderContext& rc, CommandBuffer* cb)
@@ -62,7 +55,7 @@ void BuildCommandBufferVisitor::apply(Node& node)
 void BuildCommandBufferVisitor::apply(GraphicsPipeline& node)
 {
   Pipeline* previous = renderContext.setCurrentPipeline(&node);
-  commandBuffer->cmdBindPipeline(&node);
+  commandBuffer->cmdBindPipeline(renderContext, &node);
   applyDescriptorSets(node);
   traverse(node);
   // FIXME - bind previous ?
@@ -72,7 +65,7 @@ void BuildCommandBufferVisitor::apply(GraphicsPipeline& node)
 void BuildCommandBufferVisitor::apply(ComputePipeline& node)
 {
   Pipeline* previous = renderContext.setCurrentPipeline(&node);
-  commandBuffer->cmdBindPipeline(&node);
+  commandBuffer->cmdBindPipeline(renderContext, &node);
   applyDescriptorSets(node);
   traverse(node);
   // FIXME - bind previous ?

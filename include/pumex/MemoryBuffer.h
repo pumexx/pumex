@@ -71,7 +71,7 @@ public:
   void                                          validate(const RenderContext& renderContext);
 
   void                                          addResource(std::shared_ptr<Resource> resource);
-  void                                          notifyResources(const RenderContext& renderContext, const BufferSubresourceRange& range);
+  void                                          notifyResources(const RenderContext& renderContext);
 
   void                                          addBufferView(std::shared_ptr<BufferView> bufferView);
   void                                          notifyBufferViews(const RenderContext& renderContext, const BufferSubresourceRange& range);
@@ -327,7 +327,6 @@ void Buffer<T>::setData(Device* device, const T& dt)
   setData(device, std::make_shared<T>(dt));
 }
 
-
 template <typename T>
 void*  Buffer<T>::getDataPointer()
 {
@@ -396,9 +395,9 @@ bool SetBufferSizeOperation<T>::perform(const RenderContext& renderContext, Memo
     internals.memoryBlock = DeviceMemoryBlock();
   }
   VkBufferCreateInfo bufferCreateInfo{};
-  bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  bufferCreateInfo.usage = owner->getBufferUsage();
-  bufferCreateInfo.size = std::max<VkDeviceSize>(1, bufferRange.range);
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.usage = owner->getBufferUsage();
+    bufferCreateInfo.size  = std::max<VkDeviceSize>(1, bufferRange.range);
   VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &internals.buffer), "Cannot create a buffer");
   VkMemoryRequirements memReqs;
   vkGetBufferMemoryRequirements(renderContext.vkDevice, internals.buffer, &memReqs);
@@ -407,7 +406,7 @@ bool SetBufferSizeOperation<T>::perform(const RenderContext& renderContext, Memo
   ownerAllocator->bindBufferMemory(renderContext.device, internals.buffer, internals.memoryBlock.alignedOffset);
 
   owner->notifyBufferViews(renderContext, bufferRange);
-  owner->notifyResources(renderContext, bufferRange);
+  owner->notifyResources(renderContext);
   return false;
 }
 
@@ -444,7 +443,7 @@ bool SetDataOperation<T>::perform(const RenderContext& renderContext, MemoryBuff
     ownerAllocator->bindBufferMemory(renderContext.device, internals.buffer, internals.memoryBlock.alignedOffset);
 
     owner->notifyBufferViews(renderContext, bufferRange);
-    owner->notifyResources(renderContext, bufferRange);
+    owner->notifyResources(renderContext);
   }
   bool memoryIsLocal = ((ownerAllocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   if (uglyGetSize(*data) > 0)

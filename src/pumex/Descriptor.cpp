@@ -200,16 +200,22 @@ DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l, std::shared
 
 DescriptorSet::~DescriptorSet()
 {
+  std::lock_guard<std::mutex> lock(mutex);
   for (auto& desc : descriptors)
     desc.second->unregisterFromResources();
   descriptors.clear();
 
-  for (auto& pddit : perSurfaceData)
-    vkFreeDescriptorSets(pddit.second.device, pool->getHandle(pddit.second.device), pddit.second.descriptorSet.size(), pddit.second.descriptorSet.data());
+  for (auto& pdd : perObjectData)
+    for(uint32_t i=0; i<pdd.second.data.size(); ++i)
+      vkFreeDescriptorSets(pdd.second.device, pool->getHandle(pdd.second.device), 1, &pdd.second.data[i].descriptorSet);
 }
 
 void DescriptorSet::validate( const RenderContext& renderContext )
 {
+  // validate descriptor pool and layout
+  layout->validate(renderContext);
+  pool->validate(renderContext);
+
   // validate descriptors
   for (const auto& d : descriptors)
     d.second->validate(renderContext);
@@ -219,19 +225,18 @@ void DescriptorSet::validate( const RenderContext& renderContext )
   if (renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;
-    for (auto& pdd : perSurfaceData)
+    for (auto& pdd : perObjectData)
       pdd.second.resize(activeCount);
   }
-  auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == end(perSurfaceData))
-    pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
-  if (pddit->second.valid[renderContext.activeIndex])
+  auto keyValue = getKeyID(renderContext, pbPerSurface);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ keyValue, DescriptorSetData(renderContext, swForEachImage) }).first;
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (pddit->second.valid[activeIndex])
     return;
 
-  layout->validate(renderContext);
-  pool->validate(renderContext);
-
-  if (pddit->second.descriptorSet[renderContext.activeIndex] == VK_NULL_HANDLE)
+  if (pddit->second.data[activeIndex].descriptorSet == VK_NULL_HANDLE)
   {
     VkDescriptorSetLayout layoutHandle = layout->getHandle(pddit->second.device);
 
@@ -240,7 +245,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
       descriptorSetAinfo.descriptorPool     = pool->getHandle(pddit->second.device);
       descriptorSetAinfo.descriptorSetCount = 1;
       descriptorSetAinfo.pSetLayouts        = &layoutHandle;
-    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.descriptorSet[renderContext.activeIndex]), "Cannot allocate descriptor sets");
+    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.data[activeIndex].descriptorSet), "Cannot allocate descriptor sets");
   }
 
   std::map<uint32_t, std::vector<DescriptorSetValue>> values;
@@ -263,7 +268,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
       continue;
     VkWriteDescriptorSet writeDescriptorSet{};
       writeDescriptorSet.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-      writeDescriptorSet.dstSet          = pddit->second.descriptorSet[renderContext.activeIndex];
+      writeDescriptorSet.dstSet          = pddit->second.data[activeIndex].descriptorSet;
       writeDescriptorSet.descriptorType  = layout->getDescriptorType(v.first);
       writeDescriptorSet.dstBinding      = v.first;
       writeDescriptorSet.descriptorCount = layout->getDescriptorBindingCount(v.first);
@@ -280,7 +285,6 @@ void DescriptorSet::validate( const RenderContext& renderContext )
           imageInfos[imageInfosCurrentSize++] = dsv.imageInfo;
         for(uint32_t i=v.second.size(); i<layout->getDescriptorBindingCount(v.first); ++i)
           imageInfos[imageInfosCurrentSize++] = v.second[0].imageInfo;
-
         break;
       default:
         continue;
@@ -288,34 +292,37 @@ void DescriptorSet::validate( const RenderContext& renderContext )
     writeDescriptorSets.push_back(writeDescriptorSet);
   }
   vkUpdateDescriptorSets(pddit->second.device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
-  pddit->second.valid[renderContext.activeIndex] = true;
-  notifyCommandBuffers(renderContext.activeIndex);
+  pddit->second.valid[activeIndex] = true;
+  notifyCommandBuffers(activeIndex);
 }
 
 VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) const
 {
-  auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == end(perSurfaceData))
+  std::lock_guard<std::mutex> lock(mutex);
+  auto keyValue = getKeyID(renderContext, pbPerSurface);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
-  return pddit->second.descriptorSet[renderContext.activeIndex];
+  return pddit->second.data[renderContext.activeIndex].descriptorSet;
 }
 
 void DescriptorSet::invalidate()
 {
-  for(auto& pdd : perSurfaceData)
-    std::fill(begin(pdd.second.valid), end(pdd.second.valid), false);
+  for (auto& pdd : perObjectData)
+    pdd.second.invalidate();
   for (auto& n : nodeOwners)
     n.lock()->invalidate();
 }
 
 void DescriptorSet::invalidate(const RenderContext& renderContext)
 {
-  auto pddit = perSurfaceData.find(renderContext.vkSurface);
-  if (pddit == end(perSurfaceData))
-    pddit = perSurfaceData.insert({ renderContext.vkSurface, PerSurfaceData(activeCount,renderContext.vkDevice) }).first;
-  std::fill(begin(pddit->second.valid), end(pddit->second.valid), false);
+  auto keyValue = getKeyID(renderContext, pbPerSurface);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ keyValue, DescriptorSetData(renderContext,swForEachImage) }).first;
+  pddit->second.invalidate();
   for (auto& n : nodeOwners)
-    n.lock()->invalidate();
+    n.lock()->invalidate(renderContext);
 }
 
 void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType)

@@ -162,7 +162,6 @@ void Text::accept(NodeVisitor& visitor)
 
 void Text::validate(const RenderContext& renderContext)
 {
-  std::lock_guard<std::mutex> lock(mutex);
   auto sit = symbolData.find(renderContext.vkSurface);
   if (sit == end(symbolData))
   {
@@ -170,30 +169,19 @@ void Text::validate(const RenderContext& renderContext)
     vertexBuffer->set(renderContext.surface, sit->second);
   }
 
-  if (!valid)
+  sit->second->resize(0);
+  for (const auto& t : texts)
   {
-    sit->second->resize(0);
-
-    for (const auto& t : texts)
-    {
-      if (t.first.surface != sit->first)
-        continue;
-      glm::vec2    startPosition;
-      glm::vec4    color;
-      std::wstring text;
-      std::tie(startPosition, color, text) = t.second;
-      font->addSymbolData(startPosition, color, text, *(sit->second));
-    }
-    vertexBuffer->invalidate();
-    valid = true;
+    if (t.first.surface != sit->first)
+      continue;
+    glm::vec2    startPosition;
+    glm::vec4    color;
+    std::wstring text;
+    std::tie(startPosition, color, text) = t.second;
+    font->addSymbolData(startPosition, color, text, *(sit->second));
   }
+//  vertexBuffer->invalidate();
   vertexBuffer->validate(renderContext);
-}
-
-void Text::internalInvalidate() 
-{ 
-  vertexBuffer->invalidate(); 
-  invalidate(); 
 }
 
 void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const
@@ -213,21 +201,24 @@ void Text::setText(Surface* surface, uint32_t index, const glm::vec2& position, 
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts[TextKey(surface->surface,index)] = std::make_tuple(position, color, text);
-  internalInvalidate();
+  vertexBuffer->invalidate();
+  invalidate(surface);
 }
 
 void Text::removeText(Surface* surface, uint32_t index)
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts.erase(TextKey(surface->surface, index));
-  internalInvalidate();
+  vertexBuffer->invalidate();
+  invalidate(surface);
 }
 
 void Text::clearTexts()
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts.clear();
-  internalInvalidate();
+  vertexBuffer->invalidate();
+  invalidate();
 }
 
 

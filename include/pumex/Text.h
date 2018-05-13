@@ -108,7 +108,6 @@ public:
   void setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
   void removeText(Surface* surface, uint32_t index);
   void clearTexts();
-  void internalInvalidate();
 
   std::shared_ptr<GenericBuffer<std::vector<SymbolData>>> vertexBuffer;
   std::vector<VertexSemantic>                             textVertexSemantic;

@@ -42,5 +42,4 @@ void DispatchNode::accept(NodeVisitor& visitor)
 
 void DispatchNode::validate(const RenderContext& renderContext)
 {
-  Node::validate(renderContext);
 }

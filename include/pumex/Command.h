@@ -112,8 +112,9 @@ public:
   void            cmdPipelineBarrier(const RenderContext& renderContext, const ResourceBarrierGroup& barrierGroup, const std::vector<ResourceBarrier>& barriers);
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
-  void            cmdBindPipeline(ComputePipeline* pipeline);
-  void            cmdBindPipeline(GraphicsPipeline* pipeline);
+
+  void            cmdBindPipeline(const RenderContext& renderContext, ComputePipeline* pipeline);
+  void            cmdBindPipeline(const RenderContext& renderContext, GraphicsPipeline* pipeline);
   void            cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets);
   void            cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet);
 

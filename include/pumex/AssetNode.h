@@ -39,8 +39,6 @@ public:
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
-  void internalInvalidate();
-
   void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
 
 

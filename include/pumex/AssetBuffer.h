@@ -264,7 +264,7 @@ public:
   std::shared_ptr<Buffer<std::vector<uint32_t>>>                   getOffsetValues(uint32_t renderMask);
   uint32_t                                                         getDrawCount(uint32_t renderMask);
 
-  void                                                       validate(const RenderContext& renderContext);
+  void                                                             validate(const RenderContext& renderContext);
 
 protected:
   struct PerRenderMaskData

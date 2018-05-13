@@ -29,7 +29,6 @@ using namespace pumex;
 AssetBufferNode::AssetBufferNode(std::shared_ptr<AssetBuffer> ab, std::shared_ptr<MaterialSet> ms, uint32_t rm, uint32_t vb)
   : assetBuffer{ ab }, materialSet{ ms }, renderMask { rm }, vertexBinding{ vb }
 {
-
 }
 
 void AssetBufferNode::accept(NodeVisitor& visitor)
@@ -48,13 +47,11 @@ void AssetBufferNode::validate(const RenderContext& renderContext)
     assetBuffer->validate(renderContext);
   if (materialSet.get() != nullptr)
     materialSet->validate(renderContext);
-  Group::validate(renderContext);
 }
 
 AssetBufferDrawObject::AssetBufferDrawObject(uint32_t tid, uint32_t fi)
   : typeID{ tid }, firstInstance{ fi }
 {
-
 }
 
 void AssetBufferDrawObject::accept(NodeVisitor& visitor)
@@ -69,7 +66,6 @@ void AssetBufferDrawObject::accept(NodeVisitor& visitor)
 
 void AssetBufferDrawObject::validate(const RenderContext& renderContext)
 {
-
 }
 
 float AssetBufferDrawObject::getDistanceToViewer() const
@@ -82,7 +78,6 @@ float AssetBufferDrawObject::getDistanceToViewer() const
 AssetBufferIndirectDrawObjects::AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferInstancedResults> ir)
   : instancedResults{ ir }
 {
-
 }
 
 void AssetBufferIndirectDrawObjects::accept(NodeVisitor& visitor)
@@ -98,5 +93,4 @@ void AssetBufferIndirectDrawObjects::accept(NodeVisitor& visitor)
 void AssetBufferIndirectDrawObjects::validate(const RenderContext& renderContext)
 {
   instancedResults->validate(renderContext);
-  Node::validate(renderContext);
 }

@@ -77,7 +77,6 @@ size_t MemoryBuffer::getBufferSize(const RenderContext& renderContext) const
   return pddit->second.data[renderContext.activeIndex % activeCount].memoryBlock.alignedSize;
 }
 
-
 void MemoryBuffer::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -119,7 +118,7 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
 
     BufferSubresourceRange allBufferRange(0, getDataSize());
     notifyBufferViews(renderContext, allBufferRange);
-    notifyResources(renderContext, allBufferRange);
+    notifyResources(renderContext);
     // if there's a data - it must be sent now
     sendDataToBuffer(keyValue, renderContext.vkDevice, renderContext.vkSurface);
   }
@@ -153,7 +152,7 @@ void MemoryBuffer::addResource(std::shared_ptr<Resource> resource)
     resources.push_back(resource);
 }
 
-void MemoryBuffer::notifyResources(const RenderContext& renderContext, const BufferSubresourceRange& range)
+void MemoryBuffer::notifyResources(const RenderContext& renderContext)
 {
   auto eit = std::remove_if(begin(resources), end(resources), [](std::weak_ptr<Resource> r) { return r.expired();  });
   for (auto it = begin(resources); it != eit; ++it)

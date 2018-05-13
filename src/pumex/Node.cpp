@@ -23,6 +23,7 @@
 #include <pumex/NodeVisitor.h>
 #include <pumex/Descriptor.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 #include <algorithm>
 
@@ -72,12 +73,15 @@ void Node::removeParent(std::shared_ptr<Group> parent)
 
 void Node::setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   descriptorSets[index] = descriptorSet;
   descriptorSet->addNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
+  invalidate();
 }
 
 void Node::resetDescriptorSet(uint32_t index)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto it = descriptorSets.find(index);
   if (it == end(descriptorSets))
     return;
@@ -85,21 +89,80 @@ void Node::resetDescriptorSet(uint32_t index)
   descriptorSets.erase(it);
 }
 
-void Node::validate(const RenderContext& renderContext)
+bool Node::nodeValidate(const RenderContext& renderContext)
 {
   for (auto& descriptorSet : descriptorSets)
     descriptorSet.second->validate(renderContext);
-  valid = true;
+
+  std::lock_guard<std::mutex> lock(mutex);
+  if (activeCount < renderContext.imageCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perObjectData)
+      pdd.second.resize(activeCount);
+  }
+  auto keyValue = getKeyID(renderContext, pbPerSurface);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  if (pddit->second.valid[activeIndex])
+    return false;
+
+  validate(renderContext);
+
+  pddit->second.valid[activeIndex] = true;
+  return true;
+}
+
+void Node::invalidate(const RenderContext& renderContext)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  if (activeCount < renderContext.imageCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perObjectData)
+      pdd.second.resize(activeCount);
+  }
+  auto keyValue = getKeyID(renderContext, pbPerSurface);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
+  if (pddit->second.anyValid())
+  {
+    pddit->second.invalidate();
+    for (auto& parent : parents)
+      parent.lock()->invalidate();
+  }
+}
+
+void Node::invalidate(Surface* surface)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto pddit = perObjectData.find(surface->getID());
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
+  if (pddit->second.anyValid())
+  {
+    pddit->second.invalidate();
+    for (auto& parent : parents)
+      parent.lock()->invalidate();
+  }
 }
 
 void Node::invalidate()
 {
-  if (valid)
+  bool anyValid = false;
+  for (auto& pdd : perObjectData)
   {
-    valid = false;
+    bool valid = pdd.second.anyValid();
+    if (valid)
+      pdd.second.invalidate();
+    anyValid |= valid;
+  }
+  if (anyValid)
     for (auto& parent : parents)
       parent.lock()->invalidate();
-  }
 }
 
 Group::Group()
@@ -121,7 +184,6 @@ void Group::accept(NodeVisitor& visitor)
   }
 }
 
-
 void Group::traverse(NodeVisitor& visitor)
 {
   for (auto& child : *this)
@@ -130,6 +192,7 @@ void Group::traverse(NodeVisitor& visitor)
 
 void Group::addChild(std::shared_ptr<Node> child)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   children.push_back(child);
   child->addParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   invalidate();
@@ -137,6 +200,7 @@ void Group::addChild(std::shared_ptr<Node> child)
 
 bool Group::removeChild(std::shared_ptr<Node> child)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto it = std::find(std::begin(children), std::end(children), child);
   if (it == std::end(children))
     return false;
@@ -146,3 +210,6 @@ bool Group::removeChild(std::shared_ptr<Node> child)
   return true;
 }
 
+void Group::validate(const RenderContext& renderContext)
+{
+}

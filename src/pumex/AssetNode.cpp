@@ -50,11 +50,10 @@ void AssetNode::accept(NodeVisitor& visitor)
 
 void AssetNode::validate(const RenderContext& renderContext)
 {
-  std::lock_guard<std::mutex> lock(mutex);
-
   if (geometryValid)
   {
-    Node::validate(renderContext);
+    vertexBuffer->validate(renderContext);
+    indexBuffer->validate(renderContext);
     return;
   }
   vertices->resize(0);
@@ -76,13 +75,6 @@ void AssetNode::validate(const RenderContext& renderContext)
   vertexBuffer->validate(renderContext);
   indexBuffer->validate(renderContext);
   geometryValid = true;
-  Node::validate(renderContext);
-}
-
-void AssetNode::internalInvalidate()
-{
-  geometryValid = false;
-  invalidate();
 }
 
 void AssetNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const

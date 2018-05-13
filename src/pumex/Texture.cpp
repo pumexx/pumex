@@ -587,6 +587,7 @@ VkImage ImageView::getHandleImage(const RenderContext& renderContext) const
 
 VkImageView ImageView::getImageView(const RenderContext& renderContext) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
   if (pddit == perObjectData.end())

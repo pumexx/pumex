@@ -38,7 +38,7 @@ struct PerObjectData
   PerObjectData(VkDevice device, VkSurfaceKHR surface, uint32_t activeCount, SwapChainImageBehaviour scib);
   void resize(uint32_t ac);
   void invalidate();
-  bool allValidExceptFor(uint32_t index);
+  bool anyValid();
 
   VkDevice                device;
   VkSurfaceKHR            surface;
@@ -80,16 +80,14 @@ void PerObjectData<T,U>::invalidate()
 }
 
 template<typename T, typename U>
-bool PerObjectData<T, U>::allValidExceptFor(uint32_t index)
+bool PerObjectData<T, U>::anyValid()
 {
   for (uint32_t i = 0; i < valid.size(); ++i)
   {
-    if (i == index)
-      continue;
-    if (!valid[i])
-      return false;
+    if (valid[i])
+      return true;
   }
-  return true;
+  return false;
 }
 
 void* getKey(const RenderContext& renderContext, const PerObjectBehaviour& pob)

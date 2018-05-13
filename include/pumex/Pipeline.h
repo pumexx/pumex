@@ -87,21 +87,24 @@ public:
   Pipeline(const Pipeline&) = delete;
   Pipeline& operator=(const Pipeline&) = delete;
 
-  void       internalInvalidate(); // invalidate pipelines
-  VkPipeline getHandle(VkDevice device) const;
+  VkPipeline getHandlePipeline(const RenderContext& renderContext) const;
 
   // FIXME : add descriptor set checking, add dynamic state checking
 
   std::shared_ptr<PipelineCache>    pipelineCache;
   std::shared_ptr<PipelineLayout>   pipelineLayout;
 protected:
-
-  struct PerDeviceData
+  struct PipelineInternal
   {
-    VkPipeline pipeline = VK_NULL_HANDLE;
-    bool       valid    = false;
+    PipelineInternal()
+      : pipeline{ VK_NULL_HANDLE }
+    {
+    }
+    VkPipeline pipeline;
   };
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  typedef PerObjectData<PipelineInternal, uint32_t> PipelineData;
+
+  std::unordered_map<uint32_t, PipelineData> perDeviceData;
 };
 
 // pipeline creation
