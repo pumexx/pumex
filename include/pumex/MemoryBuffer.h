@@ -71,6 +71,7 @@ public:
   void                                          validate(const RenderContext& renderContext);
 
   void                                          addResource(std::shared_ptr<Resource> resource);
+  void                                          invalidateResources();
   void                                          notifyResources(const RenderContext& renderContext);
 
   void                                          addBufferView(std::shared_ptr<BufferView> bufferView);
@@ -286,6 +287,7 @@ void Buffer<T>::invalidateData()
     pdd.second.commonData.bufferOperations.push_back(std::make_shared<SetDataOperation<T>>(this, range, range, data, activeCount));
     pdd.second.invalidate();
   }
+  invalidateResources();
 }
 
 template <typename T>
@@ -359,6 +361,7 @@ void Buffer<T>::internalSetBufferSize(uint32_t key, VkDevice device, VkSurfaceKH
   // add setImage operation
   pddit->second.commonData.bufferOperations.push_back(std::make_shared<SetBufferSizeOperation<T>>(this, range, activeCount));
   pddit->second.invalidate();
+  invalidateResources();
 }
 
 template <typename T>
@@ -374,6 +377,7 @@ void Buffer<T>::internalSetData(uint32_t key, VkDevice device, VkSurfaceKHR surf
   // add setData operation
   pddit->second.commonData.bufferOperations.push_back(std::make_shared<SetDataOperation<T>>(this, range, range, dt, activeCount));
   pddit->second.invalidate();
+  invalidateResources();
 }
 
 template<typename T>

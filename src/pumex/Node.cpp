@@ -76,7 +76,7 @@ void Node::setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descr
   std::lock_guard<std::mutex> lock(mutex);
   descriptorSets[index] = descriptorSet;
   descriptorSet->addNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
-  invalidate();
+  invalidateParents();
 }
 
 void Node::resetDescriptorSet(uint32_t index)
@@ -107,62 +107,79 @@ bool Node::nodeValidate(const RenderContext& renderContext)
     pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
-    return false;
+    return !pddit->second.data[activeIndex].childrenValid;
 
   validate(renderContext);
 
   pddit->second.valid[activeIndex] = true;
-  return true;
+  return !pddit->second.data[activeIndex].childrenValid;
 }
 
-void Node::invalidate(const RenderContext& renderContext)
+void Node::setChildrenValid(const RenderContext& renderContext)
 {
-  std::lock_guard<std::mutex> lock(mutex);
-  if (activeCount < renderContext.imageCount)
-  {
-    activeCount = renderContext.imageCount;
-    for (auto& pdd : perObjectData)
-      pdd.second.resize(activeCount);
-  }
   auto keyValue = getKeyID(renderContext, pbPerSurface);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
-  if (pddit->second.anyValid())
-  {
-    pddit->second.invalidate();
-    for (auto& parent : parents)
-      parent.lock()->invalidate();
-  }
+    return;
+  uint32_t activeIndex = renderContext.activeIndex % activeCount;
+  pddit->second.data[activeIndex].childrenValid = true;
 }
 
-void Node::invalidate(Surface* surface)
+void Node::invalidateNodeAndParents()
 {
-  std::lock_guard<std::mutex> lock(mutex);
+  for (auto& pdd : perObjectData)
+    pdd.second.invalidate();
+  for (auto& parent : parents)
+    parent.lock()->invalidateParents();
+}
+
+void Node::invalidateNodeAndParents(Surface* surface)
+{
   auto pddit = perObjectData.find(surface->getID());
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
-  if (pddit->second.anyValid())
-  {
-    pddit->second.invalidate();
-    for (auto& parent : parents)
-      parent.lock()->invalidate();
-  }
+  pddit->second.invalidate();
+  for (auto& parent : parents)
+    parent.lock()->invalidateParents(surface);
 }
 
-void Node::invalidate()
+void Node::invalidateParents()
 {
-  bool anyValid = false;
+  bool needInvalidateParents = false;
   for (auto& pdd : perObjectData)
   {
-    bool valid = pdd.second.anyValid();
-    if (valid)
-      pdd.second.invalidate();
-    anyValid |= valid;
+    for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
+    {
+      if (pdd.second.data[i].childrenValid)
+      {
+        pdd.second.data[i].childrenValid = false;
+        needInvalidateParents = true;
+      }
+    }
   }
-  if (anyValid)
+  if( needInvalidateParents )
     for (auto& parent : parents)
-      parent.lock()->invalidate();
+      parent.lock()->invalidateParents();
+}
+
+void Node::invalidateParents(Surface* surface)
+{
+  auto pddit = perObjectData.find(surface->getID());
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
+
+  bool needInvalidateParents = false;
+  for (uint32_t i = 0; i < pddit->second.data.size(); ++i)
+  {
+    if (pddit->second.data[i].childrenValid)
+    {
+      pddit->second.data[i].childrenValid = false;
+      needInvalidateParents = true;
+    }
+  }
+  if (needInvalidateParents)
+    for (auto& parent : parents)
+      parent.lock()->invalidateParents(surface);
 }
 
 Group::Group()
@@ -195,7 +212,7 @@ void Group::addChild(std::shared_ptr<Node> child)
   std::lock_guard<std::mutex> lock(mutex);
   children.push_back(child);
   child->addParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
-  invalidate();
+  invalidateParents();
 }
 
 bool Group::removeChild(std::shared_ptr<Node> child)
@@ -206,7 +223,7 @@ bool Group::removeChild(std::shared_ptr<Node> child)
     return false;
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   children.erase(it);
-  invalidate();
+  invalidateParents();
   return true;
 }
 

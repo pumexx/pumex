@@ -225,7 +225,6 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
   pipelineCache->validate(renderContext);
   pipelineLayout->validate(renderContext);
 
-  std::lock_guard<std::mutex> lock(mutex);
   if (renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;
@@ -444,7 +443,6 @@ void ComputePipeline::validate(const RenderContext& renderContext)
   pipelineCache->validate(renderContext);
   pipelineLayout->validate(renderContext);
 
-  std::lock_guard<std::mutex> lock(mutex);
   if (renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;

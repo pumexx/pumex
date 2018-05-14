@@ -202,7 +202,7 @@ void Text::setText(Surface* surface, uint32_t index, const glm::vec2& position, 
   std::lock_guard<std::mutex> lock(mutex);
   texts[TextKey(surface->surface,index)] = std::make_tuple(position, color, text);
   vertexBuffer->invalidate();
-  invalidate(surface);
+  invalidateNodeAndParents(surface);
 }
 
 void Text::removeText(Surface* surface, uint32_t index)
@@ -210,7 +210,7 @@ void Text::removeText(Surface* surface, uint32_t index)
   std::lock_guard<std::mutex> lock(mutex);
   texts.erase(TextKey(surface->surface, index));
   vertexBuffer->invalidate();
-  invalidate(surface);
+  invalidateNodeAndParents(surface);
 }
 
 void Text::clearTexts()
@@ -218,7 +218,7 @@ void Text::clearTexts()
   std::lock_guard<std::mutex> lock(mutex);
   texts.clear();
   vertexBuffer->invalidate();
-  invalidate();
+  invalidateNodeAndParents();
 }
 
 

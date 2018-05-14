@@ -152,6 +152,14 @@ void MemoryBuffer::addResource(std::shared_ptr<Resource> resource)
     resources.push_back(resource);
 }
 
+void MemoryBuffer::invalidateResources()
+{
+  auto eit = std::remove_if(begin(resources), end(resources), [](std::weak_ptr<Resource> r) { return r.expired();  });
+  for (auto it = begin(resources); it != eit; ++it)
+    it->lock()->invalidateDescriptors();
+  resources.erase(eit, end(resources));
+}
+
 void MemoryBuffer::notifyResources(const RenderContext& renderContext)
 {
   auto eit = std::remove_if(begin(resources), end(resources), [](std::weak_ptr<Resource> r) { return r.expired();  });

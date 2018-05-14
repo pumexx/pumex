@@ -73,6 +73,12 @@ void Resource::removeDescriptor(std::shared_ptr<Descriptor> descriptor)
     descriptors.erase(it);
 }
 
+void Resource::invalidateDescriptors()
+{
+  for (auto& ds : descriptors)
+    ds.lock()->invalidateDescriptorSet();
+}
+
 void Resource::notifyDescriptors(const RenderContext& renderContext)
 {
   for (auto& ds : descriptors)

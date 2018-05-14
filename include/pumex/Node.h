@@ -56,17 +56,29 @@ public:
   void setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet);
   void resetDescriptorSet(uint32_t index);
 
+  // returns true if children need to be validated
   bool nodeValidate(const RenderContext& renderContext);
-  void invalidate(const RenderContext& renderContext);
-  void invalidate(Surface* surface);
-  void invalidate();
+  void setChildrenValid(const RenderContext& renderContext);
+
+  void invalidateNodeAndParents();
+  void invalidateNodeAndParents(Surface* surface);
+  void invalidateParents();
+  void invalidateParents(Surface* surface);
 
   virtual void validate(const RenderContext& renderContext) = 0;
 
   void addParent(std::shared_ptr<Group> parent);
   void removeParent(std::shared_ptr<Group> parent);
 protected:
-  typedef PerObjectData<uint32_t, uint32_t> NodeData; // actually node only stores information about node validity
+  struct NodeInternal
+  {
+    NodeInternal()
+      : childrenValid{ false }
+    {
+    }
+    bool childrenValid;
+  };
+  typedef PerObjectData<NodeInternal, uint32_t> NodeData; // actually node only stores information about node validity
 
   mutable std::mutex                                           mutex;
   uint32_t                                                     mask        = 0xFFFFFFFF;

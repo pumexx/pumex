@@ -96,6 +96,7 @@ public:
 
   void                                          addImageView( std::shared_ptr<ImageView> imageView );
   void                                          notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range);
+  void                                          invalidateImageViews();
 
   struct TextureInternal
   {
@@ -170,7 +171,8 @@ public:
   VkImageView  getImageView(const RenderContext& renderContext) const;
 
   void         validate(const RenderContext& renderContext);
-  void         notifyImageView(const RenderContext& renderContext);
+  void         notify(const RenderContext& renderContext);
+  void         invalidateResources();
 
   void         addResource(std::shared_ptr<Resource> resource);
 

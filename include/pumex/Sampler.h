@@ -70,11 +70,14 @@ public:
   Sampler& operator=(const Sampler&) = delete;
   virtual ~Sampler();
 
+  void                              setSamplerTraits(const SamplerTraits& samplerTraits);
+  inline const SamplerTraits&       getSamplerTraits() const;
+
   void                              addOwner(std::shared_ptr<Resource> resource);
 
   VkSampler                         getHandleSampler(const RenderContext& renderContext) const;
-  inline const SamplerTraits&       getSamplerTraits() const;
 
+  void                              invalidateDescriptors() override;
   void                              notifyDescriptors(const RenderContext& renderContext) override;
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
   void                              validate(const RenderContext& renderContext) override;

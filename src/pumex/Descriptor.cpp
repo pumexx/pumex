@@ -179,9 +179,14 @@ void Descriptor::validate(const RenderContext& renderContext)
     res->validate(renderContext);
 }
 
+void Descriptor::invalidateDescriptorSet()
+{
+  owner.lock()->invalidateOwners();
+}
+
 void Descriptor::notifyDescriptorSet(const RenderContext& renderContext)
 {
-  owner.lock()->invalidate(renderContext);
+  owner.lock()->notify(renderContext);
 }
 
 void Descriptor::getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const
@@ -306,23 +311,25 @@ VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) con
   return pddit->second.data[renderContext.activeIndex].descriptorSet;
 }
 
-void DescriptorSet::invalidate()
+void DescriptorSet::invalidateOwners()
 {
-  for (auto& pdd : perObjectData)
-    pdd.second.invalidate();
   for (auto& n : nodeOwners)
-    n.lock()->invalidate();
+    n.lock()->invalidateNodeAndParents();
 }
 
-void DescriptorSet::invalidate(const RenderContext& renderContext)
+void DescriptorSet::notify()
+{
+  for(auto& pdd : perObjectData)
+    pdd.second.invalidate();
+}
+
+void DescriptorSet::notify(const RenderContext& renderContext)
 {
   auto keyValue = getKeyID(renderContext, pbPerSurface);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ keyValue, DescriptorSetData(renderContext,swForEachImage) }).first;
   pddit->second.invalidate();
-  for (auto& n : nodeOwners)
-    n.lock()->invalidate(renderContext);
 }
 
 void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType)
@@ -334,7 +341,8 @@ void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::share
   std::lock_guard<std::mutex> lock(mutex);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resources, descriptorType);
   descriptors[binding]->registerInResources();
-  invalidate();
+  notify();
+  invalidateOwners();
 }
 
 void DescriptorSet::setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources)
@@ -353,7 +361,8 @@ void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> re
   std::lock_guard<std::mutex> lock(mutex);
   descriptors[binding] = std::make_shared<Descriptor>(std::dynamic_pointer_cast<DescriptorSet>(shared_from_this()), resource, descriptorType);
   descriptors[binding]->registerInResources();
-  invalidate();
+  notify();
+  invalidateOwners();
 }
 
 void DescriptorSet::setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource)
@@ -370,8 +379,9 @@ void DescriptorSet::resetDescriptor(uint32_t binding)
   {
     descriptors[binding]->unregisterFromResources();
     descriptors.erase(binding);
+    notify();
+    invalidateOwners();
   }
-  invalidate();
 }
 
 void DescriptorSet::addNode(std::shared_ptr<Node> node)

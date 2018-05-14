@@ -110,6 +110,7 @@ public:
   void unregisterFromResources();
 
   void validate(const RenderContext& renderContext);
+  void invalidateDescriptorSet();
   void notifyDescriptorSet(const RenderContext& renderContext);
   void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const;
 
@@ -129,7 +130,9 @@ public:
   virtual ~DescriptorSet();
 
   void            validate(const RenderContext& renderContext);
-  void            invalidate(const RenderContext& renderContext);
+  void            invalidateOwners();
+  void            notify(const RenderContext& renderContext);
+  void            notify();
 
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
   void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources);
@@ -160,8 +163,6 @@ protected:
   std::unordered_map<uint32_t, std::shared_ptr<Descriptor>> descriptors; // descriptor set indirectly owns buffers, images and whatnot
   std::vector<std::weak_ptr<Node>>                          nodeOwners;
   uint32_t                                                  activeCount = 1;
-
-  void            invalidate();
 };
 
 }

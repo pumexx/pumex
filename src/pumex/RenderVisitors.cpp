@@ -37,7 +37,10 @@ ValidateGPUVisitor::ValidateGPUVisitor(const RenderContext& rc, bool vrg)
 void ValidateGPUVisitor::apply(Node& node)
 {
   if (node.nodeValidate(renderContext))
+  {
     traverse(node);
+    node.setChildrenValid(renderContext);
+  }
 }
 
 BuildCommandBufferVisitor::BuildCommandBufferVisitor(const RenderContext& rc, CommandBuffer* cb)

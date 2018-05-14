@@ -258,6 +258,7 @@ void Texture::setImageTraits(const ImageTraits& traits)
     pdd.second.commonData.imageOperations.push_back(std::make_shared<SetImageTraitsOperation>(this, traits, aspectMask, activeCount));
     pdd.second.invalidate();
   }
+  invalidateImageViews();
 }
 
 void Texture::setImageTraits(Surface* surface, const ImageTraits& traits)
@@ -289,6 +290,7 @@ void Texture::invalidateImage()
     pdd.second.commonData.imageOperations.push_back(std::make_shared<SetImageOperation>(this, range, range, texture, activeCount));
     pdd.second.invalidate();
   }
+  invalidateImageViews();
 }
 
 void Texture::setImage(Surface* surface, std::shared_ptr<gli::texture> tex)
@@ -339,6 +341,7 @@ void Texture::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
     pdd.second.commonData.imageOperations.push_back(std::make_shared<SetImageOperation>(this, targetRange, sourceRange, tex, activeCount));
     pdd.second.invalidate();
   }
+  invalidateImageViews();
 }
 
 void Texture::setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images)
@@ -474,9 +477,18 @@ void Texture::notifyImageViews(const RenderContext& renderContext, const ImageSu
   auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> iv) { return iv.expired();  });
   for (auto it = begin(imageViews); it != eit; ++it)
     if( range.contains(it->lock()->subresourceRange) )
-      it->lock()->notifyImageView(renderContext);
+      it->lock()->notify(renderContext);
   imageViews.erase(eit, end(imageViews));
 }
+
+void Texture::invalidateImageViews()
+{
+  auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> iv) { return iv.expired();  });
+  for (auto it = begin(imageViews); it != eit; ++it)
+    it->lock()->invalidateResources();
+  imageViews.erase(eit, end(imageViews));
+}
+
 
 // caution : mutex lock must be called prior to this method
 void Texture::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR surface, const ImageTraits& traits, VkImageAspectFlags aMask)
@@ -490,6 +502,7 @@ void Texture::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR
   // add setImageTraits operation
   pddit->second.commonData.imageOperations.push_back(std::make_shared<SetImageTraitsOperation>(this, traits, aMask, activeCount));
   pddit->second.invalidate();
+  invalidateImageViews();
 }
 
 // caution : mutex lock must be called prior to this method
@@ -511,6 +524,7 @@ void Texture::internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surfa
   // add setImage operation
   pddit->second.commonData.imageOperations.push_back(std::make_shared<SetImageOperation>(this, range, range, tex, activeCount));
   pddit->second.invalidate();
+  invalidateImageViews();
 }
 
 // set foreign images as images used by texture
@@ -544,6 +558,7 @@ void Texture::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surf
   ImageSubresourceRange range(aspectMask, 0, images[0]->getImageTraits().mipLevels, 0, images[0]->getImageTraits().arrayLayers);
   pddit->second.commonData.imageOperations.push_back(std::make_shared<NotifyImageViewsOperation>(this, range, activeCount));
   pddit->second.invalidate();
+  invalidateImageViews();
 }
 
 
@@ -639,7 +654,7 @@ void ImageView::validate(const RenderContext& renderContext)
   pddit->second.valid[activeIndex] = true;
 }
 
-void ImageView::notifyImageView(const RenderContext& renderContext)
+void ImageView::notify(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
@@ -660,5 +675,13 @@ void ImageView::notifyResources(const RenderContext& renderContext)
   auto eit = std::remove_if(begin(resources), end(resources), [](std::weak_ptr<Resource> r) { return r.expired();  });
   for (auto it = begin(resources); it != eit; ++it)
     it->lock()->notifyDescriptors(renderContext);
+  resources.erase(eit, end(resources));
+}
+
+void ImageView::invalidateResources()
+{
+  auto eit = std::remove_if(begin(resources), end(resources), [](std::weak_ptr<Resource> r) { return r.expired();  });
+  for (auto it = begin(resources); it != eit; ++it)
+    it->lock()->invalidateDescriptors();
   resources.erase(eit, end(resources));
 }

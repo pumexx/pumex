@@ -48,12 +48,28 @@ Sampler::~Sampler()
         vkDestroySampler(pdd.second.device, pdd.second.data[i].sampler, nullptr);
 }
 
+void Sampler::setSamplerTraits(const SamplerTraits& st)
+{
+  samplerTraits = st;
+  invalidateDescriptors();
+}
+
 void Sampler::addOwner(std::shared_ptr<Resource> resource) 
 { 
   if (std::find_if(begin(owners), end(owners), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(owners))
     owners.push_back(resource);
 }
 
+void Sampler::invalidateDescriptors()
+{
+  // inform all owners that they need to invalidated
+  auto eit = std::remove_if(begin(owners), end(owners), [](std::weak_ptr<Resource> r) { return r.expired();  });
+  for (auto it = begin(owners); it != eit; ++it)
+    it->lock()->invalidateDescriptors();
+  owners.erase(eit, end(owners));
+  // notify sampler's own descriptors
+  Resource::invalidateDescriptors();
+}
 
 void Sampler::notifyDescriptors(const RenderContext& renderContext)
 {
