@@ -227,7 +227,6 @@ MaterialRegistry<T>::MaterialRegistry(std::shared_ptr<DeviceMemoryAllocator> all
   materialDefinitionBuffer = std::make_shared<Buffer<std::vector<T>>>(materialDefinitions, allocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
 }
 
-
 template <typename T>
 void MaterialRegistry<T>::registerMaterial(uint32_t typeID, uint32_t materialVariant, uint32_t assetIndex, uint32_t materialIndex, const Material& mat, const std::map<TextureSemantic::Type, uint32_t>& registeredTextures)
 {

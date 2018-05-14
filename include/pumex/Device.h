@@ -143,7 +143,7 @@ protected:
   std::vector<QueueTraits>                    requestedQueues;
   std::vector<std::shared_ptr<Queue>>         queues;
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
-  std::mutex                                  stagingMutex;
+  mutable std::mutex                          stagingMutex;
 };
 
 void     Device::resetRequestedQueues()                   { requestedQueues.clear(); }

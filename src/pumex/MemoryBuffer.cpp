@@ -117,6 +117,7 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
     allocator->bindBufferMemory(renderContext.device, pddit->second.data[activeIndex].buffer, pddit->second.data[activeIndex].memoryBlock.alignedOffset);
 
     BufferSubresourceRange allBufferRange(0, getDataSize());
+    notifyCommandBufferSources(renderContext);
     notifyBufferViews(renderContext, allBufferRange);
     notifyResources(renderContext);
     // if there's a data - it must be sent now
@@ -144,6 +145,20 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
     pddit->second.commonData.bufferOperations.remove_if(([](std::shared_ptr<Operation> texop) { return texop->allUpdated(); }));
   }
   pddit->second.valid[activeIndex] = true;
+}
+
+void MemoryBuffer::addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource)
+{
+  if (std::find_if(begin(commandBufferSources), end(commandBufferSources), [&cbSource](std::weak_ptr<CommandBufferSource> cbs) { return !cbs.expired() && cbs.lock().get() == cbSource.get(); }) == end(commandBufferSources))
+    commandBufferSources.push_back(cbSource);
+}
+
+void MemoryBuffer::notifyCommandBufferSources(const RenderContext& renderContext)
+{
+  auto eit = std::remove_if(begin(commandBufferSources), end(commandBufferSources), [](std::weak_ptr<CommandBufferSource> r) { return r.expired();  });
+  for (auto it = begin(commandBufferSources); it != eit; ++it)
+    it->lock()->notifyCommandBuffers(renderContext.activeIndex);
+  commandBufferSources.erase(eit, end(commandBufferSources));
 }
 
 void MemoryBuffer::addResource(std::shared_ptr<Resource> resource)

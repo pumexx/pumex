@@ -23,10 +23,10 @@
 #include <pumex/AssetBuffer.h>
 #include <set>
 #include <pumex/Device.h>
+#include <pumex/Node.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/RenderContext.h>
 #include <pumex/MemoryBuffer.h>
-#include <pumex/GenericBuffer.h>
 #include <pumex/Command.h>
 #include <pumex/utils/Log.h>
 
@@ -53,6 +53,7 @@ AssetBuffer::~AssetBuffer()
 
 uint32_t AssetBuffer::registerType(const std::string& typeName, const AssetTypeDefinition& tdef)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (invTypeNames.find(typeName) != end(invTypeNames))
     return 0;
   uint32_t typeID = typeNames.size();
@@ -60,12 +61,13 @@ uint32_t AssetBuffer::registerType(const std::string& typeName, const AssetTypeD
   invTypeNames.insert({ typeName, typeID });
   typeDefinitions.push_back(tdef);
   lodDefinitions.push_back(std::vector<AssetLodDefinition>());
-  invalidate();
+  invalidateNodeOwners();
   return typeID;
 }
 
 uint32_t AssetBuffer::registerObjectLOD(uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (typeID == 0 || typeNames.size() < typeID)
     return UINT32_MAX;
   uint32_t lodID = lodDefinitions[typeID].size();
@@ -87,7 +89,7 @@ uint32_t AssetBuffer::registerObjectLOD(uint32_t typeID, std::shared_ptr<Asset> 
 
   for (uint32_t i = 0; i<assets[assetIndex]->geometries.size(); ++i)
     geometryDefinitions.push_back(InternalGeometryDefinition(typeID, lodID, assets[assetIndex]->geometries[i].renderMask, assetIndex, i));
-  invalidate();
+  invalidateNodeOwners();
   return lodID;
 }
 
@@ -127,88 +129,85 @@ std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)
 void AssetBuffer::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (!valid)
+
+  // divide geometries according to renderMasks
+  std::map<uint32_t, std::vector<InternalGeometryDefinition>> geometryDefinitionsByRenderMask;
+  for (const auto& gd : geometryDefinitions)
   {
-    // divide geometries according to renderMasks
-    std::map<uint32_t, std::vector<InternalGeometryDefinition>> geometryDefinitionsByRenderMask;
-    for (const auto& gd : geometryDefinitions)
+    auto it = geometryDefinitionsByRenderMask.find(gd.renderMask);
+    if (it == end(geometryDefinitionsByRenderMask))
+      it = geometryDefinitionsByRenderMask.insert({ gd.renderMask, std::vector<InternalGeometryDefinition>() }).first;
+    it->second.push_back(gd);
+  }
+
+  for (auto& gd : geometryDefinitionsByRenderMask)
+  {
+    // only create asset buffers for render masks that have nonempty vertex semantic defined
+    auto pdmit = perRenderMaskData.find(gd.first);
+    if (pdmit == end(perRenderMaskData))
+      continue;
+    PerRenderMaskData& rmData = pdmit->second;
+
+    std::vector<VertexSemantic> requiredSemantic;
+    auto sit = semantics.find(gd.first);
+    if (sit != end(semantics))
+      requiredSemantic = sit->second;
+    if (requiredSemantic.empty())
+      continue;
+
+    // Sort geometries according to typeID and lodID
+    std::sort(begin(gd.second), end(gd.second), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
+
+    VkDeviceSize                verticesSoFar   = 0;
+    VkDeviceSize                indicesSoFar    = 0;
+    rmData.vertices->resize(0);
+    rmData.indices->resize(0);
+
+    std::vector<AssetTypeDefinition>     assetTypes = typeDefinitions;
+    std::vector<AssetLodDefinition>      assetLods;
+    std::vector<AssetGeometryDefinition> assetGeometries;
+    for (uint32_t t = 0; t < assetTypes.size(); ++t)
     {
-      auto it = geometryDefinitionsByRenderMask.find(gd.renderMask);
-      if (it == end(geometryDefinitionsByRenderMask))
-        it = geometryDefinitionsByRenderMask.insert({ gd.renderMask, std::vector<InternalGeometryDefinition>() }).first;
-      it->second.push_back(gd);
-    }
-
-    for (auto& gd : geometryDefinitionsByRenderMask)
-    {
-      // only create asset buffers for render masks that have nonempty vertex semantic defined
-      auto pdmit = perRenderMaskData.find(gd.first);
-      if (pdmit == end(perRenderMaskData))
-        continue;
-      PerRenderMaskData& rmData = pdmit->second;
-
-      std::vector<VertexSemantic> requiredSemantic;
-      auto sit = semantics.find(gd.first);
-      if (sit != end(semantics))
-        requiredSemantic = sit->second;
-      if (requiredSemantic.empty())
-        continue;
-
-      // Sort geometries according to typeID and lodID
-      std::sort(begin(gd.second), end(gd.second), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) { if (lhs.typeID != rhs.typeID) return lhs.typeID < rhs.typeID; return lhs.lodID < rhs.lodID; });
-
-      VkDeviceSize                verticesSoFar   = 0;
-      VkDeviceSize                indicesSoFar    = 0;
-      rmData.vertices->resize(0);
-      rmData.indices->resize(0);
-
-      std::vector<AssetTypeDefinition>     assetTypes = typeDefinitions;
-      std::vector<AssetLodDefinition>      assetLods;
-      std::vector<AssetGeometryDefinition> assetGeometries;
-      for (uint32_t t = 0; t < assetTypes.size(); ++t)
+      auto typePair = std::equal_range(begin(gd.second), end(gd.second), InternalGeometryDefinition(t, 0, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) {return lhs.typeID < rhs.typeID; });
+      assetTypes[t].lodFirst = assetLods.size();
+      for (uint32_t l = 0; l < lodDefinitions[t].size(); ++l)
       {
-        auto typePair = std::equal_range(begin(gd.second), end(gd.second), InternalGeometryDefinition(t, 0, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) {return lhs.typeID < rhs.typeID; });
-        assetTypes[t].lodFirst = assetLods.size();
-        for (uint32_t l = 0; l < lodDefinitions[t].size(); ++l)
+        auto lodPair = std::equal_range(typePair.first, typePair.second, InternalGeometryDefinition(t, l, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) {return lhs.lodID < rhs.lodID; });
+        if (lodPair.first != lodPair.second)
         {
-          auto lodPair = std::equal_range(typePair.first, typePair.second, InternalGeometryDefinition(t, l, 0, 0, 0), [](const InternalGeometryDefinition& lhs, const InternalGeometryDefinition& rhs) {return lhs.lodID < rhs.lodID; });
-          if (lodPair.first != lodPair.second)
+          AssetLodDefinition lodDef = lodDefinitions[t][l];
+          lodDef.geomFirst = assetGeometries.size();
+          for (auto it = lodPair.first; it != lodPair.second; ++it)
           {
-            AssetLodDefinition lodDef = lodDefinitions[t][l];
-            lodDef.geomFirst = assetGeometries.size();
-            for (auto it = lodPair.first; it != lodPair.second; ++it)
-            {
-              uint32_t indexCount = assets[it->assetIndex]->geometries[it->geometryIndex].getIndexCount();
-              uint32_t firstIndex = indicesSoFar;
-              uint32_t vertexOffset = verticesSoFar;
-              assetGeometries.push_back(AssetGeometryDefinition(indexCount, firstIndex, vertexOffset));
+            uint32_t indexCount = assets[it->assetIndex]->geometries[it->geometryIndex].getIndexCount();
+            uint32_t firstIndex = indicesSoFar;
+            uint32_t vertexOffset = verticesSoFar;
+            assetGeometries.push_back(AssetGeometryDefinition(indexCount, firstIndex, vertexOffset));
 
-              // calculating buffer sizes etc
-              verticesSoFar += assets[it->assetIndex]->geometries[it->geometryIndex].getVertexCount();
-              indicesSoFar += indexCount;
+            // calculating buffer sizes etc
+            verticesSoFar += assets[it->assetIndex]->geometries[it->geometryIndex].getVertexCount();
+            indicesSoFar += indexCount;
 
-              // copying vertices to a vertex buffer
-              copyAndConvertVertices(*(rmData.vertices), requiredSemantic, assets[it->assetIndex]->geometries[it->geometryIndex].vertices, assets[it->assetIndex]->geometries[it->geometryIndex].semantic);
-              // copying indices to an index buffer
-              const auto& indices = assets[it->assetIndex]->geometries[it->geometryIndex].indices;
-              std::copy(begin(indices), end(indices), std::back_inserter(*(rmData.indices)));
-            }
-            lodDef.geomSize = assetGeometries.size() - lodDef.geomFirst;
-            assetLods.push_back(lodDef);
+            // copying vertices to a vertex buffer
+            copyAndConvertVertices(*(rmData.vertices), requiredSemantic, assets[it->assetIndex]->geometries[it->geometryIndex].vertices, assets[it->assetIndex]->geometries[it->geometryIndex].semantic);
+            // copying indices to an index buffer
+            const auto& indices = assets[it->assetIndex]->geometries[it->geometryIndex].indices;
+            std::copy(begin(indices), end(indices), std::back_inserter(*(rmData.indices)));
           }
+          lodDef.geomSize = assetGeometries.size() - lodDef.geomFirst;
+          assetLods.push_back(lodDef);
         }
-        assetTypes[t].lodSize = assetLods.size() - assetTypes[t].lodFirst;
       }
-      rmData.vertexBuffer->invalidate();
-      rmData.indexBuffer->invalidate();
-      (*rmData.aTypes)    = assetTypes;
-      (*rmData.aLods)     = assetLods;
-      (*rmData.aGeomDefs) = assetGeometries;
-      rmData.typeBuffer->invalidateData();
-      rmData.lodBuffer->invalidateData();
-      rmData.geomBuffer->invalidateData();
+      assetTypes[t].lodSize = assetLods.size() - assetTypes[t].lodFirst;
     }
-    valid = true;
+    rmData.vertexBuffer->invalidateData();
+    rmData.indexBuffer->invalidateData();
+    (*rmData.aTypes)    = assetTypes;
+    (*rmData.aLods)     = assetLods;
+    (*rmData.aGeomDefs) = assetGeometries;
+    rmData.typeBuffer->invalidateData();
+    rmData.lodBuffer->invalidateData();
+    rmData.geomBuffer->invalidateData();
   }
   for (auto& prm : perRenderMaskData)
   {
@@ -217,7 +216,7 @@ void AssetBuffer::validate(const RenderContext& renderContext)
   }
 }
 
-void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding) const
+void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto prmit = perRenderMaskData.find(renderMask);
@@ -228,8 +227,6 @@ void AssetBuffer::cmdBindVertexIndexBuffer(const RenderContext& renderContext, C
   }
   VkBuffer vBuffer = prmit->second.vertexBuffer->getHandleBuffer(renderContext);
   VkBuffer iBuffer = prmit->second.indexBuffer->getHandleBuffer(renderContext);
-  commandBuffer->addSource(prmit->second.vertexBuffer.get());
-  commandBuffer->addSource(prmit->second.indexBuffer.get());
   VkDeviceSize offsets = 0;
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), vertexBinding, 1, &vBuffer, &offsets);
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -351,25 +348,37 @@ void AssetBuffer::prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, s
   }
 }
 
+void AssetBuffer::addNodeOwner(std::shared_ptr<Node> node)
+{
+  if (std::find_if(begin(nodeOwners), end(nodeOwners), [&node](std::weak_ptr<Node> n) { return !n.expired() && n.lock().get() == node.get(); }) == end(nodeOwners))
+    nodeOwners.push_back(node);
+}
+
+void AssetBuffer::invalidateNodeOwners()
+{
+  auto eit = std::remove_if(begin(nodeOwners), end(nodeOwners), [](std::weak_ptr<Node> n) { return n.expired();  });
+  for (auto it = begin(nodeOwners); it != eit; ++it)
+    it->lock()->invalidateNodeAndParents();
+  nodeOwners.erase(eit, end(nodeOwners));
+}
+
+
 AssetBuffer::PerRenderMaskData::PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator)
 {
   vertices     = std::make_shared<std::vector<float>>();
   indices      = std::make_shared<std::vector<uint32_t>>();
-  vertexBuffer = std::make_shared<GenericBuffer<std::vector<float>>>(vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swForEachImage);
-  indexBuffer  = std::make_shared<GenericBuffer<std::vector<uint32_t>>>(vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swForEachImage);
-  vertexBuffer->set(vertices);
-  indexBuffer->set(indices);
+  vertexBuffer = std::make_shared<Buffer<std::vector<float>>>(vertices, vertexIndexAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swForEachImage);
+  indexBuffer  = std::make_shared<Buffer<std::vector<uint32_t>>>(indices, vertexIndexAllocator, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swForEachImage);
 
-  aTypes    = std::make_shared<std::vector<AssetTypeDefinition>>();
-  aLods     = std::make_shared<std::vector<AssetLodDefinition>>();
-  aGeomDefs = std::make_shared<std::vector<AssetGeometryDefinition>>();
-
+  aTypes       = std::make_shared<std::vector<AssetTypeDefinition>>();
+  aLods        = std::make_shared<std::vector<AssetLodDefinition>>();
+  aGeomDefs    = std::make_shared<std::vector<AssetGeometryDefinition>>();
   typeBuffer   = std::make_shared<Buffer<std::vector<AssetTypeDefinition>>>(aTypes, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
   lodBuffer    = std::make_shared<Buffer<std::vector<AssetLodDefinition>>>(aLods, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
   geomBuffer   = std::make_shared<Buffer<std::vector<AssetGeometryDefinition>>>(aGeomDefs, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
 }
 
-AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator)
+AssetBufferInstancedResults::AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::shared_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator)
   : assetBuffer{ ab }
 {
   for (const auto& vs : vertexSemantics)

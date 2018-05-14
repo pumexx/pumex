@@ -48,7 +48,7 @@ void CombinedImageSampler::validate(const RenderContext& renderContext)
   {
     imageView->addResource(shared_from_this());
     if(sampler!=nullptr)
-      sampler->addOwner(shared_from_this());
+      sampler->addResourceOwner(shared_from_this());
     registered = true;
   }
   imageView->validate(renderContext);

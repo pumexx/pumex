@@ -47,7 +47,7 @@ void InputAttachment::validate(const RenderContext& renderContext)
   if (!registered)
   {
     if (sampler != nullptr)
-      sampler->addOwner(shared_from_this());
+      sampler->addResourceOwner(shared_from_this());
     registered = true;
   }
   if (sampler != nullptr)

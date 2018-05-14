@@ -38,7 +38,7 @@ namespace pumex
 
 class Texture;
 class DeviceMemoryAllocator;
-template <typename T> class GenericBuffer;
+template <typename T> class Buffer;
 
 struct PUMEX_EXPORT GlyphData
 {
@@ -67,12 +67,11 @@ class PUMEX_EXPORT Font
 {
 public:
   Font()                       = delete;
-  explicit Font(const std::string& fileName, glm::ivec2 textureSize, uint32_t fontPixelHeight, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator);
+  explicit Font(const std::string& fileName, glm::ivec2 textureSize, uint32_t fontPixelHeight, std::shared_ptr<DeviceMemoryAllocator> textureAllocator);
   Font(const Font&)            = delete;
   Font& operator=(const Font&) = delete;
   virtual ~Font();
 
-  void validate(const RenderContext& renderContext);
   void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
 
   std::shared_ptr<Texture>     fontTexture;
@@ -96,21 +95,21 @@ class PUMEX_EXPORT Text : public Node
 {
 public:
   Text()                       = delete;
-  explicit Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba);
+  explicit Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator);
   Text(const Text&)            = delete;
   Text& operator=(const Text&) = delete;
   virtual ~Text();
 
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
-  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer);
 
   void setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
   void removeText(Surface* surface, uint32_t index);
   void clearTexts();
 
-  std::shared_ptr<GenericBuffer<std::vector<SymbolData>>> vertexBuffer;
-  std::vector<VertexSemantic>                             textVertexSemantic;
+  std::shared_ptr<Buffer<std::vector<SymbolData>>> vertexBuffer;
+  std::vector<VertexSemantic>                      textVertexSemantic;
 protected:
   struct TextKey
   {
@@ -134,6 +133,7 @@ protected:
   std::shared_ptr<Font>                                                             font;
   std::unordered_map<VkSurfaceKHR,std::shared_ptr<std::vector<SymbolData>>>         symbolData;
   std::map<TextKey, std::tuple<glm::vec2, glm::vec4, std::wstring>, TextKeyCompare> texts;
+  bool                                                                              registered = false;
 };
 
 }

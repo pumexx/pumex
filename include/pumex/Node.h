@@ -58,6 +58,7 @@ public:
 
   // returns true if children need to be validated
   bool nodeValidate(const RenderContext& renderContext);
+  // marks children as validated
   void setChildrenValid(const RenderContext& renderContext);
 
   void invalidateNodeAndParents();

@@ -36,6 +36,7 @@ namespace pumex
 class Resource;
 class RenderContext;
 class CommandBuffer;
+class CommandBufferSource;
 class ImageView;
 
 struct PUMEX_EXPORT ImageSubresourceRange
@@ -94,6 +95,9 @@ public:
 
   ImageSubresourceRange                         getFullImageRange();
 
+  void                                          addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource);
+  void                                          notifyCommandBufferSources(const RenderContext& renderContext);
+
   void                                          addImageView( std::shared_ptr<ImageView> imageView );
   void                                          notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range);
   void                                          invalidateImageViews();
@@ -140,17 +144,19 @@ protected:
   };
   typedef PerObjectData<TextureInternal, TextureLoadData> TextureData;
 
-  std::unordered_map<uint32_t, TextureData> perObjectData;
-  mutable std::mutex                        mutex;
-  PerObjectBehaviour                        perObjectBehaviour;
-  SwapChainImageBehaviour                   swapChainImageBehaviour;
-  bool                                      sameTraitsPerObject;
-  ImageTraits                               imageTraits;
-  std::shared_ptr<gli::texture>             texture;
-  std::shared_ptr<DeviceMemoryAllocator>    allocator;
-  VkImageAspectFlags                        aspectMask;
-  uint32_t                                  activeCount;
-  std::vector<std::weak_ptr<ImageView>>     imageViews;
+  std::unordered_map<uint32_t, TextureData>       perObjectData;
+  mutable std::mutex                              mutex;
+  PerObjectBehaviour                              perObjectBehaviour;
+  SwapChainImageBehaviour                         swapChainImageBehaviour;
+  bool                                            sameTraitsPerObject;
+  ImageTraits                                     imageTraits;
+  std::shared_ptr<gli::texture>                   texture;
+  std::shared_ptr<DeviceMemoryAllocator>          allocator;
+  VkImageAspectFlags                              aspectMask;
+  uint32_t                                        activeCount;
+  // objects that may own a texture and must be informed when some changes happen
+  std::vector<std::weak_ptr<CommandBufferSource>> commandBufferSources;
+  std::vector<std::weak_ptr<ImageView>>           imageViews;
 
   void internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR surface, const ImageTraits& traits, VkImageAspectFlags aMask);
   void internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::shared_ptr<gli::texture> texture);

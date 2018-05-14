@@ -660,7 +660,7 @@ int main( int argc, char * argv[] )
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
-    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
+    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
     textDefault->setName("textDefault");
     applicationData->textDefault = textDefault;

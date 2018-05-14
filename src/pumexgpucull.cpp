@@ -1684,10 +1684,10 @@ int main(int argc, char * argv[])
     }
 
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
-    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator, buffersAllocator);
+    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
 
-    auto fontSmall   = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512), 16, texturesAllocator, buffersAllocator);
+    auto fontSmall   = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512), 16, texturesAllocator);
     auto textSmall   = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
 
     // building text pipeline layout

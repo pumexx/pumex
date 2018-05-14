@@ -79,6 +79,7 @@ void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 {
   AssetBufferNode* previous = renderContext.setCurrentAssetBufferNode( &node );
   applyDescriptorSets(node);
+  commandBuffer->addSource(&node);
   node.assetBuffer->cmdBindVertexIndexBuffer(renderContext, commandBuffer, node.renderMask, node.vertexBinding);
   traverse(node);
   // FIXME - bind previous ?

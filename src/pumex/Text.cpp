@@ -27,7 +27,7 @@
 #include <pumex/utils/Shapes.h>
 #include <pumex/Surface.h>
 #include <pumex/Sampler.h>
-#include <pumex/GenericBuffer.h>
+#include <pumex/MemoryBuffer.h>
 
 using namespace pumex;
 
@@ -36,10 +36,9 @@ uint32_t Font::fontCount = 0;
 
 const uint32_t PUMEX_GLYPH_MARGIN = 4;
 
-Font::Font(const std::string& fileName, glm::ivec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator, std::weak_ptr<DeviceMemoryAllocator> bufferAllocator)
+Font::Font(const std::string& fileName, glm::ivec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator)
   : textureSize{ ts }, fontPixelHeight{ fph }
 {
-  std::lock_guard<std::mutex> lock(mutex);
   if (fontLibrary == nullptr)
     FT_Init_FreeType(&fontLibrary);
   CHECK_LOG_THROW( FT_New_Face(fontLibrary, fileName.c_str(), 0, &fontFace) != 0, "Cannot load a font : " << fileName);
@@ -83,11 +82,6 @@ void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color,
     currentPosition.x += gData.advance;
     currentPosition.z += gData.advance;
   }
-}
-
-void Font::validate(const RenderContext& renderContext)
-{
-  fontTexture->validate(renderContext);
 }
 
 size_t Font::getGlyphIndex(wchar_t charCode)
@@ -139,10 +133,10 @@ size_t Font::getGlyphIndex(wchar_t charCode)
   return glyphData.size()-1;
 }
 
-Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> ba)
+Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator)
   : Node(), font{ f }
 {
-  vertexBuffer = std::make_shared<GenericBuffer<std::vector<SymbolData>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerSurface, swForEachImage);
+  vertexBuffer = std::make_shared<Buffer<std::vector<SymbolData>>>(bufferAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerSurface, swForEachImage);
   textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
 }
 
@@ -162,12 +156,16 @@ void Text::accept(NodeVisitor& visitor)
 
 void Text::validate(const RenderContext& renderContext)
 {
+  if (!registered)
+  {
+    font->fontTexture->addCommandBufferSource(shared_from_this());
+    vertexBuffer->addCommandBufferSource(shared_from_this());
+    registered = true;
+  }
+
   auto sit = symbolData.find(renderContext.vkSurface);
   if (sit == end(symbolData))
-  {
     sit = symbolData.insert({ renderContext.vkSurface, std::make_shared<std::vector<SymbolData>>() }).first;
-    vertexBuffer->set(renderContext.surface, sit->second);
-  }
 
   sit->second->resize(0);
   for (const auto& t : texts)
@@ -179,21 +177,21 @@ void Text::validate(const RenderContext& renderContext)
     std::wstring text;
     std::tie(startPosition, color, text) = t.second;
     font->addSymbolData(startPosition, color, text, *(sit->second));
+    vertexBuffer->setData(renderContext.surface, sit->second);
   }
-//  vertexBuffer->invalidate();
   vertexBuffer->validate(renderContext);
 }
 
-void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const
+void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto sit = symbolData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(sit == end(symbolData), "Text::cmdDraw() : text was not validated");
-
+  commandBuffer->addSource(this);
   VkBuffer     vBuffer = vertexBuffer->getHandleBuffer(renderContext);
   VkDeviceSize offsets = 0;
-  commandBuffer->addSource(vertexBuffer.get());
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);
+
+  auto sit = symbolData.find(renderContext.vkSurface);
+  CHECK_LOG_THROW(sit == end(symbolData), "Text::cmdDraw() : text was not validated");
   commandBuffer->cmdDraw(sit->second->size(), 1, 0, 0, 0);
 }
 
@@ -201,7 +199,6 @@ void Text::setText(Surface* surface, uint32_t index, const glm::vec2& position, 
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts[TextKey(surface->surface,index)] = std::make_tuple(position, color, text);
-  vertexBuffer->invalidate();
   invalidateNodeAndParents(surface);
 }
 
@@ -209,7 +206,6 @@ void Text::removeText(Surface* surface, uint32_t index)
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts.erase(TextKey(surface->surface, index));
-  vertexBuffer->invalidate();
   invalidateNodeAndParents(surface);
 }
 
@@ -217,7 +213,6 @@ void Text::clearTexts()
 {
   std::lock_guard<std::mutex> lock(mutex);
   texts.clear();
-  vertexBuffer->invalidate();
   invalidateNodeAndParents();
 }
 

@@ -43,6 +43,12 @@ void AssetBufferNode::accept(NodeVisitor& visitor)
 
 void AssetBufferNode::validate(const RenderContext& renderContext)
 {
+  if (!registered)
+  {
+    assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
+//    assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
+    registered = true;
+  }
   if(assetBuffer.get() != nullptr)
     assetBuffer->validate(renderContext);
   if (materialSet.get() != nullptr)

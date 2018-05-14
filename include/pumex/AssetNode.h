@@ -27,7 +27,7 @@
 namespace pumex
 {
 
-template <typename T> class GenericBuffer;
+template <typename T> class Buffer;
 class DeviceMemoryAllocator;
 
 
@@ -39,18 +39,16 @@ public:
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
-  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) const;
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer);
 
-
-  std::shared_ptr<Asset> asset;
-  uint32_t               renderMask;
-  uint32_t               vertexBinding;
+  uint32_t                                       renderMask;
+  uint32_t                                       vertexBinding;
 protected:
-  bool                                                  geometryValid = false;
-  std::shared_ptr<std::vector<float>>                   vertices;
-  std::shared_ptr<std::vector<uint32_t>>                indices;
-  std::shared_ptr<GenericBuffer<std::vector<float>>>    vertexBuffer;
-  std::shared_ptr<GenericBuffer<std::vector<uint32_t>>> indexBuffer;
+  std::shared_ptr<std::vector<float>>            vertices;
+  std::shared_ptr<std::vector<uint32_t>>         indices;
+  std::shared_ptr<Buffer<std::vector<float>>>    vertexBuffer;
+  std::shared_ptr<Buffer<std::vector<uint32_t>>> indexBuffer;
+  bool                                           registered = false;
 };
 
 }

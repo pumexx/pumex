@@ -36,6 +36,7 @@
 namespace pumex
 {
 
+class CommandBufferSource;
 class Resource;
 class RenderContext;
 class CommandBuffer;
@@ -69,6 +70,9 @@ public:
   size_t                                        getBufferSize(const RenderContext& renderContext) const;
 
   void                                          validate(const RenderContext& renderContext);
+
+  void                                          addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource);
+  void                                          notifyCommandBufferSources(const RenderContext& renderContext);
 
   void                                          addResource(std::shared_ptr<Resource> resource);
   void                                          invalidateResources();
@@ -127,16 +131,18 @@ protected:
   };
   typedef PerObjectData<MemoryBufferInternal, MemoryBufferLoadData> MemoryBufferData;
 
-  std::unordered_map<uint32_t, MemoryBufferData> perObjectData;
-  mutable std::mutex                          mutex;
-  PerObjectBehaviour                          perObjectBehaviour;
-  SwapChainImageBehaviour                     swapChainImageBehaviour;
-  bool                                        sameDataPerObject;
-  std::shared_ptr<DeviceMemoryAllocator>      allocator;
-  VkBufferUsageFlags                          bufferUsage;
-  uint32_t                                    activeCount;
-  std::vector<std::weak_ptr<Resource>>        resources;
-  std::vector<std::weak_ptr<BufferView>>      bufferViews;
+  std::unordered_map<uint32_t, MemoryBufferData>  perObjectData;
+  mutable std::mutex                              mutex;
+  PerObjectBehaviour                              perObjectBehaviour;
+  SwapChainImageBehaviour                         swapChainImageBehaviour;
+  bool                                            sameDataPerObject;
+  std::shared_ptr<DeviceMemoryAllocator>          allocator;
+  VkBufferUsageFlags                              bufferUsage;
+  uint32_t                                        activeCount;
+  // objects that may own a buffer and must be informed when some changes happen
+  std::vector<std::weak_ptr<CommandBufferSource>> commandBufferSources;
+  std::vector<std::weak_ptr<Resource>>            resources;
+  std::vector<std::weak_ptr<BufferView>>          bufferViews;
 };
 
 template <typename T>
@@ -409,6 +415,7 @@ bool SetBufferSizeOperation<T>::perform(const RenderContext& renderContext, Memo
   CHECK_LOG_THROW(internals.memoryBlock.alignedSize == 0, "Cannot create a bufer");
   ownerAllocator->bindBufferMemory(renderContext.device, internals.buffer, internals.memoryBlock.alignedOffset);
 
+  owner->notifyCommandBufferSources(renderContext);
   owner->notifyBufferViews(renderContext, bufferRange);
   owner->notifyResources(renderContext);
   return false;
@@ -446,6 +453,7 @@ bool SetDataOperation<T>::perform(const RenderContext& renderContext, MemoryBuff
     CHECK_LOG_THROW(internals.memoryBlock.alignedSize == 0, "Cannot create a buffer");
     ownerAllocator->bindBufferMemory(renderContext.device, internals.buffer, internals.memoryBlock.alignedOffset);
 
+    owner->notifyCommandBufferSources(renderContext);
     owner->notifyBufferViews(renderContext, bufferRange);
     owner->notifyResources(renderContext);
   }

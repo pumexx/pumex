@@ -73,7 +73,7 @@ public:
   void                              setSamplerTraits(const SamplerTraits& samplerTraits);
   inline const SamplerTraits&       getSamplerTraits() const;
 
-  void                              addOwner(std::shared_ptr<Resource> resource);
+  void                              addResourceOwner(std::shared_ptr<Resource> resource);
 
   VkSampler                         getHandleSampler(const RenderContext& renderContext) const;
 
@@ -97,7 +97,7 @@ protected:
   std::unordered_map<uint32_t, SamplerData> perObjectData;
   SamplerTraits                             samplerTraits;
   // some resources ( InputAttachment, CombinedImageSampler ) use Sampler internally, so it cannot inform descriptors about changes itself - it must inform owners
-  std::vector<std::weak_ptr<Resource>>      owners;
+  std::vector<std::weak_ptr<Resource>>      resourceOwners;
 
 };
 

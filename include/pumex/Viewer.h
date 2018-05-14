@@ -151,7 +151,7 @@ protected:
   uint32_t                                               renderIndex                   = 0;
   uint32_t                                               updateIndex                   = 1;
 
-  std::mutex                                             updateMutex;
+  mutable std::mutex                                     updateMutex;
   std::condition_variable                                updateConditionVariable;
 
   PFN_vkCreateDebugReportCallbackEXT                     pfnCreateDebugReportCallback  = nullptr;

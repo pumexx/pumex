@@ -87,6 +87,7 @@ void Node::resetDescriptorSet(uint32_t index)
     return;
   it->second->removeNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
   descriptorSets.erase(it);
+  invalidateParents();
 }
 
 bool Node::nodeValidate(const RenderContext& renderContext)

@@ -54,19 +54,19 @@ void Sampler::setSamplerTraits(const SamplerTraits& st)
   invalidateDescriptors();
 }
 
-void Sampler::addOwner(std::shared_ptr<Resource> resource) 
+void Sampler::addResourceOwner(std::shared_ptr<Resource> resource) 
 { 
-  if (std::find_if(begin(owners), end(owners), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(owners))
-    owners.push_back(resource);
+  if (std::find_if(begin(resourceOwners), end(resourceOwners), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(resourceOwners))
+    resourceOwners.push_back(resource);
 }
 
 void Sampler::invalidateDescriptors()
 {
   // inform all owners that they need to invalidated
-  auto eit = std::remove_if(begin(owners), end(owners), [](std::weak_ptr<Resource> r) { return r.expired();  });
-  for (auto it = begin(owners); it != eit; ++it)
+  auto eit = std::remove_if(begin(resourceOwners), end(resourceOwners), [](std::weak_ptr<Resource> r) { return r.expired();  });
+  for (auto it = begin(resourceOwners); it != eit; ++it)
     it->lock()->invalidateDescriptors();
-  owners.erase(eit, end(owners));
+  resourceOwners.erase(eit, end(resourceOwners));
   // notify sampler's own descriptors
   Resource::invalidateDescriptors();
 }
@@ -74,10 +74,10 @@ void Sampler::invalidateDescriptors()
 void Sampler::notifyDescriptors(const RenderContext& renderContext)
 {
   // inform all owners about crucial sampler changes
-  auto eit = std::remove_if(begin(owners), end(owners), [](std::weak_ptr<Resource> r) { return r.expired();  });
-  for (auto it = begin(owners); it != eit; ++it)
+  auto eit = std::remove_if(begin(resourceOwners), end(resourceOwners), [](std::weak_ptr<Resource> r) { return r.expired();  });
+  for (auto it = begin(resourceOwners); it != eit; ++it)
     it->lock()->notifyDescriptors(renderContext);
-  owners.erase(eit, end(owners));
+  resourceOwners.erase(eit, end(resourceOwners));
   // notify sampler's own descriptors
   Resource::notifyDescriptors(renderContext);
 }

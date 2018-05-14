@@ -41,6 +41,7 @@ public:
   std::shared_ptr<MaterialSet> materialSet;
   uint32_t                     renderMask;
   uint32_t                     vertexBinding;
+  bool                         registered = false;
 };
 
 // class that draws single object registered in AssetBufferNode

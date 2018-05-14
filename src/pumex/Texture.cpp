@@ -68,6 +68,7 @@ struct SetImageTraitsOperation : public Texture::Operation
   {
     internals.image = nullptr; // release image before creating a new one
     internals.image = std::make_shared<Image>(renderContext.device, imageTraits, owner->getAllocator());
+    owner->notifyCommandBufferSources(renderContext);
     owner->notifyImageViews(renderContext, imageRange);
     // no operations sent to command buffer
     return false;
@@ -190,6 +191,7 @@ struct NotifyImageViewsOperation : public Texture::Operation
   {}
   bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
+    owner->notifyCommandBufferSources(renderContext);
     owner->notifyImageViews(renderContext, imageRange);
     // no operations sent to command buffer
     return false;
@@ -432,6 +434,7 @@ void Texture::validate(const RenderContext& renderContext)
   if (pddit->second.data[activeIndex].image == nullptr && sameTraitsPerObject)
   {
     pddit->second.data[activeIndex].image = std::make_shared<Image>(renderContext.device, imageTraits, allocator);
+    notifyCommandBufferSources(renderContext);
     notifyImageViews(renderContext, ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers));
     // if there's a texture - it must be sent now
     if (texture != nullptr)
@@ -465,6 +468,21 @@ ImageSubresourceRange Texture::getFullImageRange()
 {
   return ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers);
 }
+
+void Texture::addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource)
+{
+  if (std::find_if(begin(commandBufferSources), end(commandBufferSources), [&cbSource](std::weak_ptr<CommandBufferSource> cbs) { return !cbs.expired() && cbs.lock().get() == cbSource.get(); }) == end(commandBufferSources))
+    commandBufferSources.push_back(cbSource);
+}
+
+void Texture::notifyCommandBufferSources(const RenderContext& renderContext)
+{
+  auto eit = std::remove_if(begin(commandBufferSources), end(commandBufferSources), [](std::weak_ptr<CommandBufferSource> r) { return r.expired();  });
+  for (auto it = begin(commandBufferSources); it != eit; ++it)
+    it->lock()->notifyCommandBuffers(renderContext.activeIndex);
+  commandBufferSources.erase(eit, end(commandBufferSources));
+}
+
 
 void Texture::addImageView(std::shared_ptr<ImageView> imageView)
 {

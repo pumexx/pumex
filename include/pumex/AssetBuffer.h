@@ -33,11 +33,10 @@ namespace pumex
 class RenderContext;
 class DeviceMemoryAllocator;
 template <typename T> class Buffer;
-template <typename T> class GenericBuffer;
+class Node;
 class CommandBuffer;
 
-
-// AssetBuffer is a class that holds all assets in a single place in GPU memory.
+// AssetBuffer is a class that stores all assets in a single place in GPU memory.
 // Each asset may have different set of render aspects ( normal rendering with tangents, transluency, lights, etc ) defined by render mask.
 // Each render aspect may use different shaders with different vertex semantic in its geometries.
 // For each render mask used by AssetBuffer you must register its render semantic using registerVertexSemantic() method.
@@ -48,7 +47,7 @@ class CommandBuffer;
 // To register single object you must define an object type by calling registerType() method
 // Then for that type you register Assets as different LODs. Each asset has skeletons, animations, geometries, materials, textures etc.
 // Materials and textures are treated in different class called MaterialSet.
-// Animations are stored and used by CPU
+// Animations are stored and used by CPU.
 //
 // To bind AssetBuffer resources to vulkan you may use cmdBindVertexIndexBuffer().
 // Each render aspect ( identified by render mask ) has its own vertex and index buffers, so the user is able to use different shaders to 
@@ -159,16 +158,18 @@ public:
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t        getNumTypesID() const;
   
-  inline void            invalidate();
   void                   validate(const RenderContext& renderContext);
 
-  void                   cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0) const;
+  void                   cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0);
   void                   cmdDrawObject(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
   void                   cmdDrawObjectsIndirect(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, std::shared_ptr<AssetBufferInstancedResults> instancedResults);
 
   inline uint32_t        getNumRenderMasks() const;
 
   void                   prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const;
+
+  void                   addNodeOwner(std::shared_ptr<Node> node);
+  void                   invalidateNodeOwners();
 
   std::shared_ptr<Buffer<std::vector<AssetTypeDefinition>>>     getTypeBuffer(uint32_t renderMask);
   std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>>      getLodBuffer(uint32_t renderMask);
@@ -180,15 +181,14 @@ protected:
     PerRenderMaskData() = default;
     PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator);
 
-    std::shared_ptr<std::vector<float>>                   vertices;
-    std::shared_ptr<std::vector<uint32_t>>                indices;
-    std::shared_ptr<GenericBuffer<std::vector<float>>>    vertexBuffer;
-    std::shared_ptr<GenericBuffer<std::vector<uint32_t>>> indexBuffer;
+    std::shared_ptr<std::vector<float>>                           vertices;
+    std::shared_ptr<std::vector<uint32_t>>                        indices;
+    std::shared_ptr<Buffer<std::vector<float>>>                   vertexBuffer;
+    std::shared_ptr<Buffer<std::vector<uint32_t>>>                indexBuffer;
 
-    std::shared_ptr<std::vector<AssetTypeDefinition>>     aTypes;
-    std::shared_ptr<std::vector<AssetLodDefinition>>      aLods;
-    std::shared_ptr<std::vector<AssetGeometryDefinition>> aGeomDefs;
-
+    std::shared_ptr<std::vector<AssetTypeDefinition>>             aTypes;
+    std::shared_ptr<std::vector<AssetLodDefinition>>              aLods;
+    std::shared_ptr<std::vector<AssetGeometryDefinition>>         aGeomDefs;
     std::shared_ptr<Buffer<std::vector<AssetTypeDefinition>>>     typeBuffer;
     std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>>      lodBuffer;
     std::shared_ptr<Buffer<std::vector<AssetGeometryDefinition>>> geomBuffer;
@@ -228,7 +228,6 @@ protected:
     }
   };
 
-  bool                                            valid = false;
   mutable std::mutex                              mutex;
   std::map<uint32_t, std::vector<VertexSemantic>> semantics;
   std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
@@ -241,10 +240,12 @@ protected:
 
   std::vector<std::shared_ptr<Asset>>             assets; // asset buffer owns assets
   std::map<AssetKey, std::shared_ptr<Asset>, AssetKeyCompare> assetMapping;
+
+  // nodes that use this AssetBuffer
+  std::vector<std::weak_ptr<Node>>                nodeOwners;
 };
 
 uint32_t AssetBuffer::getNumTypesID() const     { return typeNames.size(); }
-void     AssetBuffer::invalidate()              { valid = false; }
 uint32_t AssetBuffer::getNumRenderMasks() const { return perRenderMaskData.size(); }
 
 // helper class with buffers storing results of compute shader computations
@@ -252,7 +253,7 @@ class PUMEX_EXPORT AssetBufferInstancedResults
 {
 public:
   AssetBufferInstancedResults()                                              = delete;
-  explicit AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::weak_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator);
+  explicit AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator);
   AssetBufferInstancedResults(const AssetBufferInstancedResults&)            = delete;
   AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
   virtual ~AssetBufferInstancedResults();
