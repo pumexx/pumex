@@ -464,15 +464,13 @@ void ComputePipeline::validate(const RenderContext& renderContext)
   }
 
   shaderStage.shaderModule->validate(renderContext);
-  pipelineLayout->validate(renderContext);
   VkComputePipelineCreateInfo pipelineCI{};
     pipelineCI.sType        = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     pipelineCI.layout       = pipelineLayout->getHandle(renderContext.vkDevice);
     pipelineCI.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pipelineCI.stage.stage  = shaderStage.stage;
     pipelineCI.stage.module = shaderStage.shaderModule->getHandle(renderContext.vkDevice);
-    pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();//"main";
-
+    pipelineCI.stage.pName  = shaderStage.entryPoint.c_str();
   VK_CHECK_LOG_THROW(vkCreateComputePipelines(pddit->second.device, pipelineCache->getHandle(pddit->second.device), 1, &pipelineCI, nullptr, &pddit->second.data[activeIndex].pipeline), "Cannot create compute pipeline");
   pddit->second.valid[activeIndex] = true;
   // we have a new compute pipeline so we must invalidate command buffers

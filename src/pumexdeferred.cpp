@@ -39,6 +39,7 @@
 const uint32_t              MAX_SURFACES = 6;
 const uint32_t              MAX_BONES = 511;
 const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_4_BIT;
+const uint32_t              MODEL_SPONZA_ID = 1;
 
 struct PositionData
 {
@@ -408,20 +409,20 @@ int main( int argc, char * argv[] )
   {
     parser.ParseCLI(argc, argv);
   }
-  catch (args::Help)
+  catch (const args::Help&)
   {
     LOG_ERROR << parser;
     FLUSH_LOG;
     return 0;
   }
-  catch (args::ParseError e)
+  catch (const args::ParseError& e)
   {
     LOG_ERROR << e.what() << std::endl;
     LOG_ERROR << parser;
     FLUSH_LOG;
     return 1;
   }
-  catch (args::ValidationError e)
+  catch (const args::ValidationError& e)
   {
     LOG_ERROR << e.what() << std::endl;
     LOG_ERROR << parser;
@@ -564,23 +565,23 @@ int main( int argc, char * argv[] )
 
     pumex::BoundingBox bbox = pumex::calculateBoundingBox(*asset, 1);
 
-    uint32_t modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
-    assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-    materialSet->registerMaterials(modelTypeID, asset);
+    assetBuffer->registerType(MODEL_SPONZA_ID, pumex::AssetTypeDefinition(bbox));
+    assetBuffer->registerObjectLOD(MODEL_SPONZA_ID, pumex::AssetLodDefinition(0.0f, 10000.0f), asset);
+    materialSet->registerMaterials(MODEL_SPONZA_ID, asset);
     materialSet->refreshMaterialStructures();
 
     auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(assetBuffer, materialSet, 1, 0);
     assetBufferNode->setName("assetBufferNode");
     gbufferPipeline->addChild(assetBufferNode);
 
-    std::shared_ptr<pumex::AssetBufferDrawObject> modelDraw = std::make_shared<pumex::AssetBufferDrawObject>(modelTypeID);
+    std::shared_ptr<pumex::AssetBufferDrawObject> modelDraw = std::make_shared<pumex::AssetBufferDrawObject>(MODEL_SPONZA_ID);
     modelDraw->setName("modelDraw");
     assetBufferNode->addChild(modelDraw);
 
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
     std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
-    modelData.typeID = modelTypeID;
+    modelData.typeID = MODEL_SPONZA_ID;
     (*applicationData->positionData)  = modelData;
 
     auto cameraUbo             = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
@@ -726,12 +727,12 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(update, viewer->endUpdateGraph);
 
     // set render callbacks to application data
-    viewer->setEventRenderStart(std::bind(&DeferredApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, assetBuffer, modelTypeID));
+    viewer->setEventRenderStart(std::bind(&DeferredApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, assetBuffer, MODEL_SPONZA_ID));
     surface->setEventSurfaceRenderStart(std::bind(&DeferredApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
 
     viewer->run();
   }
-  catch (const std::exception e)
+  catch (const std::exception& e)
   {
   }
   catch (...)

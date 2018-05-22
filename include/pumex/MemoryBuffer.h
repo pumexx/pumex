@@ -67,7 +67,7 @@ public:
   inline VkBufferUsageFlags                     getBufferUsage() const;
 
   VkBuffer                                      getHandleBuffer(const RenderContext& renderContext) const;
-  size_t                                        getBufferSize(const RenderContext& renderContext) const;
+  size_t                                        getDataSize(const RenderContext& renderContext) const;
 
   void                                          validate(const RenderContext& renderContext);
 
@@ -84,10 +84,11 @@ public:
   struct MemoryBufferInternal
   {
     MemoryBufferInternal()
-    : buffer{ VK_NULL_HANDLE }, memoryBlock()
+      : buffer{ VK_NULL_HANDLE }, dataSize{ 0 }, memoryBlock()
     {
     }
     VkBuffer           buffer;
+    size_t             dataSize;
     DeviceMemoryBlock  memoryBlock;
   };
   struct Operation
@@ -156,21 +157,20 @@ public:
   Buffer& operator=(const Buffer&) = delete;
   virtual ~Buffer();
 
-  void setBufferSize(size_t bufferSize);
-  void setBufferSize(Surface* surface, size_t bufferSize);
-  void setBufferSize(Device* device, size_t bufferSize);
+  void               setBufferSize(Surface* surface, size_t bufferSize);
+  void               setBufferSize(Device* device, size_t bufferSize);
 
-  void invalidateData();
-  void setData(const T& data);
-  void setData(Surface* surface, std::shared_ptr<T> data);
-  void setData(Device* device, std::shared_ptr<T> data);
-  void setData(Surface* surface, const T& data);
-  void setData(Device* device, const T& data);
+  void               invalidateData();
+  void               setData(const T& data);
+  void               setData(Surface* surface, std::shared_ptr<T> data);
+  void               setData(Device* device, std::shared_ptr<T> data);
+  void               setData(Surface* surface, const T& data);
+  void               setData(Device* device, const T& data);
+  std::shared_ptr<T> getData();
 
-  void*  getDataPointer() override;
-  size_t getDataSize() override;
-  void   sendDataToBuffer(uint32_t key, VkDevice device, VkSurfaceKHR surface) override;
-
+  void*              getDataPointer() override;
+  size_t             getDataSize() override;
+  void               sendDataToBuffer(uint32_t key, VkDevice device, VkSurfaceKHR surface) override;
 protected:
   std::shared_ptr<T> data;
 
@@ -259,11 +259,6 @@ Buffer<T>::~Buffer()
 }
 
 template <typename T>
-void Buffer<T>::setBufferSize(size_t bufferSize)
-{
-}
-
-template <typename T>
 void Buffer<T>::setBufferSize(Surface* surface, size_t bufferSize)
 {
   CHECK_LOG_THROW(sameDataPerObject, "Cannot set buffer size per surface - data on all surfaces was declared as the same");
@@ -283,6 +278,7 @@ template <typename T>
 void Buffer<T>::invalidateData()
 {
   CHECK_LOG_THROW(!sameDataPerObject, "Cannot invalidate data - wrong constructor used to create an object");
+  CHECK_LOG_THROW((bufferUsage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) == 0, "Cannot set data for this buffer - user declared it as not writeable");
   std::lock_guard<std::mutex> lock(mutex);
   BufferSubresourceRange range(0,getDataSize());
   for (auto& pdd : perObjectData)
@@ -318,8 +314,9 @@ template <typename T>
 void Buffer<T>::setData(Device* device, std::shared_ptr<T> dt)
 {
   CHECK_LOG_THROW(sameDataPerObject, "Cannot set data per surface - data on all surfaces was declared as the same");
-  CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot set data per surface for this buffer");
+  CHECK_LOG_THROW(perObjectBehaviour != pbPerDevice, "Cannot set data per device for this buffer");
   CHECK_LOG_THROW((bufferUsage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) == 0, "Cannot set data for this buffer - user declared it as not writeable");
+  std::lock_guard<std::mutex> lock(mutex);
   internalSetData(device->getID(), device->device, VK_NULL_HANDLE, dt);
 }
 
@@ -336,11 +333,19 @@ void Buffer<T>::setData(Device* device, const T& dt)
 }
 
 template <typename T>
+std::shared_ptr<T> Buffer<T>::getData()
+{
+  CHECK_LOG_THROW(!sameDataPerObject, "Cannot get data - wrong constructor used to create an object");
+  return data;
+}
+
+template <typename T>
 void*  Buffer<T>::getDataPointer()
 {
   return uglyGetPointer(*data);
 }
 
+// returns size of data stored under shared_ptr. Use it only when sameDataPerObject
 template <typename T>
 size_t Buffer<T>::getDataSize()
 {
@@ -362,9 +367,9 @@ void Buffer<T>::internalSetBufferSize(uint32_t key, VkDevice device, VkSurfaceKH
     pddit = perObjectData.insert({ key, MemoryBuffer::MemoryBufferData(device, surface, activeCount, swapChainImageBehaviour) }).first;
 
   BufferSubresourceRange range(0, bufferSize);
-  // remove all previous calls to setImage, but only when these calls are a subset of current call
+  // remove all previous calls to SetBufferSize, but only when these calls are a subset of current call
   pddit->second.commonData.bufferOperations.remove_if([&range](std::shared_ptr<Operation> bufop) { return bufop->type == MemoryBuffer::Operation::SetBufferSize; });
-  // add setImage operation
+  // add SetBufferSize operation
   pddit->second.commonData.bufferOperations.push_back(std::make_shared<SetBufferSizeOperation<T>>(this, range, activeCount));
   pddit->second.invalidate();
   invalidateResources();
@@ -378,9 +383,9 @@ void Buffer<T>::internalSetData(uint32_t key, VkDevice device, VkSurfaceKHR surf
     pddit = perObjectData.insert({ key, MemoryBuffer::MemoryBufferData(device, surface, activeCount, swapChainImageBehaviour) }).first;
 
   BufferSubresourceRange range(0, uglyGetSize(*dt));
-  // remove all previous calls to setImage, but only when these calls are a subset of current call
+  // remove all previous calls to SetData, but only when these calls are a subset of current call
   pddit->second.commonData.bufferOperations.remove_if([&range](std::shared_ptr<Operation> bufop) { return bufop->type == MemoryBuffer::Operation::SetData && range.contains(bufop->bufferRange); });
-  // add setData operation
+  // add SetData operation
   pddit->second.commonData.bufferOperations.push_back(std::make_shared<SetDataOperation<T>>(this, range, range, dt, activeCount));
   pddit->second.invalidate();
   invalidateResources();
@@ -401,7 +406,8 @@ bool SetBufferSizeOperation<T>::perform(const RenderContext& renderContext, Memo
   {
     vkDestroyBuffer(renderContext.vkDevice, internals.buffer, nullptr);
     ownerAllocator->deallocate(renderContext.vkDevice, internals.memoryBlock);
-    internals.buffer = VK_NULL_HANDLE;
+    internals.buffer      = VK_NULL_HANDLE;
+    internals.dataSize    = 0;
     internals.memoryBlock = DeviceMemoryBlock();
   }
   VkBufferCreateInfo bufferCreateInfo{};
@@ -411,6 +417,7 @@ bool SetBufferSizeOperation<T>::perform(const RenderContext& renderContext, Memo
   VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &internals.buffer), "Cannot create a buffer");
   VkMemoryRequirements memReqs;
   vkGetBufferMemoryRequirements(renderContext.vkDevice, internals.buffer, &memReqs);
+  internals.dataSize    = bufferCreateInfo.size;
   internals.memoryBlock = ownerAllocator->allocate(renderContext.device, memReqs);
   CHECK_LOG_THROW(internals.memoryBlock.alignedSize == 0, "Cannot create a bufer");
   ownerAllocator->bindBufferMemory(renderContext.device, internals.buffer, internals.memoryBlock.alignedOffset);
@@ -437,6 +444,7 @@ bool SetDataOperation<T>::perform(const RenderContext& renderContext, MemoryBuff
     vkDestroyBuffer(renderContext.vkDevice, internals.buffer, nullptr);
     ownerAllocator->deallocate(renderContext.vkDevice, internals.memoryBlock);
     internals.buffer      = VK_NULL_HANDLE;
+    internals.dataSize    = 0;
     internals.memoryBlock = DeviceMemoryBlock();
   }
 
@@ -449,6 +457,7 @@ bool SetDataOperation<T>::perform(const RenderContext& renderContext, MemoryBuff
     VK_CHECK_LOG_THROW(vkCreateBuffer(renderContext.vkDevice, &bufferCreateInfo, nullptr, &internals.buffer), "Cannot create a buffer");
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(renderContext.vkDevice, internals.buffer, &memReqs);
+    internals.dataSize    = bufferCreateInfo.size;
     internals.memoryBlock = ownerAllocator->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(internals.memoryBlock.alignedSize == 0, "Cannot create a buffer");
     ownerAllocator->bindBufferMemory(renderContext.device, internals.buffer, internals.memoryBlock.alignedOffset);

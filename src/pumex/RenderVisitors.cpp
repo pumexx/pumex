@@ -100,10 +100,9 @@ void BuildCommandBufferVisitor::apply(AssetBufferIndirectDrawObjects& node)
   if (renderContext.currentAssetBufferNode == nullptr)
     return;
   applyDescriptorSets(node);
-  renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObjectsIndirect(renderContext, commandBuffer, renderContext.currentAssetBufferNode->renderMask, node.instancedResults);
+  renderContext.currentAssetBufferNode->assetBuffer->cmdDrawObjectsIndirect(renderContext, commandBuffer, node.getDrawCommands());
   traverse(node);
 }
-
 
 void BuildCommandBufferVisitor::apply(AssetNode& node)
 {

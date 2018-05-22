@@ -223,7 +223,7 @@ void Viewer::run()
           renderGraph.wait_for_all();
         }
       }
-      catch (const std::exception e)
+      catch (const std::exception& e)
       {
         LOG_ERROR << "Error from render thread : " << e.what() << std::endl;
         renderContinueRun = false;
@@ -274,7 +274,7 @@ void Viewer::run()
         startUpdateGraph.try_put(tbb::flow::continue_msg());
         updateGraph.wait_for_all();
       }
-      catch (const std::exception e)
+      catch (const std::exception& e)
       {
         LOG_ERROR << "Error from update thread : " << e.what() << std::endl;
         updateContinueRun = false;

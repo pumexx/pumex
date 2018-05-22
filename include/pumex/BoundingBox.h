@@ -67,6 +67,17 @@ struct PUMEX_EXPORT BoundingBox
     return (v.x >= bbMin.x && v.x <= bbMax.x) && (v.y >= bbMin.y && v.y <= bbMax.y) && (v.z >= bbMin.z && v.z <= bbMax.z);
   }
 
+  float radius() const
+  {
+    return 0.5 * sqrt(glm::length(bbMax - bbMin));
+  }
+
+  glm::vec3 center() const
+  {
+    return (bbMax + bbMin) * 0.5f;
+  }
+
+
   glm::vec3 bbMin;
   glm::vec3 bbMax;
 };

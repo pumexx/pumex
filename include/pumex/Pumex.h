@@ -32,6 +32,7 @@
 #include <pumex/Surface.h>
 #include <pumex/RenderWorkflow.h>
 #include <pumex/Node.h>
+#include <pumex/NodeVisitor.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/Image.h>
 #include <pumex/Resource.h>

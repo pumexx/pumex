@@ -58,7 +58,6 @@ const uint32_t MAX_SURFACES = 6;
 const uint32_t MAX_BONES = 63;
 const uint32_t MAIN_RENDER_MASK = 1;
 
-
 // Structure storing information about people and objects.
 // Structure is used by update loop to update its parameters.
 // Then it is sent to a render loop and used to produce a render data ( PositionData and InstanceData )
@@ -188,98 +187,66 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
 }
 
 // global variables storing model file names etc
-std::vector<std::string> animationFileNames
+std::vector<std::tuple<std::string, float>> animationDefinitions
 {
-  "people/wmale1_bbox.dae",
-  "people/wmale1_walk.dae",
-  "people/wmale1_walk_easy.dae",
-  "people/wmale1_walk_big_steps.dae",
-  "people/wmale1_run.dae"
+  { "people/wmale1_bbox.dae",           0.0f },
+  { "people/wmale1_walk.dae",           1.0f },
+  { "people/wmale1_walk_easy.dae",      0.8f },
+  { "people/wmale1_walk_big_steps.dae", 1.2f },
+  { "people/wmale1_run.dae",            2.0f }
 };
 
-std::vector<float> animationSpeed =  // in meters per sec
+std::vector<std::tuple<uint32_t, std::string, bool, std::string, std::string, std::string, pumex::AssetLodDefinition, pumex::AssetLodDefinition, pumex::AssetLodDefinition>> modelDefinitions
 {
-  0.0f,
-  1.0f,
-  0.8f,
-  1.2f,
-  2.0f
+  { 1,  "wmale1",        true,  "people/wmale1_lod0.dae",   "people/wmale1_lod1.dae", "people/wmale1_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) },
+  { 2,  "wmale2",        true,  "people/wmale2_lod0.dae",   "people/wmale2_lod1.dae", "people/wmale2_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) },
+  { 3,  "wmale3",        true,  "people/wmale3_lod0.dae",   "people/wmale3_lod1.dae", "people/wmale3_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) },
+  { 4,  "wmale1_cloth1", false, "people/wmale1_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 5,  "wmale1_cloth2", false, "people/wmale1_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 6,  "wmale1_cloth3", false, "people/wmale1_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 7,  "wmale2_cloth1", false, "people/wmale2_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 8,  "wmale2_cloth2", false, "people/wmale2_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 9,  "wmale2_cloth3", false, "people/wmale2_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 10, "wmale3_cloth1", false, "people/wmale3_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 11, "wmale3_cloth2", false, "people/wmale3_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
+  { 12, "wmale3_cloth3", false, "people/wmale3_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    }
 };
 
-std::vector<std::pair<std::string, bool>> skeletalNames
+std::multimap<uint32_t, std::vector<std::tuple<std::string, std::string>>> materialVariants =
 {
-  { "wmale1", true },
-  { "wmale2", true },
-  { "wmale3", true },
-  { "wmale1_cloth1", false },
-  { "wmale1_cloth2", false },
-  { "wmale1_cloth3", false },
-  { "wmale2_cloth1", false },
-  { "wmale2_cloth2", false },
-  { "wmale2_cloth3", false },
-  { "wmale3_cloth1", false },
-  { "wmale3_cloth2", false },
-  { "wmale3_cloth3", false }
+  { 1, { { "body_mat", "people/young_lightskinned_male_diffuse_1.dds"     } } },
+  { 1, { { "body_mat", "people/young_lightskinned_male_diffuse.dds"       } } },
+  { 2, { { "body_mat", "people/young_lightskinned_male_diffuse3_1.dds"    } } },
+  { 2, { { "body_mat", "people/dragon_female_white.dds"                   } } },
+  { 3, { { "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds" } } },
+  { 3, { { "body_mat", "people/ork_texture.dds"                           } } }
 };
 
-std::vector<std::string> skeletalModels
+std::multimap<uint32_t, std::vector<uint32_t>> clothVariants =
 {
-  "people/wmale1_lod0.dae", "people/wmale1_lod1.dae", "people/wmale1_lod2.dae",
-  "people/wmale2_lod0.dae", "people/wmale2_lod1.dae", "people/wmale2_lod2.dae",
-  "people/wmale3_lod0.dae", "people/wmale3_lod1.dae", "people/wmale3_lod2.dae",
-  "people/wmale1_cloth1.dae", "", "", // well, I don't have LODded cloths :(
-  "people/wmale1_cloth2.dae", "", "",
-  "people/wmale1_cloth3.dae", "", "",
-  "people/wmale2_cloth1.dae", "", "",
-  "people/wmale2_cloth2.dae", "", "",
-  "people/wmale2_cloth3.dae", "", "",
-  "people/wmale3_cloth1.dae", "", "",
-  "people/wmale3_cloth2.dae", "", "",
-  "people/wmale3_cloth3.dae", "", ""
+  { 1, {} },
+  { 1, { 4 } },
+  { 1, { 5 } },
+  { 1, { 6 } },
+  { 2, {} },
+  { 2, { 7 } },
+  { 2, { 8 } },
+  { 2, { 9 } },
+  { 3, {} },
+  { 3, { 10 } },
+  { 3, { 11 } },
+  { 3, { 12 } }
 };
 
-std::vector<pumex::AssetLodDefinition> lodRanges
+void resizeOutputBuffers(std::shared_ptr<pumex::Buffer<std::vector<uint32_t>>> buffer, uint32_t mask, size_t instanceCount )
 {
-  pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
-  pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
-  pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f),
-  pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)
-};
-
-std::multimap<std::string, std::vector<std::vector<std::string>>> materialVariants =
-{
-  { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse_1.dds" } } },
-  { "wmale1", { { "body_mat", "people/young_lightskinned_male_diffuse.dds" } } },
-  { "wmale2", { { "body_mat", "people/young_lightskinned_male_diffuse3_1.dds" } } },
-  { "wmale2", { { "body_mat", "people/dragon_female_white.dds" } } },
-  { "wmale3", { { "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds" } } },
-  { "wmale3", { { "body_mat", "people/ork_texture.dds" } } }
-};
-
-std::multimap<std::string, std::vector<std::string>> clothVariants =
-{
-  { "wmale1", {} },
-  { "wmale1", { "wmale1_cloth1" } },
-  { "wmale1", { "wmale1_cloth2" } },
-  { "wmale1", { "wmale1_cloth3" } },
-  { "wmale2", {} },
-  { "wmale2", { "wmale2_cloth1" } },
-  { "wmale2", { "wmale2_cloth2" } },
-  { "wmale2", { "wmale2_cloth3" } },
-  { "wmale3", {} },
-  { "wmale3", { "wmale3_cloth1" } },
-  { "wmale3", { "wmale3_cloth2" } },
-  { "wmale3", { "wmale3_cloth3" } }
-};
-
+  switch (mask)
+  {
+  case MAIN_RENDER_MASK:
+    buffer->setData(std::vector<uint32_t>(instanceCount));
+    break;
+  }
+}
 
 struct CrowdApplicationData
 {
@@ -288,8 +255,12 @@ struct CrowdApplicationData
 
   glm::vec3                                              minArea;
   glm::vec3                                              maxArea;
+
   std::vector<pumex::Animation>                          animations;
   std::vector<pumex::Skeleton>                           skeletons;
+  std::vector<uint32_t>                                  mainObjectTypeID;
+  std::vector<uint32_t>                                  accessoryObjectTypeID;
+  std::map<uint32_t, uint32_t>                           materialVariantCount;
 
   std::map<SkelAnimKey, std::vector<uint32_t>>           skelAnimBoneMapping;
 
@@ -299,7 +270,7 @@ struct CrowdApplicationData
   std::uniform_int_distribution<uint32_t>                randomAnimation;
 
   std::shared_ptr<pumex::AssetBuffer>                    skeletalAssetBuffer;
-  std::shared_ptr<pumex::AssetBufferInstancedResults>    instancedResults;
+  std::shared_ptr<pumex::AssetBufferFilterNode>          filterNode;
 
   std::shared_ptr<pumex::Buffer<pumex::Camera>>             cameraBuffer;
   std::shared_ptr<pumex::Buffer<pumex::Camera>>             textCameraBuffer;
@@ -318,71 +289,9 @@ struct CrowdApplicationData
   std::unordered_map<uint32_t, glm::mat4>                slaveViewMatrix;
 
 
-  CrowdApplicationData()
+  CrowdApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
 	  : randomTime2NextTurn{ 0.25 }, randomRotation{ -glm::pi<float>(), glm::pi<float>() }
   {
-  }
-
-  void setup(const glm::vec3& minAreaParam, const glm::vec3& maxAreaParam, float objectDensity, const std::vector<uint32_t>& mainObjectTypeID, const std::vector<uint32_t>& materialVariantCount, std::shared_ptr<pumex::AssetBuffer> assetBuffer, std::shared_ptr<pumex::AssetBufferInstancedResults> iResults, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, const std::vector<pumex::Animation>& anims, const std::vector<pumex::Skeleton> skels)
-  {
-    minArea             = minAreaParam;
-    maxArea             = maxAreaParam;
-    skeletalAssetBuffer = assetBuffer;
-    instancedResults    = iResults;
-    animations          = anims;
-    skeletons           = skels;
-
-    randomAnimation = std::uniform_int_distribution<uint32_t>(1, animations.size() - 1);
-
-    // initializing data
-    float fullArea = (maxArea.x - minArea.x) * (maxArea.y - minArea.y);
-    unsigned int objectQuantity = (unsigned int)floor(objectDensity * fullArea / 1000000.0f);
-
-    std::uniform_real_distribution<float>   randomX(minArea.x, maxArea.x);
-    std::uniform_real_distribution<float>   randomY(minArea.y, maxArea.y);
-    std::uniform_int_distribution<uint32_t> randomType(0, mainObjectTypeID.size() - 1);
-    std::uniform_real_distribution<float>   randomAnimationOffset(0.0f, 5.0f);
-
-    // each object type has its own number of material variants
-    std::vector<std::uniform_int_distribution<uint32_t>> randomMaterialVariant;
-    for (uint32_t i = 0; i < materialVariantCount.size(); ++i)
-      randomMaterialVariant.push_back(std::uniform_int_distribution<uint32_t>(0, materialVariantCount[i] - 1));
-
-    uint32_t humanID = 0;
-    uint32_t clothID = 0;
-    for (unsigned int i = 0; i<objectQuantity; ++i)
-    {
-      humanID++;
-      ObjectData human;
-        human.kinematic.position    = glm::vec3( randomX(randomEngine), randomY(randomEngine), 0.0f );
-        human.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
-        human.animation             = randomAnimation(randomEngine);
-        human.kinematic.velocity    =  glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * animationSpeed[human.animation];
-        human.animationOffset       = randomAnimationOffset(randomEngine);
-        human.typeID                = mainObjectTypeID[randomType(randomEngine)];
-        human.materialVariant       = randomMaterialVariant[human.typeID](randomEngine);
-        human.time2NextTurn         = randomTime2NextTurn(randomEngine);
-      updateData.people.insert({ humanID, human });
-
-      auto clothPair = clothVariants.equal_range(skeletalAssetBuffer->getTypeName(human.typeID));
-      auto clothCount = std::distance(clothPair.first, clothPair.second);
-      if (clothCount > 0)
-      {
-
-        uint32_t clothIndex = i % clothCount;
-        std::advance(clothPair.first, clothIndex);
-        for( const auto& c : clothPair.first->second )
-        {
-          clothID++;
-          ObjectData cloth;
-            cloth.typeID          = skeletalAssetBuffer->getTypeID(c);
-            cloth.materialVariant = 0;
-            cloth.ownerID         = humanID;
-          updateData.clothes.insert({ clothID, cloth });
-        }
-      }
-    }
-
     cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     positionData     = std::make_shared<std::vector<PositionData>>();
@@ -402,15 +311,158 @@ struct CrowdApplicationData
     updateData.moveUp                      = false;
     updateData.moveDown                    = false;
     updateData.moveFast                    = false;
-
     updateData.measureTime                 = true;
+  }
+
+  void setupModels(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::AssetBuffer> assetBuffer, std::shared_ptr<pumex::MaterialSet> materialSet, const std::vector<pumex::VertexSemantic>& vertexSemantic)
+  {
+    skeletalAssetBuffer = assetBuffer;
+
+    pumex::AssetLoaderAssimp      loader;
+
+    // We assume that animations use the same skeleton as skeletal models
+    for (auto& animDef : animationDefinitions)
+    {
+      std::string fullAssetFileName = viewer->getFullFilePath(std::get<0>(animDef));
+      if (fullAssetFileName.empty())
+      {
+        LOG_WARNING << "Cannot find asset : " << std::get<0>(animDef) << std::endl;
+        continue;
+      }
+      std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName, true));
+      if (asset.get() == nullptr)
+      {
+        LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
+        continue;
+      }
+      animations.push_back(asset->animations[0]);
+    }
+
+    skeletons.push_back(pumex::Skeleton()); // empty skeleton for null type
+    for (auto& modelDef : modelDefinitions)
+    {
+      uint32_t                               typeID;
+      std::string                            typeName;
+      bool                                   isMain;
+      std::vector<std::string>               fileNames(3);
+      std::vector<pumex::AssetLodDefinition> lodRanges(3);
+      std::tie(typeID, typeName, isMain, fileNames[0], fileNames[1], fileNames[2], lodRanges[0], lodRanges[1], lodRanges[2]) = modelDef;
+
+      for (uint32_t j = 0; j<3; ++j)
+      {
+        if (fileNames[j].empty())
+          continue;
+        std::string fullAssetFileName = viewer->getFullFilePath(fileNames[j]);
+        if (fullAssetFileName.empty())
+        {
+          LOG_WARNING << "Cannot find asset : " << fileNames[j] << std::endl;
+          continue;
+        }
+        std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,false,vertexSemantic));
+        if (asset.get() == nullptr)
+        {
+          LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
+          continue;
+        }
+        if( j == 0 )
+        {
+          skeletons.push_back(asset->skeleton);
+          pumex::BoundingBox bbox = pumex::calculateBoundingBox(asset->skeleton, animations[0], true);
+          skeletalAssetBuffer->registerType(typeID, pumex::AssetTypeDefinition(bbox));
+          if(isMain)
+            mainObjectTypeID.push_back(typeID);
+          else
+            accessoryObjectTypeID.push_back(typeID);
+        }
+        materialSet->registerMaterials(typeID, asset);
+        skeletalAssetBuffer->registerObjectLOD(typeID, lodRanges[j], asset);
+      }
+
+      // register texture variants
+      for (auto it = begin(materialVariants), eit = end(materialVariants); it != eit; ++it)
+      {
+        if (it->first != typeID)
+          continue;
+        uint32_t variantCount = materialSet->getMaterialVariantCount(typeID);
+        std::vector<pumex::Material> materials = materialSet->getMaterials(typeID);
+        for (auto iit = begin(it->second); iit != end(it->second); ++iit)
+        {
+          for ( auto& mat : materials )
+          {
+            if (mat.name == std::get<0>(*iit))
+              mat.textures[pumex::TextureSemantic::Diffuse] = std::get<1>(*iit);
+          }
+        }
+        materialSet->setMaterialVariant(typeID, variantCount, materials);
+      }
+      materialVariantCount[typeID] = materialSet->getMaterialVariantCount(typeID);
+    }
+    materialSet->refreshMaterialStructures();
+  }
+
+  void setupInstances(const glm::vec3& minAreaParam, const glm::vec3& maxAreaParam, float objectDensity, std::shared_ptr<pumex::AssetBufferFilterNode> fNode)
+  {
+    minArea             = minAreaParam;
+    maxArea             = maxAreaParam;
+    filterNode          = fNode;
+
+    randomAnimation = std::uniform_int_distribution<uint32_t>(1, animations.size() - 1);
+
+    // initializing data
+    float fullArea = (maxArea.x - minArea.x) * (maxArea.y - minArea.y);
+    uint32_t objectQuantity = (uint32_t)floor(objectDensity * fullArea / 1000000.0f);
+
+    std::uniform_real_distribution<float>   randomX(minArea.x, maxArea.x);
+    std::uniform_real_distribution<float>   randomY(minArea.y, maxArea.y);
+    std::uniform_int_distribution<uint32_t> randomType(0, mainObjectTypeID.size() - 1);
+    std::uniform_real_distribution<float>   randomAnimationOffset(0.0f, 5.0f);
+
+    // each object type has its own number of material variants
+    std::map<uint32_t, std::uniform_int_distribution<uint32_t>> randomMaterialVariant;
+    for( auto& typeID : mainObjectTypeID)
+      randomMaterialVariant.insert({ typeID, std::uniform_int_distribution<uint32_t>(0, materialVariantCount[typeID]-1) });
+    for (auto& typeID : accessoryObjectTypeID)
+      randomMaterialVariant.insert({ typeID, std::uniform_int_distribution<uint32_t>(0, materialVariantCount[typeID]-1) });
+
+    uint32_t humanID = 1;
+    uint32_t clothID = 1;
+    for (uint32_t i = 0; i<objectQuantity; ++i)
+    {
+      ObjectData human;
+        human.kinematic.position    = glm::vec3( randomX(randomEngine), randomY(randomEngine), 0.0f );
+        human.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+        human.animation             = randomAnimation(randomEngine);
+        human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * std::get<1>(animationDefinitions[human.animation]);
+        human.animationOffset       = randomAnimationOffset(randomEngine);
+        human.typeID                = mainObjectTypeID[randomType(randomEngine)];
+        human.materialVariant       = randomMaterialVariant[human.typeID](randomEngine);
+        human.time2NextTurn         = randomTime2NextTurn(randomEngine);
+      updateData.people.insert({ humanID, human });
+
+      auto clothPair = clothVariants.equal_range(human.typeID);
+      auto clothCount = std::distance(clothPair.first, clothPair.second);
+      if (clothCount > 0)
+      {
+        uint32_t clothIndex = i % clothCount; // "random" cloth
+        std::advance(clothPair.first, clothIndex);
+        for( auto id : clothPair.first->second )
+        {
+          ObjectData cloth;
+            cloth.typeID          = id;
+            cloth.materialVariant = randomMaterialVariant[cloth.typeID](randomEngine);
+            cloth.ownerID         = humanID;
+          updateData.clothes.insert({ clothID, cloth });
+          clothID++;
+        }
+      }
+      humanID++;
+    }
   }
 
   void processInput( std::shared_ptr<pumex::Surface> surface )
   {
     std::shared_ptr<pumex::Window> window = surface->window.lock();
     std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
-
 
     std::vector<pumex::InputEvent> mouseEvents = window->getInputEvents();
     glm::vec2 mouseMove = updateData.lastMousePos;
@@ -565,7 +617,7 @@ struct CrowdApplicationData
     {
       human.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
       human.animation             = randomAnimation(randomEngine);
-      human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * animationSpeed[human.animation];
+      human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * std::get<1>(animationDefinitions[human.animation]);
       human.time2NextTurn         = randomTime2NextTurn(randomEngine);
     }
     else
@@ -598,7 +650,7 @@ struct CrowdApplicationData
       direction                   = glm::rotate(glm::mat4(), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f))  * direction;
 
       human.kinematic.orientation = glm::angleAxis(atan2f(direction.y, direction.x), glm::vec3(0.0f, 0.0f, 1.0f));
-      human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * animationSpeed[human.animation];
+      human.kinematic.velocity    = glm::rotate(human.kinematic.orientation, glm::vec3(0, -1, 0)) * std::get<1>(animationDefinitions[human.animation]);
       human.time2NextTurn         = randomTime2NextTurn(randomEngine);
     }
   }
@@ -658,7 +710,7 @@ struct CrowdApplicationData
     float deltaTime  = pumex::inSeconds(viewer->getRenderTimeDelta());
     float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
 
-    std::vector<uint32_t> typeCount(skeletalAssetBuffer->getNumTypesID());
+    std::vector<size_t> typeCount(skeletalAssetBuffer->getNumTypesID());
     std::fill(begin(typeCount), end(typeCount), 0);
     // compute how many instances of each type there is
     for (uint32_t i = 0; i < rData.people.size(); ++i)
@@ -666,7 +718,7 @@ struct CrowdApplicationData
     for (uint32_t i = 0; i < rData.clothes.size(); ++i)
       typeCount[rData.clothes[i].typeID]++;
 
-    instancedResults->prepareBuffers(typeCount);
+    filterNode->setTypeCount(typeCount);
 
 //    std::vector<PositionData> positionData;
 //    std::vector<InstanceData> instanceData;
@@ -783,20 +835,20 @@ int main(int argc, char * argv[])
   {
     parser.ParseCLI(argc, argv);
   }
-  catch (args::Help)
+  catch (const args::Help&)
   {
     LOG_ERROR << parser;
     FLUSH_LOG;
     return 0;
   }
-  catch (args::ParseError e)
+  catch (const args::ParseError& e)
   {
     LOG_ERROR << e.what() << std::endl;
     LOG_ERROR << parser;
     FLUSH_LOG;
     return 1;
   }
-  catch (args::ValidationError e)
+  catch (const args::ValidationError& e)
   {
     LOG_ERROR << e.what() << std::endl;
     LOG_ERROR << parser;
@@ -873,16 +925,12 @@ int main(int argc, char * argv[])
     // allocate 80 MB memory for 24 compressed textures and for font textures
     auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
+    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(buffersAllocator);
+
     std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
 
     auto skeletalAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-    auto instancedResults         = std::make_shared<pumex::AssetBufferInstancedResults>(assetSemantics, skeletalAssetBuffer, buffersAllocator);
-    auto instancedResultsSbo      = std::make_shared<pumex::StorageBuffer>(instancedResults->getResults(MAIN_RENDER_MASK));
-    auto instancedOffsetValuesSbo = std::make_shared<pumex::StorageBuffer>(instancedResults->getOffsetValues(MAIN_RENDER_MASK));
-
-    workflow->associateResource("indirect_commands", instancedResultsSbo);
-    workflow->associateResource("offset_values", instancedOffsetValuesSbo);
 
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
@@ -892,91 +940,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet>                    materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
-    pumex::AssetLoaderAssimp      loader;
-    std::vector<pumex::Animation> animations;
-
-    // We assume that animations use the same skeleton as skeletal models
-    for (uint32_t i = 0; i < animationFileNames.size(); ++i)
-    {
-      std::string fullAssetFileName = viewer->getFullFilePath(animationFileNames[i]);
-      if (fullAssetFileName.empty())
-      {
-        LOG_WARNING << "Cannot find asset : " << animationFileNames[i] << std::endl;
-        continue;
-      }
-      std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName, true));
-      if (asset.get() == nullptr)
-      {
-        LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
-        continue;
-      }
-      animations.push_back(asset->animations[0]);
-    }
-
-    std::vector<pumex::Skeleton>  skeletons;
-    std::vector<uint32_t>         mainObjectTypeID;
-    std::vector<uint32_t>         accessoryObjectTypeID;
-    skeletons.push_back(pumex::Skeleton()); // empty skeleton for null type
-    for (uint32_t i = 0; i < skeletalNames.size(); ++i)
-    {
-      uint32_t typeID = 0;
-      for (uint32_t j = 0; j<3; ++j)
-      {
-        if (skeletalModels[3 * i + j].empty())
-          continue;
-        std::string fullAssetFileName = viewer->getFullFilePath(skeletalModels[3 * i + j]);
-        if (fullAssetFileName.empty())
-        {
-          LOG_WARNING << "Cannot find asset : " << skeletalModels[3 * i + j] << std::endl;
-          continue;
-        }
-        std::shared_ptr<pumex::Asset> asset(loader.load(fullAssetFileName,false,vertexSemantic));
-        if (asset.get() == nullptr)
-        {
-          LOG_WARNING << "Cannot load asset : " << fullAssetFileName << std::endl;
-          continue;
-        }
-        if( typeID == 0 )
-        {
-          skeletons.push_back(asset->skeleton);
-          pumex::BoundingBox bbox = pumex::calculateBoundingBox(asset->skeleton, animations[0], true);
-          typeID = skeletalAssetBuffer->registerType(skeletalNames[i].first, pumex::AssetTypeDefinition(bbox));
-          if(skeletalNames[i].second)
-            mainObjectTypeID.push_back(typeID);
-          else
-            accessoryObjectTypeID.push_back(typeID);
-        }
-        materialSet->registerMaterials(typeID, asset);
-        skeletalAssetBuffer->registerObjectLOD(typeID, asset, lodRanges[3 * i + j]);
-      }
-
-      // register texture variants
-      for (auto it = begin(materialVariants), eit = end(materialVariants); it != eit; ++it)
-      {
-        if (it->first == skeletalNames[i].first)
-        {
-          uint32_t variantCount = materialSet->getMaterialVariantCount(typeID);
-          std::vector<pumex::Material> materials = materialSet->getMaterials(typeID);
-          for (auto iit = begin(it->second); iit != end(it->second); ++iit)
-          {
-            for ( auto& mat : materials )
-            {
-              if (mat.name == (*iit)[0])
-                mat.textures[pumex::TextureSemantic::Diffuse] = (*iit)[1];
-            }
-          }
-          materialSet->setMaterialVariant(typeID, variantCount, materials);
-        }
-      }
-    }
-    instancedResults->setup();
-    materialSet->refreshMaterialStructures();
-    std::vector<uint32_t> materialVariantCount(skeletalNames.size()+1);
-    for (uint32_t i= 0; i<materialVariantCount.size(); ++i)
-      materialVariantCount[i] = materialSet->getMaterialVariantCount(i);
-
-    std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>();
-    applicationData->setup(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, mainObjectTypeID, materialVariantCount, skeletalAssetBuffer, instancedResults, buffersAllocator, animations, skeletons);
+    applicationData->setupModels(viewer, skeletalAssetBuffer, materialSet, vertexSemantic);
 
     // build a compute tree
 
@@ -1006,17 +970,21 @@ int main(int argc, char * argv[])
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
     computeRoot->addChild(filterPipeline);
 
-    // Crowd filtering uses buffers from skeletalAssetBuffer, so we must ensure that they're compiled before we use them
-    // ( that's why skeletalAssetBuffer is connected two times in a tree )
-    auto filterAssetBufferNode = std::make_shared<pumex::AssetBufferNode>(skeletalAssetBuffer, materialSet, MAIN_RENDER_MASK, 0);
-    filterAssetBufferNode->setName("filterAssetBufferNode");
-    filterPipeline->addChild(filterAssetBufferNode);
+    auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
+    auto resultsSbo = std::make_shared<pumex::StorageBuffer>(resultsBuffer);
+    workflow->associateResource("indirect_commands", resultsSbo);
+
+    auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, buffersAllocator, std::bind(resizeOutputBuffers, resultsBuffer, std::placeholders::_1, std::placeholders::_2));
+    assetBufferFilterNode->setName("staticAssetBufferFilterNode");
+    filterPipeline->addChild(assetBufferFilterNode);
+
+    applicationData->setupInstances(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, assetBufferFilterNode);
 
     // FIXME : instance count
     uint32_t instanceCount = applicationData->updateData.people.size() + applicationData->updateData.clothes.size();
     auto dispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     dispatchNode->setName("dispatchNode");
-    filterAssetBufferNode->addChild(dispatchNode);
+    assetBufferFilterNode->addChild(dispatchNode);
 
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionSbo = std::make_shared<pumex::StorageBuffer>(applicationData->positionBuffer);
@@ -1024,12 +992,12 @@ int main(int argc, char * argv[])
   
     auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
     filterDescriptorSet->setDescriptor(0, cameraUbo);
-    filterDescriptorSet->setDescriptor(1, positionSbo);
-    filterDescriptorSet->setDescriptor(2, instanceSbo);
-    filterDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
-    filterDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
-    filterDescriptorSet->setDescriptor(5, instancedResultsSbo);
-    filterDescriptorSet->setDescriptor(6, instancedOffsetValuesSbo);
+    filterDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
+    filterDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
+    filterDescriptorSet->setDescriptor(3, positionSbo);
+    filterDescriptorSet->setDescriptor(4, instanceSbo);
+    filterDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK)));
+    filterDescriptorSet->setDescriptor(6, resultsSbo);
     dispatchNode->setDescriptorSet(0, filterDescriptorSet);
 
     //    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
@@ -1078,7 +1046,7 @@ int main(int argc, char * argv[])
     assetBufferNode->setName("assetBufferNode");
     instancedRenderPipeline->addChild(assetBufferNode);
 
-    auto assetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>( instancedResults );
+    auto assetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
     assetBufferDrawIndirect->setName("assetBufferDrawIndirect");
     assetBufferNode->addChild(assetBufferDrawIndirect);
 
@@ -1086,7 +1054,7 @@ int main(int argc, char * argv[])
     instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
     instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
     instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);
-    instancedRenderDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(instancedResults->getOffsetValues(MAIN_RENDER_MASK)));
+    instancedRenderDescriptorSet->setDescriptor(3, resultsSbo);
     instancedRenderDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
     instancedRenderDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
     instancedRenderDescriptorSet->setDescriptor(6, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
@@ -1132,7 +1100,7 @@ int main(int argc, char * argv[])
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    renderingRoot->addChild(textPipeline);
+    //renderingRoot->addChild(textPipeline);
 
     textPipeline->addChild(textDefault);
     textPipeline->addChild(textSmall);
@@ -1201,7 +1169,7 @@ int main(int argc, char * argv[])
 
     viewer->run();
   }
-  catch (const std::exception e)
+  catch (const std::exception& e)
   {
 #if defined(_DEBUG) && defined(_WIN32)
     OutputDebugStringA(e.what());

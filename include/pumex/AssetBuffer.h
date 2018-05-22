@@ -39,7 +39,7 @@ class CommandBuffer;
 // AssetBuffer is a class that stores all assets in a single place in GPU memory.
 // Each asset may have different set of render aspects ( normal rendering with tangents, transluency, lights, etc ) defined by render mask.
 // Each render aspect may use different shaders with different vertex semantic in its geometries.
-// For each render mask used by AssetBuffer you must register its render semantic using registerVertexSemantic() method.
+// Render masks ( each with its own render semantics ) are registered in AssetBuffer constructor
 // 
 // Asset's render masks are defined per single geometry. It's in user's responsibility to mark each geometry
 // by its specific render mask ( using geometry name, associated materials, textures and whatever the user finds appropriate ).
@@ -139,8 +139,6 @@ struct PUMEX_EXPORT DrawIndexedIndirectCommand
   uint32_t firstInstance = 0;
 };
 
-class AssetBufferInstancedResults;
-
 class PUMEX_EXPORT AssetBuffer
 {
 public:
@@ -150,23 +148,20 @@ public:
   AssetBuffer& operator=(const AssetBuffer&) = delete;
   virtual ~AssetBuffer();
 
-  uint32_t               registerType(const std::string& typeName, const AssetTypeDefinition& tdef);
-  uint32_t               registerObjectLOD( uint32_t typeID, std::shared_ptr<Asset> asset, const AssetLodDefinition& ldef );
-  uint32_t               getTypeID(const std::string& typeName) const;
-  std::string            getTypeName( uint32_t typeID ) const;
+  void                   registerType( uint32_t typeID, const AssetTypeDefinition& tdef);
+  uint32_t               registerObjectLOD( uint32_t typeID, const AssetLodDefinition& ldef, std::shared_ptr<Asset> asset );
   uint32_t               getLodID(uint32_t typeID, float distance) const;
   std::shared_ptr<Asset> getAsset(uint32_t typeID, uint32_t lodID);
   inline uint32_t        getNumTypesID() const;
-  
-  void                   validate(const RenderContext& renderContext);
+  std::vector<uint32_t>  getRenderMasks() const;
+
+  bool                   validate(const RenderContext& renderContext);
 
   void                   cmdBindVertexIndexBuffer(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t vertexBinding = 0);
   void                   cmdDrawObject(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, uint32_t typeID, uint32_t firstInstance, float distanceToViewer) const;
-  void                   cmdDrawObjectsIndirect(const RenderContext& renderContext, CommandBuffer* commandBuffer, uint32_t renderMask, std::shared_ptr<AssetBufferInstancedResults> instancedResults);
+  void                   cmdDrawObjectsIndirect(const RenderContext& renderContext, CommandBuffer* commandBuffer, std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands);
 
-  inline uint32_t        getNumRenderMasks() const;
-
-  void                   prepareDrawIndexedIndirectCommandBuffer(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& resultBuffer, std::vector<uint32_t>& resultGeomToType) const;
+  void                   prepareDrawCommands(uint32_t renderMask, std::vector<DrawIndexedIndirectCommand>& drawCommands, std::vector<uint32_t>& typeOfGeometry) const;
 
   void                   addNodeOwner(std::shared_ptr<Node> node);
   void                   invalidateNodeOwners();
@@ -232,8 +227,6 @@ protected:
   std::map<uint32_t, std::vector<VertexSemantic>> semantics;
   std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
 
-  std::vector<std::string>                        typeNames;
-  std::map<std::string, uint32_t>                 invTypeNames;
   std::vector<AssetTypeDefinition>                typeDefinitions;
   std::vector<std::vector<AssetLodDefinition>>    lodDefinitions;
   std::vector<InternalGeometryDefinition>         geometryDefinitions;
@@ -243,46 +236,9 @@ protected:
 
   // nodes that use this AssetBuffer
   std::vector<std::weak_ptr<Node>>                nodeOwners;
+  bool                                            valid = false;
 };
 
-uint32_t AssetBuffer::getNumTypesID() const     { return typeNames.size(); }
-uint32_t AssetBuffer::getNumRenderMasks() const { return perRenderMaskData.size(); }
-
-// helper class with buffers storing results of compute shader computations
-class PUMEX_EXPORT AssetBufferInstancedResults
-{
-public:
-  AssetBufferInstancedResults()                                              = delete;
-  explicit AssetBufferInstancedResults(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator);
-  AssetBufferInstancedResults(const AssetBufferInstancedResults&)            = delete;
-  AssetBufferInstancedResults& operator=(const AssetBufferInstancedResults&) = delete;
-  virtual ~AssetBufferInstancedResults();
-
-  void                                                             setup();
-  void                                                             prepareBuffers(const std::vector<uint32_t>& typeCount);
-
-  std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getResults(uint32_t renderMask);
-  std::shared_ptr<Buffer<std::vector<uint32_t>>>                   getOffsetValues(uint32_t renderMask);
-  uint32_t                                                         getDrawCount(uint32_t renderMask);
-
-  void                                                             validate(const RenderContext& renderContext);
-
-protected:
-  struct PerRenderMaskData
-  {
-    PerRenderMaskData() = default;
-    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator);
-
-    std::vector<DrawIndexedIndirectCommand>                          initialResultValues;
-    std::vector<uint32_t>                                            resultsGeomToType;
-    std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> resultsBuffer;
-    std::shared_ptr<Buffer<std::vector<uint32_t>>>                   offValuesBuffer;
-  };
-
-  mutable std::mutex                              mutex;
-  std::map<uint32_t, std::vector<VertexSemantic>> semantics;
-  std::unordered_map<uint32_t, PerRenderMaskData> perRenderMaskData;
-  std::weak_ptr<AssetBuffer>                      assetBuffer;
-};
+uint32_t AssetBuffer::getNumTypesID() const     { return typeDefinitions.size(); }
 
 }

@@ -23,6 +23,7 @@
 #pragma once
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 
@@ -48,29 +49,29 @@
 
 #define FLUSH_LOG  doLog(0.0f).flush();
 
-class vulkan_exception : public std::exception
-{
-};
-
 PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
 
 #define VK_CHECK_LOG_THROW( expression, loginfo ) \
 { \
-	VkResult res = (expression); \
-	if (res != VK_SUCCESS) \
+  VkResult res = (expression); \
+  if (res != VK_SUCCESS) \
   { \
-		LOG_ERROR << "[ " << __FILE__<<" : " << __LINE__ << " : " << vulkanErrorString(res) << " ] : "<< loginfo << std::endl; \
-		throw vulkan_exception(); \
- 	} \
+    std::ostringstream stream; \
+    stream << "[ " << __FILE__<<" : " << __LINE__ << " : " << vulkanErrorString(res) << " ] : "<< loginfo; \
+    LOG_ERROR << stream.str() << std::endl; \
+    throw std::exception(stream.str().c_str()); \
+  } \
 } 
 
 #define CHECK_LOG_THROW( expression, loginfo ) \
 { \
-	if((expression)) \
-    { \
-	  LOG_ERROR << "[ " << __FILE__<<" : " << __LINE__ << " ] : "<< loginfo << std::endl; \
-		throw vulkan_exception(); \
-   	} \
+  if((expression)) \
+  { \
+    std::ostringstream stream; \
+    stream << "[ " << __FILE__ << " : " << __LINE__ << " ] : " << loginfo; \
+    LOG_ERROR << stream.str() << std::endl; \
+    throw std::exception(stream.str().c_str()); \
+  } \
 } 
 
 #define CHECK_LOG_RETURN_VOID( expression, loginfo ) \

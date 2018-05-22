@@ -55,6 +55,7 @@ public:
 
   void setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet);
   void resetDescriptorSet(uint32_t index);
+  std::shared_ptr<DescriptorSet> getDescriptorSet(uint32_t index);
 
   // returns true if children need to be validated
   bool nodeValidate(const RenderContext& renderContext);

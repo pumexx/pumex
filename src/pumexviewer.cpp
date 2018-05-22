@@ -311,20 +311,20 @@ int main( int argc, char * argv[] )
   {
     parser.ParseCLI(argc, argv);
   }
-  catch (args::Help)
+  catch (const args::Help&)
   {
     LOG_ERROR << parser;
     FLUSH_LOG;
     return 0;
   }
-  catch (args::ParseError e)
+  catch (const args::ParseError& e)
   {
     LOG_ERROR << e.what() << std::endl;
     LOG_ERROR << parser;
     FLUSH_LOG;
     return 1;
   }
-  catch (args::ValidationError e)
+  catch (const args::ValidationError& e)
   {
     LOG_ERROR << e.what() << std::endl;
     LOG_ERROR << parser;
@@ -509,7 +509,7 @@ int main( int argc, char * argv[] )
 
     viewer->run();
   }
-  catch (const std::exception e)
+  catch (const std::exception& e)
   {
   }
   catch (...)

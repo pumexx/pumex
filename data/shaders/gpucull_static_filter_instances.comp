@@ -27,15 +27,11 @@ struct AssetGeometry
   uint  padding;
 };
 
-struct InstanceData
+struct StaticInstanceData
 {
+  uvec4 id;
+  vec4  params;
   mat4  position;
-  uint  typeID;
-  uint  materialVariant;
-  float brightness;
-  float wavingAmplitude; 
-  float wavingFrequency;
-  float wavingOffset;
 };
 
 struct DrawIndexedIndirectCommand
@@ -49,40 +45,55 @@ struct DrawIndexedIndirectCommand
 
 layout (local_size_x = 16) in;
 
-layout (binding = 0) uniform CameraUbo
+// binding 0,0 : camera
+layout (set = 0, binding = 0) uniform CameraUbo
 {
-  mat4 viewMatrix;
-  mat4 viewMatrixInverse;
-  mat4 projectionMatrix;
-  vec4 observerPosition;
+  mat4  viewMatrix;
+  mat4  viewMatrixInverse;
+  mat4  projectionMatrix;
+  vec4  observerPosition;
+  float currentTime;
 } camera;
 
-layout (std430,binding = 1) readonly buffer InstanceDataSbo
-{
-	InstanceData instances[ ];
-};
-
-
-// Binding 2 : information about types
-layout(std430,binding = 2) readonly buffer types
+// Binding 0,1 : information about types
+layout(set = 0, binding = 1) readonly buffer types
 {
    AssetType assetTypes[];
 };
 
-// Binding 3 : information about type lods
-layout(std140,binding = 3) readonly buffer lods
+// Binding 0,2 : information about type lods
+layout(set = 0, binding = 2) readonly buffer lods
 {
    AssetLOD assetLods[];
 };
 
-layout (std430,binding = 4) buffer ResultsSbo
+// Binding 0,3 : output DrawIndexedIndirectCommands
+layout (set = 0, binding = 3) buffer DrawCommands
 {
-	DrawIndexedIndirectCommand targetCommands[];
+	DrawIndexedIndirectCommand drawCommands[];
 };
 
-layout (std430,binding = 5) buffer OffValuesSbo
+// Binding 0,4 : output instances
+layout (set = 0, binding = 4) buffer OutInstanceDataSbo
 {
-	uint typeOffsetValues[];
+	StaticInstanceData outInstances[];
+};
+
+//
+layout (set = 0, binding = 5) buffer ResultIndexSbo
+{
+  uint instanceIndices[];
+};
+
+layout (set = 0, binding = 6) buffer ResultCounterSbo
+{
+  uint instanceCounter;
+};
+
+// Binding 1,0 : input instances
+layout (set = 1, binding = 0) readonly buffer InInstanceDataSbo
+{
+	StaticInstanceData inInstances[];
 };
 
 bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )
@@ -112,25 +123,31 @@ bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )
 
 void main() 
 {
-  uint instanceIndex = gl_GlobalInvocationID.x;
-  if (instanceIndex >= instances.length()) 
+  uint inInstanceIndex = gl_GlobalInvocationID.x;
+  if (inInstanceIndex >= inInstances.length()) 
     return;	
-  uint typeIndex     = instances[instanceIndex].typeID;
-  mat4 modelMatrix   = instances[instanceIndex].position;
+  uint typeIndex     = inInstances[inInstanceIndex].id[1];
+  mat4 modelMatrix   = inInstances[inInstanceIndex].position;
   mat4 mvpMatrix     = camera.projectionMatrix * camera.viewMatrix * modelMatrix;
   if( boundingBoxInViewFrustum( mvpMatrix, assetTypes[typeIndex].bbMin, assetTypes[typeIndex].bbMax ) )
   {
+    uint currentInstance = atomicAdd( instanceCounter, 1);
+    outInstances[currentInstance].position = inInstances[inInstanceIndex].position;
+    outInstances[currentInstance].id       = inInstances[inInstanceIndex].id;
+    outInstances[currentInstance].params   = inInstances[inInstanceIndex].params;
+
     float distanceToObject = distance(camera.observerPosition.xyz / camera.observerPosition.w, modelMatrix[3].xyz / modelMatrix[3].w );
+
     for( uint l = assetTypes[typeIndex].lodFirst; l<assetTypes[typeIndex].lodFirst + assetTypes[typeIndex].lodSize; ++l)
     {
       if( distanceToObject >= assetLods[l].minDistance && distanceToObject < assetLods[l].maxDistance )
-	  {
+      {
         for( uint g=assetLods[l].geomFirst; g<assetLods[l].geomFirst + assetLods[l].geomSize; ++g )
         {
-		  uint currentInstance = atomicAdd( targetCommands[g].instanceCount, 1);
-		  typeOffsetValues[ targetCommands[g].firstInstance + currentInstance ] = instanceIndex;
+          uint currentGeomInstance = atomicAdd( drawCommands[g].instanceCount, 1);
+          instanceIndices[ drawCommands[g].firstInstance + currentGeomInstance ] = currentInstance;
         }
-	  }
+      }
     }
   }
 }

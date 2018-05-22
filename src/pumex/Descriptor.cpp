@@ -384,6 +384,16 @@ void DescriptorSet::resetDescriptor(uint32_t binding)
   }
 }
 
+std::shared_ptr<Descriptor> DescriptorSet::getDescriptor(uint32_t binding)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = descriptors.find(binding);
+  if (it == end(descriptors))
+    return std::shared_ptr<Descriptor>();
+  return it->second;
+}
+
+
 void DescriptorSet::addNode(std::shared_ptr<Node> node)
 {
   nodeOwners.push_back(node);

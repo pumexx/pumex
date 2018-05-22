@@ -3,6 +3,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
+#define MAX_BONES 9
+
 struct AssetType
 {
   vec4  bbMin;
@@ -27,15 +29,12 @@ struct AssetGeometry
   uint  padding;
 };
 
-#define MAX_BONES 9
-
 struct DynamicInstanceData
 {
+  uvec4 id;
+  vec4  params;
   mat4  position;
   mat4  bones[MAX_BONES];
-  uint  typeID;
-  uint  materialVariant;
-  float brightness;
 };
 
 struct DrawIndexedIndirectCommand
@@ -49,40 +48,40 @@ struct DrawIndexedIndirectCommand
 
 layout (local_size_x = 16) in;
 
-layout (binding = 0) uniform CameraUbo
+layout (set = 0, binding = 0) uniform CameraUbo
 {
-  mat4 viewMatrix;
-  mat4 viewMatrixInverse;
-  mat4 projectionMatrix;
-  vec4 observerPosition;
+  mat4  viewMatrix;
+  mat4  viewMatrixInverse;
+  mat4  projectionMatrix;
+  vec4  observerPosition;
+  float currentTime;
 } camera;
 
-layout (std430,binding = 1) readonly buffer DynamicInstanceDataSbo
+// information about types
+layout(set = 0, binding = 1) readonly buffer types
 {
-	DynamicInstanceData instances[ ];
+  AssetType assetTypes[];
 };
 
-
-// Binding 2 : information about types
-layout(std430,binding = 2) readonly buffer types
+// information about type lods
+layout(set = 0, binding = 2) readonly buffer lods
 {
-   AssetType assetTypes[];
+  AssetLOD assetLods[];
 };
 
-// Binding 3 : information about type lods
-layout(std140,binding = 3) readonly buffer lods
+layout (set = 0, binding = 3) readonly buffer DynamicInstanceDataSbo
 {
-   AssetLOD assetLods[];
+  DynamicInstanceData instances[];
 };
 
-layout (std430,binding = 4) buffer ResultsSbo
+layout (set = 0, binding = 4) buffer DrawCommands
 {
-	DrawIndexedIndirectCommand targetCommands[];
+  DrawIndexedIndirectCommand drawCommands[];
 };
 
-layout (std430,binding = 5) buffer OffValuesSbo
+layout (set = 0, binding = 5) buffer ResultsSbo
 {
-	uint typeOffsetValues[];
+  uint resultValues[];
 };
 
 bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )
@@ -115,7 +114,7 @@ void main()
   uint instanceIndex = gl_GlobalInvocationID.x;
   if (instanceIndex >= instances.length()) 
     return;	
-  uint typeIndex     = instances[instanceIndex].typeID;
+  uint typeIndex     = instances[instanceIndex].id.y;
   mat4 modelMatrix   = instances[instanceIndex].position;
   mat4 mvpMatrix     = camera.projectionMatrix * camera.viewMatrix * modelMatrix;
   if( boundingBoxInViewFrustum( mvpMatrix, assetTypes[typeIndex].bbMin, assetTypes[typeIndex].bbMax ) )
@@ -127,10 +126,10 @@ void main()
 	  {
         for( uint g=assetLods[l].geomFirst; g<assetLods[l].geomFirst + assetLods[l].geomSize; ++g )
         {
-		  uint currentInstance = atomicAdd( targetCommands[g].instanceCount, 1);
-		  typeOffsetValues[ targetCommands[g].firstInstance + currentInstance ] = instanceIndex;
+          uint currentInstance = atomicAdd( drawCommands[g].instanceCount, 1);
+          resultValues[ drawCommands[g].firstInstance + currentInstance ] = instanceIndex;
         }
-	  }
+      }
     }
   }
 }

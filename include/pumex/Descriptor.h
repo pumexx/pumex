@@ -129,21 +129,22 @@ public:
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   virtual ~DescriptorSet();
 
-  void            validate(const RenderContext& renderContext);
-  void            invalidateOwners();
-  void            notify(const RenderContext& renderContext);
-  void            notify();
+  void                        validate(const RenderContext& renderContext);
+  void                        invalidateOwners();
+  void                        notify(const RenderContext& renderContext);
+  void                        notify();
 
-  void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
-  void            setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources);
-  void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
-  void            setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource);
-  void            resetDescriptor(uint32_t binding);
+  void                        setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
+  void                        setDescriptor(uint32_t binding, const std::vector<std::shared_ptr<Resource>>& resources);
+  void                        setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
+  void                        setDescriptor(uint32_t binding, std::shared_ptr<Resource> resource);
+  void                        resetDescriptor(uint32_t binding);
+  std::shared_ptr<Descriptor> getDescriptor(uint32_t binding);
 
-  void            addNode(std::shared_ptr<Node> node);
-  void            removeNode(std::shared_ptr<Node> node);
+  void                        addNode(std::shared_ptr<Node> node);
+  void                        removeNode(std::shared_ptr<Node> node);
 
-  VkDescriptorSet getHandle(const RenderContext& renderContext) const;
+  VkDescriptorSet             getHandle(const RenderContext& renderContext) const;
 
   std::shared_ptr<DescriptorSetLayout> layout;
   std::shared_ptr<DescriptorPool>      pool;

@@ -17,6 +17,8 @@ layout (binding = 0) uniform CameraUbo
   mat4 viewMatrixInverse; // during voxelization this matrix is set to identity
   mat4 projectionMatrix;  // this matrix is set to orthogonal matrix 
   vec4 observerPosition;
+  float currentTime;
+
 } camera;
 
 layout (binding = 1) uniform PositionSbo

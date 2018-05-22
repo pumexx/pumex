@@ -68,13 +68,13 @@ VkBuffer MemoryBuffer::getHandleBuffer(const RenderContext& renderContext) const
   return pddit->second.data[renderContext.activeIndex % activeCount].buffer;
 }
 
-size_t MemoryBuffer::getBufferSize(const RenderContext& renderContext) const
+size_t MemoryBuffer::getDataSize(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find(getKeyID(renderContext, perObjectBehaviour));
   if (pddit == end(perObjectData))
     return 0;
-  return pddit->second.data[renderContext.activeIndex % activeCount].memoryBlock.alignedSize;
+  return pddit->second.data[renderContext.activeIndex % activeCount].dataSize;
 }
 
 void MemoryBuffer::validate(const RenderContext& renderContext)
@@ -112,6 +112,7 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
     VK_CHECK_LOG_THROW(vkCreateBuffer(pddit->second.device, &bufferCreateInfo, nullptr, &pddit->second.data[activeIndex].buffer), "Cannot create a buffer");
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(pddit->second.device, pddit->second.data[activeIndex].buffer, &memReqs);
+    pddit->second.data[activeIndex].dataSize    = bufferCreateInfo.size;
     pddit->second.data[activeIndex].memoryBlock = allocator->allocate(renderContext.device, memReqs);
     CHECK_LOG_THROW(pddit->second.data[activeIndex].memoryBlock.alignedSize == 0, "Cannot create a bufer");
     allocator->bindBufferMemory(renderContext.device, pddit->second.data[activeIndex].buffer, pddit->second.data[activeIndex].memoryBlock.alignedOffset);
@@ -129,20 +130,20 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
     // perform all operations in a single command buffer
     auto cmdBuffer = renderContext.device->beginSingleTimeCommands(renderContext.commandPool);
     bool submit = false;
-    for (auto& texop : pddit->second.commonData.bufferOperations)
+    for (auto& bufop : pddit->second.commonData.bufferOperations)
     {
-      if (!texop->updated[activeIndex])
+      if (!bufop->updated[activeIndex])
       {
-        submit |= texop->perform(renderContext, pddit->second.data[activeIndex], cmdBuffer);
+        submit |= bufop->perform(renderContext, pddit->second.data[activeIndex], cmdBuffer);
         // mark operation as done for this activeIndex
-        texop->updated[activeIndex] = true;
+        bufop->updated[activeIndex] = true;
       }
     }
     renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.queue, submit);
-    for (auto& texop : pddit->second.commonData.bufferOperations)
-      texop->releaseResources(renderContext);
+    for (auto& bufop : pddit->second.commonData.bufferOperations)
+      bufop->releaseResources(renderContext);
     // if all operations are done for each index - remove them from list
-    pddit->second.commonData.bufferOperations.remove_if(([](std::shared_ptr<Operation> texop) { return texop->allUpdated(); }));
+    pddit->second.commonData.bufferOperations.remove_if(([](std::shared_ptr<Operation> bufop) { return bufop->allUpdated(); }));
   }
   pddit->second.valid[activeIndex] = true;
 }

@@ -90,6 +90,16 @@ void Node::resetDescriptorSet(uint32_t index)
   invalidateParents();
 }
 
+std::shared_ptr<DescriptorSet> Node::getDescriptorSet(uint32_t index)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = descriptorSets.find(index);
+  if (it == end(descriptorSets))
+    return std::shared_ptr<DescriptorSet>();
+  return it->second;
+}
+
+
 bool Node::nodeValidate(const RenderContext& renderContext)
 {
   for (auto& descriptorSet : descriptorSets)
@@ -213,7 +223,7 @@ void Group::addChild(std::shared_ptr<Node> child)
   std::lock_guard<std::mutex> lock(mutex);
   children.push_back(child);
   child->addParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
-  invalidateParents();
+  child->invalidateNodeAndParents();
 }
 
 bool Group::removeChild(std::shared_ptr<Node> child)
@@ -225,6 +235,7 @@ bool Group::removeChild(std::shared_ptr<Node> child)
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   children.erase(it);
   invalidateParents();
+  child->invalidateNodeAndParents();
   return true;
 }
 

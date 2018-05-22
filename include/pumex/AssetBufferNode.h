@@ -44,6 +44,40 @@ public:
   bool                         registered = false;
 };
 
+class PUMEX_EXPORT AssetBufferFilterNode : public Group
+{
+public:
+  AssetBufferFilterNode(std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::function<void(uint32_t, size_t)> funcUpdateOutput);
+
+  void                                                             accept(NodeVisitor& visitor) override;
+  void                                                             validate(const RenderContext& renderContext) override;
+
+  void                                                             setTypeCount(const std::vector<size_t>& typeCount);
+
+  std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getDrawIndexedIndirectBuffer(uint32_t renderMask);
+  size_t                                                           getMaxOutputObjects(uint32_t renderMask);
+  uint32_t                                                         getDrawCount(uint32_t renderMask);
+
+protected:
+  std::shared_ptr<AssetBuffer>                                     assetBuffer;
+  std::vector<size_t>                                              typeCount;
+  std::function<void(uint32_t, size_t)>                            funcUpdateOutput;
+
+  struct PerRenderMaskData
+  {
+    PerRenderMaskData() = default;
+    PerRenderMaskData(std::shared_ptr<DeviceMemoryAllocator> allocator);
+
+    std::shared_ptr<std::vector<DrawIndexedIndirectCommand>>         drawIndexedIndirectCommands;
+    std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawIndexedIndirectBuffer;
+    size_t                                                           maxOutputObjects;
+  };
+  std::unordered_map<uint32_t, PerRenderMaskData>                    perRenderMaskData;
+
+  bool                                                               registered = false;
+};
+
+
 // class that draws single object registered in AssetBufferNode
 class PUMEX_EXPORT AssetBufferDrawObject : public Node
 {
@@ -59,16 +93,20 @@ public:
   uint32_t firstInstance;
 };
 
+
 // class that draws series of objects registered in AssetBufferNode using cmdDrawIndexedIndirect - needs a buffer to work
 class PUMEX_EXPORT AssetBufferIndirectDrawObjects : public Node
 {
 public:
-  AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferInstancedResults> instancedResults);
+  AssetBufferIndirectDrawObjects(std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands);
 
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
-  std::shared_ptr<AssetBufferInstancedResults> instancedResults;
+  std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getDrawCommands();
+protected:
+  std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands;
+  bool                                                             registered = false;
 };
 
 

@@ -9,15 +9,11 @@ layout (location = 2) in vec3 inUV;
 layout (location = 3) in vec4 inBoneWeight;
 layout (location = 4) in vec4 inBoneIndex;
 
-struct InstanceData
+struct StaticInstanceData
 {
+  uvec4 id;
+  vec4  params;
   mat4  position;
-  uint  typeID;
-  uint  materialVariant;
-  float brightness;
-  float wavingAmplitude; 
-  float wavingFrequency;
-  float wavingOffset;
 };
 
 struct MaterialTypeDefinition
@@ -32,7 +28,7 @@ struct MaterialVariantDefinition
   uint materialSize;
 };
 
-layout (binding = 0) uniform CameraUbo
+layout (set = 0, binding = 0) uniform CameraUbo
 {
   mat4  viewMatrix;
   mat4  viewMatrixInverse;
@@ -41,22 +37,22 @@ layout (binding = 0) uniform CameraUbo
   float currentTime;
 } camera;
 
-layout (std430,binding = 1) readonly buffer InstanceDataSbo
+layout (set = 0, binding = 1) readonly buffer ResultIndexSbo
 {
-	InstanceData instances[ ];
+	uint instanceIndices[];
 };
 
-layout (std430,binding = 2) readonly buffer OffValuesSbo
+layout (set = 0, binding = 2) readonly buffer InstanceDataSbo
 {
-	uint typeOffsetValues[];
+	StaticInstanceData instances[];
 };
 
-layout (std430,binding = 3) readonly buffer MaterialTypesSbo
+layout (set = 0, binding = 3) readonly buffer MaterialTypesSbo
 {
 	MaterialTypeDefinition materialTypes[];
 };
 
-layout (std430,binding = 4) readonly buffer MaterialVariantsSbo
+layout (set = 0, binding = 4) readonly buffer MaterialVariantsSbo
 {
 	MaterialVariantDefinition materialVariants[];
 };
@@ -73,22 +69,22 @@ layout (location = 5) flat out uint materialID;
 
 void main() 
 {
-	uint instanceIndex = typeOffsetValues[gl_InstanceIndex];
+	uint instanceIndex = instanceIndices[gl_InstanceIndex];
 	mat4 modelMatrix   = instances[instanceIndex].position;
 
-    float wavingAmplitute = max(0.0,inPos.z * instances[instanceIndex].wavingAmplitude);
-	vec2 windTranslation = windDirection * wavingAmplitute * sin( instances[instanceIndex].wavingFrequency * camera.currentTime + instances[instanceIndex].wavingOffset );
+    float wavingAmplitute = max(0.0,inPos.z * instances[instanceIndex].params[1]);
+	vec2 windTranslation = windDirection * wavingAmplitute * sin( instances[instanceIndex].params[2] * camera.currentTime + instances[instanceIndex].params[3] );
 
 	vec4 modelPosition = modelMatrix * vec4(inPos.xyz, 1.0);
 	modelPosition.xy   += windTranslation;
 	gl_Position        = camera.projectionMatrix * camera.viewMatrix * modelPosition;
 	outNormal          = mat3(inverse(transpose(modelMatrix))) * inNormal;
-	outColor           = vec3(1.0,1.0,1.0) * instances[instanceIndex].brightness ;
+	outColor           = vec3(1.0,1.0,1.0) * instances[instanceIndex].params[0] ;
 	outUV              = inUV.xy;
 	
     vec4 pos           = camera.viewMatrix * modelPosition;
     outLightVec        = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
     outViewVec         = -pos.xyz;
 
-	materialID  = materialVariants[materialTypes[instances[instanceIndex].typeID].variantFirst + instances[instanceIndex].materialVariant].materialFirst + uint(inUV.z);
+	materialID  = materialVariants[materialTypes[instances[instanceIndex].id.y].variantFirst + instances[instanceIndex].id.z].materialFirst + uint(inUV.z);
 }

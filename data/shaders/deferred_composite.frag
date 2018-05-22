@@ -16,10 +16,11 @@ layout (location = 0) in vec2 inUV;
 
 layout (binding = 0) uniform CameraUbo
 {
-  mat4 viewMatrix;
-  mat4 viewMatrixInverse;
-  mat4 projectionMatrix;
-  vec4 observerPosition;
+  mat4  viewMatrix;
+  mat4  viewMatrixInverse;
+  mat4  projectionMatrix;
+  vec4  observerPosition;
+  float currentTime;
 } camera;
 
 layout (std430,binding = 1) readonly buffer Lights

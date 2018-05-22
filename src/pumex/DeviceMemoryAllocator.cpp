@@ -125,7 +125,7 @@ DeviceMemoryBlock FirstFitAllocationStrategy::allocate(VkDeviceMemory storageMem
     if (it->size >= memoryRequirements.size + additionalSize)
       break;
   }
-  CHECK_LOG_THROW(it == end(freeBlocks), "memory allocation failed in FirstFitAllocationStrategy");
+  CHECK_LOG_THROW(it == end(freeBlocks), "memory allocation failed : " << memoryRequirements.size);
 
   DeviceMemoryBlock block(storageMemory, it->offset, it->offset + additionalSize, memoryRequirements.size, memoryRequirements.size + additionalSize);
   it->offset += memoryRequirements.size + additionalSize;
