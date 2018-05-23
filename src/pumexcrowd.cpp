@@ -1100,7 +1100,7 @@ int main(int argc, char * argv[])
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    //renderingRoot->addChild(textPipeline);
+    renderingRoot->addChild(textPipeline);
 
     textPipeline->addChild(textDefault);
     textPipeline->addChild(textSmall);

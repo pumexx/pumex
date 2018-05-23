@@ -185,13 +185,15 @@ void Text::validate(const RenderContext& renderContext)
 void Text::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer)
 {
   std::lock_guard<std::mutex> lock(mutex);
+  auto sit = symbolData.find(renderContext.vkSurface);
+  CHECK_LOG_THROW(sit == end(symbolData), "Text::cmdDraw() : text was not validated");
+  if (sit->second.get() == nullptr || sit->second->empty())
+    return;
+
   commandBuffer->addSource(this);
   VkBuffer     vBuffer = vertexBuffer->getHandleBuffer(renderContext);
   VkDeviceSize offsets = 0;
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), 0, 1, &vBuffer, &offsets);
-
-  auto sit = symbolData.find(renderContext.vkSurface);
-  CHECK_LOG_THROW(sit == end(symbolData), "Text::cmdDraw() : text was not validated");
   commandBuffer->cmdDraw(sit->second->size(), 1, 0, 0, 0);
 }
 

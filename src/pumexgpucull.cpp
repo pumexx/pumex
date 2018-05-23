@@ -236,15 +236,11 @@ public:
     {
       // recusively divide the new cells till maxNumInstancesPerCell is met.
       for (auto citr = begin(cells); citr != end(cells); ++citr)
-      {
         (*citr)->divide(maxNumInstancesPerCell);
-      }
       return true;
     }
     else
-    {
       return false;
-    }
   }
 
   bool divide(bool xAxis, bool yAxis, bool zAxis)
@@ -886,13 +882,12 @@ struct GpuCullApplicationData
   bool      _showStaticRendering  = false;
   bool      _showDynamicRendering = false;
   uint32_t  _instancesPerCell     = 4096;
-//  float     _staticAreaSize;
   float     _dynamicAreaSize;
   glm::vec2 _minArea;
   glm::vec2 _maxArea;
 
-  std::shared_ptr<pumex::Buffer<uint32_t>>                            _staticCounterBuffer;
   std::shared_ptr<pumex::Buffer<std::vector<pumex::DrawIndexedIndirectCommand>>> _staticDrawCommands;
+  std::shared_ptr<pumex::Buffer<uint32_t>>                            _staticCounterBuffer;
   std::exponential_distribution<float>                                _randomTime2NextTurn;
   std::uniform_real_distribution<float>                               _randomRotation;
   std::unordered_map<uint32_t, std::uniform_real_distribution<float>> _randomObjectSpeed;
@@ -910,8 +905,6 @@ struct GpuCullApplicationData
   std::vector<uint32_t>                                               _staticTypeIDs;
   std::unordered_map<uint32_t, std::shared_ptr<XXX>>                  _dynamicTypeIDs;
 
-  std::shared_ptr<pumex::QueryPool>                    timeStampQueryPool;
-
   pumex::HPClock::time_point                           lastFrameStart;
   bool                                                 measureTime = true;
   std::mutex                                           measureMutex;
@@ -920,7 +913,7 @@ struct GpuCullApplicationData
   std::unordered_map<uint32_t, glm::mat4>              slaveViewMatrix;
 
   GpuCullApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
-    : _instancesPerCell{ 4096 }, _randomTime2NextTurn{ 0.1f }, _randomRotation(-glm::pi<float>(), glm::pi<float>())
+    : _randomTime2NextTurn{ 0.1f }, _randomRotation(-glm::pi<float>(), glm::pi<float>())
   {
     cameraBuffer          = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     textCameraBuffer      = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
@@ -939,28 +932,229 @@ struct GpuCullApplicationData
     updateData.moveDown                    = false;
     updateData.moveFast                    = false;
     updateData.measureTime                 = true;
-
-    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP, 8 * MAX_SURFACES);
   }
 
-  void setupStaticRendering(std::shared_ptr<pumex::Buffer<uint32_t>> staticCounterBuffer, std::shared_ptr<pumex::Buffer<std::vector<pumex::DrawIndexedIndirectCommand>>> staticDrawCommands)
+  void setupStaticModels(float staticAreaSize, float lodModifier, float triangleModifier, std::shared_ptr<pumex::AssetBuffer> staticAssetBuffer, std::shared_ptr<pumex::MaterialSet> staticMaterialSet)
   {
     _showStaticRendering = true;
+
+    std::shared_ptr<pumex::Asset> groundAsset(createGround(staticAreaSize, glm::vec4(0.0f, 0.7f, 0.0f, 1.0f)));
+    pumex::BoundingBox groundBbox = pumex::calculateBoundingBox(*groundAsset, MAIN_RENDER_MASK);
+    staticAssetBuffer->registerType(STATIC_GROUND_TYPE_ID, pumex::AssetTypeDefinition(groundBbox));
+    staticMaterialSet->registerMaterials(STATIC_GROUND_TYPE_ID, groundAsset);
+    staticAssetBuffer->registerObjectLOD(STATIC_GROUND_TYPE_ID, pumex::AssetLodDefinition(0.0f, 5.0f * staticAreaSize), groundAsset );
+
+    std::shared_ptr<pumex::Asset> coniferTree0 ( createConiferTree( 0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> coniferTree1 ( createConiferTree(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> coniferTree2 ( createConiferTree(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+    pumex::BoundingBox coniferTreeBbox = pumex::calculateBoundingBox(*coniferTree0, MAIN_RENDER_MASK);
+    staticAssetBuffer->registerType(STATIC_CONIFER_TREE_ID, pumex::AssetTypeDefinition(coniferTreeBbox));
+    staticMaterialSet->registerMaterials(STATIC_CONIFER_TREE_ID, coniferTree0);
+    staticMaterialSet->registerMaterials(STATIC_CONIFER_TREE_ID, coniferTree1);
+    staticMaterialSet->registerMaterials(STATIC_CONIFER_TREE_ID, coniferTree2);
+    staticAssetBuffer->registerObjectLOD(STATIC_CONIFER_TREE_ID, pumex::AssetLodDefinition(0.0f * lodModifier, 100.0f * lodModifier), coniferTree0 );
+    staticAssetBuffer->registerObjectLOD(STATIC_CONIFER_TREE_ID, pumex::AssetLodDefinition(100.0f * lodModifier, 500.0f * lodModifier), coniferTree1 );
+    staticAssetBuffer->registerObjectLOD(STATIC_CONIFER_TREE_ID, pumex::AssetLodDefinition(500.0f * lodModifier, 1200.0f * lodModifier), coniferTree2 );
+    _staticTypeIDs.push_back(STATIC_CONIFER_TREE_ID);
+
+    std::shared_ptr<pumex::Asset> decidousTree0 ( createDecidousTree(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> decidousTree1 ( createDecidousTree(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> decidousTree2 ( createDecidousTree(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+    pumex::BoundingBox decidousTreeBbox = pumex::calculateBoundingBox(*decidousTree0, MAIN_RENDER_MASK);
+    staticAssetBuffer->registerType(STATIC_DECIDOUS_TREE_ID, pumex::AssetTypeDefinition(decidousTreeBbox));
+    staticMaterialSet->registerMaterials(STATIC_DECIDOUS_TREE_ID, decidousTree0);
+    staticMaterialSet->registerMaterials(STATIC_DECIDOUS_TREE_ID, decidousTree1);
+    staticMaterialSet->registerMaterials(STATIC_DECIDOUS_TREE_ID, decidousTree2);
+    staticAssetBuffer->registerObjectLOD(STATIC_DECIDOUS_TREE_ID, pumex::AssetLodDefinition(   0.0f * lodModifier,  120.0f * lodModifier ), decidousTree0);
+    staticAssetBuffer->registerObjectLOD(STATIC_DECIDOUS_TREE_ID, pumex::AssetLodDefinition( 120.0f * lodModifier,  600.0f * lodModifier ), decidousTree1);
+    staticAssetBuffer->registerObjectLOD(STATIC_DECIDOUS_TREE_ID, pumex::AssetLodDefinition( 600.0f * lodModifier, 1400.0f * lodModifier ), decidousTree2);
+    _staticTypeIDs.push_back(STATIC_DECIDOUS_TREE_ID);
+
+    std::shared_ptr<pumex::Asset> simpleHouse0 ( createSimpleHouse(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> simpleHouse1 ( createSimpleHouse(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> simpleHouse2 ( createSimpleHouse(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+    pumex::BoundingBox simpleHouseBbox = pumex::calculateBoundingBox(*simpleHouse0, MAIN_RENDER_MASK);
+    staticAssetBuffer->registerType(STATIC_SIMPLE_HOUSE_ID, pumex::AssetTypeDefinition(simpleHouseBbox));
+    staticMaterialSet->registerMaterials(STATIC_SIMPLE_HOUSE_ID, simpleHouse0);
+    staticMaterialSet->registerMaterials(STATIC_SIMPLE_HOUSE_ID, simpleHouse1);
+    staticMaterialSet->registerMaterials(STATIC_SIMPLE_HOUSE_ID, simpleHouse2);
+    staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,  120.0f * lodModifier), simpleHouse0);
+    staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(120.0f * lodModifier,  600.0f * lodModifier), simpleHouse1);
+    staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(600.0f * lodModifier, 1400.0f * lodModifier), simpleHouse2);
+    _staticTypeIDs.push_back(STATIC_SIMPLE_HOUSE_ID);
+
+    staticMaterialSet->refreshMaterialStructures();
+  }
+
+  std::shared_ptr<pumex::Node> setupStaticInstances(float staticAreaSize, float densityModifier, uint32_t instancesPerCell, std::shared_ptr<pumex::AssetBufferFilterNode> staticAssetBufferFilterNode, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DescriptorSetLayout> staticFilterDescriptorSetLayout1, std::shared_ptr<pumex::DescriptorPool> staticFilterDescriptorPool1)
+  {
+    std::map<uint32_t,float> objectDensity =
+    { 
+      { STATIC_CONIFER_TREE_ID, 10000.0f * densityModifier}, 
+      { STATIC_DECIDOUS_TREE_ID, 1000.0f * densityModifier}, 
+      { STATIC_SIMPLE_HOUSE_ID, 100.0f * densityModifier }
+    };
+    std::map<uint32_t, float> amplitudeModifier =
+    { 
+      { STATIC_CONIFER_TREE_ID,  1.0f },
+      { STATIC_DECIDOUS_TREE_ID, 1.0f },
+      { STATIC_SIMPLE_HOUSE_ID,  0.0f }  // we don't want the house to wave in the wind
+    }; 
+
+    float fullArea = staticAreaSize * staticAreaSize;
+    std::uniform_real_distribution<float> randomX(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
+    std::uniform_real_distribution<float> randomY(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
+    std::uniform_real_distribution<float> randomRotation(-glm::pi<float>(), glm::pi<float>());
+    std::uniform_real_distribution<float> randomScale(0.8f, 1.2f);
+    std::uniform_real_distribution<float> randomBrightness(0.5f, 1.0f);
+    std::uniform_real_distribution<float> randomAmplitude(0.01f, 0.05f);
+    std::uniform_real_distribution<float> randomFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
+    std::uniform_real_distribution<float> randomOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
+    uint32_t id = 1;
+
+    std::vector<StaticInstanceData> staticInstanceData;
+    pumex::BoundingBox allObjectsBBox;
+
+    staticInstanceData.emplace_back(StaticInstanceData(glm::mat4(), id++, STATIC_GROUND_TYPE_ID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
+    for (auto it = begin(_staticTypeIDs); it != end(_staticTypeIDs); ++it)
+    {
+      int objectQuantity = (int)floor(objectDensity[*it] * fullArea / 1000000.0f);
+
+      for (int j = 0; j<objectQuantity; ++j)
+      {
+        glm::vec3 pos( randomX(_randomEngine), randomY(_randomEngine), 0.0f );
+        float rot             = randomRotation(_randomEngine);
+        float scale           = randomScale(_randomEngine);
+        float brightness      = randomBrightness(_randomEngine);
+        float wavingAmplitude = randomAmplitude(_randomEngine) * amplitudeModifier[*it];
+        float wavingFrequency = randomFrequency(_randomEngine);
+        float wavingOffset    = randomOffset(_randomEngine);
+        glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::scale(glm::mat4(), glm::vec3(scale, scale, scale)));
+        staticInstanceData.emplace_back(StaticInstanceData(position, id++, *it, 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
+        allObjectsBBox        += pos;
+      }
+    }
+    std::shared_ptr<pumex::Node> instanceTree = createInstanceTree(staticInstanceData, allObjectsBBox, instancesPerCell, buffersAllocator, staticFilterDescriptorSetLayout1, staticFilterDescriptorPool1);
+
+    uint32_t maxType = *std::max_element(begin(_staticTypeIDs), end(_staticTypeIDs));
+    TypeCountVisitor tcv(maxType + 1, 1, 0);
+    instanceTree->accept(tcv);
+    staticAssetBufferFilterNode->setTypeCount(tcv.typeCount);
+
+    return instanceTree;
+  }
+
+  void setupStaticBuffers(std::shared_ptr<pumex::Buffer<uint32_t>> staticCounterBuffer, std::shared_ptr<pumex::Buffer<std::vector<pumex::DrawIndexedIndirectCommand>>> staticDrawCommands)
+  {
     _staticCounterBuffer = staticCounterBuffer;
     _staticDrawCommands  = staticDrawCommands;
   }
 
-
-  void setupDynamicRendering(float dynamicAreaSize, const std::unordered_map<uint32_t,std::shared_ptr<XXX>>& dynamicTypeIDs, std::unordered_map<uint32_t, std::uniform_real_distribution<float>> randomObjectSpeed, const std::vector<DynamicObjectData>& dynamicObjectData, std::shared_ptr<pumex::AssetBufferFilterNode> dynamicFilterNode)
+  void setupDynamicModels(float lodModifier, float triangleModifier, std::shared_ptr<pumex::AssetBuffer> dynamicAssetBuffer, std::shared_ptr<pumex::MaterialSet> dynamicMaterialSet)
   {
-    _showDynamicRendering        = true;
-    _dynamicTypeIDs              = dynamicTypeIDs;
-    _randomObjectSpeed           = randomObjectSpeed;
-    _dynamicAreaSize             = dynamicAreaSize;
-    _minArea                     = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
-    _maxArea                     = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
-    updateData.dynamicObjectData = dynamicObjectData;
-    _dynamicFilterNode           = dynamicFilterNode;
+    _showDynamicRendering = true;
+
+    std::shared_ptr<pumex::Asset> blimpLod0 ( createBlimp(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)) );
+    std::shared_ptr<pumex::Asset> blimpLod1 ( createBlimp(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)) );
+    std::shared_ptr<pumex::Asset> blimpLod2 ( createBlimp(0.20f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)) );
+    pumex::BoundingBox blimpBbox = pumex::calculateBoundingBox(*blimpLod0, MAIN_RENDER_MASK);
+    dynamicAssetBuffer->registerType(DYNAMIC_BLIMP_ID, pumex::AssetTypeDefinition(blimpBbox));
+    dynamicMaterialSet->registerMaterials(DYNAMIC_BLIMP_ID, blimpLod0);
+    dynamicMaterialSet->registerMaterials(DYNAMIC_BLIMP_ID, blimpLod1);
+    dynamicMaterialSet->registerMaterials(DYNAMIC_BLIMP_ID, blimpLod2);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_BLIMP_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,  150.0f * lodModifier), blimpLod0);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_BLIMP_ID, pumex::AssetLodDefinition(150.0f * lodModifier,  800.0f * lodModifier), blimpLod1);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_BLIMP_ID, pumex::AssetLodDefinition(800.0f * lodModifier, 6500.0f * lodModifier), blimpLod2);
+    _dynamicTypeIDs.insert({ DYNAMIC_BLIMP_ID, std::make_shared<BlimpXXX>(pumex::calculateResetPosition(*blimpLod0), blimpLod0->skeleton.invBoneNames["propL"],blimpLod0->skeleton.invBoneNames["propR"]) });
+
+    std::shared_ptr<pumex::Asset> carLod0(createCar(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.3, 0.3, 0.3, 1.0)));
+    std::shared_ptr<pumex::Asset> carLod1(createCar(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> carLod2(createCar(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+    pumex::BoundingBox carBbox = pumex::calculateBoundingBox(*carLod0, MAIN_RENDER_MASK);
+    dynamicAssetBuffer->registerType(DYNAMIC_CAR_ID, pumex::AssetTypeDefinition(carBbox));
+    dynamicMaterialSet->registerMaterials(DYNAMIC_CAR_ID, carLod0);
+    dynamicMaterialSet->registerMaterials(DYNAMIC_CAR_ID, carLod1);
+    dynamicMaterialSet->registerMaterials(DYNAMIC_CAR_ID, carLod2);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_CAR_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,   50.0f * lodModifier), carLod0);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_CAR_ID, pumex::AssetLodDefinition( 50.0f * lodModifier,  300.0f * lodModifier), carLod1);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_CAR_ID, pumex::AssetLodDefinition(300.0f * lodModifier, 1000.0f * lodModifier), carLod2);
+    _dynamicTypeIDs.insert({ DYNAMIC_CAR_ID, std::make_shared<CarXXX>(pumex::calculateResetPosition(*carLod0), carLod0->skeleton.invBoneNames["wheel0"], carLod0->skeleton.invBoneNames["wheel1"], carLod0->skeleton.invBoneNames["wheel2"], carLod0->skeleton.invBoneNames["wheel3"]) });
+
+    std::shared_ptr<pumex::Asset> airplaneLod0(createAirplane(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> airplaneLod1(createAirplane(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
+    std::shared_ptr<pumex::Asset> airplaneLod2(createAirplane(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
+    pumex::BoundingBox airplaneBbox = pumex::calculateBoundingBox(*airplaneLod0, MAIN_RENDER_MASK);
+    dynamicAssetBuffer->registerType(DYNAMIC_AIRPLANE_ID, pumex::AssetTypeDefinition(airplaneBbox));
+    dynamicMaterialSet->registerMaterials(DYNAMIC_AIRPLANE_ID, airplaneLod0);
+    dynamicMaterialSet->registerMaterials(DYNAMIC_AIRPLANE_ID, airplaneLod1);
+    dynamicMaterialSet->registerMaterials(DYNAMIC_AIRPLANE_ID, airplaneLod2);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,   80.0f * lodModifier), airplaneLod0);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition( 80.0f * lodModifier,  400.0f * lodModifier), airplaneLod1);
+    dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition(400.0f * lodModifier, 1200.0f * lodModifier), airplaneLod2);
+    _dynamicTypeIDs.insert({ DYNAMIC_AIRPLANE_ID, std::make_shared<AirplaneXXX>(pumex::calculateResetPosition(*airplaneLod0), airplaneLod0->skeleton.invBoneNames["prop"]) });
+
+    dynamicMaterialSet->refreshMaterialStructures();
+  }
+
+  size_t setupDynamicInstances(float dynamicAreaSize, float densityModifier, std::shared_ptr<pumex::AssetBufferFilterNode> dynamicFilterNode)
+  {
+    _dynamicAreaSize   = dynamicAreaSize;
+    _minArea           = glm::vec2(-0.5f*_dynamicAreaSize, -0.5f*_dynamicAreaSize);
+    _maxArea           = glm::vec2(0.5f*_dynamicAreaSize, 0.5f*_dynamicAreaSize);
+    _dynamicFilterNode = dynamicFilterNode;
+
+    std::map<uint32_t, float> objectZ =
+    {
+      { DYNAMIC_BLIMP_ID,    50.0f },
+      { DYNAMIC_CAR_ID,      0.0f },
+      { DYNAMIC_AIRPLANE_ID, 25.0f }
+    };
+    std::map<uint32_t, float> objectDensity =
+    {
+      { DYNAMIC_BLIMP_ID,    100.0f * densityModifier },
+      { DYNAMIC_CAR_ID,      100.0f * densityModifier },
+      { DYNAMIC_AIRPLANE_ID, 100.0f * densityModifier }
+    };
+    std::map<uint32_t, float> minObjectSpeed =
+    {
+      { DYNAMIC_BLIMP_ID,    5.0f },
+      { DYNAMIC_CAR_ID,      1.0f },
+      { DYNAMIC_AIRPLANE_ID, 10.0f }
+    };
+    std::map<uint32_t, float> maxObjectSpeed =
+    {
+      { DYNAMIC_BLIMP_ID,    10.0f },
+      { DYNAMIC_CAR_ID,      5.0f },
+      { DYNAMIC_AIRPLANE_ID, 16.0f }
+    };
+
+    float fullArea = dynamicAreaSize * dynamicAreaSize;
+    std::uniform_real_distribution<float> randomX(-0.5f*dynamicAreaSize, 0.5f * dynamicAreaSize);
+    std::uniform_real_distribution<float> randomY(-0.5f*dynamicAreaSize, 0.5f * dynamicAreaSize);
+    std::uniform_real_distribution<float> randomRotation(-glm::pi<float>(), glm::pi<float>());
+    std::uniform_real_distribution<float> randomBrightness(0.5f, 1.0f);
+    std::exponential_distribution<float>  randomTime2NextTurn(0.1f);
+
+    uint32_t id    = 1;
+    for(auto it = begin(_dynamicTypeIDs); it!= end(_dynamicTypeIDs); ++it)
+    {
+      _randomObjectSpeed.insert({ it->first,std::uniform_real_distribution<float>(minObjectSpeed[it->first], maxObjectSpeed[it->first]) });
+      int objectQuantity = (int)floor(objectDensity[it->first] * fullArea / 1000000.0f);
+      for (int j = 0; j<objectQuantity; ++j)
+      {
+        DynamicObjectData objectData;
+        objectData.id                    = id++;
+        objectData.typeID                = it->first;
+        objectData.kinematic.position    = glm::vec3(randomX(_randomEngine), randomY(_randomEngine), objectZ[it->first]);
+        objectData.kinematic.orientation = glm::angleAxis(randomRotation(_randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
+        objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * _randomObjectSpeed[it->first](_randomEngine);
+        objectData.materialVariant       = 0;
+        objectData.brightness            = randomBrightness(_randomEngine);
+        objectData.time2NextTurn         = randomTime2NextTurn(_randomEngine);
+        updateData.dynamicObjectData.emplace_back(objectData);
+      }
+    }
+    return updateData.dynamicObjectData.size();
   }
   
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -1081,11 +1275,6 @@ struct GpuCullApplicationData
     // send UpdateData to RenderData
     uint32_t updateIndex = viewer->getUpdateIndex();
 
-//    if (_showStaticRendering)
-//    {
-//      // no modifications to static data - just copy it to render data
-//      renderData[updateIndex].staticInstanceData = updateData.staticInstanceData;
-//    }
     if (_showDynamicRendering)
     {
       tbb::parallel_for
@@ -1382,11 +1571,11 @@ int main(int argc, char * argv[])
     std::vector<pumex::VertexSemantic>                        vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     std::vector<pumex::TextureSemantic>                       textureSemantic = {};
     std::vector<pumex::AssetBufferVertexSemantics>            assetSemantics = { { MAIN_RENDER_MASK, vertexSemantic } };
-    std::shared_ptr<pumex::AssetBuffer>                       staticAssetBuffer, dynamicAssetBuffer;
+    std::shared_ptr<pumex::AssetBuffer>                       dynamicAssetBuffer;
 
     std::shared_ptr<pumex::TextureRegistryNull>               textureRegistryNull = std::make_shared<pumex::TextureRegistryNull>();
-    std::shared_ptr<pumex::MaterialRegistry<MaterialGpuCull>> staticMaterialRegistry, dynamicMaterialRegistry;
-    std::shared_ptr<pumex::MaterialSet>                       staticMaterialSet, dynamicMaterialSet;
+    std::shared_ptr<pumex::MaterialRegistry<MaterialGpuCull>> dynamicMaterialRegistry;
+    std::shared_ptr<pumex::MaterialSet>                       dynamicMaterialSet;
 
     std::shared_ptr<pumex::PipelineCache>                     pipelineCache = std::make_shared<pumex::PipelineCache>();
     std::vector<uint32_t>                                     staticTypeIDs;
@@ -1421,102 +1610,11 @@ int main(int argc, char * argv[])
       staticFilterPipelineLayout->descriptorSetLayouts.push_back(staticFilterDescriptorSetLayout0);
       staticFilterPipelineLayout->descriptorSetLayouts.push_back(staticFilterDescriptorSetLayout1);
 
-      staticAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
-      staticMaterialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialGpuCull>>(buffersAllocator);
-      staticMaterialSet      = std::make_shared<pumex::MaterialSet>(viewer, staticMaterialRegistry, textureRegistryNull, buffersAllocator, textureSemantic);
+      auto staticAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
+      auto staticMaterialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialGpuCull>>(buffersAllocator);
+      auto staticMaterialSet      = std::make_shared<pumex::MaterialSet>(viewer, staticMaterialRegistry, textureRegistryNull, buffersAllocator, textureSemantic);
 
-      std::shared_ptr<pumex::Asset> groundAsset(createGround(staticAreaSize, glm::vec4(0.0f, 0.7f, 0.0f, 1.0f)));
-      pumex::BoundingBox groundBbox = pumex::calculateBoundingBox(*groundAsset, MAIN_RENDER_MASK);
-      staticAssetBuffer->registerType(STATIC_GROUND_TYPE_ID, pumex::AssetTypeDefinition(groundBbox));
-      staticMaterialSet->registerMaterials(STATIC_GROUND_TYPE_ID, groundAsset);
-      staticAssetBuffer->registerObjectLOD(STATIC_GROUND_TYPE_ID, pumex::AssetLodDefinition(0.0f, 5.0f * staticAreaSize), groundAsset );
-
-      std::shared_ptr<pumex::Asset> coniferTree0 ( createConiferTree( 0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> coniferTree1 ( createConiferTree(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> coniferTree2 ( createConiferTree(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-      pumex::BoundingBox coniferTreeBbox = pumex::calculateBoundingBox(*coniferTree0, MAIN_RENDER_MASK);
-      staticAssetBuffer->registerType(STATIC_CONIFER_TREE_ID, pumex::AssetTypeDefinition(coniferTreeBbox));
-      staticMaterialSet->registerMaterials(STATIC_CONIFER_TREE_ID, coniferTree0);
-      staticMaterialSet->registerMaterials(STATIC_CONIFER_TREE_ID, coniferTree1);
-      staticMaterialSet->registerMaterials(STATIC_CONIFER_TREE_ID, coniferTree2);
-      staticAssetBuffer->registerObjectLOD(STATIC_CONIFER_TREE_ID, pumex::AssetLodDefinition(0.0f * lodModifier, 100.0f * lodModifier), coniferTree0 );
-      staticAssetBuffer->registerObjectLOD(STATIC_CONIFER_TREE_ID, pumex::AssetLodDefinition(100.0f * lodModifier, 500.0f * lodModifier), coniferTree1 );
-      staticAssetBuffer->registerObjectLOD(STATIC_CONIFER_TREE_ID, pumex::AssetLodDefinition(500.0f * lodModifier, 1200.0f * lodModifier), coniferTree2 );
-      staticTypeIDs.push_back(STATIC_CONIFER_TREE_ID);
-
-      std::shared_ptr<pumex::Asset> decidousTree0 ( createDecidousTree(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> decidousTree1 ( createDecidousTree(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> decidousTree2 ( createDecidousTree(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-      pumex::BoundingBox decidousTreeBbox = pumex::calculateBoundingBox(*decidousTree0, MAIN_RENDER_MASK);
-      staticAssetBuffer->registerType(STATIC_DECIDOUS_TREE_ID, pumex::AssetTypeDefinition(decidousTreeBbox));
-      staticMaterialSet->registerMaterials(STATIC_DECIDOUS_TREE_ID, decidousTree0);
-      staticMaterialSet->registerMaterials(STATIC_DECIDOUS_TREE_ID, decidousTree1);
-      staticMaterialSet->registerMaterials(STATIC_DECIDOUS_TREE_ID, decidousTree2);
-      staticAssetBuffer->registerObjectLOD(STATIC_DECIDOUS_TREE_ID, pumex::AssetLodDefinition(   0.0f * lodModifier,  120.0f * lodModifier ), decidousTree0);
-      staticAssetBuffer->registerObjectLOD(STATIC_DECIDOUS_TREE_ID, pumex::AssetLodDefinition( 120.0f * lodModifier,  600.0f * lodModifier ), decidousTree1);
-      staticAssetBuffer->registerObjectLOD(STATIC_DECIDOUS_TREE_ID, pumex::AssetLodDefinition( 600.0f * lodModifier, 1400.0f * lodModifier ), decidousTree2);
-      staticTypeIDs.push_back(STATIC_DECIDOUS_TREE_ID);
-
-      std::shared_ptr<pumex::Asset> simpleHouse0 ( createSimpleHouse(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> simpleHouse1 ( createSimpleHouse(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> simpleHouse2 ( createSimpleHouse(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-      pumex::BoundingBox simpleHouseBbox = pumex::calculateBoundingBox(*simpleHouse0, MAIN_RENDER_MASK);
-      staticAssetBuffer->registerType(STATIC_SIMPLE_HOUSE_ID, pumex::AssetTypeDefinition(simpleHouseBbox));
-      staticMaterialSet->registerMaterials(STATIC_SIMPLE_HOUSE_ID, simpleHouse0);
-      staticMaterialSet->registerMaterials(STATIC_SIMPLE_HOUSE_ID, simpleHouse1);
-      staticMaterialSet->registerMaterials(STATIC_SIMPLE_HOUSE_ID, simpleHouse2);
-      staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,  120.0f * lodModifier), simpleHouse0);
-      staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(120.0f * lodModifier,  600.0f * lodModifier), simpleHouse1);
-      staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(600.0f * lodModifier, 1400.0f * lodModifier), simpleHouse2);
-      staticTypeIDs.push_back(STATIC_SIMPLE_HOUSE_ID);
-
-      std::map<uint32_t,float> objectDensity =
-      { 
-        { STATIC_CONIFER_TREE_ID, 10000.0f * densityModifier}, 
-        { STATIC_DECIDOUS_TREE_ID, 1000.0f * densityModifier}, 
-        { STATIC_SIMPLE_HOUSE_ID, 100.0f * densityModifier }
-      };
-      std::map<uint32_t, float> amplitudeModifier =
-      { 
-        { STATIC_CONIFER_TREE_ID,  1.0f },
-        { STATIC_DECIDOUS_TREE_ID, 1.0f },
-        { STATIC_SIMPLE_HOUSE_ID,  0.0f }  // we don't want the house to wave in the wind
-      }; 
-
-      float fullArea = staticAreaSize * staticAreaSize;
-      std::uniform_real_distribution<float> randomX(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
-      std::uniform_real_distribution<float> randomY(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
-      std::uniform_real_distribution<float> randomRotation(-glm::pi<float>(), glm::pi<float>());
-      std::uniform_real_distribution<float> randomScale(0.8f, 1.2f);
-      std::uniform_real_distribution<float> randomBrightness(0.5f, 1.0f);
-      std::uniform_real_distribution<float> randomAmplitude(0.01f, 0.05f);
-      std::uniform_real_distribution<float> randomFrequency(0.1f * glm::two_pi<float>(), 0.5f * glm::two_pi<float>());
-      std::uniform_real_distribution<float> randomOffset(0.0f * glm::two_pi<float>(), 1.0f * glm::two_pi<float>());
-      uint32_t id = 1;
-
-      std::vector<StaticInstanceData> staticInstanceData;
-      pumex::BoundingBox allObjectsBBox;
-
-      staticInstanceData.emplace_back(StaticInstanceData(glm::mat4(), id++, STATIC_GROUND_TYPE_ID, 0, 1.0f, 0.0f, 1.0f, 0.0f));
-      for (auto it = begin(staticTypeIDs); it != end(staticTypeIDs); ++it)
-      {
-        int objectQuantity = (int)floor(objectDensity[*it] * fullArea / 1000000.0f);
-
-        for (int j = 0; j<objectQuantity; ++j)
-        {
-          glm::vec3 pos( randomX(randomEngine), randomY(randomEngine), 0.0f );
-          float rot             = randomRotation(randomEngine);
-          float scale           = randomScale(randomEngine);
-          float brightness      = randomBrightness(randomEngine);
-          float wavingAmplitude = randomAmplitude(randomEngine) * amplitudeModifier[*it];
-          float wavingFrequency = randomFrequency(randomEngine);
-          float wavingOffset    = randomOffset(randomEngine);
-          glm::mat4 position(glm::translate(glm::mat4(), glm::vec3(pos.x, pos.y, pos.z)) * glm::rotate(glm::mat4(), rot, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::scale(glm::mat4(), glm::vec3(scale, scale, scale)));
-          staticInstanceData.emplace_back(StaticInstanceData(position, id++, *it, 0, brightness, wavingAmplitude, wavingFrequency, wavingOffset));
-          allObjectsBBox        += pos;
-        }
-      }
-      staticMaterialSet->refreshMaterialStructures();
+      applicationData->setupStaticModels(staticAreaSize, lodModifier, triangleModifier, staticAssetBuffer, staticMaterialSet );
 
       auto staticFilterRoot = std::make_shared<pumex::Group>();
       staticFilterRoot->setName("staticFilterRoot");
@@ -1541,13 +1639,8 @@ int main(int argc, char * argv[])
       staticAssetBufferFilterNode->setName("staticAssetBufferFilterNode");
       staticFilterPipeline->addChild(staticAssetBufferFilterNode);
 
-      applicationData->setupStaticRendering(staticCounterBuffer, staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
-      
-      std::shared_ptr<pumex::Node> instanceTree = createInstanceTree(staticInstanceData, allObjectsBBox, instancesPerCell, buffersAllocator, staticFilterDescriptorSetLayout1, staticFilterDescriptorPool1);
-      uint32_t maxType = *std::max_element(begin(staticTypeIDs), end(staticTypeIDs));
-      TypeCountVisitor tcv(maxType+1, 1, 0);
-      instanceTree->accept(tcv);
-      staticAssetBufferFilterNode->setTypeCount(tcv.typeCount);
+      std::shared_ptr<pumex::Node> instanceTree = applicationData->setupStaticInstances(staticAreaSize, densityModifier, instancesPerCell, staticAssetBufferFilterNode, buffersAllocator, staticFilterDescriptorSetLayout1, staticFilterDescriptorPool1);
+      applicationData->setupStaticBuffers(staticCounterBuffer, staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
       staticAssetBufferFilterNode->addChild(instanceTree);
 
       auto staticFilterDescriptorSet0 = std::make_shared<pumex::DescriptorSet>(staticFilterDescriptorSetLayout0, staticFilterDescriptorPool0);
@@ -1560,7 +1653,7 @@ int main(int argc, char * argv[])
       staticFilterDescriptorSet0->setDescriptor(6, staticCounterSbo);
       instanceTree->setDescriptorSet(0, staticFilterDescriptorSet0);
 
-
+      // setup static rendering
       std::vector<pumex::DescriptorSetLayoutBinding> staticRenderLayoutBindings =
       {
         { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
@@ -1631,98 +1724,7 @@ int main(int argc, char * argv[])
       dynamicMaterialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialGpuCull>>(buffersAllocator);
       dynamicMaterialSet      = std::make_shared<pumex::MaterialSet>(viewer, dynamicMaterialRegistry, textureRegistryNull, buffersAllocator, textureSemantic);
 
-      std::shared_ptr<pumex::Asset> blimpLod0 ( createBlimp(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)) );
-      std::shared_ptr<pumex::Asset> blimpLod1 ( createBlimp(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)) );
-      std::shared_ptr<pumex::Asset> blimpLod2 ( createBlimp(0.20f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)) );
-      pumex::BoundingBox blimpBbox = pumex::calculateBoundingBox(*blimpLod0, MAIN_RENDER_MASK);
-      dynamicAssetBuffer->registerType(DYNAMIC_BLIMP_ID, pumex::AssetTypeDefinition(blimpBbox));
-      dynamicMaterialSet->registerMaterials(DYNAMIC_BLIMP_ID, blimpLod0);
-      dynamicMaterialSet->registerMaterials(DYNAMIC_BLIMP_ID, blimpLod1);
-      dynamicMaterialSet->registerMaterials(DYNAMIC_BLIMP_ID, blimpLod2);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_BLIMP_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,  150.0f * lodModifier), blimpLod0);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_BLIMP_ID, pumex::AssetLodDefinition(150.0f * lodModifier,  800.0f * lodModifier), blimpLod1);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_BLIMP_ID, pumex::AssetLodDefinition(800.0f * lodModifier, 6500.0f * lodModifier), blimpLod2);
-      dynamicTypeIDs.insert({ DYNAMIC_BLIMP_ID, std::make_shared<BlimpXXX>(pumex::calculateResetPosition(*blimpLod0), blimpLod0->skeleton.invBoneNames["propL"],blimpLod0->skeleton.invBoneNames["propR"]) });
-
-      std::shared_ptr<pumex::Asset> carLod0(createCar(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.3, 0.3, 0.3, 1.0)));
-      std::shared_ptr<pumex::Asset> carLod1(createCar(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> carLod2(createCar(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-      pumex::BoundingBox carBbox = pumex::calculateBoundingBox(*carLod0, MAIN_RENDER_MASK);
-      dynamicAssetBuffer->registerType(DYNAMIC_CAR_ID, pumex::AssetTypeDefinition(carBbox));
-      dynamicMaterialSet->registerMaterials(DYNAMIC_CAR_ID, carLod0);
-      dynamicMaterialSet->registerMaterials(DYNAMIC_CAR_ID, carLod1);
-      dynamicMaterialSet->registerMaterials(DYNAMIC_CAR_ID, carLod2);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_CAR_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,   50.0f * lodModifier), carLod0);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_CAR_ID, pumex::AssetLodDefinition( 50.0f * lodModifier,  300.0f * lodModifier), carLod1);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_CAR_ID, pumex::AssetLodDefinition(300.0f * lodModifier, 1000.0f * lodModifier), carLod2);
-      dynamicTypeIDs.insert({ DYNAMIC_CAR_ID, std::make_shared<CarXXX>(pumex::calculateResetPosition(*carLod0), carLod0->skeleton.invBoneNames["wheel0"], carLod0->skeleton.invBoneNames["wheel1"], carLod0->skeleton.invBoneNames["wheel2"], carLod0->skeleton.invBoneNames["wheel3"]) });
-
-      std::shared_ptr<pumex::Asset> airplaneLod0(createAirplane(0.75f * triangleModifier, glm::vec4(1.0, 1.0, 1.0, 1.0), glm::vec4(0.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> airplaneLod1(createAirplane(0.45f * triangleModifier, glm::vec4(0.0, 0.0, 1.0, 1.0), glm::vec4(1.0, 1.0, 0.0, 1.0)));
-      std::shared_ptr<pumex::Asset> airplaneLod2(createAirplane(0.15f * triangleModifier, glm::vec4(1.0, 0.0, 0.0, 1.0), glm::vec4(0.0, 0.0, 1.0, 1.0)));
-      pumex::BoundingBox airplaneBbox = pumex::calculateBoundingBox(*airplaneLod0, MAIN_RENDER_MASK);
-      dynamicAssetBuffer->registerType(DYNAMIC_AIRPLANE_ID, pumex::AssetTypeDefinition(airplaneBbox));
-      dynamicMaterialSet->registerMaterials(DYNAMIC_AIRPLANE_ID, airplaneLod0);
-      dynamicMaterialSet->registerMaterials(DYNAMIC_AIRPLANE_ID, airplaneLod1);
-      dynamicMaterialSet->registerMaterials(DYNAMIC_AIRPLANE_ID, airplaneLod2);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition(  0.0f * lodModifier,   80.0f * lodModifier), airplaneLod0);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition( 80.0f * lodModifier,  400.0f * lodModifier), airplaneLod1);
-      dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition(400.0f * lodModifier, 1200.0f * lodModifier), airplaneLod2);
-      dynamicTypeIDs.insert({ DYNAMIC_AIRPLANE_ID, std::make_shared<AirplaneXXX>(pumex::calculateResetPosition(*airplaneLod0), airplaneLod0->skeleton.invBoneNames["prop"]) });
-
-      std::map<uint32_t, float> objectZ =
-      {
-        { DYNAMIC_BLIMP_ID,    50.0f },
-        { DYNAMIC_CAR_ID,      0.0f },
-        { DYNAMIC_AIRPLANE_ID, 25.0f }
-      };
-      std::map<uint32_t, float> objectDensity =
-      {
-        { DYNAMIC_BLIMP_ID,    100.0f * densityModifier },
-        { DYNAMIC_CAR_ID,      100.0f * densityModifier },
-        { DYNAMIC_AIRPLANE_ID, 100.0f * densityModifier }
-      };
-      std::map<uint32_t, float> minObjectSpeed =
-      {
-        { DYNAMIC_BLIMP_ID,    5.0f },
-        { DYNAMIC_CAR_ID,      1.0f },
-        { DYNAMIC_AIRPLANE_ID, 10.0f }
-      };
-      std::map<uint32_t, float> maxObjectSpeed =
-      {
-        { DYNAMIC_BLIMP_ID,    10.0f },
-        { DYNAMIC_CAR_ID,      5.0f },
-        { DYNAMIC_AIRPLANE_ID, 16.0f }
-      };
-
-      float fullArea = dynamicAreaSize * dynamicAreaSize;
-      std::uniform_real_distribution<float> randomX(-0.5f*dynamicAreaSize, 0.5f * dynamicAreaSize);
-      std::uniform_real_distribution<float> randomY(-0.5f*dynamicAreaSize, 0.5f * dynamicAreaSize);
-      std::uniform_real_distribution<float> randomRotation(-glm::pi<float>(), glm::pi<float>());
-      std::uniform_real_distribution<float> randomBrightness(0.5f, 1.0f);
-      std::exponential_distribution<float>  randomTime2NextTurn(0.1f);
-
-      uint32_t id    = 1;
-      std::unordered_map<uint32_t, std::uniform_real_distribution<float>> randomObjectSpeed;
-      for(auto it = begin(dynamicTypeIDs); it!= end(dynamicTypeIDs); ++it)
-      {
-        randomObjectSpeed.insert({ it->first,std::uniform_real_distribution<float>(minObjectSpeed[it->first], maxObjectSpeed[it->first]) });
-        int objectQuantity = (int)floor(objectDensity[it->first] * fullArea / 1000000.0f);
-        for (int j = 0; j<objectQuantity; ++j)
-        {
-          DynamicObjectData objectData;
-          objectData.id                    = id++;
-          objectData.typeID                = it->first;
-          objectData.kinematic.position    = glm::vec3(randomX(randomEngine), randomY(randomEngine), objectZ[it->first]);
-          objectData.kinematic.orientation = glm::angleAxis(randomRotation(randomEngine), glm::vec3(0.0f, 0.0f, 1.0f));
-          objectData.kinematic.velocity    = glm::rotate(objectData.kinematic.orientation, glm::vec3(1, 0, 0)) * randomObjectSpeed[it->first](randomEngine);
-          objectData.materialVariant       = 0;
-          objectData.brightness            = randomBrightness(randomEngine);
-          objectData.time2NextTurn         = randomTime2NextTurn(randomEngine);
-          dynamicObjectData.emplace_back(objectData);
-        }
-      }
-      dynamicMaterialSet->refreshMaterialStructures();
+      applicationData->setupDynamicModels(lodModifier, triangleModifier, dynamicAssetBuffer, dynamicMaterialSet);
 
       auto dynamicFilterRoot = std::make_shared<pumex::Group>();
       dynamicFilterRoot->setName("staticFilterRoot");
@@ -1741,7 +1743,8 @@ int main(int argc, char * argv[])
       dynamicAssetBufferFilterNode->setName("dynamicAssetBufferFilterNode");
       dynamicFilterPipeline->addChild(dynamicAssetBufferFilterNode);
 
-      uint32_t instanceCount = dynamicObjectData.size();
+      uint32_t instanceCount = applicationData->setupDynamicInstances(dynamicAreaSize, densityModifier, dynamicAssetBufferFilterNode);
+
       auto dynamicDispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
       dynamicDispatchNode->setName("dynamicDispatchNode");
       dynamicAssetBufferFilterNode->addChild(dynamicDispatchNode);
@@ -1802,8 +1805,6 @@ int main(int argc, char * argv[])
       dynamicRenderDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(dynamicMaterialSet->materialVariantBuffer));
       dynamicRenderDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(dynamicMaterialRegistry->materialDefinitionBuffer));
       dynamicAssetBufferDrawIndirect->setDescriptorSet(0, dynamicRenderDescriptorSet);
-
-      applicationData->setupDynamicRendering(dynamicAreaSize, dynamicTypeIDs, randomObjectSpeed, dynamicObjectData, dynamicAssetBufferFilterNode);
     }
 
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
@@ -1844,7 +1845,7 @@ int main(int argc, char * argv[])
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    //renderingRoot->addChild(textPipeline);
+    renderingRoot->addChild(textPipeline);
 
     textPipeline->addChild(textDefault);
     textPipeline->addChild(textSmall);

@@ -440,7 +440,6 @@ std::shared_ptr<FrameBuffer> Surface::getFrameBuffer() const
   return workflowSequences->frameBuffer; 
 }
 
-
 std::shared_ptr<CommandPool> Surface::getPresentationCommandPool()
 {
   return commandPools[workflowSequences->presentationQueueIndex];
