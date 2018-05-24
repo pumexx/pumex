@@ -58,8 +58,7 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
   { \
     std::ostringstream stream; \
     stream << "[ " << __FILE__<<" : " << __LINE__ << " : " << vulkanErrorString(res) << " ] : "<< loginfo; \
-    LOG_ERROR << stream.str() << std::endl; \
-    throw std::exception(stream.str().c_str()); \
+    throw std::runtime_error(stream.str()); \
   } \
 } 
 
@@ -69,8 +68,7 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
   { \
     std::ostringstream stream; \
     stream << "[ " << __FILE__ << " : " << __LINE__ << " ] : " << loginfo; \
-    LOG_ERROR << stream.str() << std::endl; \
-    throw std::exception(stream.str().c_str()); \
+    throw std::runtime_error(stream.str()); \
   } \
 } 
 

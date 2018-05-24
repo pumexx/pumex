@@ -185,8 +185,10 @@ void Viewer::run()
 {
   if (!isRealized())
     realize();
+
   bool renderContinueRun = true;
   bool updateContinueRun = true;
+  std::exception_ptr exceptionCaught;
 
   std::thread renderThread([&]
   {
@@ -223,21 +225,21 @@ void Viewer::run()
           renderGraph.wait_for_all();
         }
       }
-      catch (const std::exception& e)
-      {
-        LOG_ERROR << "Error from render thread : " << e.what() << std::endl;
-        renderContinueRun = false;
-      }
       catch (...)
       {
-        LOG_ERROR << "Unknown error from render thread" << std::endl;
+        exceptionCaught = std::current_exception();
         renderContinueRun = false;
+        updateConditionVariable.notify_one();
+      }
+      if (!renderContinueRun || !updateContinueRun)
+      {
+        for (auto& d : devices)
+          vkDeviceWaitIdle(d.second->device);
+        break;
       }
 
       auto renderEndTime = HPClock::now();
       lastRenderDuration = renderEndTime - renderStartTime;
-      if (!renderContinueRun || !updateContinueRun)
-        break;
     }
   }
   );
@@ -245,7 +247,9 @@ void Viewer::run()
   {
     {
       std::unique_lock<std::mutex> lck(updateMutex);
-      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTimes[updateIndex]; });
+      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTimes[updateIndex] || !renderContinueRun; });
+      if (!renderContinueRun)
+        break;
       auto prevUpdateIndex = updateIndex;
       updateIndex = getNextUpdateSlot();
       updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
@@ -274,26 +278,20 @@ void Viewer::run()
         startUpdateGraph.try_put(tbb::flow::continue_msg());
         updateGraph.wait_for_all();
       }
-      catch (const std::exception& e)
-      {
-        LOG_ERROR << "Error from update thread : " << e.what() << std::endl;
-        updateContinueRun = false;
-      }
       catch (...)
       {
-        LOG_ERROR << "Unknown error from update thread" << std::endl;
+        exceptionCaught = std::current_exception();
         updateContinueRun = false;
       }
     }
-
     auto realUpdateEndTime = HPClock::now();
     lastUpdateDuration = realUpdateEndTime - realUpdateStartTime;
     if (!renderContinueRun || !updateContinueRun)
       break;
   }
   renderThread.join();
-  for (auto& d : devices)
-    vkDeviceWaitIdle(d.second->device);
+  if (exceptionCaught)
+    std::rethrow_exception(exceptionCaught);
 }
 
 void Viewer::cleanup()

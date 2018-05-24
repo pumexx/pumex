@@ -95,20 +95,30 @@ void Device::realize()
     CHECK_LOG_THROW(!found, "Device cannot deliver requested queues (2)");
   }
 
+  std::map<uint32_t, std::vector<float>> groupedRequests;
+  for (uint32_t i = 0; i < chosenFamilies.size(); ++i)
+  {
+    auto it = groupedRequests.find(chosenFamilies[i]);
+    if (it == end(groupedRequests))
+      it = groupedRequests.insert({ chosenFamilies[i], std::vector<float>() }).first;
+    it->second.push_back(requestedQueues[i].priority);
+  }
+
+
   std::vector<VkDeviceQueueCreateInfo> deviceQueues;
-  for (uint32_t i=0; i<requestedQueues.size(); ++i)
+  for (const auto& req : groupedRequests)
   {
     VkDeviceQueueCreateInfo queueCreateInfo{};
       queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-      queueCreateInfo.queueFamilyIndex = chosenFamilies[i];
-      queueCreateInfo.queueCount       = 1;
-      queueCreateInfo.pQueuePriorities = &requestedQueues[i].priority;
+      queueCreateInfo.queueFamilyIndex = req.first;
+      queueCreateInfo.queueCount       = req.second.size();
+      queueCreateInfo.pQueuePriorities = req.second.data();
     deviceQueues.push_back( queueCreateInfo );
   }
 
   VkDeviceCreateInfo deviceCreateInfo{};
     deviceCreateInfo.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(deviceQueues.size());
+    deviceCreateInfo.queueCreateInfoCount = deviceQueues.size();
     deviceCreateInfo.pQueueCreateInfos    = deviceQueues.data();
     deviceCreateInfo.pEnabledFeatures     = &physicalDevice->features;
 

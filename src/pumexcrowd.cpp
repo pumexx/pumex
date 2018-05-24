@@ -920,6 +920,8 @@ int main(int argc, char * argv[])
 
     // alocate 12 MB for uniform and storage buffers
     auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // alocate 12 MB for buffers that are only GPU visible
+    auto localBuffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     auto verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 80 MB memory for 24 compressed textures and for font textures
@@ -970,11 +972,11 @@ int main(int argc, char * argv[])
     filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
     computeRoot->addChild(filterPipeline);
 
-    auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
+    auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), localBuffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
     auto resultsSbo = std::make_shared<pumex::StorageBuffer>(resultsBuffer);
     workflow->associateResource("indirect_commands", resultsSbo);
 
-    auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, buffersAllocator, std::bind(resizeOutputBuffers, resultsBuffer, std::placeholders::_1, std::placeholders::_2));
+    auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, localBuffersAllocator, std::bind(resizeOutputBuffers, resultsBuffer, std::placeholders::_1, std::placeholders::_2));
     assetBufferFilterNode->setName("staticAssetBufferFilterNode");
     filterPipeline->addChild(assetBufferFilterNode);
 
@@ -1064,7 +1066,7 @@ int main(int argc, char * argv[])
     // build text render pipeline
     std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
     auto fontDefault             = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
-    auto fontSmall               = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512),   16, buffersAllocator);
+    auto fontSmall               = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512),   16, texturesAllocator);
 
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
     auto textSmall   = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
@@ -1172,14 +1174,18 @@ int main(int argc, char * argv[])
   catch (const std::exception& e)
   {
 #if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Exception thrown : ");
     OutputDebugStringA(e.what());
+    OutputDebugStringA("\n");
 #endif
+    LOG_ERROR << "Exception thrown : " << e.what() << std::endl;
   }
   catch (...)
   {
 #if defined(_DEBUG) && defined(_WIN32)
     OutputDebugStringA("Unknown error\n");
 #endif
+    LOG_ERROR << "Unknown error" << std::endl;
   }
   viewer->cleanup();
   FLUSH_LOG;

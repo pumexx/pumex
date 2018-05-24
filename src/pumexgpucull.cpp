@@ -1526,12 +1526,12 @@ int main(int argc, char * argv[])
     for (auto& win : windows)
       surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
 
-    // allocate 16 MB for frame buffers ( actually only depth buffer will be allocated )
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // alocate 96 MB for uniform and storage buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 96 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 64 MB for vertex and index buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 32 MB for frame buffers ( actually only depth buffer will be allocated )
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // alocate 256 MB for uniform and storage buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 32 MB for vertex and index buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 4 MB memory for font textures
     std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 4 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
@@ -1625,7 +1625,7 @@ int main(int argc, char * argv[])
       staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
       staticFilterRoot->addChild(staticFilterPipeline);
 
-      auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
+      auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce);
       auto staticCounterSbo    = std::make_shared<pumex::StorageBuffer>(staticCounterBuffer);
 
       auto staticResultsIndexBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>(std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);

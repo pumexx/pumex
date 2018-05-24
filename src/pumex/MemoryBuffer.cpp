@@ -164,6 +164,7 @@ void MemoryBuffer::notifyCommandBufferSources(const RenderContext& renderContext
 
 void MemoryBuffer::addResource(std::shared_ptr<Resource> resource)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (std::find_if(begin(resources), end(resources), [&resource](std::weak_ptr<Resource> ia) { return !ia.expired() && ia.lock().get() == resource.get(); }) == end(resources))
     resources.push_back(resource);
 }
@@ -186,6 +187,7 @@ void MemoryBuffer::notifyResources(const RenderContext& renderContext)
 
 void MemoryBuffer::addBufferView(std::shared_ptr<BufferView> bufferView)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (std::find_if(begin(bufferViews), end(bufferViews), [&bufferView](std::weak_ptr<BufferView> bv) { return !bv.expired() && bv.lock().get() == bufferView.get(); }) == end(bufferViews))
     bufferViews.push_back(bufferView);
 }
@@ -281,6 +283,7 @@ void BufferView::notifyBufferView(const RenderContext& renderContext)
 
 void BufferView::addResource(std::shared_ptr<Resource> resource)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (std::find_if(begin(resources), end(resources), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(resources))
     resources.push_back(resource);
 }
