@@ -238,12 +238,14 @@ std::multimap<uint32_t, std::vector<uint32_t>> clothVariants =
   { 3, { 12 } }
 };
 
-void resizeOutputBuffers(std::shared_ptr<pumex::Buffer<std::vector<uint32_t>>> buffer, uint32_t mask, size_t instanceCount )
+
+void resizeOutputBuffers(std::shared_ptr<pumex::Buffer<std::vector<uint32_t>>> buffer, std::shared_ptr<pumex::DispatchNode> dispatchNode, uint32_t mask, size_t instanceCount )
 {
   switch (mask)
   {
   case MAIN_RENDER_MASK:
     buffer->setData(std::vector<uint32_t>(instanceCount));
+    dispatchNode->setDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     break;
   }
 }
@@ -976,7 +978,7 @@ int main(int argc, char * argv[])
     auto resultsSbo = std::make_shared<pumex::StorageBuffer>(resultsBuffer);
     workflow->associateResource("indirect_commands", resultsSbo);
 
-    auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, localBuffersAllocator, std::bind(resizeOutputBuffers, resultsBuffer, std::placeholders::_1, std::placeholders::_2));
+    auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, localBuffersAllocator);
     assetBufferFilterNode->setName("staticAssetBufferFilterNode");
     filterPipeline->addChild(assetBufferFilterNode);
 
@@ -987,6 +989,7 @@ int main(int argc, char * argv[])
     auto dispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     dispatchNode->setName("dispatchNode");
     assetBufferFilterNode->addChild(dispatchNode);
+    assetBufferFilterNode->setEventResizeOutputs(std::bind(resizeOutputBuffers, resultsBuffer, dispatchNode, std::placeholders::_1, std::placeholders::_2));
 
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionSbo = std::make_shared<pumex::StorageBuffer>(applicationData->positionBuffer);

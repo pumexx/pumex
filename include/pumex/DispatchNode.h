@@ -34,9 +34,20 @@ public:
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
+  void setDispatch(uint32_t x, uint32_t y, uint32_t z);
+  inline uint32_t getX() const;
+  inline uint32_t getY() const;
+  inline uint32_t getZ() const;
+
+protected:
   uint32_t x;
   uint32_t y;
   uint32_t z;
 };
+
+uint32_t DispatchNode::getX() const { return x; }
+uint32_t DispatchNode::getY() const { return y; }
+uint32_t DispatchNode::getZ() const { return z; }
+
 
 }

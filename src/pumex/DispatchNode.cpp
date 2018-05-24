@@ -43,3 +43,11 @@ void DispatchNode::accept(NodeVisitor& visitor)
 void DispatchNode::validate(const RenderContext& renderContext)
 {
 }
+
+void DispatchNode::setDispatch(uint32_t newx, uint32_t newy, uint32_t newz)
+{
+  x = newx;
+  y = newy;
+  z = newz;
+  invalidateNodeAndParents();
+}

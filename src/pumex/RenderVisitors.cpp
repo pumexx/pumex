@@ -114,7 +114,7 @@ void BuildCommandBufferVisitor::apply(AssetNode& node)
 void BuildCommandBufferVisitor::apply(DispatchNode& node)
 {
   applyDescriptorSets(node);
-  commandBuffer->cmdDispatch(node.x, node.y, node.z);
+  commandBuffer->cmdDispatch(node.getX(), node.getY(), node.getZ());
   traverse(node);
 }
 

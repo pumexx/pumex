@@ -433,12 +433,13 @@ void resizeStaticOutputBuffers(std::shared_ptr<pumex::Buffer<std::vector<StaticI
   }
 }
 
-void resizeDynamicOutputBuffers(std::shared_ptr<pumex::Buffer<std::vector<uint32_t>>> buffer, uint32_t mask, size_t instanceCount)
+void resizeDynamicOutputBuffers(std::shared_ptr<pumex::Buffer<std::vector<uint32_t>>> buffer, std::shared_ptr<pumex::DispatchNode> dispatchNode, uint32_t mask, size_t instanceCount)
 {
   switch (mask)
   {
   case MAIN_RENDER_MASK:
     buffer->setData(std::vector<uint32_t>(instanceCount));
+    dispatchNode->setDispatch(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     break;
   }
 }
@@ -1635,7 +1636,8 @@ int main(int argc, char * argv[])
       auto staticResultsSbo = std::make_shared<pumex::StorageBuffer>(staticResultsBuffer);
       workflow->associateResource("static_indirect_results", staticResultsSbo);
 
-      auto staticAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(staticAssetBuffer, buffersAllocator, std::bind(resizeStaticOutputBuffers, staticResultsBuffer, staticResultsIndexBuffer, std::placeholders::_1, std::placeholders::_2));
+      auto staticAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(staticAssetBuffer, buffersAllocator);
+      staticAssetBufferFilterNode->setEventResizeOutputs(std::bind(resizeStaticOutputBuffers, staticResultsBuffer, staticResultsIndexBuffer, std::placeholders::_1, std::placeholders::_2));
       staticAssetBufferFilterNode->setName("staticAssetBufferFilterNode");
       staticFilterPipeline->addChild(staticAssetBufferFilterNode);
 
@@ -1739,7 +1741,7 @@ int main(int argc, char * argv[])
       auto dynamicResultsSbo = std::make_shared<pumex::StorageBuffer>(dynamicResultsBuffer);
       workflow->associateResource("dynamic_indirect_results", dynamicResultsSbo);
 
-      auto dynamicAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(dynamicAssetBuffer, buffersAllocator, std::bind(resizeDynamicOutputBuffers, dynamicResultsBuffer, std::placeholders::_1, std::placeholders::_2));
+      auto dynamicAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(dynamicAssetBuffer, buffersAllocator);
       dynamicAssetBufferFilterNode->setName("dynamicAssetBufferFilterNode");
       dynamicFilterPipeline->addChild(dynamicAssetBufferFilterNode);
 
@@ -1748,6 +1750,7 @@ int main(int argc, char * argv[])
       auto dynamicDispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
       dynamicDispatchNode->setName("dynamicDispatchNode");
       dynamicAssetBufferFilterNode->addChild(dynamicDispatchNode);
+      dynamicAssetBufferFilterNode->setEventResizeOutputs(std::bind(resizeDynamicOutputBuffers, dynamicResultsBuffer, dynamicDispatchNode, std::placeholders::_1, std::placeholders::_2));
 
       auto dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(dynamicFilterDescriptorSetLayout, dynamicFilterDescriptorPool);
       dynamicFilterDescriptorSet->setDescriptor(0, cameraUbo);

@@ -47,12 +47,13 @@ public:
 class PUMEX_EXPORT AssetBufferFilterNode : public Group
 {
 public:
-  AssetBufferFilterNode(std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::function<void(uint32_t, size_t)> funcUpdateOutput);
+  AssetBufferFilterNode(std::shared_ptr<AssetBuffer> assetBuffer, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator);
 
   void                                                             accept(NodeVisitor& visitor) override;
   void                                                             validate(const RenderContext& renderContext) override;
 
   void                                                             setTypeCount(const std::vector<size_t>& typeCount);
+  inline void                                                      setEventResizeOutputs(std::function<void(uint32_t, size_t)> event);
 
   std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getDrawIndexedIndirectBuffer(uint32_t renderMask);
   size_t                                                           getMaxOutputObjects(uint32_t renderMask);
@@ -61,7 +62,9 @@ public:
 protected:
   std::shared_ptr<AssetBuffer>                                     assetBuffer;
   std::vector<size_t>                                              typeCount;
-  std::function<void(uint32_t, size_t)>                            funcUpdateOutput;
+  std::function<void(uint32_t, size_t)>                            eventResizeOutputs;
+
+  inline void                                                      onEventResizeOutputs(uint32_t mask, size_t instanceCount);
 
   struct PerRenderMaskData
   {
@@ -76,6 +79,10 @@ protected:
 
   bool                                                               registered = false;
 };
+
+void AssetBufferFilterNode::setEventResizeOutputs(std::function<void(uint32_t, size_t)> event) { eventResizeOutputs = event; }
+void AssetBufferFilterNode::onEventResizeOutputs(uint32_t mask, size_t instanceCount) { if (eventResizeOutputs != nullptr)  eventResizeOutputs(mask, instanceCount); }
+
 
 
 // class that draws single object registered in AssetBufferNode

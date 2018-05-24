@@ -60,8 +60,8 @@ void AssetBufferNode::validate(const RenderContext& renderContext)
     notifyCommandBuffers();
 }
 
-AssetBufferFilterNode::AssetBufferFilterNode(std::shared_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::function<void(uint32_t,size_t)> fuo)
-  : assetBuffer{ ab }, funcUpdateOutput{ fuo }
+AssetBufferFilterNode::AssetBufferFilterNode(std::shared_ptr<AssetBuffer> ab, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator)
+  : assetBuffer{ ab }
 {
   auto masks = assetBuffer->getRenderMasks();
   for (const auto& m : masks)
@@ -121,7 +121,7 @@ void AssetBufferFilterNode::setTypeCount(const std::vector<size_t>& tc)
     rmData.drawIndexedIndirectBuffer->invalidateData();
     rmData.maxOutputObjects = offsetSum;
 
-    funcUpdateOutput(prm.first, rmData.maxOutputObjects);
+    onEventResizeOutputs(prm.first, rmData.maxOutputObjects);
   }
   invalidateNodeAndParents();
 }
