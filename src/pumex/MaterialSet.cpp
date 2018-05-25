@@ -39,7 +39,7 @@ MaterialRegistryBase::~MaterialRegistryBase()
 }
 
 MaterialSet::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<MaterialRegistryBase> mr, std::shared_ptr<TextureRegistryBase> tr, std::shared_ptr<DeviceMemoryAllocator> a, const std::vector<TextureSemantic>& ts)
-  : viewer{ v }, materialRegistry{ mr }, textureRegistry { tr }, allocator{ a }, semantics(ts)
+  : viewer{ v }, materialRegistry{ mr }, textureRegistry { tr }, semantics(ts)
 {
   typeDefinitionBuffer = std::make_shared<Buffer<std::vector<MaterialTypeDefinition>>>(std::make_shared<std::vector<MaterialTypeDefinition>>(), a, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
   materialVariantBuffer = std::make_shared<Buffer<std::vector<MaterialVariantDefinition>>>(std::make_shared<std::vector<MaterialVariantDefinition>>(), a, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pbPerDevice, swForEachImage);
@@ -50,13 +50,6 @@ MaterialSet::MaterialSet(std::shared_ptr<Viewer> v, std::shared_ptr<MaterialRegi
 
 MaterialSet::~MaterialSet()
 {
-  //  for (auto& pdd : perDeviceData)
-  //      pdd.second.deleteBuffers(pdd.first);
-}
-
-void MaterialSet::validate(const RenderContext& renderContext)
-{
-  // FIXME : missing material set validation
 }
 
 bool MaterialSet::getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const
@@ -82,95 +75,65 @@ bool MaterialSet::setTargetTextureLayer(uint32_t slotIndex, uint32_t layerIndex,
 
 void MaterialSet::registerMaterials(uint32_t typeID, std::shared_ptr<Asset> asset)
 {
-  // register asset
-  uint32_t assetIndex = assets.size();
-  for (uint32_t i = 0; i < assets.size(); ++i)
-  {
-    if (asset.get() == assets[i].get())
-    {
-      assetIndex = i;
-      break;
-    }
-  }
-  if (assetIndex == assets.size())
-    assets.push_back(asset);
-
-  // register materials as default material variant (=0)
+  // register materials as default material variant ( = 0 )
+  uint32_t materialOffset = materialRegistry->getMaterials(typeID).size();
   for (uint32_t m = 0; m < asset->materials.size(); ++m)
   {
     std::map<TextureSemantic::Type, uint32_t> registeredTextures = registerTextures(asset->materials[m]);
-    materialRegistry->registerMaterial(typeID, 0, assetIndex, m, asset->materials[m], registeredTextures);
+    materialRegistry->registerMaterial(typeID, 0, materialOffset+m, asset->materials[m], registeredTextures);
+  }
+
+  for (Geometry& geom : asset->geometries)
+  {
+    // find first tex coord of size bigger than 2
+    uint32_t offset = 0;
+    bool found = false;
+    for (VertexSemantic s : geom.semantic)
+    {
+      if (s.type == VertexSemantic::TexCoord && s.size > 2)
+      {
+        offset += 2;
+        found = true;
+        break;
+      }
+      offset += s.size;
+    }
+    if (!found)
+    {
+      LOG_ERROR << "Found geometry without Texcoord with size > 2" << std::endl;
+      continue;
+    }
+    uint32_t vertexSize = calcVertexSize(geom.semantic);
+    for (size_t j = offset; j < geom.vertices.size(); j += vertexSize)
+      geom.vertices[j] = materialOffset + geom.materialIndex;
   }
 }
 
-void MaterialSet::setMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials)
+void MaterialSet::registerMaterialVariant(uint32_t typeID, uint32_t materialVariant, const std::vector<Material>& materials)
 {
+  CHECK_LOG_THROW(materialVariant == 0, "Cannot register material variant with index == 0");
   for (uint32_t m = 0; m < materials.size(); ++m)
   {
     std::map<TextureSemantic::Type, uint32_t> registeredTextures = registerTextures(materials[m]);
-    materialRegistry->registerMaterial(typeID, materialVariant, 0, 0, materials[m], registeredTextures);
+    materialRegistry->registerMaterial(typeID, materialVariant, m, materials[m], registeredTextures);
   }
+}
+
+void MaterialSet::endRegisterMaterials()
+{
+  materialRegistry->buildTypesAndVariants(*typeDefinitionBuffer->getData(), *materialVariantBuffer->getData());
+  typeDefinitionBuffer->invalidateData();
+  materialVariantBuffer->invalidateData();
 }
 
 std::vector<Material> MaterialSet::getMaterials(uint32_t typeID) const
 {
-  std::vector<Material> materials;
-  auto materialIndices = materialRegistry->getAssetMaterialIndices(typeID);
-  for (const auto& m : materialIndices)
-    materials.push_back(assets[m.first]->materials[m.second]);
-  return materials;
+  return materialRegistry->getMaterials(typeID);
 }
 
 uint32_t MaterialSet::getMaterialVariantCount(uint32_t typeID) const
 {
   return materialRegistry->getMaterialVariantCount(typeID);
-}
-
-void MaterialSet::refreshMaterialStructures()
-{
-  materialRegistry->buildTypesAndVariants(typeDefinitions, variantDefinitions);
-
-  for (uint32_t t = 0; t < typeDefinitions.size(); ++t)
-  {
-    auto assetMaterialIndices = materialRegistry->getAssetMaterialIndices(t);
-    for (uint32_t i = 0; i < assetMaterialIndices.size(); ++i)
-    {
-      uint32_t assetIndex = assetMaterialIndices[i].first;
-      uint32_t materialIndex = assetMaterialIndices[i].second;
-
-      for (Geometry& geom : assets[assetIndex]->geometries)
-      {
-        if (geom.materialIndex == materialIndex)
-        {
-          // find first tex coord of size bigger than 2
-          uint32_t offset = 0;
-          bool found = false;
-          for (VertexSemantic s : geom.semantic)
-          {
-            if (s.type == VertexSemantic::TexCoord && s.size > 2)
-            {
-              offset += 2;
-              found = true;
-              break;
-            }
-            offset += s.size;
-          }
-          if (!found)
-          {
-            LOG_ERROR << "Found geometry without Texcoord with size > 2" << std::endl;
-            continue;
-          }
-          uint32_t vertexSize = calcVertexSize(geom.semantic);
-          for (size_t j = offset; j < geom.vertices.size(); j += vertexSize)
-            geom.vertices[j] = i;
-        }
-      }
-    }
-  }
-
-  typeDefinitionBuffer->setData(typeDefinitions);
-  materialVariantBuffer->setData(variantDefinitions);
-  textureRegistry->refreshStructures();
 }
 
 std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Material& mat)
@@ -226,10 +189,6 @@ std::shared_ptr<Resource> TextureRegistryTextureArray::getCombinedImageSampler(u
   return it->second;
 }
 
-void TextureRegistryTextureArray::refreshStructures()
-{
-}
-
 void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
   auto it = textures.find(slotIndex);
@@ -255,10 +214,6 @@ std::vector<std::shared_ptr<Resource>>& TextureRegistryArrayOfTextures::getCombi
   auto it = resources.find(slotIndex);
   CHECK_LOG_THROW(it == end(resources), "There's no resource registered. Slot index " << slotIndex);
   return it->second;
-}
-
-void TextureRegistryArrayOfTextures::refreshStructures()
-{
 }
 
 void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)

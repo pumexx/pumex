@@ -70,6 +70,7 @@ public:
   void                          realize();
   void                          cleanup();
   void                          beginFrame();
+  void                          validateWorkflow();
   void                          buildPrimaryCommandBuffer(uint32_t queueNumber);
   void                          draw();
   void                          endFrame();

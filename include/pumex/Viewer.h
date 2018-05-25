@@ -161,8 +161,9 @@ protected:
 
   tbb::flow::graph                                       renderGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphStart;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphEventRenderStart;
   tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphFinish;
-  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> startSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
+  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> beginSurfaceFrame, prepareSurfaceFrame, validateSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
   std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> primaryBuffers;
 
   bool                                                   renderGraphValid = false;

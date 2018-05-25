@@ -47,15 +47,13 @@ void AssetBufferNode::validate(const RenderContext& renderContext)
 {
   if (!registered)
   {
-    assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
-//    assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
+    if (assetBuffer.get() != nullptr)
+      assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
     registered = true;
   }
   bool needNotify = false;
-  if(assetBuffer.get() != nullptr)
+  if (assetBuffer.get() != nullptr)
     needNotify |= assetBuffer->validate(renderContext);
-  if (materialSet.get() != nullptr)
-    materialSet->validate(renderContext);
   if (needNotify)
     notifyCommandBuffers();
 }
@@ -82,7 +80,8 @@ void AssetBufferFilterNode::validate(const RenderContext& renderContext)
 {
   if (!registered)
   {
-    assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
+    if (assetBuffer.get() != nullptr)
+      assetBuffer->addNodeOwner(std::dynamic_pointer_cast<Node>(shared_from_this()));
     registered = true;
   }
   bool needNotify = false;

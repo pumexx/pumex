@@ -376,30 +376,30 @@ struct CrowdApplicationData
           else
             accessoryObjectTypeID.push_back(typeID);
         }
+
         materialSet->registerMaterials(typeID, asset);
+
         skeletalAssetBuffer->registerObjectLOD(typeID, lodRanges[j], asset);
       }
 
-      // register texture variants
-      for (auto it = begin(materialVariants), eit = end(materialVariants); it != eit; ++it)
+      auto matVar = materialVariants.equal_range(typeID);
+      uint32_t materialVariantIndex = 1;
+      for (auto it = matVar.first; it != matVar.second; ++it)
       {
-        if (it->first != typeID)
-          continue;
-        uint32_t variantCount = materialSet->getMaterialVariantCount(typeID);
-        std::vector<pumex::Material> materials = materialSet->getMaterials(typeID);
+        auto materials = materialSet->getMaterials(typeID);
         for (auto iit = begin(it->second); iit != end(it->second); ++iit)
         {
-          for ( auto& mat : materials )
-          {
+          // set new diffuse textures
+          for (auto& mat : materials)
             if (mat.name == std::get<0>(*iit))
               mat.textures[pumex::TextureSemantic::Diffuse] = std::get<1>(*iit);
-          }
         }
-        materialSet->setMaterialVariant(typeID, variantCount, materials);
+        materialSet->registerMaterialVariant(typeID, materialVariantIndex, materials);
+        materialVariantIndex++;
       }
       materialVariantCount[typeID] = materialSet->getMaterialVariantCount(typeID);
     }
-    materialSet->refreshMaterialStructures();
+    materialSet->endRegisterMaterials();
   }
 
   void setupInstances(const glm::vec3& minAreaParam, const glm::vec3& maxAreaParam, float objectDensity, std::shared_ptr<pumex::AssetBufferFilterNode> fNode)
@@ -722,8 +722,6 @@ struct CrowdApplicationData
 
     filterNode->setTypeCount(typeCount);
 
-//    std::vector<PositionData> positionData;
-//    std::vector<InstanceData> instanceData;
     positionData->resize(0);
     instanceData->resize(0);
     std::vector<uint32_t> animIndex;

@@ -491,10 +491,7 @@ struct MaterialGpuCull
   glm::vec4 ambient;
   glm::vec4 diffuse;
   glm::vec4 specular;
-  float     shininess;
-  uint32_t  std430pad0;
-  uint32_t  std430pad1;
-  uint32_t  std430pad2;
+  glm::vec4 shininess;
 
   // two functions that define material parameters according to data from an asset's material 
   void registerProperties(const pumex::Material& material)
@@ -502,7 +499,7 @@ struct MaterialGpuCull
     ambient   = material.getProperty("$clr.ambient", glm::vec4(0, 0, 0, 0));
     diffuse   = material.getProperty("$clr.diffuse", glm::vec4(1, 1, 1, 1));
     specular  = material.getProperty("$clr.specular", glm::vec4(0, 0, 0, 0));
-    shininess = material.getProperty("$mat.shininess", glm::vec4(0, 0, 0, 0)).r;
+    shininess = material.getProperty("$mat.shininess", glm::vec4(0, 0, 0, 0));
   }
   // we don't use textures in that example
   void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
@@ -984,7 +981,7 @@ struct GpuCullApplicationData
     staticAssetBuffer->registerObjectLOD(STATIC_SIMPLE_HOUSE_ID, pumex::AssetLodDefinition(600.0f * lodModifier, 1400.0f * lodModifier), simpleHouse2);
     _staticTypeIDs.push_back(STATIC_SIMPLE_HOUSE_ID);
 
-    staticMaterialSet->refreshMaterialStructures();
+    staticMaterialSet->endRegisterMaterials();
   }
 
   std::shared_ptr<pumex::Node> setupStaticInstances(float staticAreaSize, float densityModifier, uint32_t instancesPerCell, std::shared_ptr<pumex::AssetBufferFilterNode> staticAssetBufferFilterNode, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DescriptorSetLayout> staticFilterDescriptorSetLayout1, std::shared_ptr<pumex::DescriptorPool> staticFilterDescriptorPool1)
@@ -1094,7 +1091,7 @@ struct GpuCullApplicationData
     dynamicAssetBuffer->registerObjectLOD(DYNAMIC_AIRPLANE_ID, pumex::AssetLodDefinition(400.0f * lodModifier, 1200.0f * lodModifier), airplaneLod2);
     _dynamicTypeIDs.insert({ DYNAMIC_AIRPLANE_ID, std::make_shared<AirplaneXXX>(pumex::calculateResetPosition(*airplaneLod0), airplaneLod0->skeleton.invBoneNames["prop"]) });
 
-    dynamicMaterialSet->refreshMaterialStructures();
+    dynamicMaterialSet->endRegisterMaterials();
   }
 
   size_t setupDynamicInstances(float dynamicAreaSize, float densityModifier, std::shared_ptr<pumex::AssetBufferFilterNode> dynamicFilterNode)

@@ -266,7 +266,10 @@ void Surface::beginFrame()
 
   VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
+}
 
+void Surface::validateWorkflow()
+{
   RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
   if (checkWorkflow() || resized)
   {

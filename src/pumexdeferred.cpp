@@ -568,7 +568,7 @@ int main( int argc, char * argv[] )
     assetBuffer->registerType(MODEL_SPONZA_ID, pumex::AssetTypeDefinition(bbox));
     assetBuffer->registerObjectLOD(MODEL_SPONZA_ID, pumex::AssetLodDefinition(0.0f, 10000.0f), asset);
     materialSet->registerMaterials(MODEL_SPONZA_ID, asset);
-    materialSet->refreshMaterialStructures();
+    materialSet->endRegisterMaterials();
 
     auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(assetBuffer, materialSet, 1, 0);
     assetBufferNode->setName("assetBufferNode");

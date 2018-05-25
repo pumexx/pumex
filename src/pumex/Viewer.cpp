@@ -50,10 +50,11 @@ const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const ViewerTraits& vt)
   : viewerTraits{ vt }, 
-  startUpdateGraph { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  endUpdateGraph   { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  renderGraphStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
-  renderGraphFinish{ renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
+  startUpdateGraph            { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  endUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  renderGraphStart            { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  renderGraphEventRenderStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
+  renderGraphFinish           { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
 {
   viewerStartTime     = HPClock::now();
   for(uint32_t i=0; i<3;++i)
@@ -427,7 +428,9 @@ void Viewer::cleanupDebugging()
 void Viewer::buildRenderGraph()
 {
   renderGraph.reset();
-  startSurfaceFrame.clear();
+  beginSurfaceFrame.clear();
+  prepareSurfaceFrame.clear();
+  validateSurfaceFrame.clear();
   drawSurfaceFrame.clear();
   endSurfaceFrame.clear();
   primaryBuffers.clear();
@@ -437,11 +440,19 @@ void Viewer::buildRenderGraph()
   {
     Surface* surface = surf.second.get();
     surfacePointers.emplace_back(surface);
-    startSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    beginSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      surface->onEventSurfaceRenderStart();
       surface->beginFrame();
     });
+    prepareSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->onEventSurfaceRenderStart();
+    });
+    validateSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->validateWorkflow();
+    });
+
     auto jit = primaryBuffers.find(surface);
     if(jit == end(primaryBuffers))
       jit = primaryBuffers.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
@@ -464,20 +475,27 @@ void Viewer::buildRenderGraph()
     });
   }
 
+  tbb::flow::make_edge(renderGraphStart, renderGraphEventRenderStart);
   for (uint32_t i = 0; i < surfacePointers.size(); ++i)
   {
-    tbb::flow::make_edge(renderGraphStart, startSurfaceFrame[i]);
+    tbb::flow::make_edge(renderGraphStart, beginSurfaceFrame[i]);
+    tbb::flow::make_edge(renderGraphStart, prepareSurfaceFrame[i]);
+    
+    tbb::flow::make_edge(beginSurfaceFrame[i], validateSurfaceFrame[i]);
+    tbb::flow::make_edge(prepareSurfaceFrame[i], validateSurfaceFrame[i]);
+    tbb::flow::make_edge(renderGraphEventRenderStart, validateSurfaceFrame[i]);
+
     auto jit = primaryBuffers.find(surfacePointers[i]);
     if (jit == end(primaryBuffers) || jit->second.size() == 0)
     {
       // no command buffer building ? Maybe we should throw an error ?
-      tbb::flow::make_edge(startSurfaceFrame[i], drawSurfaceFrame[i]);
+      tbb::flow::make_edge(validateSurfaceFrame[i], drawSurfaceFrame[i]);
     }
     else
     {
       for (uint32_t j = 0; j < jit->second.size(); ++j)
       {
-        tbb::flow::make_edge(startSurfaceFrame[i], jit->second[j]);
+        tbb::flow::make_edge(validateSurfaceFrame[i], jit->second[j]);
         tbb::flow::make_edge(jit->second[j], drawSurfaceFrame[i]);
       }
     }
