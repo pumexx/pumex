@@ -138,7 +138,7 @@ public:
   VkDevice                     device = VK_NULL_HANDLE;
 protected:
   std::vector<VkCommandBuffer>   commandBuffer;
-  std::vector<bool>              valid;
+  std::vector<char>              valid;
   mutable std::mutex             mutex;
   std::set<CommandBufferSource*> sources;
   uint32_t                       activeIndex   = 0;

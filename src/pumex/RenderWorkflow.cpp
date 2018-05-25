@@ -1009,7 +1009,7 @@ void SingleQueueWorkflowCompiler::finalizeRenderPasses(const RenderWorkflow& wor
         bool lastSubpass = ( (xit+1) == eit );
 
         // check which resources are used in a subpass
-        std::vector<bool> usedNow;
+        std::vector<char> usedNow;
         usedNow.resize(frameBufferDefinitions.size(), false);
         for (auto& inTransition : inTransitions)
         {

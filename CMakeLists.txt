@@ -86,7 +86,7 @@ ExternalProject_Add( args-external
   BINARY_DIR "${ARGS_BUILD_DIR}/build"
   STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/args"
   GIT_REPOSITORY "https://github.com/Taywee/args.git"
-  GIT_TAG "6.0.4"
+  GIT_TAG "6.1.0"
   SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/args"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
@@ -112,7 +112,7 @@ if(WIN32)
     BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
     STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/assimp"
     GIT_REPOSITORY "https://github.com/assimp/assimp.git"
-    GIT_TAG "v3.3.1"
+    GIT_TAG "v4.1.0"
     SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
     UPDATE_COMMAND ""
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DASSIMP_BUILD_TESTS=off -DCMAKE_DEBUG_POSTFIX=d

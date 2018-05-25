@@ -42,7 +42,7 @@ struct PerObjectData
 
   VkDevice                device;
   VkSurfaceKHR            surface;
-  std::vector<bool>       valid;
+  std::vector<char>       valid;
   std::vector<T>          data;
   U                       commonData;
   SwapChainImageBehaviour swapChainImageBehaviour;

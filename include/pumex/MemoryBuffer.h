@@ -119,7 +119,7 @@ public:
     MemoryBuffer*          owner;
     Type                   type;
     BufferSubresourceRange bufferRange;
-    std::vector<bool>      updated;
+    std::vector<char>      updated;
   };
 
   virtual void*  getDataPointer() = 0;

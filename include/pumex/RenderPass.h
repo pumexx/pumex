@@ -124,7 +124,7 @@ public:
 
   std::vector<AttachmentDefinition>         attachments;
   std::vector<VkClearValue>                 clearValues;
-  std::vector<bool>                         clearValuesInitialized;
+  std::vector<char>                         clearValuesInitialized;
   std::vector<std::weak_ptr<RenderSubPass>> subPasses;
   std::vector<SubpassDependencyDefinition>  dependencies;
 

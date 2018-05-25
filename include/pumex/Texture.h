@@ -135,7 +135,7 @@ public:
     Texture*              owner;
     Type                  type;
     ImageSubresourceRange imageRange;
-    std::vector<bool>     updated;
+    std::vector<char>     updated;
   };
 protected:
   struct TextureLoadData
