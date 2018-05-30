@@ -145,11 +145,11 @@ void Sampler::validate(const RenderContext& renderContext)
   pddit->second.valid[activeIndex] = true;
 }
 
-DescriptorSetValue Sampler::getDescriptorSetValue(const RenderContext& renderContext)
+DescriptorValue Sampler::getDescriptorValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find(getKeyID(renderContext,perObjectBehaviour));
-  CHECK_LOG_THROW(pddit == end(perObjectData), "Sampler::getDescriptorSetValue() : sampler  was not validated");
+  CHECK_LOG_THROW(pddit == end(perObjectData), "Sampler::getDescriptorValue() : sampler  was not validated");
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
-  return DescriptorSetValue(pddit->second.data[activeIndex].sampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
+  return DescriptorValue(pddit->second.data[activeIndex].sampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }

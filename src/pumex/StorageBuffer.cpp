@@ -50,7 +50,7 @@ void StorageBuffer::validate(const RenderContext& renderContext)
   memoryBuffer->validate(renderContext);
 }
 
-DescriptorSetValue StorageBuffer::getDescriptorSetValue(const RenderContext& renderContext)
+DescriptorValue StorageBuffer::getDescriptorValue(const RenderContext& renderContext)
 {
-  return DescriptorSetValue(memoryBuffer->getHandleBuffer(renderContext), 0, memoryBuffer->getDataSize(renderContext));
+  return DescriptorValue(memoryBuffer->getHandleBuffer(renderContext), 0, memoryBuffer->getDataSize(renderContext));
 }

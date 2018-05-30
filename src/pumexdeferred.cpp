@@ -506,8 +506,6 @@ int main( int argc, char * argv[] )
     };
     auto gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
 
-    auto gbufferDescriptorPool = std::make_shared<pumex::DescriptorPool>(2 * MAX_SURFACES, gbufferLayoutBindings);
-
     // building gbufferPipeline layout
     auto gbufferPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     gbufferPipelineLayout->descriptorSetLayouts.push_back(gbufferDescriptorSetLayout);
@@ -586,7 +584,7 @@ int main( int argc, char * argv[] )
 
     auto cameraUbo             = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
 
-    std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout, gbufferDescriptorPool);
+    std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout);
     descriptorSet->setDescriptor(0, cameraUbo);
     descriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer));
     descriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
@@ -615,8 +613,6 @@ int main( int argc, char * argv[] )
       { 5, 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto compositeDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(compositeLayoutBindings);
-
-    auto compositeDescriptorPool = std::make_shared<pumex::DescriptorPool>(2 * MAX_SURFACES, compositeLayoutBindings);
 
     // building gbufferPipeline layout
     auto compositePipelineLayout = std::make_shared<pumex::PipelineLayout>();
@@ -651,7 +647,7 @@ int main( int argc, char * argv[] )
 
     auto iaSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
-    auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout, compositeDescriptorPool);
+    auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout);
     compositeDescriptorSet->setDescriptor(0, cameraUbo);
     compositeDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(applicationData->lightsBuffer));
     compositeDescriptorSet->setDescriptor(2, std::make_shared<pumex::InputAttachment>("position", iaSampler));
@@ -672,7 +668,6 @@ int main( int argc, char * argv[] )
       { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    auto textDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, textLayoutBindings);
     // building pipeline layout
     auto textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
@@ -708,7 +703,7 @@ int main( int argc, char * argv[] )
 
     auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
 
-    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
+    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
     textDescriptorSet->setDescriptor(0, textCameraUbo);
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);

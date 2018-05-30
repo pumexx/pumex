@@ -464,7 +464,6 @@ int main( int argc, char * argv[] )
     auto voxelizeDescriptorSetLayout   = std::make_shared<pumex::DescriptorSetLayout>(voxelizeLayoutBindings);
     auto voxelizePipelineLayout        = std::make_shared<pumex::PipelineLayout>();
     voxelizePipelineLayout->descriptorSetLayouts.push_back(voxelizeDescriptorSetLayout);
-    auto voxelizeDescriptorPool        = std::make_shared<pumex::DescriptorPool>(2, voxelizeLayoutBindings);
     auto voxelizePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, voxelizePipelineLayout);
     voxelizePipeline->vertexInput =
     {
@@ -489,7 +488,7 @@ int main( int argc, char * argv[] )
     auto cameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 
-    auto voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout, voxelizeDescriptorPool);
+    auto voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(voxelizeDescriptorSetLayout);
     voxelizeDescriptorSet->setDescriptor(0, std::make_shared<pumex::UniformBuffer>(applicationData->voxelizeCameraBuffer));
     voxelizeDescriptorSet->setDescriptor(1, positionUbo);
     voxelizeDescriptorSet->setDescriptor(2, applicationData->volumeStorageImage);
@@ -515,7 +514,6 @@ int main( int argc, char * argv[] )
     auto raymarchDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(raymarchLayoutBindings);
     auto raymarchPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     raymarchPipelineLayout->descriptorSetLayouts.push_back(raymarchDescriptorSetLayout);
-    auto raymarchDescriptorPool      = std::make_shared<pumex::DescriptorPool>(2, raymarchLayoutBindings);
     auto raymarchPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, raymarchPipelineLayout);
     raymarchPipeline->shaderStages =
     {
@@ -537,7 +535,7 @@ int main( int argc, char * argv[] )
     fstAssetNode->setName("fullScreenTriangleAssetNode");
     raymarchPipeline->addChild(fstAssetNode);
 
-    auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout, raymarchDescriptorPool);
+    auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout);
     raymarchDescriptorSet->setDescriptor(0, cameraUbo);
     raymarchDescriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->voxelPositionBuffer));
     raymarchDescriptorSet->setDescriptor(2, applicationData->volumeStorageImage);
@@ -552,7 +550,6 @@ int main( int argc, char * argv[] )
     auto descriptorSetLayout    = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
     auto pipelineLayout         = std::make_shared<pumex::PipelineLayout>();
     pipelineLayout->descriptorSetLayouts.push_back(descriptorSetLayout);
-    auto descriptorPool         = std::make_shared<pumex::DescriptorPool>(2, layoutBindings);
     auto pipeline               = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
     pipeline->shaderStages =
     {
@@ -574,7 +571,7 @@ int main( int argc, char * argv[] )
     renderGroup->setName("renderGroup");
     pipeline->addChild(renderGroup);
 
-    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
+    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
     descriptorSet->setDescriptor(0, cameraUbo);
     descriptorSet->setDescriptor(1, positionUbo);
     renderGroup->setDescriptorSet(0, descriptorSet);
@@ -627,7 +624,7 @@ int main( int argc, char * argv[] )
 //    if (currentCmdBuffer->isDirty(activeIndex))
 //    {
 ////      std::vector<pumex::DescriptorSetValue> clipMapBuffer;
-////      clipMap->getDescriptorSetValues(devicePtr->device, 0, clipMapBuffer);
+////      clipMap->getDescriptorValues(devicePtr->device, 0, clipMapBuffer);
 //
 //      currentCmdBuffer->cmdBegin();
 //

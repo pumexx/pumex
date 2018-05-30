@@ -24,11 +24,13 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <map>
 #include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/Command.h>
 #include <pumex/Resource.h>
+#include <pumex/PerObjectData.h>
 
 namespace pumex
 {
@@ -38,7 +40,7 @@ class Surface;
 class Node;
 class RenderContext;
 
-// A set of classes implementing different Vulkan pipeline elements
+// A set of classes implementing different Vulkan pipeline elementsz
 
 // descriptor set layout creation
 struct PUMEX_EXPORT DescriptorSetLayoutBinding
@@ -50,54 +52,72 @@ struct PUMEX_EXPORT DescriptorSetLayoutBinding
   VkShaderStageFlags  stageFlags     = VK_SHADER_STAGE_ALL_GRAPHICS; // VK_SHADER_STAGE_VERTEX_BIT, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, VK_SHADER_STAGE_GEOMETRY_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_COMPUTE_BIT, VK_SHADER_STAGE_ALL_GRAPHICS
 };
 
+std::size_t computeHash(const std::vector<DescriptorSetLayoutBinding> layoutBindings);
 
-class PUMEX_EXPORT DescriptorSetLayout
-{
-public:
-  DescriptorSetLayout()                                      = delete;
-  explicit DescriptorSetLayout(const std::vector<DescriptorSetLayoutBinding>& bindings);
-  DescriptorSetLayout(const DescriptorSetLayout&)            = delete;
-  DescriptorSetLayout& operator=(const DescriptorSetLayout&) = delete;
-  virtual ~DescriptorSetLayout();
-
-  void                  validate(const RenderContext& renderContext);
-  VkDescriptorSetLayout getHandle(VkDevice device) const;
-  VkDescriptorType      getDescriptorType(uint32_t binding) const;
-  uint32_t              getDescriptorBindingCount(uint32_t binding) const;
-
-  std::vector<DescriptorSetLayoutBinding> bindings;
-protected:
-  struct PerDeviceData
-  {
-    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-  };
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
-};
+class DescriptorSetLayout;
 
 class PUMEX_EXPORT DescriptorPool
 {
 public:
-  explicit DescriptorPool(uint32_t poolSize, const std::vector<DescriptorSetLayoutBinding>& bindings);
+  explicit DescriptorPool(uint32_t defaultPoolSize = 8);
   DescriptorPool(const DescriptorPool&)            = delete;
   DescriptorPool& operator=(const DescriptorPool&) = delete;
   virtual ~DescriptorPool();
 
-  void             validate(const RenderContext& renderContext);
-  VkDescriptorPool getHandle(VkDevice device) const;
+  void             registerPool(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout);
+  VkDescriptorPool addDescriptorSets(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout, uint32_t numDescriptorSets);
 
-  uint32_t poolSize;
-  std::vector<DescriptorSetLayoutBinding> bindings;
 protected:
-  struct PerDeviceData
+  struct DescriptorPoolInternal
   {
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    std::map<DescriptorSetLayout*, std::tuple<std::weak_ptr<DescriptorSetLayout>, VkDescriptorPool, uint32_t, uint32_t>> descriptorPools;
   };
-  mutable std::mutex                          mutex;
-  std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
+  typedef PerObjectData<DescriptorPoolInternal, uint32_t> DescriptorPoolData;
+
+  mutable std::mutex                                        mutex;
+  std::unordered_map<uint32_t, DescriptorPoolData>          perObjectData;
+  uint32_t                                                  defaultPoolSize;
+
+};
+
+class PUMEX_EXPORT DescriptorSetLayout : public std::enable_shared_from_this<DescriptorSetLayout>
+{
+public:
+  DescriptorSetLayout()                                      = delete;
+  explicit DescriptorSetLayout( const std::vector<DescriptorSetLayoutBinding>& bindings );
+  DescriptorSetLayout(const DescriptorSetLayout&)            = delete;
+  DescriptorSetLayout& operator=(const DescriptorSetLayout&) = delete;
+  virtual ~DescriptorSetLayout();
+
+  void                                                  validate(const RenderContext& renderContext);
+  VkDescriptorPool                                      addDescriptorSets(const RenderContext& renderContext, uint32_t numDescriptorSets);
+
+  VkDescriptorSetLayout                                 getHandle(const RenderContext& renderContext) const;
+  VkDescriptorType                                      getDescriptorType(uint32_t binding) const;
+  uint32_t                                              getDescriptorBindingCount(uint32_t binding) const;
+  std::vector<VkDescriptorPoolSize>                     getDescriptorPoolSize(uint32_t poolSize) const;
+  inline void                                           setPreferredPoolSize(uint32_t preferedPoolSize);
+  inline uint32_t                                       getPreferredPoolSize() const;
+  inline std::size_t                                    getHashValue() const;
+  inline const std::vector<DescriptorSetLayoutBinding>& getBindings() const;
+
+protected:
+  struct DescriptorSetLayoutInternal
+  {
+    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+  };
+  typedef PerObjectData<DescriptorSetLayoutInternal, uint32_t> DescriptorSetLayoutData;
+
+  mutable std::mutex                                    mutex;
+  std::unordered_map<uint32_t, DescriptorSetLayoutData> perObjectData;
+  std::vector<DescriptorSetLayoutBinding>               bindings;
+  uint32_t                                              preferredPoolSize;
+  std::size_t                                           hashValue;
+  bool                                                  registered = false;
 };
 
 class DescriptorSet;
-struct DescriptorSetValue;
+struct DescriptorValue;
 
 class PUMEX_EXPORT Descriptor : public std::enable_shared_from_this<Descriptor>
 {
@@ -112,7 +132,7 @@ public:
   void validate(const RenderContext& renderContext);
   void invalidateDescriptorSet();
   void notifyDescriptorSet(const RenderContext& renderContext);
-  void getDescriptorSetValues(const RenderContext& renderContext, std::vector<DescriptorSetValue>& values) const;
+  void getDescriptorValues(const RenderContext& renderContext, std::vector<DescriptorValue>& values) const;
 
   std::weak_ptr<DescriptorSet>           owner;
   std::vector<std::shared_ptr<Resource>> resources;
@@ -124,7 +144,7 @@ class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {
 public:
   DescriptorSet()                                = delete;
-  explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout, std::shared_ptr<DescriptorPool> pool);
+  explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout);
   DescriptorSet(const DescriptorSet&)            = delete;
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   virtual ~DescriptorSet();
@@ -145,9 +165,6 @@ public:
   void                        removeNode(std::shared_ptr<Node> node);
 
   VkDescriptorSet             getHandle(const RenderContext& renderContext) const;
-
-  std::shared_ptr<DescriptorSetLayout> layout;
-  std::shared_ptr<DescriptorPool>      pool;
 protected:
   struct DescriptorSetInternal
   {
@@ -155,15 +172,23 @@ protected:
       : descriptorSet{ VK_NULL_HANDLE }
     {
     }
-    VkDescriptorSet descriptorSet;
+    VkDescriptorSet  descriptorSet;
+    VkDescriptorPool pool;
   };
   typedef PerObjectData<DescriptorSetInternal, uint32_t> DescriptorSetData;
 
   mutable std::mutex                                        mutex;
   std::unordered_map<uint32_t, DescriptorSetData>           perObjectData;
+  std::shared_ptr<DescriptorSetLayout>                      layout;
   std::unordered_map<uint32_t, std::shared_ptr<Descriptor>> descriptors; // descriptor set indirectly owns buffers, images and whatnot
   std::vector<std::weak_ptr<Node>>                          nodeOwners;
   uint32_t                                                  activeCount = 1;
 };
+
+std::size_t DescriptorSetLayout::getHashValue() const                                   { return hashValue; }
+const std::vector<DescriptorSetLayoutBinding>& DescriptorSetLayout::getBindings() const { return bindings; }
+void DescriptorSetLayout::setPreferredPoolSize(uint32_t pps)                            { preferredPoolSize = pps;  }
+uint32_t DescriptorSetLayout::getPreferredPoolSize() const                              { return preferredPoolSize; }
+
 
 }

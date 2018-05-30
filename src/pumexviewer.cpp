@@ -399,8 +399,6 @@ int main( int argc, char * argv[] )
     };
     auto descriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
 
-    auto descriptorPool = std::make_shared<pumex::DescriptorPool>(12, layoutBindings);
-
     // building pipeline layout
     auto pipelineLayout = std::make_shared<pumex::PipelineLayout>();
     pipelineLayout->descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -482,12 +480,12 @@ int main( int argc, char * argv[] )
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 
-    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
+    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
       descriptorSet->setDescriptor(0, cameraUbo);
       descriptorSet->setDescriptor(1, positionUbo);
     pipeline->setDescriptorSet(0, descriptorSet);
 
-    auto boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout, descriptorPool);
+    auto boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
       boxDescriptorSet->setDescriptor(0, cameraUbo);
       boxDescriptorSet->setDescriptor(1, positionUbo);
     boxPipeline->setDescriptorSet(0, boxDescriptorSet);

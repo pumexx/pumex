@@ -25,6 +25,7 @@
 #include <pumex/Viewer.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Command.h>
+#include <pumex/Descriptor.h>
 #include <pumex/utils/Log.h>
 #include <pumex/utils/Buffer.h>
 
@@ -104,7 +105,6 @@ void Device::realize()
     it->second.push_back(requestedQueues[i].priority);
   }
 
-
   std::vector<VkDeviceQueueCreateInfo> deviceQueues;
   for (const auto& req : groupedRequests)
   {
@@ -160,6 +160,8 @@ void Device::realize()
     pfnCmdDebugMarkerInsert     = reinterpret_cast<PFN_vkCmdDebugMarkerInsertEXT>(vkGetDeviceProcAddr(device, "vkCmdDebugMarkerInsertEXT"));
   }
 
+  // create descriptor pool
+  descriptorPool = std::make_shared<DescriptorPool>();
 }
 
 void Device::cleanup()
@@ -167,6 +169,7 @@ void Device::cleanup()
   if (device != VK_NULL_HANDLE)
   {
     stagingBuffers.clear();
+    descriptorPool = nullptr;
     vkDestroyDevice(device, nullptr);
     device = VK_NULL_HANDLE;
     queues.clear();
@@ -197,6 +200,12 @@ void Device::releaseQueue(std::shared_ptr<Queue> queue)
     q->available = true;
   }
 }
+
+std::shared_ptr<DescriptorPool> Device::getDescriptorPool()
+{
+  return descriptorPool;
+}
+
 
 std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(const void* data, VkDeviceSize size)
 {

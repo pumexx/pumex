@@ -56,7 +56,7 @@ void CombinedImageSampler::validate(const RenderContext& renderContext)
     sampler->validate(renderContext);
 }
 
-DescriptorSetValue CombinedImageSampler::getDescriptorSetValue(const RenderContext& renderContext)
+DescriptorValue CombinedImageSampler::getDescriptorValue(const RenderContext& renderContext)
 {
-  return DescriptorSetValue(sampler->getHandleSampler(renderContext), imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);
+  return DescriptorValue(sampler->getHandleSampler(renderContext), imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);
 }

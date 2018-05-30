@@ -30,6 +30,7 @@ namespace pumex
 class Surface;
 class CommandPool;
 class Device;	
+class DescriptorPool;
 class RenderPass;
 class RenderOperation;
 class Pipeline;
@@ -53,6 +54,7 @@ public:
   VkQueue                          queue                  = VK_NULL_HANDLE;
   Device*                          device                 = nullptr;
   VkDevice                         vkDevice               = VK_NULL_HANDLE;
+  DescriptorPool*                  descriptorPool         = nullptr;
   uint32_t                         activeIndex            = 0;
   uint32_t                         imageCount             = 1;
 

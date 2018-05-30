@@ -30,12 +30,12 @@
 
 using namespace pumex;
 
-DescriptorSetValue::DescriptorSetValue()
+DescriptorValue::DescriptorValue()
   : vType{ Undefined }
 {
 }
 
-DescriptorSetValue::DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
+DescriptorValue::DescriptorValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
   : vType{ Buffer }
 {
   bufferInfo.buffer = buffer;
@@ -43,7 +43,7 @@ DescriptorSetValue::DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkD
   bufferInfo.range = range;
 }
 
-DescriptorSetValue::DescriptorSetValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
+DescriptorValue::DescriptorValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
   : vType{ Image }
 {
   imageInfo.sampler     = sampler;

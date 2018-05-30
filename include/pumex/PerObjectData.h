@@ -55,7 +55,7 @@ template<typename T, typename U>
 PerObjectData<T,U>::PerObjectData(const RenderContext& renderContext, SwapChainImageBehaviour scib)
   : device{ renderContext.vkDevice }, surface{ renderContext.vkSurface }, commonData(), swapChainImageBehaviour{ scib }
 {
-  resize(renderContext.imageCount );
+  resize(swapChainImageBehaviour==swForEachImage ? renderContext.imageCount : 1);
 }
 
 template<typename T, typename U>

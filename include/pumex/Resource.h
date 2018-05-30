@@ -34,12 +34,12 @@ namespace pumex
 class  Descriptor;
 class  RenderContext;
 
-struct PUMEX_EXPORT DescriptorSetValue
+struct PUMEX_EXPORT DescriptorValue
 {
   enum Type { Undefined, Image, Buffer };
-  DescriptorSetValue();
-  DescriptorSetValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
-  DescriptorSetValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout);
+  DescriptorValue();
+  DescriptorValue(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
+  DescriptorValue(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout);
 
   Type vType;
   union
@@ -60,12 +60,12 @@ public:
   // invalidateDescriptors() is called to inform the scenegraph that validate() needs to be called
   virtual void                             invalidateDescriptors();
   // notifyDescriptors() is called from within validate() when some serious change in resource occured 
-  // ( getDescriptorSetValue() will return new values, so vkUpdateDescriptorSets must be called by DescriptorSet ).
+  // ( getDescriptorValue() will return new values, so vkUpdateDescriptorSets must be called by DescriptorSet ).
   virtual void                             notifyDescriptors(const RenderContext& renderContext);
 
   virtual std::pair<bool,VkDescriptorType> getDefaultDescriptorType();
   virtual void                             validate(const RenderContext& renderContext) = 0;
-  virtual DescriptorSetValue               getDescriptorSetValue(const RenderContext& renderContext) = 0;
+  virtual DescriptorValue                  getDescriptorValue(const RenderContext& renderContext) = 0;
 protected:
   mutable std::mutex                       mutex;
   std::vector<std::weak_ptr<Descriptor>>   descriptors;

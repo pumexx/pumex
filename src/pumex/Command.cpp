@@ -69,6 +69,7 @@ VkCommandPool CommandPool::getHandle(VkDevice device) const
     return VK_NULL_HANDLE;
   return pddit->second.commandPool;
 }
+
 CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp, uint32_t cbc)
   : bufferLevel{ bf }, commandPool{ cp }, device{ d->device }
 {
@@ -215,11 +216,11 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
 
   for (const auto& b : barriers)
   {
-    DescriptorSetValue dsv = b.resource->getDescriptorSetValue(renderContext);
+    DescriptorValue dsv = b.resource->getDescriptorValue(renderContext);
 
     switch (dsv.vType)
     {
-    case DescriptorSetValue::Buffer:
+    case DescriptorValue::Buffer:
     {
       VkBufferMemoryBarrier bufferBarrier;
         bufferBarrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -234,7 +235,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
       bufferBarriers.emplace_back(bufferBarrier);
       break;
     }
-    case DescriptorSetValue::Image:
+    case DescriptorValue::Image:
     {
       auto tex = std::dynamic_pointer_cast<Texture>(b.resource);
       if (tex.get() == nullptr)
@@ -265,9 +266,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
   }
   vkCmdPipelineBarrier(commandBuffer[activeIndex], barrierGroup.srcStageMask, barrierGroup.dstStageMask, barrierGroup.dependencyFlags,
     memoryBarriers.size(), memoryBarriers.data(), bufferBarriers.size(), bufferBarriers.data(), imageBarriers.size(), imageBarriers.data());
-
 }
-
 
 void CommandBuffer::cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const
 {

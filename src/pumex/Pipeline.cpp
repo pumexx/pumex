@@ -54,7 +54,7 @@ void PipelineLayout::validate(const RenderContext& renderContext)
     for (auto& dsl : descriptorSetLayouts)
     { 
       dsl->validate(renderContext);
-      descriptors.push_back(dsl->getHandle(renderContext.vkDevice));
+      descriptors.push_back(dsl->getHandle(renderContext));
     }
     pipelineLayoutCI.setLayoutCount = descriptors.size();
     pipelineLayoutCI.pSetLayouts    = descriptors.data();

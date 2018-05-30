@@ -965,7 +965,6 @@ int main(int argc, char * argv[])
 
     // building compute pipeline layout
     auto filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    auto filterDescriptorPool = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, filterLayoutBindings);
     auto filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
     auto filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
@@ -993,7 +992,7 @@ int main(int argc, char * argv[])
     auto positionSbo = std::make_shared<pumex::StorageBuffer>(applicationData->positionBuffer);
     auto instanceSbo = std::make_shared<pumex::StorageBuffer>(applicationData->instanceBuffer);
   
-    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout, filterDescriptorPool);
+    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout);
     filterDescriptorSet->setDescriptor(0, cameraUbo);
     filterDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
     filterDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
@@ -1024,7 +1023,6 @@ int main(int argc, char * argv[])
     };
     // building rendering pipeline layout
     auto instancedRenderDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(instancedRenderLayoutBindings);
-    auto instancedRenderDescriptorPool      = std::make_shared<pumex::DescriptorPool>(3 * MAX_SURFACES, instancedRenderLayoutBindings);
     auto instancedRenderPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     instancedRenderPipelineLayout->descriptorSetLayouts.push_back(instancedRenderDescriptorSetLayout);
     auto instancedRenderPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout);
@@ -1053,7 +1051,7 @@ int main(int argc, char * argv[])
     assetBufferDrawIndirect->setName("assetBufferDrawIndirect");
     assetBufferNode->addChild(assetBufferDrawIndirect);
 
-    auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout, instancedRenderDescriptorPool);
+    auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout);
     instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
     instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
     instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);
@@ -1079,7 +1077,6 @@ int main(int argc, char * argv[])
       { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    auto textDescriptorPool      = std::make_shared<pumex::DescriptorPool>(6 * MAX_SURFACES, textLayoutBindings);
     auto textPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
     auto textPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
@@ -1113,14 +1110,14 @@ int main(int argc, char * argv[])
 
     auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
 
-    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
+    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
     textDescriptorSet->setDescriptor(0, textCameraUbo);
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
     auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontTexture, fontSmall->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
 
-    auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout, textDescriptorPool);
+    auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
     textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
     textDescriptorSetSmall->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(smallFontImageView, fontSampler));
     textSmall->setDescriptorSet(0, textDescriptorSetSmall);

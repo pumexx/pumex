@@ -77,7 +77,7 @@ void InputAttachment::validate(const RenderContext& renderContext)
   pddit->second.valid[activeIndex] = true;
 }
 
-DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& renderContext)
+DescriptorValue InputAttachment::getDescriptorValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto keyValue = getKeyID(renderContext, perObjectBehaviour);
@@ -87,5 +87,5 @@ DescriptorSetValue InputAttachment::getDescriptorSetValue(const RenderContext& r
 
   VkSampler samp = (sampler != nullptr) ? sampler->getHandleSampler(renderContext) : VK_NULL_HANDLE;
   VkImageView iv = (pddit->second.commonData.imageView != nullptr) ? pddit->second.commonData.imageView->getImageView(renderContext) : VK_NULL_HANDLE;
-  return DescriptorSetValue(samp, iv, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  return DescriptorValue(samp, iv, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }

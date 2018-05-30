@@ -51,7 +51,7 @@ void SampledImage::validate(const RenderContext& renderContext)
   imageView->validate(renderContext);
 }
 
-DescriptorSetValue SampledImage::getDescriptorSetValue(const RenderContext& renderContext)
+DescriptorValue SampledImage::getDescriptorValue(const RenderContext& renderContext)
 {
-  return DescriptorSetValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);
+  return DescriptorValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);
 }
