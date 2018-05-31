@@ -1538,7 +1538,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("gpucull_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", false, pumex::RenderWorkflowResourceType::StorageBuffer));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", false, pumex::RenderWorkflowResourceType::Image));
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
       workflow->addAttachmentDepthOutput("rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));

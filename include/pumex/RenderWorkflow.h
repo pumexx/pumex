@@ -123,13 +123,12 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
-  enum BufferType { UniformBuffer=1, StorageBuffer=2 };
-  enum ImageType { CombinedImageSampler=1, SampledImage=2, StorageImage=4  };
+//  enum BufferType { UniformBuffer=1, StorageBuffer=2 };
+//  enum ImageType { CombinedImageSampler=1, SampledImage=2, StorageImage=4  };
   typedef VkFlags ImageTypeFlags;
 
   RenderWorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
-  RenderWorkflowResourceType(const std::string& typeName, bool persistent, const BufferType& bufferType);
-  RenderWorkflowResourceType(const std::string& typeName, bool persistent, const ImageTypeFlags& imageType);
+  RenderWorkflowResourceType(const std::string& typeName, bool persistent, const MetaType& metaType);
 
   bool isEqual(const RenderWorkflowResourceType& rhs) const;
 
@@ -139,6 +138,10 @@ public:
 
   struct AttachmentData
   {
+    AttachmentData()
+      : format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, attachmentType{ atUndefined }, attachmentSize{}, swizzles( gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA )
+    {
+    }
     AttachmentData(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
       : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, swizzles{ sw }
     {
@@ -153,32 +156,7 @@ public:
     bool isEqual(const AttachmentData& rhs) const;
   };
 
-  struct BufferData
-  {
-    BufferData(const BufferType& bt)
-      : bufferType{ bt }
-    {
-    }
-    bool isEqual(const BufferData& rhs) const;
-    BufferType bufferType;
-  };
-
-  struct ImageData
-  {
-    ImageData(const ImageTypeFlags& itf)
-      : imageType{ itf }
-    {
-    }
-    bool isEqual(const ImageData& rhs) const;
-    ImageTypeFlags imageType;
-  };
-
-  union
-  {
-    AttachmentData attachment;
-    BufferData     buffer;
-    ImageData      image;
-  };
+  AttachmentData attachment;
 };
 
 class PUMEX_EXPORT WorkflowResource
@@ -223,7 +201,9 @@ enum ResourceTransitionType
   rttAttachmentResolveOutput = 4,
   rttAttachmentDepthOutput   = 8,
   rttBufferInput             = 16,
-  rttBufferOutput            = 32
+  rttBufferOutput            = 32,
+  rttImageInput              = 64,
+  rttImageOutput             = 128
 };
 
 typedef VkFlags ResourceTransitionTypeFlags;
@@ -231,8 +211,8 @@ typedef VkFlags ResourceTransitionTypeFlags;
 const ResourceTransitionTypeFlags rttAllAttachments       = rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput;
 const ResourceTransitionTypeFlags rttAllAttachmentInputs =  rttAttachmentInput;
 const ResourceTransitionTypeFlags rttAllAttachmentOutputs = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput;
-const ResourceTransitionTypeFlags rttAllInputs            = rttAttachmentInput | rttBufferInput;
-const ResourceTransitionTypeFlags rttAllOutputs           = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput;
+const ResourceTransitionTypeFlags rttAllInputs            = rttAttachmentInput | rttBufferInput | rttImageInput;
+const ResourceTransitionTypeFlags rttAllOutputs           = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput | rttImageOutput;
 const ResourceTransitionTypeFlags rttAllInputsOutputs     = rttAllInputs | rttAllOutputs;
 
 class PUMEX_EXPORT ResourceTransition
@@ -322,6 +302,10 @@ public:
 
   void addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
   void addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
+
+  void addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
+  void addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
+
 
   std::vector<std::string>                    getResourceNames() const;
   std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;

@@ -438,7 +438,7 @@ int main( int argc, char * argv[] )
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("voxel_space",   false, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::Absolute,         glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples", false, VK_FORMAT_D32_SFLOAT,     VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
       workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("image_3d",      false, pumex::RenderWorkflowResourceType::StorageImage));
+      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("image_3d",      false, pumex::RenderWorkflowResourceType::Image));
 
     workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("voxelization", pumex::RenderOperation::Graphics, pumex::AttachmentSize( pumex::AttachmentSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)) ));
       workflow->addAttachmentOutput("voxelization", "voxel_space", "false_image", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));

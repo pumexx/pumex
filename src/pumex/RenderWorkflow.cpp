@@ -37,14 +37,10 @@ RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bo
 {
 }
 
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, const BufferType& bt)
-  : metaType{ Buffer }, typeName{ tn }, persistent{ p }, buffer{bt}
+RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, const MetaType& mt)
+  : metaType{ mt }, typeName{ tn }, persistent{ p }
 {
-}
-
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, const ImageTypeFlags& itf)
-  : metaType{ Image }, typeName{ tn }, persistent{ p }, image{ itf }
-{
+  CHECK_LOG_THROW(metaType == Attachment, "RenderWorkflowResourceType() : Cannot create attachment using this constructor");
 }
 
 bool RenderWorkflowResourceType::isEqual(const RenderWorkflowResourceType& rhs) const
@@ -57,9 +53,7 @@ bool RenderWorkflowResourceType::isEqual(const RenderWorkflowResourceType& rhs) 
   case Attachment:
     return attachment.isEqual(rhs.attachment);
   case Buffer:
-    return buffer.isEqual(rhs.buffer);
   case Image:
-    return image.isEqual(rhs.image);
   default:
     return false;
   }
@@ -77,19 +71,6 @@ bool RenderWorkflowResourceType::AttachmentData::isEqual(const AttachmentData& r
   if (attachmentSize != rhs.attachmentSize)
     return false;
   // swizzles ?!?
-  return true;
-}
-bool RenderWorkflowResourceType::BufferData::isEqual(const BufferData& rhs) const
-{
-  if (bufferType != rhs.bufferType)
-    return false;
-  return true;
-}
-
-bool RenderWorkflowResourceType::ImageData::isEqual(const ImageData& rhs) const
-{
-  if (imageType != rhs.imageType)
-    return false;
   return true;
 }
 
@@ -183,7 +164,6 @@ std::vector<std::string> RenderWorkflow::getRenderOperationNames() const
     results.push_back(op.first);
   return results;
 }
-
 
 std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::string& opName) const
 {
@@ -301,6 +281,37 @@ void RenderWorkflow::addBufferOutput(const std::string& opName, const std::strin
   }
   // FIXME : additional checks
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttBufferOutput, pipelineStage, accessFlags));
+  valid = false;
+}
+
+void RenderWorkflow::addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout)
+{
+  auto operation = getRenderOperation(opName);
+  auto resType = getResourceType(resourceType);
+  auto resIt = resources.find(resourceName);
+  if (resIt == end(resources))
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+  // FIXME : additional checks
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageInput, layout, loadOpLoad()));
+  valid = false;
+}
+
+void RenderWorkflow::addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp)
+{
+  auto operation = getRenderOperation(opName);
+  auto resType = getResourceType(resourceType);
+  auto resIt = resources.find(resourceName);
+  if (resIt == end(resources))
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+  {
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+    // resource may only have one transition with output type
+  }
+  // FIXME : additional checks
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageOutput, layout, loadOp));
   valid = false;
 }
 
@@ -745,7 +756,6 @@ std::vector<std::string> recursiveLongestPath(const std::vector<std::pair<std::s
   return results[maxElt];
 }
 
-
 void SingleQueueWorkflowCompiler::collectResources(const RenderWorkflow& workflow, const std::vector<std::vector<std::shared_ptr<RenderOperation>>>& operationSequences, std::map<std::string, std::string>& resourceAlias, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, std::unordered_map<std::string, uint32_t>& attachmentIndex)
 {
   resourceAlias.clear();
@@ -1071,7 +1081,6 @@ void SingleQueueWorkflowCompiler::finalizeRenderPasses(const RenderWorkflow& wor
     }
   }
 }
-
 
 void SingleQueueWorkflowCompiler::createPipelineBarriers(const RenderWorkflow& workflow, std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commandSequences)
 {
