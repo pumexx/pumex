@@ -21,7 +21,7 @@
 //
 
 #include <pumex/SampledImage.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;

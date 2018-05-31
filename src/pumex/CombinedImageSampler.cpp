@@ -21,7 +21,7 @@
 //
 
 #include <pumex/CombinedImageSampler.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/Sampler.h>
 #include <pumex/utils/Log.h>
 

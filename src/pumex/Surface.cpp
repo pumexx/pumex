@@ -27,7 +27,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/Image.h>
 #include <pumex/utils/Log.h>
 #include <pumex/RenderWorkflow.h>

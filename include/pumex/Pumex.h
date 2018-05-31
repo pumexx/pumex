@@ -37,7 +37,7 @@
 #include <pumex/Image.h>
 #include <pumex/Resource.h>
 #include <pumex/Descriptor.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/Sampler.h>
 #include <pumex/CombinedImageSampler.h>
 #include <pumex/SampledImage.h>

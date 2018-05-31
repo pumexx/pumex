@@ -23,7 +23,7 @@
 #include <pumex/MaterialSet.h>
 #include <pumex/Asset.h>
 #include <pumex/Sampler.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/Command.h>
 #include <pumex/Viewer.h>
 #include <pumex/CombinedImageSampler.h>

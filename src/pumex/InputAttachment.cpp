@@ -21,7 +21,7 @@
 //
 #include <pumex/InputAttachment.h>
 #include <pumex/Sampler.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/RenderContext.h>
 #include <pumex/Surface.h>
 #include <pumex/FrameBuffer.h>

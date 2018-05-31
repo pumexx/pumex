@@ -27,7 +27,7 @@
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/RenderContext.h>
 #include <pumex/Image.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;

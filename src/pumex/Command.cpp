@@ -28,7 +28,7 @@
 #include <pumex/Surface.h>
 #include <pumex/Descriptor.h>
 #include <pumex/Pipeline.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex

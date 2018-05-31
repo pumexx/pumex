@@ -22,7 +22,7 @@
 
 #include <pumex/Text.h>
 #include <pumex/NodeVisitor.h>
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/utils/Log.h>
 #include <pumex/utils/Shapes.h>
 #include <pumex/Surface.h>

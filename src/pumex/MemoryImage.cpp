@@ -20,7 +20,7 @@
 // SOFTWARE.
 //
 
-#include <pumex/Texture.h>
+#include <pumex/MemoryImage.h>
 #include <pumex/Surface.h>
 #include <pumex/Device.h>
 #include <pumex/Command.h>
