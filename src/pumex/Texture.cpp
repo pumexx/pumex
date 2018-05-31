@@ -59,12 +59,12 @@ bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) cons
   return true;
 }
 
-struct SetImageTraitsOperation : public Texture::Operation
+struct SetImageTraitsOperation : public MemoryImage::Operation
 {
-  SetImageTraitsOperation(Texture* o, const ImageTraits& t, VkImageAspectFlags am, uint32_t ac)
-    : Texture::Operation(o, Texture::Operation::SetImageTraits, ImageSubresourceRange(am, 0, t.mipLevels, 0, t.arrayLayers), ac), imageTraits{ t }
+  SetImageTraitsOperation(MemoryImage* o, const ImageTraits& t, VkImageAspectFlags am, uint32_t ac)
+    : MemoryImage::Operation(o, MemoryImage::Operation::SetImageTraits, ImageSubresourceRange(am, 0, t.mipLevels, 0, t.arrayLayers), ac), imageTraits{ t }
   {}
-  bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
+  bool perform(const RenderContext& renderContext, MemoryImage::MemoryImageInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
     internals.image = nullptr; // release image before creating a new one
     internals.image = std::make_shared<Image>(renderContext.device, imageTraits, owner->getAllocator());
@@ -76,18 +76,18 @@ struct SetImageTraitsOperation : public Texture::Operation
   ImageTraits imageTraits;
 };
 
-struct SetImageOperation : public Texture::Operation
+struct SetImageOperation : public MemoryImage::Operation
 {
-  SetImageOperation(Texture* o, const ImageSubresourceRange& r, const ImageSubresourceRange& sr, std::shared_ptr<gli::texture> tex, uint32_t ac)
-    : Texture::Operation(o, Texture::Operation::SetImage, r, ac), sourceRange{ sr }, texture{ tex }
+  SetImageOperation(MemoryImage* o, const ImageSubresourceRange& r, const ImageSubresourceRange& sr, std::shared_ptr<gli::texture> tex, uint32_t ac)
+    : MemoryImage::Operation(o, MemoryImage::Operation::SetImage, r, ac), sourceRange{ sr }, texture{ tex }
   {}
-  bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
+  bool perform(const RenderContext& renderContext, MemoryImage::MemoryImageInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
     CHECK_LOG_THROW(internals.image == nullptr, "Image was not created before call to setImage operation, which should not happen because this call is made automatically during setImage() setup...");
     gli::texture::extent_type extent = texture->extent();
     const ImageTraits& imageTraits   = internals.image->getImageTraits();
     VkExtent3D currExtent            = imageTraits.extent;
-    CHECK_LOG_THROW((extent.x != currExtent.width) || (extent.y != currExtent.height) || (extent.z != currExtent.depth), "Texture has wrong size : ( " << extent.x << " x " << extent.y << " x " << extent.z << " ) should be ( " << currExtent.width << " x " << currExtent.height << " x " << currExtent.depth << " )");
+    CHECK_LOG_THROW((extent.x != currExtent.width) || (extent.y != currExtent.height) || (extent.z != currExtent.depth), "MemoryImage has wrong size : ( " << extent.x << " x " << extent.y << " x " << extent.z << " ) should be ( " << currExtent.width << " x " << currExtent.height << " x " << currExtent.depth << " )");
 
     auto ownerAllocator = owner->getAllocator();
     bool memoryIsLocal  = ((ownerAllocator->getMemoryPropertyFlags() & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -184,12 +184,12 @@ struct SetImageOperation : public Texture::Operation
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
 };
 
-struct NotifyImageViewsOperation : public Texture::Operation
+struct NotifyImageViewsOperation : public MemoryImage::Operation
 {
-  NotifyImageViewsOperation(Texture* o, const ImageSubresourceRange& r, uint32_t ac)
-    : Texture::Operation(o, Texture::Operation::NotifyImageViews, r, ac)
+  NotifyImageViewsOperation(MemoryImage* o, const ImageSubresourceRange& r, uint32_t ac)
+    : MemoryImage::Operation(o, MemoryImage::Operation::NotifyImageViews, r, ac)
   {}
-  bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
+  bool perform(const RenderContext& renderContext, MemoryImage::MemoryImageInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
     owner->notifyCommandBufferSources(renderContext);
     owner->notifyImageViews(renderContext, imageRange);
@@ -198,12 +198,12 @@ struct NotifyImageViewsOperation : public Texture::Operation
   }
 };
 
-struct ClearImageOperation : public Texture::Operation
+struct ClearImageOperation : public MemoryImage::Operation
 {
-  ClearImageOperation(Texture* o, const ImageSubresourceRange& r, VkClearValue cv, uint32_t ac)
-    : Texture::Operation(o, Texture::Operation::ClearImage, r, ac), clearValue{ cv }
+  ClearImageOperation(MemoryImage* o, const ImageSubresourceRange& r, VkClearValue cv, uint32_t ac)
+    : MemoryImage::Operation(o, MemoryImage::Operation::ClearImage, r, ac), clearValue{ cv }
   {}
-  bool perform(const RenderContext& renderContext, Texture::TextureInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
+  bool perform(const RenderContext& renderContext, MemoryImage::MemoryImageInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
     std::vector<VkImageSubresourceRange> subResources;
     subResources.push_back(imageRange.getSubresource());
@@ -218,20 +218,20 @@ struct ClearImageOperation : public Texture::Operation
   VkClearValue clearValue;
 };
 
-Texture::Texture(const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a, VkImageAspectFlags am, PerObjectBehaviour pob, SwapChainImageBehaviour scib, bool stpo, bool useSetImageMethods)
+MemoryImage::MemoryImage(const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a, VkImageAspectFlags am, PerObjectBehaviour pob, SwapChainImageBehaviour scib, bool stpo, bool useSetImageMethods)
   : perObjectBehaviour{ pob }, swapChainImageBehaviour{ scib }, sameTraitsPerObject{ stpo }, imageTraits{ it }, allocator { a }, aspectMask{ am }, activeCount{ 1 }
 {
   if(useSetImageMethods)
     imageTraits.usage = imageTraits.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 }
 
-Texture::Texture(std::shared_ptr<gli::texture> tex, std::shared_ptr<DeviceMemoryAllocator> a, VkImageAspectFlags am, VkImageUsageFlags iu, PerObjectBehaviour pob)
+MemoryImage::MemoryImage(std::shared_ptr<gli::texture> tex, std::shared_ptr<DeviceMemoryAllocator> a, VkImageAspectFlags am, VkImageUsageFlags iu, PerObjectBehaviour pob)
   : perObjectBehaviour{ pob }, swapChainImageBehaviour{ swOnce }, sameTraitsPerObject{ true }, allocator{ a }, aspectMask{ am }, activeCount{ 1 }
 {
   // for now we will only use textures that have base_level==0 and base_layer==0
-  CHECK_LOG_THROW(tex == nullptr, "Cannot create Texture object without data");
-  CHECK_LOG_THROW(tex->base_level() != 0, "Cannot create Texture object when base_level != 0");
-  CHECK_LOG_THROW(tex->base_layer() != 0, "Cannot create Texture object when base_layer != 0");
+  CHECK_LOG_THROW(tex == nullptr, "Cannot create MemoryImage object without data");
+  CHECK_LOG_THROW(tex->base_level() != 0, "Cannot create MemoryImage object when base_level != 0");
+  CHECK_LOG_THROW(tex->base_layer() != 0, "Cannot create MemoryImage object when base_layer != 0");
 
   texture     = tex;
   imageTraits = getImageTraitsFromTexture(*texture, iu);
@@ -239,15 +239,15 @@ Texture::Texture(std::shared_ptr<gli::texture> tex, std::shared_ptr<DeviceMemory
   imageTraits.usage = imageTraits.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 }
 
-Texture::~Texture()
+MemoryImage::~MemoryImage()
 {
   std::lock_guard<std::mutex> lock(mutex);
   perObjectData.clear();
 }
 
-void Texture::setImageTraits(const ImageTraits& traits)
+void MemoryImage::setImageTraits(const ImageTraits& traits)
 {
-  CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set image traits for all objects - Texture uses different traits per each surface");
+  CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set image traits for all objects - MemoryImage uses different traits per each surface");
   CHECK_LOG_THROW(texture != nullptr, "Cannot set image traits - there's a gli::texture that prevents it");
 
   std::lock_guard<std::mutex> lock(mutex);
@@ -255,7 +255,7 @@ void Texture::setImageTraits(const ImageTraits& traits)
   for (auto& pdd : perObjectData)
   {
     // remove all previous calls to setImageTraits
-    pdd.second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::SetImageTraits; });
+    pdd.second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::SetImageTraits; });
     // add setImageTraits operation
     pdd.second.commonData.imageOperations.push_back(std::make_shared<SetImageTraitsOperation>(this, traits, aspectMask, activeCount));
     pdd.second.invalidate();
@@ -263,7 +263,7 @@ void Texture::setImageTraits(const ImageTraits& traits)
   invalidateImageViews();
 }
 
-void Texture::setImageTraits(Surface* surface, const ImageTraits& traits)
+void MemoryImage::setImageTraits(Surface* surface, const ImageTraits& traits)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot set image traits per surface for this texture");
   CHECK_LOG_THROW(sameTraitsPerObject, "Cannot set traits per surface - Texture uses the same traits per each surface");
@@ -271,7 +271,7 @@ void Texture::setImageTraits(Surface* surface, const ImageTraits& traits)
   internalSetImageTraits(surface->getID(), surface->device.lock()->device, surface->surface, traits, aspectMask);
 }
 
-void Texture::setImageTraits(Device* device, const ImageTraits& traits)
+void MemoryImage::setImageTraits(Device* device, const ImageTraits& traits)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerDevice, "Cannot set image traits per device for this texture");
   CHECK_LOG_THROW(sameTraitsPerObject, "Cannot set traits per device - texture uses the same traits per each device");
@@ -279,7 +279,7 @@ void Texture::setImageTraits(Device* device, const ImageTraits& traits)
   internalSetImageTraits(device->getID(), device->device, VK_NULL_HANDLE, traits, aspectMask);
 }
 
-void Texture::invalidateImage()
+void MemoryImage::invalidateImage()
 {
   CHECK_LOG_THROW(texture == nullptr, "Cannot invalidate texture - wrong constructor used to create an object");
   std::lock_guard<std::mutex> lock(mutex);
@@ -287,7 +287,7 @@ void Texture::invalidateImage()
   for (auto& pdd : perObjectData)
   {
     // remove all previous calls to setImage
-    pdd.second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::SetImage; });
+    pdd.second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::SetImage; });
     // add setImage operation with full texture size
     pdd.second.commonData.imageOperations.push_back(std::make_shared<SetImageOperation>(this, range, range, texture, activeCount));
     pdd.second.invalidate();
@@ -295,7 +295,7 @@ void Texture::invalidateImage()
   invalidateImageViews();
 }
 
-void Texture::setImage(Surface* surface, std::shared_ptr<gli::texture> tex)
+void MemoryImage::setImage(Surface* surface, std::shared_ptr<gli::texture> tex)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot set image per surface for this texture");
   CHECK_LOG_THROW((imageTraits.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) == 0, "Cannot set image for this texture - user declared it as not writeable");
@@ -303,7 +303,7 @@ void Texture::setImage(Surface* surface, std::shared_ptr<gli::texture> tex)
   internalSetImage(surface->getID(), surface->device.lock()->device, surface->surface, tex);
 }
 
-void Texture::setImage(Device* device, std::shared_ptr<gli::texture> tex)
+void MemoryImage::setImage(Device* device, std::shared_ptr<gli::texture> tex)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerDevice, "Cannot set image per device for this texture");
   CHECK_LOG_THROW((imageTraits.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) == 0, "Cannot set image for this texture - user declared it as not writeable");
@@ -311,7 +311,7 @@ void Texture::setImage(Device* device, std::shared_ptr<gli::texture> tex)
   internalSetImage(device->getID(), device->device, VK_NULL_HANDLE, tex);
 }
 
-void Texture::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
+void MemoryImage::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
 {
   CHECK_LOG_THROW(texture == nullptr, "Cannot set texture layer - wrong constructor used to create an object");
   CHECK_LOG_THROW(!sameTraitsPerObject, "Cannot set texture layer when each device/surface may use different traits");
@@ -338,7 +338,7 @@ void Texture::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
   for (auto& pdd : perObjectData)
   {
     // remove all previous calls for setting the image
-    pdd.second.commonData.imageOperations.remove_if([&targetRange](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::SetImage && targetRange.contains(texop->imageRange); });
+    pdd.second.commonData.imageOperations.remove_if([&targetRange](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::SetImage && targetRange.contains(texop->imageRange); });
     // add setImage operation
     pdd.second.commonData.imageOperations.push_back(std::make_shared<SetImageOperation>(this, targetRange, sourceRange, tex, activeCount));
     pdd.second.invalidate();
@@ -346,7 +346,7 @@ void Texture::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex)
   invalidateImageViews();
 }
 
-void Texture::setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images)
+void MemoryImage::setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot set foreign images per surface for this texture");
   CHECK_LOG_THROW(texture != nullptr, "Cannot set foreign images - wrong constructor used to create an object");
@@ -355,7 +355,7 @@ void Texture::setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& i
   internalSetImages(surface->getID(), surface->device.lock()->device, surface->surface, images);
 }
 
-void Texture::setImages(Device* device, std::vector<std::shared_ptr<Image>>& images)
+void MemoryImage::setImages(Device* device, std::vector<std::shared_ptr<Image>>& images)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerDevice, "Cannot set foreign images per device for this texture");
   CHECK_LOG_THROW(texture != nullptr, "Cannot set foreign images - wrong constructor used to create an object");
@@ -364,39 +364,39 @@ void Texture::setImages(Device* device, std::vector<std::shared_ptr<Image>>& ima
   internalSetImages(device->getID(), device->device, VK_NULL_HANDLE, images);
 }
 
-void Texture::clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range)
+void MemoryImage::clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range)
 {
-  // build clear value depending on Texture aspectMask
+  // build clear value depending on MemoryImage aspectMask
   VkClearValue cv = makeClearValue(clearValue, aspectMask);
-  // override aspectMask delivered by user with aspectMask defined in Texture object
+  // override aspectMask delivered by user with aspectMask defined in MemoryImage object
   ImageSubresourceRange realRange(aspectMask, range.baseMipLevel, range.levelCount, range.baseArrayLayer, range.layerCount);
 
   std::lock_guard<std::mutex> lock(mutex);
   for (auto& pdd : perObjectData)
   {
     // remove all previous calls for image clearing that are contained by this call
-    pdd.second.commonData.imageOperations.remove_if ([&realRange](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::ClearImage && realRange.contains(texop->imageRange); });
+    pdd.second.commonData.imageOperations.remove_if ([&realRange](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::ClearImage && realRange.contains(texop->imageRange); });
     // add clear operation
     pdd.second.commonData.imageOperations.push_back( std::make_shared<ClearImageOperation>( this, realRange, cv, activeCount ) );
     pdd.second.invalidate();
   }
 }
 
-void Texture::clearImage(Surface* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)
+void MemoryImage::clearImage(Surface* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerSurface, "Cannot clear image per surface for this texture");
   std::lock_guard<std::mutex> lock(mutex);
   internalClearImage(surface->getID(), surface->device.lock()->device, surface->surface, clearValue, range);
 }
 
-void Texture::clearImage(Device* device, const glm::vec4& clearValue, const ImageSubresourceRange& range)
+void MemoryImage::clearImage(Device* device, const glm::vec4& clearValue, const ImageSubresourceRange& range)
 {
   CHECK_LOG_THROW(perObjectBehaviour != pbPerDevice, "Cannot clear image per device for this texture");
   std::lock_guard<std::mutex> lock(mutex);
   internalClearImage(device->getID(), device->device, VK_NULL_HANDLE, clearValue, range);
 }
 
-Image* Texture::getImage(const RenderContext& renderContext) const
+Image* MemoryImage::getImage(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find(getKeyID(renderContext, perObjectBehaviour));
@@ -405,7 +405,7 @@ Image* Texture::getImage(const RenderContext& renderContext) const
   return pddit->second.data[renderContext.activeIndex % activeCount].image.get();
 }
 
-void Texture::validate(const RenderContext& renderContext)
+void MemoryImage::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
   if (swapChainImageBehaviour == swForEachImage && renderContext.imageCount > activeCount)
@@ -421,7 +421,7 @@ void Texture::validate(const RenderContext& renderContext)
   auto keyValue = getKeyID(renderContext, perObjectBehaviour);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, TextureData(renderContext, swapChainImageBehaviour) }).first;
+    pddit = perObjectData.insert({ keyValue, MemoryImageData(renderContext, swapChainImageBehaviour) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
@@ -430,7 +430,7 @@ void Texture::validate(const RenderContext& renderContext)
   if (pddit->second.surface == VK_NULL_HANDLE)
     pddit->second.surface = renderContext.vkSurface;
 
-  // images are created here, when Texture uses sameTraitsPerObject - otherwise it's a reponsibility of the user to create them through setImageTraits() call
+  // images are created here, when MemoryImage uses sameTraitsPerObject - otherwise it's a reponsibility of the user to create them through setImageTraits() call
   if (pddit->second.data[activeIndex].image == nullptr && sameTraitsPerObject)
   {
     pddit->second.data[activeIndex].image = std::make_shared<Image>(renderContext.device, imageTraits, allocator);
@@ -464,18 +464,18 @@ void Texture::validate(const RenderContext& renderContext)
   pddit->second.valid[activeIndex] = true;
 }
 
-ImageSubresourceRange Texture::getFullImageRange()
+ImageSubresourceRange MemoryImage::getFullImageRange()
 {
   return ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers);
 }
 
-void Texture::addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource)
+void MemoryImage::addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource)
 {
   if (std::find_if(begin(commandBufferSources), end(commandBufferSources), [&cbSource](std::weak_ptr<CommandBufferSource> cbs) { return !cbs.expired() && cbs.lock().get() == cbSource.get(); }) == end(commandBufferSources))
     commandBufferSources.push_back(cbSource);
 }
 
-void Texture::notifyCommandBufferSources(const RenderContext& renderContext)
+void MemoryImage::notifyCommandBufferSources(const RenderContext& renderContext)
 {
   auto eit = std::remove_if(begin(commandBufferSources), end(commandBufferSources), [](std::weak_ptr<CommandBufferSource> r) { return r.expired();  });
   for (auto it = begin(commandBufferSources); it != eit; ++it)
@@ -484,13 +484,13 @@ void Texture::notifyCommandBufferSources(const RenderContext& renderContext)
 }
 
 
-void Texture::addImageView(std::shared_ptr<ImageView> imageView)
+void MemoryImage::addImageView(std::shared_ptr<ImageView> imageView)
 {
   if (std::find_if(begin(imageViews), end(imageViews), [&imageView](std::weak_ptr<ImageView> iv) { return !iv.expired() && iv.lock().get() == imageView.get(); }) == end(imageViews))
     imageViews.push_back(imageView);
 }
 
-void Texture::notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range)
+void MemoryImage::notifyImageViews(const RenderContext& renderContext, const ImageSubresourceRange& range)
 {
   auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> iv) { return iv.expired();  });
   for (auto it = begin(imageViews); it != eit; ++it)
@@ -499,7 +499,7 @@ void Texture::notifyImageViews(const RenderContext& renderContext, const ImageSu
   imageViews.erase(eit, end(imageViews));
 }
 
-void Texture::invalidateImageViews()
+void MemoryImage::invalidateImageViews()
 {
   auto eit = std::remove_if(begin(imageViews), end(imageViews), [](std::weak_ptr<ImageView> iv) { return iv.expired();  });
   for (auto it = begin(imageViews); it != eit; ++it)
@@ -509,14 +509,14 @@ void Texture::invalidateImageViews()
 
 
 // caution : mutex lock must be called prior to this method
-void Texture::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR surface, const ImageTraits& traits, VkImageAspectFlags aMask)
+void MemoryImage::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR surface, const ImageTraits& traits, VkImageAspectFlags aMask)
 {
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
+    pddit = perObjectData.insert({ key, MemoryImageData(device, surface, activeCount, swapChainImageBehaviour) }).first;
 
   // remove all previous calls to setImageTraits
-  pddit->second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::SetImageTraits; });
+  pddit->second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::SetImageTraits; });
   // add setImageTraits operation
   pddit->second.commonData.imageOperations.push_back(std::make_shared<SetImageTraitsOperation>(this, traits, aMask, activeCount));
   pddit->second.invalidate();
@@ -524,12 +524,12 @@ void Texture::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR
 }
 
 // caution : mutex lock must be called prior to this method
-void Texture::internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::shared_ptr<gli::texture> tex)
+void MemoryImage::internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::shared_ptr<gli::texture> tex)
 {
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
   {
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
+    pddit = perObjectData.insert({ key, MemoryImageData(device, surface, activeCount, swapChainImageBehaviour) }).first;
     // image does not exist at that moment - we should add imageTraits
     // image usage is always taken from main imageTraits
     auto traits = getImageTraitsFromTexture(*tex, imageTraits.usage);
@@ -538,7 +538,7 @@ void Texture::internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surfa
 
   ImageSubresourceRange range(aspectMask, tex->base_level(), tex->levels(), tex->base_layer(), tex->layers());
   // remove all previous calls to setImage, but only when these calls are a subset of current call
-  pddit->second.commonData.imageOperations.remove_if([&range](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::SetImage && range.contains(texop->imageRange); });
+  pddit->second.commonData.imageOperations.remove_if([&range](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::SetImage && range.contains(texop->imageRange); });
   // add setImage operation
   pddit->second.commonData.imageOperations.push_back(std::make_shared<SetImageOperation>(this, range, range, tex, activeCount));
   pddit->second.invalidate();
@@ -547,7 +547,7 @@ void Texture::internalSetImage(uint32_t key, VkDevice device, VkSurfaceKHR surfa
 
 // set foreign images as images used by texture
 // caution : mutex lock must be called prior to this method
-void Texture::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::vector<std::shared_ptr<Image>>& images)
+void MemoryImage::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::vector<std::shared_ptr<Image>>& images)
 {
   for (uint32_t i = 0; i < images.size(); i++)
   {
@@ -566,7 +566,7 @@ void Texture::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surf
   }
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
+    pddit = perObjectData.insert({ key, MemoryImageData(device, surface, activeCount, swapChainImageBehaviour) }).first;
   for (uint32_t i = 0; i < images.size(); i++)
   {
     pddit->second.data[i].image = nullptr;
@@ -582,7 +582,7 @@ void Texture::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR surf
 
 // build clear value depending on Texture aspectMask
 // caution : mutex lock must be called prior to this method
-void Texture::internalClearImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)
+void MemoryImage::internalClearImage(uint32_t key, VkDevice device, VkSurfaceKHR surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)
 {
   VkClearValue cv = makeClearValue(clearValue, aspectMask);
   // override aspectMask delivered by user with aspectMask defined in Texture object
@@ -590,19 +590,19 @@ void Texture::internalClearImage(uint32_t key, VkDevice device, VkSurfaceKHR sur
 
   auto pddit = perObjectData.find(key);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ key, TextureData(device, surface, activeCount, swapChainImageBehaviour) }).first;
+    pddit = perObjectData.insert({ key, MemoryImageData(device, surface, activeCount, swapChainImageBehaviour) }).first;
 
   // remove all previous calls for image clearing
-  pddit->second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == Texture::Operation::ClearImage; });
+  pddit->second.commonData.imageOperations.remove_if([](std::shared_ptr<Operation> texop) { return texop->type == MemoryImage::Operation::ClearImage; });
   // add clear operation
   pddit->second.commonData.imageOperations.push_back(std::make_shared<ClearImageOperation>(this, realRange, cv, activeCount));
   pddit->second.invalidate();
 }
 
-ImageView::ImageView(std::shared_ptr<Texture> t, const ImageSubresourceRange& sr, VkImageViewType vt, VkFormat f, const gli::swizzles& sw)
-  : std::enable_shared_from_this<ImageView>(), texture{ t }, subresourceRange{ sr }, viewType{ vt }, swizzles{ sw }, activeCount{ 1 }
+ImageView::ImageView(std::shared_ptr<MemoryImage> mi, const ImageSubresourceRange& sr, VkImageViewType vt, VkFormat f, const gli::swizzles& sw)
+  : std::enable_shared_from_this<ImageView>(), memoryImage{ mi }, subresourceRange{ sr }, viewType{ vt }, swizzles{ sw }, activeCount{ 1 }
 {
-  format = (f == VK_FORMAT_UNDEFINED) ? texture->getImageTraits().format : f;
+  format = (f == VK_FORMAT_UNDEFINED) ? memoryImage->getImageTraits().format : f;
 }
 
 ImageView::~ImageView()
@@ -615,13 +615,13 @@ ImageView::~ImageView()
 
 VkImage ImageView::getHandleImage(const RenderContext& renderContext) const
 {
-  return texture->getImage(renderContext)->getHandleImage();
+  return memoryImage->getImage(renderContext)->getHandleImage();
 }
 
 VkImageView ImageView::getImageView(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
+  auto keyValue = getKeyID(renderContext, memoryImage->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
   if (pddit == perObjectData.end())
     return VK_NULL_HANDLE;
@@ -633,21 +633,21 @@ void ImageView::validate(const RenderContext& renderContext)
 {
   if (!registered)
   {
-    texture->addImageView(shared_from_this());
+    memoryImage->addImageView(shared_from_this());
     registered = true;
   }
-  texture->validate(renderContext);
+  memoryImage->validate(renderContext);
   std::lock_guard<std::mutex> lock(mutex);
-  if (texture->getSwapChainImageBehaviour() == swForEachImage && renderContext.imageCount > activeCount)
+  if (memoryImage->getSwapChainImageBehaviour() == swForEachImage && renderContext.imageCount > activeCount)
   {
     activeCount = renderContext.imageCount;
     for (auto& pdd : perObjectData)
       pdd.second.resize(activeCount);
   }
-  auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
+  auto keyValue = getKeyID(renderContext, memoryImage->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext, texture->getSwapChainImageBehaviour()) }).first;
+    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext, memoryImage->getSwapChainImageBehaviour()) }).first;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
     return;
@@ -675,10 +675,10 @@ void ImageView::validate(const RenderContext& renderContext)
 void ImageView::notify(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto keyValue = getKeyID(renderContext, texture->getPerObjectBehaviour());
+  auto keyValue = getKeyID(renderContext, memoryImage->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext, texture->getSwapChainImageBehaviour()) }).first;
+    pddit = perObjectData.insert({ keyValue, ImageViewData(renderContext, memoryImage->getSwapChainImageBehaviour()) }).first;
   pddit->second.invalidate();
 }
 

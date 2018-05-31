@@ -1845,7 +1845,7 @@ int main(int argc, char * argv[])
     textPipeline->addChild(textDefault);
     textPipeline->addChild(textSmall);
 
-    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
     auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
     auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
@@ -1855,7 +1855,7 @@ int main(int argc, char * argv[])
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
-    auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontTexture, fontSmall->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontMemoryImage, fontSmall->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
 
     auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
     textDescriptorSetSmall->setDescriptor(0, textCameraUbo);

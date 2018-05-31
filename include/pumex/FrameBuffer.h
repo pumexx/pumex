@@ -38,7 +38,7 @@ namespace pumex
 class Surface;
 class DeviceMemoryAllocator;
 class RenderPass;
-class Texture;
+class MemoryImage;
 class ImageView;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
@@ -65,12 +65,12 @@ public:
 
   void                              validate(const RenderContext& renderContext);
   void                              invalidate(const RenderContext& renderContext);
-  void                              prepareTextures(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
+  void                              prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                              reset(Surface* surface);
 
   const FrameBufferImageDefinition& getSwapChainImageDefinition() const;
   const FrameBufferImageDefinition& getImageDefinition(uint32_t index) const;
-  std::shared_ptr<Texture>          getTexture(uint32_t index) const;
+  std::shared_ptr<MemoryImage>      getMemoryImage(uint32_t index) const;
   std::shared_ptr<ImageView>        getImageView(const std::string& name) const;
   VkFramebuffer                     getHandleFrameBuffer(const RenderContext& renderContext) const;
 
@@ -89,7 +89,7 @@ protected:
   std::vector<FrameBufferImageDefinition>           imageDefinitions;
   std::weak_ptr<RenderPass>                         renderPass;
   std::shared_ptr<DeviceMemoryAllocator>            allocator;
-  std::vector<std::shared_ptr<Texture>>             textures;
+  std::vector<std::shared_ptr<MemoryImage>>         memoryImages;
   std::vector<std::shared_ptr<ImageView>>           imageViews;
   mutable std::mutex                                mutex;
   uint32_t                                          activeCount;

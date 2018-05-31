@@ -175,10 +175,10 @@ std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Ma
   return registeredTextures;
 }
 
-void TextureRegistryTextureArray::setTargetTexture(uint32_t slotIndex, std::shared_ptr<Texture> texture, std::shared_ptr<Sampler> sampler)
+void TextureRegistryTextureArray::setTargetTexture(uint32_t slotIndex, std::shared_ptr<MemoryImage> memoryImage, std::shared_ptr<Sampler> sampler)
 {
-  textures[slotIndex] = texture;
-  auto imageView = std::make_shared<ImageView>(texture, texture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D_ARRAY);
+  memoryImages[slotIndex] = memoryImage;
+  auto imageView = std::make_shared<ImageView>(memoryImage, memoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D_ARRAY);
   resources[slotIndex] = std::make_shared<CombinedImageSampler>(imageView, sampler);
 }
 
@@ -191,8 +191,8 @@ std::shared_ptr<Resource> TextureRegistryTextureArray::getCombinedImageSampler(u
 
 void TextureRegistryTextureArray::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
-  auto it = textures.find(slotIndex);
-  if (it == end(textures))
+  auto it = memoryImages.find(slotIndex);
+  if (it == end(memoryImages))
     return;
   it->second->setImageLayer(layerIndex, tex);
 }
@@ -205,7 +205,7 @@ TextureRegistryArrayOfTextures::TextureRegistryArrayOfTextures(std::shared_ptr<D
 void TextureRegistryArrayOfTextures::setTextureSampler(uint32_t slotIndex, std::shared_ptr<Sampler> sampler)
 {
   textureSamplers[slotIndex]  = sampler;
-  textures[slotIndex]         = std::vector<std::shared_ptr<Texture>>();
+  memoryImages[slotIndex]     = std::vector<std::shared_ptr<MemoryImage>>();
   resources[slotIndex]        = std::vector<std::shared_ptr<Resource>>();
 }
 
@@ -218,8 +218,8 @@ std::vector<std::shared_ptr<Resource>>& TextureRegistryArrayOfTextures::getCombi
 
 void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex)
 {
-  auto it = textures.find(slotIndex);
-  CHECK_LOG_THROW(it == end(textures), "There's no texture array registered. Slot index " << slotIndex);
+  auto it = memoryImages.find(slotIndex);
+  CHECK_LOG_THROW(it == end(memoryImages), "There's no texture array registered. Slot index " << slotIndex);
   auto rit = resources.find(slotIndex);
 
   if (layerIndex >= it->second.size())
@@ -228,7 +228,7 @@ void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t lay
     rit->second.resize(layerIndex + 1);
   }
   // this texture will not be modified by GPU, so it is enough to declare it as swOnce
-  it->second[layerIndex] = std::make_shared<Texture>(tex, textureAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice);
+  it->second[layerIndex] = std::make_shared<MemoryImage>(tex, textureAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice);
   auto imageView = std::make_shared<ImageView>(it->second[layerIndex], it->second[layerIndex]->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
   rit->second[layerIndex] = std::make_shared<CombinedImageSampler>(imageView, textureSamplers[slotIndex]);
 }

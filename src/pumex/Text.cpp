@@ -47,7 +47,7 @@ Font::Font(const std::string& fileName, glm::ivec2 ts, uint32_t fph, std::shared
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);
   fontTexture2d = std::make_shared<gli::texture2d>(gli::format::FORMAT_R8_UNORM_PACK8, gli::texture2d::extent_type(textureSize), 1);
   fontTexture2d->clear<gli::u8>(0);
-  fontTexture = std::make_shared<Texture>(fontTexture2d, textureAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice);
+  fontMemoryImage = std::make_shared<MemoryImage>(fontTexture2d, textureAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pbPerDevice);
 
   lastRegisteredPosition = glm::ivec2(PUMEX_GLYPH_MARGIN, PUMEX_GLYPH_MARGIN);
   // register first 128 char codes
@@ -110,7 +110,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
     gli::u8* srcData = fontFace->glyph->bitmap.buffer + fontFace->glyph->bitmap.width * i;
     std::memcpy(dstData, srcData, fontFace->glyph->bitmap.width);
   }
-  fontTexture->invalidateImage();
+  fontMemoryImage->invalidateImage();
   glyphData.emplace_back( GlyphData(
     glm::vec4(
       (float)lastRegisteredPosition.x / (float)textureSize.x,
@@ -158,7 +158,7 @@ void Text::validate(const RenderContext& renderContext)
 {
   if (!registered)
   {
-    font->fontTexture->addCommandBufferSource(shared_from_this());
+    font->fontMemoryImage->addCommandBufferSource(shared_from_this());
     vertexBuffer->addCommandBufferSource(shared_from_this());
     registered = true;
   }

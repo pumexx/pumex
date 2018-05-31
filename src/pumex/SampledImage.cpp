@@ -27,9 +27,9 @@
 using namespace pumex;
 
 SampledImage::SampledImage(std::shared_ptr<ImageView> iv)
-  : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }
+  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }
 {
-  CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Sampled image resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
+  CHECK_LOG_THROW((iv->memoryImage->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Sampled image resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
 }
 
 SampledImage::~SampledImage()

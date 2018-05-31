@@ -104,7 +104,7 @@ struct VoxelizerApplicationData
     // build 3D texture
     pumex::ImageTraits   volumeImageTraits( VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
     pumex::SamplerTraits volumeSamplerTraits(false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
-    volumeTexture = std::make_shared<pumex::Texture>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swForEachImage);
+    volumeTexture = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swForEachImage);
 
     auto volumeImageView = std::make_shared<pumex::ImageView>(volumeTexture, volumeTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_3D);
     volumeStorageImage   = std::make_shared<pumex::StorageImage>(volumeImageView);
@@ -340,7 +340,7 @@ struct VoxelizerApplicationData
   std::shared_ptr<pumex::Buffer<pumex::Camera>>        voxelizeCameraBuffer;
   std::shared_ptr<PositionData>                        voxelPositionData;
   std::shared_ptr<pumex::Buffer<PositionData>>         voxelPositionBuffer;
-  std::shared_ptr<pumex::Texture>                      volumeTexture;
+  std::shared_ptr<pumex::MemoryImage>                  volumeTexture;
   std::shared_ptr<pumex::StorageImage>                 volumeStorageImage;
 
   pumex::BoundingBox                                   voxelBoundingBox;

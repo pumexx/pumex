@@ -273,7 +273,7 @@ void Surface::validateWorkflow()
   RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
   if (checkWorkflow() || resized)
   {
-    workflowSequences->frameBuffer->prepareTextures(renderContext, swapChainImages);
+    workflowSequences->frameBuffer->prepareMemoryImages(renderContext, swapChainImages);
     workflowSequences->frameBuffer->invalidate(renderContext);
   }
 
@@ -321,8 +321,8 @@ void Surface::validateWorkflow()
         dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
         break;
       }
-      VkImageAspectFlags aspectMask = workflowSequences->frameBuffer->getTexture(i)->getAspectMask();
-      VkImage image = workflowSequences->frameBuffer->getTexture(i)->getImage(renderContext)->getHandleImage();
+      VkImageAspectFlags aspectMask = workflowSequences->frameBuffer->getMemoryImage(i)->getAspectMask();
+      VkImage image = workflowSequences->frameBuffer->getMemoryImage(i)->getImage(renderContext)->getHandleImage();
 
       prepareBarriers.emplace_back( PipelineBarrier
       (

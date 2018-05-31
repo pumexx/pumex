@@ -36,7 +36,7 @@
 namespace pumex
 {
 
-class Texture;
+class MemoryImage;
 class DeviceMemoryAllocator;
 template <typename T> class Buffer;
 
@@ -74,7 +74,7 @@ public:
 
   void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
 
-  std::shared_ptr<Texture>     fontTexture;
+  std::shared_ptr<MemoryImage> fontMemoryImage;
   std::vector<GlyphData>       glyphData;
 protected:
   size_t getGlyphIndex(wchar_t charCode);

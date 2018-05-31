@@ -37,7 +37,7 @@ class Asset;
 struct Material;
 class Resource;
 class Sampler;
-class Texture;
+class MemoryImage;
 class CombinedImageSampler;
 class DeviceMemoryAllocator;
 class Viewer;
@@ -171,12 +171,12 @@ protected:
 class PUMEX_EXPORT TextureRegistryTextureArray : public TextureRegistryBase
 {
 public:
-  void                                          setTargetTexture(uint32_t slotIndex, std::shared_ptr<Texture> texture, std::shared_ptr<Sampler> sampler);
+  void                                          setTargetTexture(uint32_t slotIndex, std::shared_ptr<MemoryImage> texture, std::shared_ptr<Sampler> sampler);
   std::shared_ptr<Resource>                     getCombinedImageSampler(uint32_t slotIndex);
 
   void                                          setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
 
-  std::map<uint32_t, std::shared_ptr<Texture>>              textures;
+  std::map<uint32_t, std::shared_ptr<MemoryImage>>          memoryImages;
   std::map<uint32_t, std::shared_ptr<CombinedImageSampler>> resources;
 };
 
@@ -191,10 +191,10 @@ public:
   void                                                       setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
 
 protected:
-  std::shared_ptr<DeviceMemoryAllocator>                     textureAllocator;
-  std::map<uint32_t, std::vector<std::shared_ptr<Texture>>>  textures;
-  std::map<uint32_t, std::shared_ptr<Sampler>>               textureSamplers;
-  std::map<uint32_t, std::vector<std::shared_ptr<Resource>>> resources;
+  std::shared_ptr<DeviceMemoryAllocator>                         textureAllocator;
+  std::map<uint32_t, std::vector<std::shared_ptr<MemoryImage>>>  memoryImages;
+  std::map<uint32_t, std::shared_ptr<Sampler>>                   textureSamplers;
+  std::map<uint32_t, std::vector<std::shared_ptr<Resource>>>     resources;
 };
 
 

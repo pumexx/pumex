@@ -105,10 +105,10 @@ void FrameBuffer::invalidate(const RenderContext& renderContext)
   pddit->second.invalidate();
 }
 
-void FrameBuffer::prepareTextures(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
+void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (textures.empty())
+  if (memoryImages.empty())
   {
     for (uint32_t i = 0; i < imageDefinitions.size(); i++)
     {
@@ -116,10 +116,10 @@ void FrameBuffer::prepareTextures(const RenderContext& renderContext, std::vecto
       VkExtent3D imSize{ 1,1,1 };
       ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
       SwapChainImageBehaviour scib = (definition.attachmentType == atSurface) ? swForEachImage : swOnce;
-      auto texture = std::make_shared<Texture>(imageTraits, allocator, definition.aspectMask, pbPerSurface, scib, false, false);
-      textures.push_back(texture);
+      auto memoryImage = std::make_shared<MemoryImage>(imageTraits, allocator, definition.aspectMask, pbPerSurface, scib, false, false);
+      memoryImages.push_back(memoryImage);
       ImageSubresourceRange range(definition.aspectMask, 0, 1, 0, 1);
-      imageViews.push_back(std::make_shared<ImageView>(texture, range, VK_IMAGE_VIEW_TYPE_2D));
+      imageViews.push_back(std::make_shared<ImageView>(memoryImage, range, VK_IMAGE_VIEW_TYPE_2D));
     }
   }
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
@@ -127,7 +127,7 @@ void FrameBuffer::prepareTextures(const RenderContext& renderContext, std::vecto
     FrameBufferImageDefinition& definition = imageDefinitions[i];
     if (definition.attachmentType == atSurface)
     {
-      textures[i]->setImages(renderContext.surface, swapChainImages);
+      memoryImages[i]->setImages(renderContext.surface, swapChainImages);
     }
     else
     {
@@ -150,7 +150,7 @@ void FrameBuffer::prepareTextures(const RenderContext& renderContext, std::vecto
       }
       }
       ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-      textures[i]->setImageTraits(renderContext.surface, imageTraits);
+      memoryImages[i]->setImageTraits(renderContext.surface, imageTraits);
     }
   }
   auto rp = renderPass.lock();
@@ -169,7 +169,7 @@ void FrameBuffer::reset(Surface* surface)
     pddit->second.data[i].frameBuffer = VK_NULL_HANDLE;
   }
   imageViews.clear();
-  textures.clear();
+  memoryImages.clear();
 }
 
 const FrameBufferImageDefinition& FrameBuffer::getSwapChainImageDefinition() const
@@ -186,10 +186,10 @@ const FrameBufferImageDefinition& FrameBuffer::getImageDefinition(uint32_t index
   return imageDefinitions[index];
 }
 
-std::shared_ptr<Texture> FrameBuffer::getTexture(uint32_t index) const
+std::shared_ptr<MemoryImage> FrameBuffer::getMemoryImage(uint32_t index) const
 {
-  CHECK_LOG_THROW(index >= textures.size(), "Texture index out of bounds");
-  return textures[index];
+  CHECK_LOG_THROW(index >= memoryImages.size(), "Texture index out of bounds");
+  return memoryImages[index];
 }
 
 std::shared_ptr<ImageView> FrameBuffer::getImageView(const std::string& name) const

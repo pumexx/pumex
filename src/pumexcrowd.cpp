@@ -937,7 +937,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
     auto sampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
-    textureRegistry->setTargetTexture(0, std::make_shared<pumex::Texture>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
+    textureRegistry->setTargetTexture(0, std::make_shared<pumex::MemoryImage>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
     std::vector<pumex::TextureSemantic>                    textureSemantic  = { { pumex::TextureSemantic::Diffuse, 0 } };
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet>                    materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
@@ -1105,7 +1105,7 @@ int main(int argc, char * argv[])
     textPipeline->addChild(textDefault);
     textPipeline->addChild(textSmall);
 
-    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
     auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
     auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
@@ -1115,7 +1115,7 @@ int main(int argc, char * argv[])
     textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
     textDefault->setDescriptorSet(0, textDescriptorSet);
 
-    auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontTexture, fontSmall->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontMemoryImage, fontSmall->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
 
     auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
     textDescriptorSetSmall->setDescriptor(0, textCameraUbo);

@@ -27,9 +27,9 @@
 using namespace pumex;
 
 StorageImage::StorageImage(std::shared_ptr<ImageView> iv)
-  : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }
+  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }
 {
-  CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0, "StorageImage resource connected to a texture that does not have VK_IMAGE_USAGE_STORAGE_BIT");
+  CHECK_LOG_THROW((iv->memoryImage->getImageTraits().usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0, "StorageImage resource connected to a texture that does not have VK_IMAGE_USAGE_STORAGE_BIT");
 }
 
 StorageImage::~StorageImage()

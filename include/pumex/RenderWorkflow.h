@@ -40,13 +40,10 @@ struct QueueTraits;
 struct SubpassDefinition;
 class  DeviceMemoryAllocator;
 class  RenderPass;
-class  FrameBufferImages;
 struct FrameBufferImageDefinition;
 class  Node;
-class  ValidateGPUVisitor;
-class  BuildCommandBufferVisitor;
 class  Resource;
-class RenderCommand;
+class  RenderCommand;
 
 struct PUMEX_EXPORT LoadOp
 {

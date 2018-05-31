@@ -28,9 +28,9 @@
 using namespace pumex;
 
 CombinedImageSampler::CombinedImageSampler(std::shared_ptr<ImageView> iv, std::shared_ptr<Sampler> s)
-  : Resource{ iv->texture->getPerObjectBehaviour(), iv->texture->getSwapChainImageBehaviour() }, imageView{ iv }, sampler{ s }
+  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }, sampler{ s }
 {
-  CHECK_LOG_THROW((iv->texture->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Combined image sampler resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
+  CHECK_LOG_THROW((iv->memoryImage->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Combined image sampler resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
 }
 
 CombinedImageSampler::~CombinedImageSampler()

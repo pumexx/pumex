@@ -698,7 +698,7 @@ int main( int argc, char * argv[] )
     lightingRoot->addChild(textPipeline);
     textPipeline->addChild(textDefault);
 
-    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontTexture, fontDefault->fontTexture->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
     auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
     auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);

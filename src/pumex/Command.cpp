@@ -237,16 +237,16 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
     }
     case DescriptorValue::Image:
     {
-      auto tex = std::dynamic_pointer_cast<Texture>(b.resource);
-      if (tex.get() == nullptr)
+      auto memi = std::dynamic_pointer_cast<MemoryImage>(b.resource);
+      if (memi.get() == nullptr)
         break;
       // FIXME - for now the image barrier will always use the whole image
       VkImageSubresourceRange subRes{};
-        subRes.aspectMask = tex->getAspectMask();
+        subRes.aspectMask = memi->getAspectMask();
         subRes.baseMipLevel = 0;
-        subRes.levelCount = tex->getImageTraits().mipLevels;
+        subRes.levelCount = memi->getImageTraits().mipLevels;
         subRes.baseArrayLayer = 0;
-        subRes.layerCount = tex->getImageTraits().arrayLayers;
+        subRes.layerCount = memi->getImageTraits().arrayLayers;
 
       VkImageMemoryBarrier imageBarrier;
         imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -257,7 +257,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         imageBarrier.newLayout           = b.newLayout;
         imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        imageBarrier.image               = tex->getImage(renderContext)->getHandleImage();
+        imageBarrier.image               = memi->getImage(renderContext)->getHandleImage();
         imageBarrier.subresourceRange    = subRes;
       imageBarriers.emplace_back(imageBarrier);
       break;
