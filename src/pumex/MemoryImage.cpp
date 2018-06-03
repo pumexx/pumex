@@ -37,7 +37,7 @@ ImageSubresourceRange::ImageSubresourceRange(VkImageAspectFlags am, uint32_t m0,
 {
 }
 
-VkImageSubresourceRange ImageSubresourceRange::getSubresource()
+VkImageSubresourceRange ImageSubresourceRange::getSubresource() const
 {
   VkImageSubresourceRange result;
     result.aspectMask     = aspectMask;
@@ -219,14 +219,14 @@ struct ClearImageOperation : public MemoryImage::Operation
 };
 
 MemoryImage::MemoryImage(const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a, VkImageAspectFlags am, PerObjectBehaviour pob, SwapChainImageBehaviour scib, bool stpo, bool useSetImageMethods)
-  : perObjectBehaviour{ pob }, swapChainImageBehaviour{ scib }, sameTraitsPerObject{ stpo }, imageTraits{ it }, allocator { a }, aspectMask{ am }, activeCount{ 1 }
+  : MemoryObject(MemoryObject::moImage), perObjectBehaviour{ pob }, swapChainImageBehaviour{ scib }, sameTraitsPerObject{ stpo }, imageTraits{ it }, allocator { a }, aspectMask{ am }, activeCount{ 1 }
 {
   if(useSetImageMethods)
     imageTraits.usage = imageTraits.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 }
 
 MemoryImage::MemoryImage(std::shared_ptr<gli::texture> tex, std::shared_ptr<DeviceMemoryAllocator> a, VkImageAspectFlags am, VkImageUsageFlags iu, PerObjectBehaviour pob)
-  : perObjectBehaviour{ pob }, swapChainImageBehaviour{ swOnce }, sameTraitsPerObject{ true }, allocator{ a }, aspectMask{ am }, activeCount{ 1 }
+  : MemoryObject(MemoryObject::moImage), perObjectBehaviour{ pob }, swapChainImageBehaviour{ swOnce }, sameTraitsPerObject{ true }, allocator{ a }, aspectMask{ am }, activeCount{ 1 }
 {
   // for now we will only use textures that have base_level==0 and base_layer==0
   CHECK_LOG_THROW(tex == nullptr, "Cannot create MemoryImage object without data");
@@ -243,6 +243,11 @@ MemoryImage::~MemoryImage()
 {
   std::lock_guard<std::mutex> lock(mutex);
   perObjectData.clear();
+}
+
+MemoryImage* MemoryImage::asMemoryImage()
+{
+  return this;
 }
 
 void MemoryImage::setImageTraits(const ImageTraits& traits)

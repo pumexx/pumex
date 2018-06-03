@@ -33,18 +33,18 @@
 namespace pumex
 {
 
-class Device;
-class Surface;
-class RenderContext;
-class RenderSubPass;
-class FrameBuffer;
-class ComputePipeline;
-class GraphicsPipeline;
-class PipelineLayout;
-class DescriptorSet;
-class Image;
-class ResourceBarrierGroup;
-class ResourceBarrier;
+class  Device;
+class  Surface;
+class  RenderContext;
+class  RenderSubPass;
+class  FrameBuffer;
+class  ComputePipeline;
+class  GraphicsPipeline;
+class  PipelineLayout;
+class  DescriptorSet;
+class  Image;
+struct MemoryObjectBarrierGroup;
+class  MemoryObjectBarrier;
 
 class PUMEX_EXPORT CommandPool
 {
@@ -109,7 +109,7 @@ public:
 
   void            cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, const std::vector<PipelineBarrier>& barriers) const;
   void            cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, const PipelineBarrier& barrier) const;
-  void            cmdPipelineBarrier(const RenderContext& renderContext, const ResourceBarrierGroup& barrierGroup, const std::vector<ResourceBarrier>& barriers);
+  void            cmdPipelineBarrier(const RenderContext& renderContext, const MemoryObjectBarrierGroup& barrierGroup, const std::vector<MemoryObjectBarrier>& barriers);
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, std::vector<VkBufferCopy> bufferCopy) const;
   void            cmdCopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkBufferCopy& bufferCopy) const;
 

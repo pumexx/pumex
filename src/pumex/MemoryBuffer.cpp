@@ -40,7 +40,7 @@ bool BufferSubresourceRange::contains(const BufferSubresourceRange& subRange) co
 }
 
 MemoryBuffer::MemoryBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlags bu, PerObjectBehaviour pob, SwapChainImageBehaviour scib, bool sdpo, bool usdm)
-  : perObjectBehaviour{ pob }, swapChainImageBehaviour{ scib }, sameDataPerObject{ sdpo }, allocator{ a }, bufferUsage{ bu }, activeCount{ 1 }
+  : MemoryObject(MemoryObject::moBuffer), perObjectBehaviour{ pob }, swapChainImageBehaviour{ scib }, sameDataPerObject{ sdpo }, allocator{ a }, bufferUsage{ bu }, activeCount{ 1 }
 {
   if (usdm)
     bufferUsage = bufferUsage | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -57,6 +57,11 @@ MemoryBuffer::~MemoryBuffer()
       allocator->deallocate(pdd.second.device, pdd.second.data[i].memoryBlock);
     }
   }
+}
+
+MemoryBuffer* MemoryBuffer::asMemoryBuffer()
+{
+  return this;
 }
 
 VkBuffer MemoryBuffer::getHandleBuffer(const RenderContext& renderContext) const

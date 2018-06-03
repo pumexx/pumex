@@ -31,6 +31,9 @@
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
 #include <pumex/Command.h>
+#include <pumex/PerObjectData.h>
+#include <pumex/MemoryBuffer.h>
+#include <pumex/MemoryImage.h>
 
 namespace pumex
 {
@@ -123,11 +126,10 @@ class PUMEX_EXPORT RenderWorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
-//  enum BufferType { UniformBuffer=1, StorageBuffer=2 };
-//  enum ImageType { CombinedImageSampler=1, SampledImage=2, StorageImage=4  };
-  typedef VkFlags ImageTypeFlags;
 
-  RenderWorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize);
+  // constructor for attachments
+  RenderWorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage);
+  // constructor for images and buffers
   RenderWorkflowResourceType(const std::string& typeName, bool persistent, const MetaType& metaType);
 
   bool isEqual(const RenderWorkflowResourceType& rhs) const;
@@ -139,11 +141,11 @@ public:
   struct AttachmentData
   {
     AttachmentData()
-      : format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, attachmentType{ atUndefined }, attachmentSize{}, swizzles( gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA )
+      : format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, attachmentType{ atUndefined }, attachmentSize{}, imageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT }, swizzles( gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA )
     {
     }
-    AttachmentData(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
-      : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, swizzles{ sw }
+    AttachmentData(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
+      : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, imageUsage{ iu }, swizzles { sw }
     {
     }
 
@@ -151,6 +153,8 @@ public:
     VkSampleCountFlagBits samples;
     AttachmentType        attachmentType;
     AttachmentSize        attachmentSize;
+    VkImageUsageFlags     imageUsage;
+
     gli::swizzles         swizzles;
 
     bool isEqual(const AttachmentData& rhs) const;
@@ -218,9 +222,15 @@ const ResourceTransitionTypeFlags rttAllInputsOutputs     = rttAllInputs | rttAl
 class PUMEX_EXPORT ResourceTransition
 {
 public:
+  // constructor for attachments
   ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load);
-  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags);
+  // constructor for buffers
+  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags, const BufferSubresourceRange& bufferSubresourceRange);
+  // constructor for images
+  ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load, const ImageSubresourceRange& imageSubresourceRange);
+  // destructor
   ~ResourceTransition();
+
   std::shared_ptr<RenderOperation>  operation;
   std::shared_ptr<WorkflowResource> resource;
   ResourceTransitionType            transitionType;
@@ -237,18 +247,31 @@ public:
   };
   struct BufferData
   {
-    BufferData(VkPipelineStageFlags ps, VkAccessFlags af)
-      : pipelineStage{ ps }, accessFlags{ af }
+    BufferData(VkPipelineStageFlags ps, VkAccessFlags af, const BufferSubresourceRange& bsr)
+      : pipelineStage{ ps }, accessFlags{ af }, bufferSubresourceRange{ bsr }
     {
     }
-    VkPipelineStageFlags           pipelineStage;
-    VkAccessFlags                  accessFlags;
+    VkPipelineStageFlags              pipelineStage;
+    VkAccessFlags                     accessFlags;
+    BufferSubresourceRange            bufferSubresourceRange;
   };
+  struct ImageData
+  {
+    ImageData(VkImageLayout l, const LoadOp& ld, const ImageSubresourceRange& isr)
+      : layout{ l }, load{ ld }, imageSubresourceRange{ isr }
+    {
+    }
+    VkImageLayout                     layout;
+    LoadOp                            load;
+    ImageSubresourceRange             imageSubresourceRange;
+  };
+
 
   union
   {
     AttachmentData attachment;
     BufferData     buffer;
+    ImageData      image;
   };
 };
 
@@ -283,43 +306,48 @@ public:
   explicit RenderWorkflow(const std::string& name, std::shared_ptr<DeviceMemoryAllocator> frameBufferAllocator, const std::vector<QueueTraits>& queueTraits);
   ~RenderWorkflow();
 
-  void                                        addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
-  std::shared_ptr<RenderWorkflowResourceType> getResourceType(const std::string& typeName) const;
+  void                                             addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
+  // two convenient functions for resource type creation
+  void                                             addResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage);
+  void                                             addResourceType(const std::string& typeName, bool persistent, const RenderWorkflowResourceType::MetaType& metaType);
+  std::shared_ptr<RenderWorkflowResourceType>      getResourceType(const std::string& typeName) const;
 
-  inline const std::vector<QueueTraits>&      getQueueTraits() const;
+  inline const std::vector<QueueTraits>&           getQueueTraits() const;
 
-  void                                        addRenderOperation(std::shared_ptr<RenderOperation> op);
-  std::vector<std::string>                    getRenderOperationNames() const;
-  std::shared_ptr<RenderOperation>            getRenderOperation(const std::string& opName) const;
+  void                                             addRenderOperation(std::shared_ptr<RenderOperation> op);
+  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)), VkSubpassContents subpassContents = VK_SUBPASS_CONTENTS_INLINE);
 
-  void                                        setSceneNode(const std::string& opName, std::shared_ptr<Node> node);
-  std::shared_ptr<Node>                       getSceneNode(const std::string& opName);
+  std::vector<std::string>                         getRenderOperationNames() const;
+  std::shared_ptr<RenderOperation>                 getRenderOperation(const std::string& opName) const;
 
-  void addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
-  void addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
-  void addAttachmentResolveOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
-  void addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
+  void                                             setSceneNode(const std::string& opName, std::shared_ptr<Node> node);
+  std::shared_ptr<Node>                            getSceneNode(const std::string& opName);
 
-  void addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
-  void addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags);
+  void                                             addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
+  void                                             addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
+  void                                             addAttachmentResolveOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
+  void                                             addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
 
-  void addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
-  void addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
+  void                                             addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange = BufferSubresourceRange(0, VK_WHOLE_SIZE));
+  void                                             addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange = BufferSubresourceRange(0, VK_WHOLE_SIZE));
+  
+  void                                             addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const ImageSubresourceRange& imageSubresourceRange = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
+  void                                             addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp, const ImageSubresourceRange& imageSubresourceRange = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
 
 
-  std::vector<std::string>                    getResourceNames() const;
-  std::shared_ptr<WorkflowResource>           getResource(const std::string& resourceName) const;
+  std::vector<std::string>                         getResourceNames() const;
+  std::shared_ptr<WorkflowResource>                getResource(const std::string& resourceName) const;
 
-  void associateResource(const std::string& resourceName, std::shared_ptr<Resource> resource);
-  std::shared_ptr<Resource> getAssociatedResource(const std::string& resourceName) const;
+  void                                             associateMemoryObject(const std::string& name, std::shared_ptr<MemoryObject> memoryObject);
+  std::shared_ptr<MemoryObject>                    getAssociatedMemoryObject(const std::string& name) const;
 
   std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionTypeFlags transitionTypes) const;
   std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionTypeFlags transitionTypes) const;
 
-  std::set<std::shared_ptr<RenderOperation>> getInitialOperations() const;
-  std::set<std::shared_ptr<RenderOperation>> getFinalOperations() const;
-  std::set<std::shared_ptr<RenderOperation>> getPreviousOperations(const std::string& opName) const;
-  std::set<std::shared_ptr<RenderOperation>> getNextOperations(const std::string& opName) const;
+  std::set<std::shared_ptr<RenderOperation>>       getInitialOperations() const;
+  std::set<std::shared_ptr<RenderOperation>>       getFinalOperations() const;
+  std::set<std::shared_ptr<RenderOperation>>       getPreviousOperations(const std::string& opName) const;
+  std::set<std::shared_ptr<RenderOperation>>       getNextOperations(const std::string& opName) const;
 
   bool compile(std::shared_ptr<RenderWorkflowCompiler> compiler);
 
@@ -333,7 +361,7 @@ protected:
   std::unordered_map<std::string, std::shared_ptr<RenderWorkflowResourceType>> resourceTypes;
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
-  std::unordered_map<std::string, std::shared_ptr<Resource>>                   associatedResources;
+  std::unordered_map<std::string, std::shared_ptr<MemoryObject>>               associatedMemoryObjects;
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
   std::vector<QueueTraits>                                                     queueTraits;
   bool                                                                         valid                = false;

@@ -22,6 +22,7 @@
 
 #pragma once
 #include <vector>
+#include <pumex/Export.h>
 #include <vulkan/vulkan.h>
 #include <pumex/RenderContext.h>
 
@@ -100,5 +101,4 @@ void* getKey(const RenderContext& renderContext, const PerObjectBehaviour& pob)
   return nullptr;
 }
 
-	
 }

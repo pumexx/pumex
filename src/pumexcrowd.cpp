@@ -904,15 +904,15 @@ int main(int argc, char * argv[])
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f } };
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("depth_samples",   false, VK_FORMAT_D32_SFLOAT,        VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("surface",         true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }));
-      workflow->addResourceType(std::make_shared<pumex::RenderWorkflowResourceType>("compute_results", false, pumex::RenderWorkflowResourceType::Image));
+      workflow->addResourceType("depth_samples",   false, VK_FORMAT_D32_SFLOAT,        VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+      workflow->addResourceType("surface",         true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("compute_results", false, pumex::RenderWorkflowResourceType::Image);
 
-    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("crowd_compute", pumex::RenderOperation::Compute));
+    workflow->addRenderOperation("crowd_compute", pumex::RenderOperation::Compute);
       workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
       workflow->addBufferOutput( "crowd_compute", "compute_results", "offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
 
-    workflow->addRenderOperation(std::make_shared<pumex::RenderOperation>("rendering", pumex::RenderOperation::Graphics));
+    workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
       workflow->addBufferInput          ( "rendering", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
       workflow->addBufferInput          ( "rendering", "compute_results", "offset_values",     VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples",   "depth",             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
@@ -973,7 +973,7 @@ int main(int argc, char * argv[])
 
     auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), localBuffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
     auto resultsSbo = std::make_shared<pumex::StorageBuffer>(resultsBuffer);
-    workflow->associateResource("indirect_commands", resultsSbo);
+    workflow->associateMemoryObject("indirect_commands", resultsBuffer);
 
     auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, localBuffersAllocator);
     assetBufferFilterNode->setName("staticAssetBufferFilterNode");

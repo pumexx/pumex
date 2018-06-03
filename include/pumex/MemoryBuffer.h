@@ -27,6 +27,7 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
+#include <pumex/MemoryObject.h>
 #include <pumex/PerObjectData.h>
 #include <pumex/Device.h>
 #include <pumex/DeviceMemoryAllocator.h>
@@ -52,7 +53,7 @@ struct PUMEX_EXPORT BufferSubresourceRange
   VkDeviceSize range;
 };
 
-class PUMEX_EXPORT MemoryBuffer
+class PUMEX_EXPORT MemoryBuffer : public MemoryObject
 {
 public:
   MemoryBuffer()                               = delete;
@@ -60,6 +61,8 @@ public:
   MemoryBuffer(const MemoryBuffer&)            = delete;
   MemoryBuffer& operator=(const MemoryBuffer&) = delete;
   virtual ~MemoryBuffer();
+
+  MemoryBuffer* asMemoryBuffer() override;
 
   inline const PerObjectBehaviour&              getPerObjectBehaviour() const;
   inline const SwapChainImageBehaviour&         getSwapChainImageBehaviour() const;

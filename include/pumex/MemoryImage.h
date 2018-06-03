@@ -27,6 +27,7 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
+#include <pumex/MemoryObject.h>
 #include <pumex/PerObjectData.h>
 #include <pumex/Image.h>
 
@@ -43,7 +44,7 @@ struct PUMEX_EXPORT ImageSubresourceRange
 {
   ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
 
-  VkImageSubresourceRange getSubresource();
+  VkImageSubresourceRange getSubresource() const;
   bool contains(const ImageSubresourceRange& subRange) const;
 
   VkImageAspectFlags    aspectMask;
@@ -57,7 +58,7 @@ struct PUMEX_EXPORT ImageSubresourceRange
 // Class uses gli::texture to store texture data on CPU
 // MemoryImage may contain 1D, 2D and 3D textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
 
-class PUMEX_EXPORT MemoryImage
+class PUMEX_EXPORT MemoryImage : public MemoryObject
 {
 public:
   MemoryImage()                              = delete;
@@ -66,6 +67,8 @@ public:
   MemoryImage(const MemoryImage&)            = delete;
   MemoryImage& operator=(const MemoryImage&) = delete;
   virtual ~MemoryImage();
+
+  MemoryImage*  asMemoryImage() override;
 
   void setImageTraits(const ImageTraits& traits);
   void setImageTraits(Surface* surface, const ImageTraits& traits);

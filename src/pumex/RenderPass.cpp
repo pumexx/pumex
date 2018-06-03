@@ -33,7 +33,6 @@
 
 using namespace pumex;
 
-
 AttachmentDefinition::AttachmentDefinition(uint32_t id, VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
   : imageDefinitionIndex{ id }, format{ f }, samples{ s }, loadOp { lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }
 {
@@ -242,7 +241,6 @@ void RenderPass::invalidate(const RenderContext& renderContext)
   pddit->second.invalidate();
 }
 
-
 void RenderPass::validate(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -293,16 +291,6 @@ VkRenderPass RenderPass::getHandle(const RenderContext& renderContext) const
   if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
   return pddit->second.data[renderContext.activeIndex % activeCount].renderPass;
-}
-
-ResourceBarrier::ResourceBarrier(std::shared_ptr<Resource> r, VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, VkImageLayout ol, VkImageLayout nl)
-  : resource{ r }, srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, oldLayout{ ol }, newLayout{ nl }
-{
-}
-
-ResourceBarrierGroup::ResourceBarrierGroup(VkPipelineStageFlags ssm, VkPipelineStageFlags dsm, VkDependencyFlags d)
-  : srcStageMask{ ssm }, dstStageMask{ dsm }, dependencyFlags{ d }
-{
 }
 
 RenderCommand::RenderCommand(RenderCommand::CommandType ct)

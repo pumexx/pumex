@@ -28,7 +28,7 @@
 #include <pumex/Surface.h>
 #include <pumex/Descriptor.h>
 #include <pumex/Pipeline.h>
-#include <pumex/MemoryImage.h>
+#include <pumex/MemoryObjectBarrier.h>
 #include <pumex/utils/Log.h>
 
 namespace pumex
@@ -208,7 +208,7 @@ void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipe
   }
 }
 
-void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const ResourceBarrierGroup& barrierGroup, const std::vector<ResourceBarrier>& barriers)
+void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const MemoryObjectBarrierGroup& barrierGroup, const std::vector<MemoryObjectBarrier>& barriers)
 {
   std::vector<VkMemoryBarrier>       memoryBarriers;
   std::vector<VkBufferMemoryBarrier> bufferBarriers;
@@ -216,11 +216,9 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
 
   for (const auto& b : barriers)
   {
-    DescriptorValue dsv = b.resource->getDescriptorValue(renderContext);
-
-    switch (dsv.vType)
+    switch (b.objectType)
     {
-    case DescriptorValue::Buffer:
+    case MemoryObject::moBuffer:
     {
       VkBufferMemoryBarrier bufferBarrier;
         bufferBarrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -229,36 +227,25 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         bufferBarrier.dstAccessMask       = b.dstAccessMask;
         bufferBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         bufferBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        bufferBarrier.buffer              = dsv.bufferInfo.buffer;
-        bufferBarrier.offset              = dsv.bufferInfo.offset;
-        bufferBarrier.size                = dsv.bufferInfo.range;
+        bufferBarrier.buffer              = b.buffer.memoryBuffer->getHandleBuffer(renderContext);
+        bufferBarrier.offset              = b.buffer.bufferRange.offset;
+        bufferBarrier.size                = b.buffer.bufferRange.range;
       bufferBarriers.emplace_back(bufferBarrier);
       break;
     }
-    case DescriptorValue::Image:
+    case MemoryObject::moImage:
     {
-      auto memi = std::dynamic_pointer_cast<MemoryImage>(b.resource);
-      if (memi.get() == nullptr)
-        break;
-      // FIXME - for now the image barrier will always use the whole image
-      VkImageSubresourceRange subRes{};
-        subRes.aspectMask = memi->getAspectMask();
-        subRes.baseMipLevel = 0;
-        subRes.levelCount = memi->getImageTraits().mipLevels;
-        subRes.baseArrayLayer = 0;
-        subRes.layerCount = memi->getImageTraits().arrayLayers;
-
       VkImageMemoryBarrier imageBarrier;
         imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         imageBarrier.pNext               = nullptr;
         imageBarrier.srcAccessMask       = b.srcAccessMask;
         imageBarrier.dstAccessMask       = b.dstAccessMask;
-        imageBarrier.oldLayout           = b.oldLayout;
-        imageBarrier.newLayout           = b.newLayout;
         imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        imageBarrier.image               = memi->getImage(renderContext)->getHandleImage();
-        imageBarrier.subresourceRange    = subRes;
+        imageBarrier.oldLayout           = b.image.oldLayout;
+        imageBarrier.newLayout           = b.image.newLayout;
+        imageBarrier.image               = b.image.memoryImage->getImage(renderContext)->getHandleImage();
+        imageBarrier.subresourceRange    = b.image.imageRange.getSubresource();
       imageBarriers.emplace_back(imageBarrier);
       break;
     }

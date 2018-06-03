@@ -30,6 +30,7 @@
 #include <pumex/Export.h>
 #include <pumex/PerObjectData.h>
 #include <pumex/Command.h>
+#include <pumex/MemoryObjectBarrier.h>
 
 namespace pumex
 {
@@ -143,33 +144,6 @@ protected:
   uint32_t                                     activeCount;
 };
 
-class PUMEX_EXPORT ResourceBarrier
-{
-public:
-  ResourceBarrier(std::shared_ptr<Resource> resource, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-  std::shared_ptr<Resource> resource;
-  VkAccessFlags             srcAccessMask;
-  VkAccessFlags             dstAccessMask;
-  uint32_t                  srcQueueFamilyIndex;
-  uint32_t                  dstQueueFamilyIndex;
-  VkImageLayout             oldLayout;
-  VkImageLayout             newLayout;
-
-};
-
-class PUMEX_EXPORT ResourceBarrierGroup
-{
-public:
-  ResourceBarrierGroup(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags);
-
-  VkPipelineStageFlags                 srcStageMask;
-  VkPipelineStageFlags                 dstStageMask;
-  VkDependencyFlags                    dependencyFlags;
-};
-
-inline bool operator<(const ResourceBarrierGroup& lhs, const ResourceBarrierGroup& rhs);
-
 class RenderSubPass;
 class ComputePass;
 
@@ -188,8 +162,8 @@ public:
 
   CommandType commandType;
   std::shared_ptr<RenderOperation> operation;
-  std::map<ResourceBarrierGroup, std::vector<ResourceBarrier>> barriersBeforeOp;
-  std::map<ResourceBarrierGroup, std::vector<ResourceBarrier>> barriersAfterOp;
+  std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersBeforeOp;
+  std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersAfterOp;
 };
 
 
@@ -225,15 +199,5 @@ public:
   RenderSubPass* asRenderSubPass() override;
   ComputePass*   asComputePass() override;
 };
-
-bool operator<(const ResourceBarrierGroup& lhs, const ResourceBarrierGroup& rhs)
-{
-  if (lhs.srcStageMask != rhs.srcStageMask)
-    return lhs.srcStageMask < rhs.srcStageMask;
-  if (lhs.dstStageMask != rhs.dstStageMask)
-    return lhs.dstStageMask < rhs.dstStageMask;
-  return lhs.dependencyFlags < rhs.dependencyFlags;
-}
-
 
 }
