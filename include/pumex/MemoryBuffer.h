@@ -31,6 +31,8 @@
 #include <pumex/PerObjectData.h>
 #include <pumex/Device.h>
 #include <pumex/DeviceMemoryAllocator.h>
+#include <pumex/Surface.h>
+#include <pumex/Command.h>
 #include <pumex/utils/Buffer.h>
 #include <pumex/utils/Log.h>
 
@@ -274,7 +276,7 @@ void Buffer<T>::setBufferSize(Device* device, size_t bufferSize)
 {
   CHECK_LOG_THROW(sameDataPerObject, "Cannot set buffer size per device - data on all surfaces was declared as the same");
   std::lock_guard<std::mutex> lock(mutex);
-  internalSetBufferSize(surface->getID(), surface->device.lock()->device, surface->surface, bufferSize);
+  internalSetBufferSize(device->getID(), device->device, VK_NULL_HANDLE, bufferSize);
 }
 
 template <typename T>

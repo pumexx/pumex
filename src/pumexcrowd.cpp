@@ -189,37 +189,37 @@ inline bool operator<(const SkelAnimKey& lhs, const SkelAnimKey& rhs)
 // global variables storing model file names etc
 std::vector<std::tuple<std::string, float>> animationDefinitions
 {
-  { "people/wmale1_bbox.dae",           0.0f },
-  { "people/wmale1_walk.dae",           1.0f },
-  { "people/wmale1_walk_easy.dae",      0.8f },
-  { "people/wmale1_walk_big_steps.dae", 1.2f },
-  { "people/wmale1_run.dae",            2.0f }
+  std::make_tuple( "people/wmale1_bbox.dae",           0.0f ),
+  std::make_tuple( "people/wmale1_walk.dae",           1.0f ),
+  std::make_tuple( "people/wmale1_walk_easy.dae",      0.8f ),
+  std::make_tuple( "people/wmale1_walk_big_steps.dae", 1.2f ),
+  std::make_tuple( "people/wmale1_run.dae",            2.0f )
 };
 
 std::vector<std::tuple<uint32_t, std::string, bool, std::string, std::string, std::string, pumex::AssetLodDefinition, pumex::AssetLodDefinition, pumex::AssetLodDefinition>> modelDefinitions
 {
-  { 1,  "wmale1",        true,  "people/wmale1_lod0.dae",   "people/wmale1_lod1.dae", "people/wmale1_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) },
-  { 2,  "wmale2",        true,  "people/wmale2_lod0.dae",   "people/wmale2_lod1.dae", "people/wmale2_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) },
-  { 3,  "wmale3",        true,  "people/wmale3_lod0.dae",   "people/wmale3_lod1.dae", "people/wmale3_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) },
-  { 4,  "wmale1_cloth1", false, "people/wmale1_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 5,  "wmale1_cloth2", false, "people/wmale1_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 6,  "wmale1_cloth3", false, "people/wmale1_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 7,  "wmale2_cloth1", false, "people/wmale2_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 8,  "wmale2_cloth2", false, "people/wmale2_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 9,  "wmale2_cloth3", false, "people/wmale2_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 10, "wmale3_cloth1", false, "people/wmale3_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 11, "wmale3_cloth2", false, "people/wmale3_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    },
-  { 12, "wmale3_cloth3", false, "people/wmale3_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    }
+  std::make_tuple( 1,  "wmale1",        true,  "people/wmale1_lod0.dae",   "people/wmale1_lod1.dae", "people/wmale1_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) ),
+  std::make_tuple( 2,  "wmale2",        true,  "people/wmale2_lod0.dae",   "people/wmale2_lod1.dae", "people/wmale2_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) ),
+  std::make_tuple( 3,  "wmale3",        true,  "people/wmale3_lod0.dae",   "people/wmale3_lod1.dae", "people/wmale3_lod2.dae", pumex::AssetLodDefinition(0.0f, 8.0f),   pumex::AssetLodDefinition(8.0f, 16.0f), pumex::AssetLodDefinition(16.0f, 100.0f) ),
+  std::make_tuple( 4,  "wmale1_cloth1", false, "people/wmale1_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 5,  "wmale1_cloth2", false, "people/wmale1_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 6,  "wmale1_cloth3", false, "people/wmale1_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 7,  "wmale2_cloth1", false, "people/wmale2_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 8,  "wmale2_cloth2", false, "people/wmale2_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 9,  "wmale2_cloth3", false, "people/wmale2_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 10, "wmale3_cloth1", false, "people/wmale3_cloth1.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 11, "wmale3_cloth2", false, "people/wmale3_cloth2.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    ),
+  std::make_tuple( 12, "wmale3_cloth3", false, "people/wmale3_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    )
 };
 
 std::multimap<uint32_t, std::vector<std::tuple<std::string, std::string>>> materialVariants =
 {
-  { 1, { { "body_mat", "people/young_lightskinned_male_diffuse_1.dds"     } } },
-  { 1, { { "body_mat", "people/young_lightskinned_male_diffuse.dds"       } } },
-  { 2, { { "body_mat", "people/young_lightskinned_male_diffuse3_1.dds"    } } },
-  { 2, { { "body_mat", "people/dragon_female_white.dds"                   } } },
-  { 3, { { "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds" } } },
-  { 3, { { "body_mat", "people/ork_texture.dds"                           } } }
+  { 1, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse_1.dds"     ) } },
+  { 1, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse.dds"       ) } },
+  { 2, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse3_1.dds"    ) } },
+  { 2, { std::make_tuple( "body_mat", "people/dragon_female_white.dds"                   ) } },
+  { 3, { std::make_tuple( "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds" ) } },
+  { 3, { std::make_tuple( "body_mat", "people/ork_texture.dds"                           ) } }
 };
 
 std::multimap<uint32_t, std::vector<uint32_t>> clothVariants =

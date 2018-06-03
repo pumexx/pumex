@@ -21,6 +21,7 @@
 //
 
 #include <pumex/Sampler.h>
+#include <algorithm>
 #include <pumex/Device.h>
 #include <pumex/RenderContext.h>
 #include <pumex/utils/Log.h>
