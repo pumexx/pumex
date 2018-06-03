@@ -39,7 +39,7 @@
 const uint32_t MAX_BONES = 511;
 
 const uint32_t CLIPMAP_TEXTURE_COUNT = 1;
-const uint32_t CLIPMAP_TEXTURE_SIZE  = 128;
+const uint32_t CLIPMAP_TEXTURE_SIZE  = 32;
 
 struct PositionData
 {
@@ -104,7 +104,7 @@ struct VoxelizerApplicationData
     // build 3D texture
     pumex::ImageTraits   volumeImageTraits( VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
 //    pumex::SamplerTraits volumeSamplerTraits(false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
-    volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swForEachImage);
+    volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
 
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -123,7 +123,7 @@ struct VoxelizerApplicationData
       bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
     else
       bbox = pumex::calculateBoundingBox(*asset,1);
-    voxelBoundingBox = pumex::BoundingBox(glm::vec3(-10.0f, -10.0f, 0.0f), glm::vec3(10.0f, 10.0f, 20.0f));
+    voxelBoundingBox = bbox;// pumex::BoundingBox(glm::vec3(-10.0f, -10.0f, 0.0f), glm::vec3(10.0f, 10.0f, 20.0f));
   }
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
@@ -404,7 +404,7 @@ int main( int argc, char * argv[] )
     pumex::AssetLoaderAssimp loader;
     std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelFileName);
-    if (!fullAnimationFileName.empty())
+    if (!animationFileName.empty() && !fullAnimationFileName.empty())
     {
       std::shared_ptr<pumex::Asset> animAsset(loader.load(fullAnimationFileName, true, requiredSemantic));
       CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationFileName);
@@ -442,7 +442,7 @@ int main( int argc, char * argv[] )
       workflow->addImageOutput("voxelization", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
 
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addImageInput("voxelization", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL);
+      workflow->addImageInput("rendering", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL);
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
@@ -580,101 +580,8 @@ int main( int argc, char * argv[] )
 
     renderGroup->addChild(assetNode);
 
-    //modelTypeID = assetBuffer->registerType("object", pumex::AssetTypeDefinition(bbox));
-    //assetBuffer->registerObjectLOD(modelTypeID, asset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-
-    //pumex::Geometry voxelBox;
-    //voxelBox.name = "voxelBox";
-    //voxelBox.semantic = requiredSemantic;
-    //voxelBox.materialIndex = 0;
-    //pumex::addBox(voxelBox, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), false);
-    //std::shared_ptr<pumex::Asset> voxelBoxAsset(pumex::createSimpleAsset(voxelBox, "voxelBox"));
-
-    //voxelBoxTypeID = assetBuffer->registerType("voxelBox", pumex::AssetTypeDefinition(pumex::BoundingBox(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f))));
-    //assetBuffer->registerObjectLOD(voxelBoxTypeID, voxelBoxAsset, pumex::AssetLodDefinition(0.0f, 10000.0f));
-
-    //// create render pass for voxelization
-    //std::vector<pumex::FrameBufferImageDefinition> voxelizeFrameBufferDefinitions =
-    //{
-    //};
-    //voxelizeFrameBufferImages = std::make_shared<pumex::FrameBufferImages>(voxelizeFrameBufferDefinitions, clipmapAllocator);
-    //std::vector<pumex::AttachmentDefinition> voxelizeRenderPassAttachments =
-    //{
-    //};
-    //std::vector<pumex::SubpassDefinition> voxelizeRenderPassSubpasses =
-    //{
-    //  {
-    //    VK_PIPELINE_BIND_POINT_GRAPHICS,
-    //    {},
-    //    {},
-    //    {},
-    //    { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
-    //    {},
-    //    0
-    //  }
-    //};
-    //std::vector<pumex::SubpassDependencyDefinition> voxelizeRenderPassDependencies;
-    //voxelizeRenderPass  = std::make_shared<pumex::RenderPass>(voxelizeRenderPassAttachments, voxelizeRenderPassSubpasses, voxelizeRenderPassDependencies);
-    //voxelizeFrameBuffer = std::make_unique<pumex::FrameBuffer>(voxelizeRenderPass, voxelizeFrameBufferImages);
-
-
-
-//    auto& currentCmdBuffer = myCmdBuffer[surfacePtr];
-//    currentCmdBuffer->setActiveIndex(activeIndex);
-//
-//    if (currentCmdBuffer->isDirty(activeIndex))
-//    {
-////      std::vector<pumex::DescriptorSetValue> clipMapBuffer;
-////      clipMap->getDescriptorValues(devicePtr->device, 0, clipMapBuffer);
-//
-//      currentCmdBuffer->cmdBegin();
-//
-////      currentCmdBuffer->setImageLayout(*clipMap->getHandleImage(devicePtr->device, 0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-//      pumex::Image* image = clipMap->getHandleImage(devicePtr->device, 0);
-//      VkImageSubresourceRange subRes{};
-//      subRes.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-//      subRes.baseMipLevel   = 0;
-//      subRes.levelCount     = 1;
-//      subRes.baseArrayLayer = 0;
-//      subRes.layerCount     = 1;
-//      std::vector<VkImageSubresourceRange> subResources;
-//      subResources.push_back(subRes);
-//      currentCmdBuffer->cmdClearColorImage(*image, VK_IMAGE_LAYOUT_GENERAL, pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), subResources);
-//
-//      std::vector<VkClearValue> voxelClearValues = { pumex::makeColorClearValue(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)) };
-//      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, voxelizeRenderPass.get(), voxelizeFrameBuffer.get(), 0, pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE), voxelClearValues);
-//      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE, 0.0f, 1.0f) });
-//      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE) });
-//
-//      currentCmdBuffer->cmdBindPipeline(voxelizePipeline.get());
-//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, voxelizePipelineLayout.get(), 0, voxelizeDescriptorSet.get());
-//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
-//      currentCmdBuffer->cmdEndRenderPass();
-//
-////      currentCmdBuffer->setImageLayout( *clipMap->getHandleImage(devicePtr->device,0), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-//
-//      std::vector<VkClearValue> clearValues = { pumex::makeColorClearValue(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::makeDepthStencilClearValue(1.0f, 0) };
-//      currentCmdBuffer->cmdBeginRenderPass(surfacePtr, defaultRenderPass.get(), surface->frameBuffer.get(), surface->getImageIndex(), pumex::makeVkRect2D(0, 0, renderWidth, renderHeight), clearValues);
-//      currentCmdBuffer->cmdSetViewport(0, { pumex::makeViewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f) });
-//      currentCmdBuffer->cmdSetScissor(0, { pumex::makeVkRect2D(0, 0, renderWidth, renderHeight) });
-//
-//      // voxel raymarching
-//      currentCmdBuffer->cmdBindPipeline(raymarchPipeline.get());
-//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, raymarchPipelineLayout.get(), 0, raymarchDescriptorSet.get());
-//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, voxelBoxTypeID, 0, 50.0f);
-//
-//      // model render
-//      currentCmdBuffer->cmdBindPipeline(pipeline.get());
-//      currentCmdBuffer->cmdBindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, surfacePtr, pipelineLayout.get(), 0, descriptorSet.get());
-//      assetBuffer->cmdBindVertexIndexBuffer(devicePtr, currentCmdBuffer.get(), 1, 0);
-//      assetBuffer->cmdDrawObject(devicePtr, currentCmdBuffer.get(), 1, modelTypeID, 0, 50.0f);
-//
-//      currentCmdBuffer->cmdEndRenderPass();
-//      currentCmdBuffer->cmdEnd();
-//    }
+    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
+    surface->setRenderWorkflow(workflow, workflowCompiler);
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
@@ -693,9 +600,19 @@ int main( int argc, char * argv[] )
   }
   catch (const std::exception& e)
   {
+#if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Exception thrown : ");
+    OutputDebugStringA(e.what());
+    OutputDebugStringA("\n");
+#endif
+    LOG_ERROR << "Exception thrown : " << e.what() << std::endl;
   }
   catch (...)
   {
+#if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Unknown error\n");
+#endif
+    LOG_ERROR << "Unknown error" << std::endl;
   }
   viewer->cleanup();
   FLUSH_LOG;

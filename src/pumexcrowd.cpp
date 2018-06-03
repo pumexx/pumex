@@ -906,7 +906,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType("depth_samples",   false, VK_FORMAT_D32_SFLOAT,        VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
       workflow->addResourceType("surface",         true,  VK_FORMAT_B8G8R8A8_UNORM,    VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("compute_results", false, pumex::RenderWorkflowResourceType::Image);
+      workflow->addResourceType("compute_results", false, pumex::RenderWorkflowResourceType::Buffer);
 
     workflow->addRenderOperation("crowd_compute", pumex::RenderOperation::Compute);
       workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );

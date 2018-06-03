@@ -24,23 +24,34 @@
 
 using namespace pumex;
 
-MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, std::shared_ptr<MemoryImage> mi, VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
-  : objectType(MemoryObject::moImage), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, image{ mi, ol, nl, ir }
+MemoryObjectBarrier::MemoryObjectBarrier()
+: objectType(MemoryObject::moUndefined), srcAccessMask{ 0 }, dstAccessMask{ 0 }, srcQueueFamilyIndex{ 0 }, dstQueueFamilyIndex{ 0 }
 {
 }
 
-MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, std::shared_ptr<MemoryBuffer> mb, const BufferSubresourceRange& br)
-  : objectType(MemoryObject::moBuffer), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, buffer{ mb, br }
+MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, std::shared_ptr<MemoryObject> mo, VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
+  : objectType(MemoryObject::moImage), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, memoryObject{ mo }, image{ ol, nl, ir }
+{
+}
+
+MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, std::shared_ptr<MemoryObject> mo, const BufferSubresourceRange& br)
+  : objectType(MemoryObject::moBuffer), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, memoryObject{ mo }, buffer { br }
 {
 }
 
 MemoryObjectBarrier::MemoryObjectBarrier(const MemoryObjectBarrier& rhs)
-  : objectType(rhs.objectType), srcAccessMask{ rhs.srcAccessMask }, dstAccessMask{ rhs.dstAccessMask }, srcQueueFamilyIndex{ rhs.srcQueueFamilyIndex }, dstQueueFamilyIndex{ rhs.dstQueueFamilyIndex }
+  : objectType(rhs.objectType), srcAccessMask{ rhs.srcAccessMask }, dstAccessMask{ rhs.dstAccessMask }, srcQueueFamilyIndex{ rhs.srcQueueFamilyIndex }, dstQueueFamilyIndex{ rhs.dstQueueFamilyIndex }, memoryObject{ rhs.memoryObject }
 {
   switch (objectType)
   {
-  case MemoryObject::moBuffer:  buffer = rhs.buffer; break;
-  case MemoryObject::moImage:   image = rhs.image;   break;
+  case MemoryObject::moBuffer:  
+    buffer.bufferRange  = rhs.buffer.bufferRange;
+    break;
+  case MemoryObject::moImage:   
+    image.oldLayout     = rhs.image.oldLayout;
+    image.newLayout     = rhs.image.newLayout;
+    image.imageRange    = rhs.image.imageRange;
+    break;
   }
 }
 
@@ -48,15 +59,22 @@ MemoryObjectBarrier& MemoryObjectBarrier::operator=(const MemoryObjectBarrier& r
 {
   if (this != &rhs)
   {
-    objectType = rhs.objectType;
-    srcAccessMask = rhs.srcAccessMask;
-    dstAccessMask = rhs.dstAccessMask;
-    srcQueueFamilyIndex = rhs.srcQueueFamilyIndex;
-    dstQueueFamilyIndex = rhs.dstQueueFamilyIndex;
+    objectType            = rhs.objectType;
+    srcAccessMask         = rhs.srcAccessMask;
+    dstAccessMask         = rhs.dstAccessMask;
+    srcQueueFamilyIndex   = rhs.srcQueueFamilyIndex;
+    dstQueueFamilyIndex   = rhs.dstQueueFamilyIndex;
+    memoryObject = rhs.memoryObject;
     switch (objectType)
     {
-    case MemoryObject::moBuffer:  buffer = rhs.buffer; break;
-    case MemoryObject::moImage:   image = rhs.image;   break;
+    case MemoryObject::moBuffer:
+      buffer.bufferRange  = rhs.buffer.bufferRange;
+      break;
+    case MemoryObject::moImage:
+      image.oldLayout     = rhs.image.oldLayout;
+      image.newLayout     = rhs.image.newLayout;
+      image.imageRange    = rhs.image.imageRange;
+      break;
     }
   }
   return *this;

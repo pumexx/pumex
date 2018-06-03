@@ -220,6 +220,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
     {
     case MemoryObject::moBuffer:
     {
+      std::shared_ptr<MemoryBuffer> memoryBuffer = std::dynamic_pointer_cast<MemoryBuffer>(b.memoryObject);
       VkBufferMemoryBarrier bufferBarrier;
         bufferBarrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         bufferBarrier.pNext               = nullptr;
@@ -227,7 +228,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         bufferBarrier.dstAccessMask       = b.dstAccessMask;
         bufferBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         bufferBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        bufferBarrier.buffer              = b.buffer.memoryBuffer->getHandleBuffer(renderContext);
+        bufferBarrier.buffer              = memoryBuffer->getHandleBuffer(renderContext);
         bufferBarrier.offset              = b.buffer.bufferRange.offset;
         bufferBarrier.size                = b.buffer.bufferRange.range;
       bufferBarriers.emplace_back(bufferBarrier);
@@ -235,6 +236,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
     }
     case MemoryObject::moImage:
     {
+      std::shared_ptr<MemoryImage> memoryImage = std::dynamic_pointer_cast<MemoryImage>(b.memoryObject);
       VkImageMemoryBarrier imageBarrier;
         imageBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         imageBarrier.pNext               = nullptr;
@@ -244,7 +246,7 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
         imageBarrier.oldLayout           = b.image.oldLayout;
         imageBarrier.newLayout           = b.image.newLayout;
-        imageBarrier.image               = b.image.memoryImage->getImage(renderContext)->getHandleImage();
+        imageBarrier.image               = memoryImage->getImage(renderContext)->getHandleImage();
         imageBarrier.subresourceRange    = b.image.imageRange.getSubresource();
       imageBarriers.emplace_back(imageBarrier);
       break;

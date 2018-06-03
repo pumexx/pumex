@@ -313,7 +313,7 @@ void RenderWorkflow::addImageInput(const std::string& opName, const std::string&
     resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
   else
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Image || resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addImageInput() : resource is not an image nor attachment");
+  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Image && resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addImageInput() : resource is not an image nor attachment");
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageInput, layout, loadOpLoad(), imageSubresourceRange));
   valid = false;
 }
@@ -330,7 +330,7 @@ void RenderWorkflow::addImageOutput(const std::string& opName, const std::string
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
     // resource may only have one transition with output type
   }
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Image || resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addImageOutput() : resource is not an image nor attachment");
+  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Image && resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addImageOutput() : resource is not an image nor attachment");
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageOutput, layout, loadOp, imageSubresourceRange));
   valid = false;
 }
@@ -1257,7 +1257,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<Resource
   case RenderWorkflowResourceType::Buffer:
   {
     auto bufferRange = generatingTransition->buffer.bufferSubresourceRange;
-    rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, std::dynamic_pointer_cast<MemoryBuffer>(memoryObject), bufferRange));
+    rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, memoryObject, bufferRange));
     break;
   }
   case RenderWorkflowResourceType::Image:
@@ -1265,7 +1265,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<Resource
     VkImageLayout oldLayout = generatingTransition->attachment.layout;
     VkImageLayout newLayout = consumingTransition->attachment.layout;
     auto imageRange         = generatingTransition->image.imageSubresourceRange;
-    rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, std::dynamic_pointer_cast<MemoryImage>(memoryObject), oldLayout, newLayout, imageRange));
+    rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, memoryObject, oldLayout, newLayout, imageRange));
     break;
   }
   }

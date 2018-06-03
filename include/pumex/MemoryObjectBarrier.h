@@ -35,26 +35,26 @@ namespace pumex
 class PUMEX_EXPORT MemoryObjectBarrier
 {
 public:
-  MemoryObjectBarrier()                                      = delete;
-  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryImage> memoryImage, VkImageLayout oldLayout, VkImageLayout newLayout, const ImageSubresourceRange& imageRange);
-  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryBuffer> memoryBuffer, const BufferSubresourceRange& bufferRange);
+  MemoryObjectBarrier();
+  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryObject> memoryObject, VkImageLayout oldLayout, VkImageLayout newLayout, const ImageSubresourceRange& imageRange);
+  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryObject> memoryObject, const BufferSubresourceRange& bufferRange);
   MemoryObjectBarrier(const MemoryObjectBarrier&);
   MemoryObjectBarrier& operator=(const MemoryObjectBarrier&);
   ~MemoryObjectBarrier();
 
-  MemoryObject::Type        objectType;
-  VkAccessFlags             srcAccessMask;
-  VkAccessFlags             dstAccessMask;
-  uint32_t                  srcQueueFamilyIndex;
-  uint32_t                  dstQueueFamilyIndex;
+  MemoryObject::Type            objectType;
+  VkAccessFlags                 srcAccessMask;
+  VkAccessFlags                 dstAccessMask;
+  uint32_t                      srcQueueFamilyIndex;
+  uint32_t                      dstQueueFamilyIndex;
+  std::shared_ptr<MemoryObject> memoryObject;
 
   struct ImageData
   {
-    ImageData(std::shared_ptr<MemoryImage> mi, VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
-      : memoryImage{ mi }, oldLayout{ ol }, newLayout{ nl }, imageRange{ ir }
+    ImageData(VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
+      : oldLayout{ ol }, newLayout{ nl }, imageRange{ ir }
     {
     }
-    std::shared_ptr<MemoryImage> memoryImage;
     VkImageLayout                oldLayout;
     VkImageLayout                newLayout;
     ImageSubresourceRange        imageRange;
@@ -62,11 +62,10 @@ public:
 
   struct BufferData
   {
-    BufferData(std::shared_ptr<MemoryBuffer> mb, const BufferSubresourceRange& br)
-      : memoryBuffer{ mb }, bufferRange{ br }
+    BufferData(const BufferSubresourceRange& br)
+      : bufferRange{ br }
     {
     }
-    std::shared_ptr<MemoryBuffer> memoryBuffer;
     BufferSubresourceRange        bufferRange;
   };
 

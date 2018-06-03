@@ -33,7 +33,7 @@ class MemoryBuffer;
 class PUMEX_EXPORT MemoryObject
 {
 public:
-  enum Type { moBuffer, moImage };
+  enum Type { moUndefined, moBuffer, moImage };
 
   MemoryObject()                               = delete;
   MemoryObject(Type type);
