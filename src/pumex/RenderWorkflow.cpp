@@ -99,20 +99,20 @@ void RenderOperation::setSceneNode(std::shared_ptr<Node> node)
 }
 
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld)
-  : operation{ op }, resource{ res }, transitionType{ tt }, attachment{l,ld}
+  : operation{ op }, resource{ res }, transitionType{ tt }, layout{ l }, load{ ld }, resolveResource{}, imageSubresourceRange{}, pipelineStage{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }, accessFlags{ VK_ACCESS_UNIFORM_READ_BIT }, bufferSubresourceRange{}
 {
 }
 
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkPipelineStageFlags ps, VkAccessFlags af, const BufferSubresourceRange& bsr)
-  : operation{ op }, resource{ res }, transitionType{ tt }, buffer{ps,af, bsr}
+  : operation{ op }, resource{ res }, transitionType{ tt }, layout{ VK_IMAGE_LAYOUT_UNDEFINED }, load{}, resolveResource{}, imageSubresourceRange{}, pipelineStage{ ps }, accessFlags{ af }, bufferSubresourceRange{ bsr }
 {
+  
 }
 
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld, const ImageSubresourceRange& isr)
-  : operation{ op }, resource{ res }, transitionType{ tt }, image{ l,ld, isr }
+  : operation{ op }, resource{ res }, transitionType{ tt }, layout{ l }, load{ ld }, resolveResource{}, imageSubresourceRange{ isr }, pipelineStage{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }, accessFlags{ VK_ACCESS_UNIFORM_READ_BIT }, bufferSubresourceRange{}
 {
 }
-
 
 ResourceTransition::~ResourceTransition()
 {
@@ -251,7 +251,7 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
   CHECK_LOG_THROW(resolveIt == end(resources), "RenderWorkflow : added pointer no to nonexisting resolve resource");
   CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentResolveOutput() : resource is not an attachment");
   std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentResolveOutput, layout, loadOp);
-  resourceTransition->attachment.resolveResource = resolveIt->second;
+  resourceTransition->resolveResource = resolveIt->second;
   transitions.push_back(resourceTransition);
   valid = false;
 }
@@ -1002,7 +1002,7 @@ std::vector<VkImageLayout> SingleQueueWorkflowCompiler::calculateInitialLayouts(
       {
         auto attIndex = attachmentIndex.at(transition->resource->name);
         if (results[attIndex] == VK_IMAGE_LAYOUT_UNDEFINED)
-          results[attIndex] = transition->attachment.layout;
+          results[attIndex] = transition->layout;
       }
       doneOperations.insert(operation);
       auto follow = workflow.getNextOperations(operation->name);
@@ -1256,15 +1256,15 @@ void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<Resource
   {
   case RenderWorkflowResourceType::Buffer:
   {
-    auto bufferRange = generatingTransition->buffer.bufferSubresourceRange;
+    auto bufferRange = generatingTransition->bufferSubresourceRange;
     rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, memoryObject, bufferRange));
     break;
   }
   case RenderWorkflowResourceType::Image:
   {
-    VkImageLayout oldLayout = generatingTransition->attachment.layout;
-    VkImageLayout newLayout = consumingTransition->attachment.layout;
-    auto imageRange         = generatingTransition->image.imageSubresourceRange;
+    VkImageLayout oldLayout = generatingTransition->layout;
+    VkImageLayout newLayout = consumingTransition->layout;
+    auto imageRange         = generatingTransition->imageSubresourceRange;
     rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, memoryObject, oldLayout, newLayout, imageRange));
     break;
   }

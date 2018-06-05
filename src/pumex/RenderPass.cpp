@@ -195,8 +195,8 @@ void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass,
   {
     uint32_t attIndex = attachmentIndex.at(transition->resource->name);
 
-    frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(transition->attachment.layout);
-    attachments[attIndex].finalLayout      = lastLayout[attIndex] = transition->attachment.layout;
+    frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(transition->layout);
+    attachments[attIndex].finalLayout      = lastLayout[attIndex] = transition->layout;
 
     AttachmentType at = transition->resource->resourceType->attachment.attachmentType;
     bool colorDepthAttachment   = (at == atSurface) || (at == atColor) || (at == atDepth) || (at == atDepthStencil);
@@ -207,7 +207,7 @@ void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass,
     if ((transition->transitionType & rttAllOutputs) != 0)
     {
       if (attachments[attIndex].initialLayout == VK_IMAGE_LAYOUT_UNDEFINED)
-        attachments[attIndex].initialLayout = transition->attachment.layout;
+        attachments[attIndex].initialLayout = transition->layout;
     }
 
     // if it's an input transition
@@ -217,16 +217,16 @@ void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass,
     }
 
     if(attachments[attIndex].loadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-      attachments[attIndex].loadOp        = colorDepthAttachment ? (VkAttachmentLoadOp)transition->attachment.load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+      attachments[attIndex].loadOp        = colorDepthAttachment ? (VkAttachmentLoadOp)transition->load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     if (attachments[attIndex].stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-      attachments[attIndex].stencilLoadOp = stencilAttachment    ? (VkAttachmentLoadOp)transition->attachment.load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+      attachments[attIndex].stencilLoadOp = stencilAttachment    ? (VkAttachmentLoadOp)transition->load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
     if (!clearValuesInitialized[attIndex])
     {
       if (stencilDepthAttachment)
-        clearValues[attIndex] = makeDepthStencilClearValue(transition->attachment.load.clearColor.x, transition->attachment.load.clearColor.y);
+        clearValues[attIndex] = makeDepthStencilClearValue(transition->load.clearColor.x, transition->load.clearColor.y);
       else
-        clearValues[attIndex] = makeColorClearValue(transition->attachment.load.clearColor);
+        clearValues[attIndex] = makeColorClearValue(transition->load.clearColor);
       clearValuesInitialized[attIndex] = true;
     }
   }
@@ -280,7 +280,7 @@ void RenderPass::validate(const RenderContext& renderContext)
     renderPassCI.pSubpasses      = subpassDescriptions.data();
     renderPassCI.dependencyCount = dependencyDescriptors.size();
     renderPassCI.pDependencies   = dependencyDescriptors.data();
-  VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.data[activeIndex].renderPass), "Could not create default render pass" );
+  VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.data[activeIndex].renderPass), "Could not create render pass" );
   pddit->second.valid[activeIndex] = true;
 }
 
@@ -321,16 +321,16 @@ void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string,
   auto depthAttachments   = rw->getOperationIO(operation->name, rttAttachmentDepthOutput);
 
   for (auto& inputAttachment : inputAttachments)
-    ia.push_back({ attachmentIndex.at(inputAttachment->resource->name), inputAttachment->attachment.layout });
+    ia.push_back({ attachmentIndex.at(inputAttachment->resource->name), inputAttachment->layout });
   for (auto& outputAttachment : outputAttachments)
   {
-    oa.push_back({ attachmentIndex.at(outputAttachment->resource->name), outputAttachment->attachment.layout });
+    oa.push_back({ attachmentIndex.at(outputAttachment->resource->name), outputAttachment->layout });
 
     if (!resolveAttachments.empty())
     {
-      auto it = std::find_if(begin(resolveAttachments), end(resolveAttachments), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->attachment.resolveResource == outputAttachment->resource; });
+      auto it = std::find_if(begin(resolveAttachments), end(resolveAttachments), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->resolveResource == outputAttachment->resource; });
       if (it != end(resolveAttachments))
-        ra.push_back({ attachmentIndex.at((*it)->resource->name), (*it)->attachment.layout });
+        ra.push_back({ attachmentIndex.at((*it)->resource->name), (*it)->layout });
       else
         ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
     }
@@ -338,7 +338,7 @@ void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string,
       ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
   }
   if (!depthAttachments.empty())
-    dsa = { attachmentIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->attachment.layout };
+    dsa = { attachmentIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->layout };
   else
     dsa = { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
 

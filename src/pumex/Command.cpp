@@ -229,8 +229,8 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         bufferBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         bufferBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
         bufferBarrier.buffer              = memoryBuffer->getHandleBuffer(renderContext);
-        bufferBarrier.offset              = b.buffer.bufferRange.offset;
-        bufferBarrier.size                = b.buffer.bufferRange.range;
+        bufferBarrier.offset              = b.bufferRange.offset;
+        bufferBarrier.size                = b.bufferRange.range;
       bufferBarriers.emplace_back(bufferBarrier);
       break;
     }
@@ -244,10 +244,10 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         imageBarrier.dstAccessMask       = b.dstAccessMask;
         imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
         imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
-        imageBarrier.oldLayout           = b.image.oldLayout;
-        imageBarrier.newLayout           = b.image.newLayout;
+        imageBarrier.oldLayout           = b.oldLayout;
+        imageBarrier.newLayout           = b.newLayout;
         imageBarrier.image               = memoryImage->getImage(renderContext)->getHandleImage();
-        imageBarrier.subresourceRange    = b.image.imageRange.getSubresource();
+        imageBarrier.subresourceRange    = b.imageRange.getSubresource();
       imageBarriers.emplace_back(imageBarrier);
       break;
     }

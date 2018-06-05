@@ -276,7 +276,6 @@ void Surface::validateWorkflow()
     workflowSequences->frameBuffer->prepareMemoryImages(renderContext, swapChainImages);
     workflowSequences->frameBuffer->invalidate(renderContext);
   }
-
   workflowSequences->frameBuffer->validate(renderContext);
 
   // create render passes for current surface - skip scene graphs

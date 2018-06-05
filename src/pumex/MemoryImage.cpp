@@ -32,6 +32,11 @@
 
 using namespace pumex;
 
+ImageSubresourceRange::ImageSubresourceRange()
+  : aspectMask{ VK_IMAGE_ASPECT_COLOR_BIT }, baseMipLevel{ 0 }, levelCount{ VK_REMAINING_MIP_LEVELS }, baseArrayLayer{ 0 }, layerCount{ VK_REMAINING_ARRAY_LAYERS }
+{
+}
+
 ImageSubresourceRange::ImageSubresourceRange(VkImageAspectFlags am, uint32_t m0, uint32_t mc, uint32_t a0, uint32_t ac)
   : aspectMask{ am }, baseMipLevel{ m0 }, levelCount{ mc }, baseArrayLayer{ a0 }, layerCount{ ac }
 {

@@ -29,6 +29,11 @@
 
 using namespace pumex;
 
+BufferSubresourceRange::BufferSubresourceRange()
+  : offset{ 0 }, range{ VK_WHOLE_SIZE }
+{
+}
+
 BufferSubresourceRange::BufferSubresourceRange(VkDeviceSize o, VkDeviceSize r)
   : offset{ o }, range{ r }
 {

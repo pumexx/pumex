@@ -42,6 +42,7 @@ class ImageView;
 
 struct PUMEX_EXPORT ImageSubresourceRange
 {
+  ImageSubresourceRange();
   ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
 
   VkImageSubresourceRange getSubresource() const;

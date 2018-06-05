@@ -47,6 +47,7 @@ class BufferView;
 
 struct PUMEX_EXPORT BufferSubresourceRange
 {
+  BufferSubresourceRange();
   BufferSubresourceRange(VkDeviceSize offset, VkDeviceSize range);
 
   bool contains(const BufferSubresourceRange& subRange) const;

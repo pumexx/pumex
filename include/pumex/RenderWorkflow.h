@@ -235,44 +235,14 @@ public:
   std::shared_ptr<WorkflowResource> resource;
   ResourceTransitionType            transitionType;
 
-  struct AttachmentData
-  {
-    AttachmentData(VkImageLayout l, const LoadOp& ld)
-      : resolveResource{}, layout{ l }, load{ ld }
-    {
-    }
-    std::shared_ptr<WorkflowResource> resolveResource;
-    VkImageLayout                     layout;
-    LoadOp                            load;
-  };
-  struct BufferData
-  {
-    BufferData(VkPipelineStageFlags ps, VkAccessFlags af, const BufferSubresourceRange& bsr)
-      : pipelineStage{ ps }, accessFlags{ af }, bufferSubresourceRange{ bsr }
-    {
-    }
-    VkPipelineStageFlags              pipelineStage;
-    VkAccessFlags                     accessFlags;
-    BufferSubresourceRange            bufferSubresourceRange;
-  };
-  struct ImageData
-  {
-    ImageData(VkImageLayout l, const LoadOp& ld, const ImageSubresourceRange& isr)
-      : layout{ l }, load{ ld }, imageSubresourceRange{ isr }
-    {
-    }
-    VkImageLayout                     layout;
-    LoadOp                            load;
-    ImageSubresourceRange             imageSubresourceRange;
-  };
+  VkImageLayout                     layout;                 // used by attachments and images
+  LoadOp                            load;                   // used by attachments and images
+  std::shared_ptr<WorkflowResource> resolveResource;        // used by attachments
+  ImageSubresourceRange             imageSubresourceRange;  // used by images
 
-
-  union
-  {
-    AttachmentData attachment;
-    BufferData     buffer;
-    ImageData      image;
-  };
+  VkPipelineStageFlags              pipelineStage;          // used by buffers
+  VkAccessFlags                     accessFlags;            // used by buffers
+  BufferSubresourceRange            bufferSubresourceRange; // used by buffers
 };
 
 inline void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransition, std::shared_ptr<ResourceTransition> consumingTransition, VkPipelineStageFlags& srcStageMask, VkPipelineStageFlags& dstStageMask);
@@ -455,7 +425,7 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
   case rttAttachmentOutput:
   case rttAttachmentResolveOutput:
   case rttAttachmentDepthOutput:
-    switch (generatingTransition->attachment.layout)
+    switch (generatingTransition->layout)
     {
     case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
       srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
@@ -469,14 +439,14 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
     }
     break;
   case rttBufferOutput:
-    srcStageMask = generatingTransition->buffer.pipelineStage;
+    srcStageMask = generatingTransition->pipelineStage;
     break;
   }
 
   switch (consumingTransition->transitionType)
   {
   case rttAttachmentInput:
-    switch (consumingTransition->attachment.layout)
+    switch (consumingTransition->layout)
     {
     case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
       dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; break;
@@ -489,7 +459,7 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
     }
     break;
   case rttBufferInput:
-    dstStageMask = consumingTransition->buffer.pipelineStage;
+    dstStageMask = consumingTransition->pipelineStage;
     break;
   }
 
@@ -502,7 +472,7 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
   case rttAttachmentOutput:
   case rttAttachmentResolveOutput:
   case rttAttachmentDepthOutput:
-    switch (generatingTransition->attachment.layout)
+    switch (generatingTransition->layout)
     {
     case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
       srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
@@ -515,14 +485,14 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
     }
     break;
   case rttBufferOutput:
-    srcAccessMask = generatingTransition->buffer.accessFlags;
+    srcAccessMask = generatingTransition->accessFlags;
     break;
   }
 
   switch (consumingTransition->transitionType)
   {
   case rttAttachmentInput:
-    switch (consumingTransition->attachment.layout)
+    switch (consumingTransition->layout)
     {
     case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
       dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; break;
@@ -535,7 +505,7 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
     }
     break;
   case rttBufferInput:
-    dstAccessMask = consumingTransition->buffer.accessFlags;
+    dstAccessMask = consumingTransition->accessFlags;
     break;
   }
 }

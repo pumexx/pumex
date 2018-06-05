@@ -49,32 +49,10 @@ public:
   uint32_t                      dstQueueFamilyIndex;
   std::shared_ptr<MemoryObject> memoryObject;
 
-  struct ImageData
-  {
-    ImageData(VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
-      : oldLayout{ ol }, newLayout{ nl }, imageRange{ ir }
-    {
-    }
-    VkImageLayout                oldLayout;
-    VkImageLayout                newLayout;
-    ImageSubresourceRange        imageRange;
-  };
-
-  struct BufferData
-  {
-    BufferData(const BufferSubresourceRange& br)
-      : bufferRange{ br }
-    {
-    }
-    BufferSubresourceRange        bufferRange;
-  };
-
-  union
-  {
-    ImageData  image;
-    BufferData buffer;
-  };
-
+  VkImageLayout                 oldLayout;   // used by images
+  VkImageLayout                 newLayout;   // used by images
+  ImageSubresourceRange         imageRange;  // used by images
+  BufferSubresourceRange        bufferRange; // used by buffers
 };
 
 struct PUMEX_EXPORT MemoryObjectBarrierGroup
