@@ -41,6 +41,8 @@ public:
   explicit PipelineLayout();
   PipelineLayout(const PipelineLayout&)            = delete;
   PipelineLayout& operator=(const PipelineLayout&) = delete;
+  PipelineLayout(PipelineLayout&&)                 = delete;
+  PipelineLayout& operator=(PipelineLayout&&)      = delete;
   virtual ~PipelineLayout();
 
   void             validate(const RenderContext& renderContext);
@@ -64,6 +66,8 @@ public:
   explicit PipelineCache();
   PipelineCache(const PipelineCache&)            = delete;
   PipelineCache& operator=(const PipelineCache&) = delete;
+  PipelineCache(PipelineCache&&)                 = delete;
+  PipelineCache& operator=(PipelineCache&&)      = delete;
   virtual ~PipelineCache();
 
   void            validate(const RenderContext& renderContext);
@@ -81,15 +85,17 @@ protected:
 class PUMEX_EXPORT Pipeline : public Group
 {
 public:
-  Pipeline() = delete;
+  Pipeline()                           = delete;
   explicit Pipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout);
-  virtual ~Pipeline();
   Pipeline(const Pipeline&) = delete;
   Pipeline& operator=(const Pipeline&) = delete;
+  Pipeline(Pipeline&&)                 = delete;
+  Pipeline& operator=(Pipeline&&)      = delete;
+  virtual ~Pipeline();
 
   VkPipeline getHandlePipeline(const RenderContext& renderContext) const;
 
-  // FIXME : add descriptor set checking, add dynamic state checking
+  // TODO : add descriptor set checking, add dynamic state checking
 
   std::shared_ptr<PipelineCache>    pipelineCache;
   std::shared_ptr<PipelineLayout>   pipelineLayout;
@@ -136,6 +142,8 @@ public:
   explicit ShaderModule( const std::string& fileName );
   ShaderModule(const ShaderModule&)            = delete;
   ShaderModule& operator=(const ShaderModule&) = delete;
+  ShaderModule(ShaderModule&&)                 = delete;
+  ShaderModule& operator=(ShaderModule&&)      = delete;
   virtual ~ShaderModule();
 
   void           validate(const RenderContext& renderContext);
@@ -168,6 +176,8 @@ public:
   explicit GraphicsPipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout);
   GraphicsPipeline(const GraphicsPipeline&)            = delete;
   GraphicsPipeline& operator=(const GraphicsPipeline&) = delete;
+  GraphicsPipeline(GraphicsPipeline&&)                 = delete;
+  GraphicsPipeline& operator=(GraphicsPipeline&&)      = delete;
   virtual ~GraphicsPipeline();
 
   inline bool hasDynamicState(VkDynamicState state) const;
@@ -237,6 +247,8 @@ public:
   explicit ComputePipeline(std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<PipelineLayout> pipelineLayout);
   ComputePipeline(const ComputePipeline&)            = delete;
   ComputePipeline& operator=(const ComputePipeline&) = delete;
+  ComputePipeline(ComputePipeline&&)                 = delete;
+  ComputePipeline& operator=(ComputePipeline&&)      = delete;
   virtual ~ComputePipeline();
 
   // TODO : add a bunch of handy functions defining different pipeline aspects - these functions must call internalInvalidate()

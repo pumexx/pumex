@@ -38,7 +38,8 @@ namespace pumex
 class  Resource;
 class  WorkflowResource;
 class  RenderOperation;
-class  ValidateGPUVisitor;
+class  ValidateNodeVisitor;
+class  ValidateDescriptorVisitor;
 class  BuildCommandBufferVisitor;
 struct FrameBufferImageDefinition;
 
@@ -113,6 +114,8 @@ public:
   explicit RenderPass();
   RenderPass(const RenderPass&)            = delete;
   RenderPass& operator=(const RenderPass&) = delete;
+  RenderPass(RenderPass&&)                 = delete;
+  RenderPass& operator=(RenderPass&&)      = delete;
   ~RenderPass();
 
   void initializeAttachments(const std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout);
@@ -154,7 +157,9 @@ public:
   enum CommandType { ctRenderSubPass, ctComputePass };
   RenderCommand(CommandType commandType);
 
-  virtual void validateGPUData(ValidateGPUVisitor& updateVisitor) = 0;
+  virtual void validate(const RenderContext& renderContext) = 0;
+  virtual void validateNodes(ValidateNodeVisitor& updateVisitor) = 0;
+  virtual void validateDescriptors(ValidateDescriptorVisitor& updateVisitor) = 0;
   virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
 
   virtual RenderSubPass* asRenderSubPass() = 0;
@@ -175,7 +180,9 @@ public:
 
   void buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex);
 
-  void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
+  void validate(const RenderContext& renderContext) override;
+  void validateNodes(ValidateNodeVisitor& validateVisitor) override;
+  void validateDescriptors(ValidateDescriptorVisitor& validateVisitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
   RenderSubPass* asRenderSubPass() override;
@@ -193,7 +200,9 @@ class PUMEX_EXPORT ComputePass : public RenderCommand
 public:
   explicit ComputePass();
 
-  void validateGPUData(ValidateGPUVisitor& updateVisitor) override;
+  void validate(const RenderContext& renderContext) override;
+  void validateNodes(ValidateNodeVisitor& validateVisitor) override;
+  void validateDescriptors(ValidateDescriptorVisitor& validateVisitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
   RenderSubPass* asRenderSubPass() override;

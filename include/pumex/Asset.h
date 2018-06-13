@@ -46,7 +46,7 @@ class PUMEX_EXPORT Skeleton
 public:
   explicit Skeleton() = default;
 
-  // FIXME - add some interface maybe ?
+  // TODO - add some interface maybe ?
   struct Bone
   {
     uint32_t   parentIndex    = UINT32_MAX;
@@ -220,7 +220,7 @@ struct PUMEX_EXPORT Animation
 };
 
 // Main class for storing information about an asset loaded from file ( by assimp or custom created loaders )
-// FIXME : should we add lights in some form here ?
+// TODO : should we add lights in some form here ?
 class PUMEX_EXPORT Asset
 {
 public:
@@ -235,7 +235,7 @@ public:
 class PUMEX_EXPORT AssetLoader
 {
 public:
-  virtual Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
+  virtual std::shared_ptr<Asset> load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
 };
 
 uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_t channel) const

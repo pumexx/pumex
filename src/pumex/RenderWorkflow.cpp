@@ -79,8 +79,8 @@ WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<RenderW
 {
 }
 
-RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, AttachmentSize at, VkSubpassContents sc)
-  : name{ n }, operationType{ t }, attachmentSize{ at }, subpassContents { sc }
+RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, AttachmentSize at)
+  : name{ n }, operationType{ t }, attachmentSize{ at }
 {
 }
 
@@ -93,9 +93,14 @@ void RenderOperation::setRenderWorkflow ( std::shared_ptr<RenderWorkflow> rw )
   renderWorkflow = rw;
 }
 
-void RenderOperation::setSceneNode(std::shared_ptr<Node> node)
+void RenderOperation::setRenderOperationNode(std::shared_ptr<Node> n)
 {
-  sceneNode = node;
+  node = n;
+}
+
+std::shared_ptr<Node> RenderOperation::getRenderOperationNode()
+{
+  return node;
 }
 
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld)
@@ -173,9 +178,9 @@ void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
   valid = false;
 }
 
-void RenderWorkflow::addRenderOperation(const std::string& name, RenderOperation::Type operationType, AttachmentSize attachmentSize, VkSubpassContents subpassContents)
+void RenderWorkflow::addRenderOperation(const std::string& name, RenderOperation::Type operationType, AttachmentSize attachmentSize)
 {
-  addRenderOperation(std::make_shared<RenderOperation>(name, operationType, attachmentSize, subpassContents));
+  addRenderOperation(std::make_shared<RenderOperation>(name, operationType, attachmentSize));
 }
 
 std::vector<std::string> RenderWorkflow::getRenderOperationNames() const
@@ -193,15 +198,15 @@ std::shared_ptr<RenderOperation> RenderWorkflow::getRenderOperation(const std::s
   return it->second;
 }
 
-void RenderWorkflow::setSceneNode(const std::string& opName, std::shared_ptr<Node> node)
+void RenderWorkflow::setRenderOperationNode(const std::string& opName, std::shared_ptr<Node> n)
 {
-  getRenderOperation(opName)->sceneNode = node;
+  getRenderOperation(opName)->node = n;
   valid = false;
 }
 
-std::shared_ptr<Node> RenderWorkflow::getSceneNode(const std::string& opName)
+std::shared_ptr<Node> RenderWorkflow::getRenderOperationNode(const std::string& opName)
 {
-  return getRenderOperation(opName)->sceneNode;
+  return getRenderOperation(opName)->node;
 }
 
 void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout)
@@ -685,7 +690,7 @@ void SingleQueueWorkflowCompiler::verifyOperations(const RenderWorkflow& workflo
       os << "Error: Resource <" << resourceName << "> : resource must have at most one output that generates it" << std::endl;
   }
 
-  // FIXME : check for loops in workflow
+  // TODO : check for loops in a workflow
 
   // if there are some errors - throw exception
   std::string results;
@@ -1238,7 +1243,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<Resource
   uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   if (generatingQueueIndex != consumingQueueIndex)
   {
-    // FIXME - find family indices for both queues
+    // TODO - find family indices for both queues
   }
 
   VkPipelineStageFlags srcStageMask = 0,  dstStageMask = 0;

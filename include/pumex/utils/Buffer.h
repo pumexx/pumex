@@ -59,10 +59,12 @@ PUMEX_EXPORT void         destroyBuffers(VkDevice device, std::vector<NBufferMem
 class StagingBuffer
 {
 public:
-  StagingBuffer() = delete;
+  StagingBuffer()                                = delete;
   explicit StagingBuffer(Device* device, VkDeviceSize size);
-  StagingBuffer(const StagingBuffer&) = delete;
+  StagingBuffer(const StagingBuffer&)            = delete;
   StagingBuffer& operator=(const StagingBuffer&) = delete;
+  StagingBuffer(StagingBuffer&&)                 = delete;
+  StagingBuffer& operator=(StagingBuffer&&)      = delete;
   virtual ~StagingBuffer();
 
 

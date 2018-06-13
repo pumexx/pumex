@@ -488,7 +488,7 @@ int main( int argc, char * argv[] )
 
     auto gbufferRoot = std::make_shared<pumex::Group>();
     gbufferRoot->setName("gbufferRoot");
-    workflow->setSceneNode("gbuffer", gbufferRoot);
+    workflow->setRenderOperationNode("gbuffer", gbufferRoot);
 
     auto pipelineCache = std::make_shared<pumex::PipelineCache>();
 
@@ -599,7 +599,7 @@ int main( int argc, char * argv[] )
 /**********************/
     auto lightingRoot = std::make_shared<pumex::Group>();
     lightingRoot->setName("lightingRoot");
-    workflow->setSceneNode("lighting", lightingRoot);
+    workflow->setRenderOperationNode("lighting", lightingRoot);
 
     std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
 
@@ -718,8 +718,8 @@ int main( int argc, char * argv[] )
       applicationData->processInput(surface);
       applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
     });
-    tbb::flow::make_edge(viewer->startUpdateGraph, update);
-    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+    tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     // set render callbacks to application data
     viewer->setEventRenderStart(std::bind(&DeferredApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, assetBuffer, MODEL_SPONZA_ID));
@@ -729,9 +729,19 @@ int main( int argc, char * argv[] )
   }
   catch (const std::exception& e)
   {
+#if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Exception thrown : ");
+    OutputDebugStringA(e.what());
+    OutputDebugStringA("\n");
+#endif
+    LOG_ERROR << "Exception thrown : " << e.what() << std::endl;
   }
   catch (...)
   {
+#if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Unknown error\n");
+#endif
+    LOG_ERROR << "Unknown error" << std::endl;
   }
   viewer->cleanup();
   FLUSH_LOG;

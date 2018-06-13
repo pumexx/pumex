@@ -72,6 +72,8 @@ public:
   explicit DeviceMemoryAllocator(VkMemoryPropertyFlags propertyFlags, VkDeviceSize size, EnumStrategy strategy);
   DeviceMemoryAllocator(const DeviceMemoryAllocator&)            = delete;
   DeviceMemoryAllocator& operator=(const DeviceMemoryAllocator&) = delete;
+  DeviceMemoryAllocator(DeviceMemoryAllocator&&)                 = delete;
+  DeviceMemoryAllocator& operator=(DeviceMemoryAllocator&&)      = delete;
   ~DeviceMemoryAllocator();
 
 

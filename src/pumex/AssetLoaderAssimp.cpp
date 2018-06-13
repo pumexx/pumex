@@ -76,15 +76,15 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
     mat.properties.insert({ std::string(key), glm::vec4(value, 0.0f, 0.0f, 0.0f) });
 }
 
-Asset* AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
+std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
   const aiScene* scene = Importer.ReadFile(fileName.c_str(), importFlags);
   if ( scene == nullptr )
     return nullptr;
 
   //creating asset
-  Asset* asset                = new Asset;
-  asset->fileName             = fileName;
+  std::shared_ptr<Asset> asset = std::make_shared<Asset>();
+  asset->fileName              = fileName;
   asset->skeleton.invGlobalTransform = glm::inverse( toMat4( scene->mRootNode->mTransformation ) );
   if (!animationOnly)
   {

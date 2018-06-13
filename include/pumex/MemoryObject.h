@@ -39,6 +39,8 @@ public:
   MemoryObject(Type type);
   MemoryObject(const MemoryObject&)            = delete;
   MemoryObject& operator=(const MemoryObject&) = delete;
+  MemoryObject(MemoryObject&&)                 = delete;
+  MemoryObject& operator=(MemoryObject&&)      = delete;
   virtual ~MemoryObject();
 
   inline Type           getType();

@@ -83,8 +83,6 @@ protected:
 void AssetBufferFilterNode::setEventResizeOutputs(std::function<void(uint32_t, size_t)> event) { eventResizeOutputs = event; }
 void AssetBufferFilterNode::onEventResizeOutputs(uint32_t mask, size_t instanceCount) { if (eventResizeOutputs != nullptr)  eventResizeOutputs(mask, instanceCount); }
 
-
-
 // class that draws single object registered in AssetBufferNode
 class PUMEX_EXPORT AssetBufferDrawObject : public Node
 {
@@ -105,12 +103,13 @@ public:
 class PUMEX_EXPORT AssetBufferIndirectDrawObjects : public Node
 {
 public:
-  AssetBufferIndirectDrawObjects(std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands);
+  AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferFilterNode> filterNode, uint32_t renderMask);
 
   void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
 
   std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getDrawCommands();
+  uint32_t                                                         renderMask;
 protected:
   std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands;
   bool                                                             registered = false;

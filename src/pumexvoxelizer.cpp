@@ -478,7 +478,7 @@ int main( int argc, char * argv[] )
     voxelizePipeline->depthTestEnable  = VK_FALSE;
     voxelizePipeline->depthWriteEnable = VK_FALSE;
     voxelizePipeline->dynamicStates    = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    workflow->setSceneNode("voxelization", voxelizePipeline);
+    workflow->setRenderOperationNode("voxelization", voxelizePipeline);
 
     auto voxelizeGroup = std::make_shared<pumex::Group>();
     voxelizeGroup->setName("voxelizeGroup");
@@ -502,7 +502,7 @@ int main( int argc, char * argv[] )
 
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
-    workflow->setSceneNode("rendering", renderRoot);
+    workflow->setRenderOperationNode("rendering", renderRoot);
 
     std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
 
@@ -589,8 +589,8 @@ int main( int argc, char * argv[] )
       applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
     });
 
-    tbb::flow::make_edge(viewer->startUpdateGraph, update);
-    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+    tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     viewer->setEventRenderStart(std::bind(&VoxelizerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1));
 

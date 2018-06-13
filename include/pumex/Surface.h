@@ -42,6 +42,7 @@ class CommandPool;
 class CommandBuffer;
 class FrameBuffer;
 class Image;
+class Node;
   
 // struct representing information required to create a Vulkan surface
 struct PUMEX_EXPORT SurfaceTraits
@@ -64,6 +65,8 @@ public:
   explicit Surface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Window> window, std::shared_ptr<Device> device, VkSurfaceKHR surface, const SurfaceTraits& surfaceTraits);
   Surface(const Surface&)            = delete;
   Surface& operator=(const Surface&) = delete;
+  Surface(Surface&&)                 = delete;
+  Surface& operator=(Surface&&)      = delete;
   virtual ~Surface();
 
   inline bool                   isRealized() const;
@@ -71,7 +74,12 @@ public:
   void                          cleanup();
   void                          beginFrame();
   void                          validateWorkflow();
+  void                          validatePrimaryNodes(uint32_t queueNumber);
+  void                          validatePrimaryDescriptors(uint32_t queueNumber);
   void                          buildPrimaryCommandBuffer(uint32_t queueNumber);
+  void                          validateSecondaryNodes();
+  void                          validateSecondaryDescriptors();
+  void                          buildSecondaryCommandBuffers();
   void                          draw();
   void                          endFrame();
   void                          resizeSurface(uint32_t newWidth, uint32_t newHeight);
@@ -127,6 +135,7 @@ protected:
   std::vector<VkFence>                          waitFences;
   std::shared_ptr<CommandBuffer>                prepareCommandBuffer;
   std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
+  std::vector<Node*>                            secondaryCommandBufferNodes;
   std::shared_ptr<CommandBuffer>                presentCommandBuffer;
 
   VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;

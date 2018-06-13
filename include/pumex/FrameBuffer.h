@@ -61,6 +61,8 @@ public:
   explicit FrameBuffer(const std::vector<FrameBufferImageDefinition>& imageDefinitions, std::shared_ptr<RenderPass> renderPass, std::shared_ptr<DeviceMemoryAllocator> allocator);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
+  FrameBuffer(FrameBuffer&&)                 = delete;
+  FrameBuffer& operator=(FrameBuffer&&)      = delete;
   virtual ~FrameBuffer();
 
   void                              validate(const RenderContext& renderContext);

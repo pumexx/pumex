@@ -66,6 +66,8 @@ public:
   Queue(const QueueTraits& queueTraits, uint32_t familyIndex, uint32_t index, VkQueue queue);
   Queue(const Queue&)            = delete;
   Queue& operator=(const Queue&) = delete;
+  Queue(Queue&&)                 = delete;
+  Queue& operator=(Queue&&)      = delete;
 
   QueueTraits traits;
   uint32_t    familyIndex = UINT32_MAX;
@@ -83,6 +85,8 @@ public:
   explicit Device(std::shared_ptr<Viewer> viewer, std::shared_ptr<PhysicalDevice> physical, const std::vector<const char*>& requestedExtensions);
   Device(const Device&)            = delete;
   Device& operator=(const Device&) = delete;
+  Device(Device&&)                 = delete;
+  Device& operator=(Device&&)      = delete;
   ~Device();
 
   inline void                     resetRequestedQueues();
@@ -91,7 +95,7 @@ public:
   void                            realize();
   void                            cleanup();
 
-  std::shared_ptr<CommandBuffer>  beginSingleTimeCommands(CommandPool* commandPool);
+  std::shared_ptr<CommandBuffer>  beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool);
   // if user knows that he generated no commands, but started single commands already - he may skip queue submission
   void                            endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue, bool submit = true);
 

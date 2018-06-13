@@ -38,6 +38,8 @@ public:
   UniformBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
   UniformBuffer(const UniformBuffer&)            = delete;
   UniformBuffer& operator=(const UniformBuffer&) = delete;
+  UniformBuffer(UniformBuffer&&)                 = delete;
+  UniformBuffer& operator=(UniformBuffer&&)      = delete;
   virtual ~UniformBuffer();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;

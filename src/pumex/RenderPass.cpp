@@ -345,21 +345,36 @@ void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string,
   definition = SubpassDefinition(VK_PIPELINE_BIND_POINT_GRAPHICS, ia, oa, ra, dsa, pa);
 }
 
-void RenderSubPass::validateGPUData(ValidateGPUVisitor& validateVisitor)
+void RenderSubPass::validate(const RenderContext& renderContext)
+{
+  renderPass->validate(renderContext);
+}
+
+void RenderSubPass::validateNodes(ValidateNodeVisitor& validateVisitor)
 {
   validateVisitor.renderContext.setRenderPass(renderPass);
-  renderPass->validate(validateVisitor.renderContext);
+  validateVisitor.renderContext.setSubpassIndex(subpassIndex);
+  validateVisitor.renderContext.setRenderOperation(operation);
 
-  if (validateVisitor.validateRenderGraphs)
-  {
-    validateVisitor.renderContext.setSubpassIndex(subpassIndex);
-    validateVisitor.renderContext.setRenderOperation(operation);
+  if (!operation->node->hasSecondaryBuffer())
+    operation->node->accept(validateVisitor);
 
-    operation->sceneNode->accept(validateVisitor);
+  validateVisitor.renderContext.setRenderOperation(nullptr);
+  validateVisitor.renderContext.setSubpassIndex(0);
+  validateVisitor.renderContext.setRenderPass(nullptr);
+}
 
-    validateVisitor.renderContext.setRenderOperation(nullptr);
-    validateVisitor.renderContext.setSubpassIndex(0);
-  }
+void RenderSubPass::validateDescriptors(ValidateDescriptorVisitor& validateVisitor)
+{
+  validateVisitor.renderContext.setRenderPass(renderPass);
+  validateVisitor.renderContext.setSubpassIndex(subpassIndex);
+  validateVisitor.renderContext.setRenderOperation(operation);
+
+  if (!operation->node->hasSecondaryBuffer())
+    operation->node->accept(validateVisitor);
+
+  validateVisitor.renderContext.setRenderOperation(nullptr);
+  validateVisitor.renderContext.setSubpassIndex(0);
   validateVisitor.renderContext.setRenderPass(nullptr);
 }
 
@@ -371,6 +386,7 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   for (auto& barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
+  VkSubpassContents subpassContents = (operation->node != nullptr && !operation->node->hasSecondaryBuffer()) ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
   if (subpassIndex == 0)
   {
     VkRect2D rectangle;
@@ -388,36 +404,22 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
       break;
     }
     
-    commandVisitor.commandBuffer->cmdBeginRenderPass
-    (
-      commandVisitor.renderContext,
-      this,
-      rectangle,
-      renderPass->clearValues,
-      operation->subpassContents
-    );
+    commandVisitor.commandBuffer->cmdBeginRenderPass( commandVisitor.renderContext, this, rectangle, renderPass->clearValues, subpassContents );
     commandVisitor.commandBuffer->cmdSetViewport(0, { viewport });
     commandVisitor.commandBuffer->cmdSetScissor(0, { rectangle });
   }
   else
   {
-    commandVisitor.commandBuffer->cmdNextSubPass(this, operation->subpassContents);
+    commandVisitor.commandBuffer->cmdNextSubPass(this, subpassContents);
   }
 
-  if (operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
-  {
-    operation->sceneNode->accept(commandVisitor);
-  }
+  if (subpassContents == VK_SUBPASS_CONTENTS_INLINE)
+    operation->node->accept(commandVisitor);
   else
-  {
-    // FIXME : call vkCmdExecuteCommands
-    // void vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers);
-  }
+    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation->node->getSecondaryBuffer(commandVisitor.renderContext).get());
 
   if (renderPass->subPasses.size() == subpassIndex + 1)
-  {
     commandVisitor.commandBuffer->cmdEndRenderPass();
-  }
 
   for (auto& barrierGroup : barriersAfterOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
@@ -442,13 +444,23 @@ ComputePass::ComputePass()
 {
 }
 
-void ComputePass::validateGPUData(ValidateGPUVisitor& validateVisitor)
+void ComputePass::validate(const RenderContext& renderContext)
+{
+} 
+
+void ComputePass::validateNodes(ValidateNodeVisitor& validateVisitor)
 {
   validateVisitor.renderContext.setRenderOperation(operation);
-  if (validateVisitor.validateRenderGraphs)
-  {
-    operation->sceneNode->accept(validateVisitor);
-  }
+  if (!operation->node->hasSecondaryBuffer())
+    operation->node->accept(validateVisitor);
+  validateVisitor.renderContext.setRenderOperation(nullptr);
+}
+
+void ComputePass::validateDescriptors(ValidateDescriptorVisitor& validateVisitor)
+{
+  validateVisitor.renderContext.setRenderOperation(operation);
+  if (!operation->node->hasSecondaryBuffer())
+    operation->node->accept(validateVisitor);
   validateVisitor.renderContext.setRenderOperation(nullptr);
 }
 
@@ -459,15 +471,11 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
   for (auto& barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
-  if (operation->subpassContents == VK_SUBPASS_CONTENTS_INLINE)
-  {
-    operation->sceneNode->accept(commandVisitor);
-  }
+  VkSubpassContents subpassContents = operation->node->hasSecondaryBuffer() ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : VK_SUBPASS_CONTENTS_INLINE;
+  if (subpassContents == VK_SUBPASS_CONTENTS_INLINE)
+    operation->node->accept(commandVisitor);
   else
-  {
-    // FIXME : call vkCmdExecuteCommands
-    // void vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers);
-  }
+    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation->node->getSecondaryBuffer(commandVisitor.renderContext).get());
 
   for (auto& barrierGroup : barriersAfterOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);

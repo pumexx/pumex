@@ -38,6 +38,10 @@ WindowTraits::WindowTraits(uint32_t sn, uint32_t ax, uint32_t ay, uint32_t aw, u
 {
 }
 
+Window::~Window()
+{
+}
+
 std::shared_ptr<Window> Window::createWindow(const WindowTraits& windowTraits)
 {
 #if defined(_WIN32)

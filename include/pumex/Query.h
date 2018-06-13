@@ -43,6 +43,8 @@ public:
   explicit QueryPool(VkQueryType queryType, uint32_t poolSize, VkQueryPipelineStatisticFlags pipelineStatistics = 0);
   QueryPool(const QueryPool&)            = delete;
   QueryPool& operator=(const QueryPool&) = delete;
+  QueryPool(QueryPool&&)                 = delete;
+  QueryPool& operator=(QueryPool&&)      = delete;
   virtual ~QueryPool();
 
   void                  validate(Surface* surface);

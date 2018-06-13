@@ -50,11 +50,11 @@ const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const ViewerTraits& vt)
   : viewerTraits{ vt }, 
-  startUpdateGraph            { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  endUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  renderGraphStart            { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  renderGraphEventRenderStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
-  renderGraphFinish           { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
+  opStartUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opEndUpdateGraph                { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opRenderGraphStart            { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opRenderGraphEventRenderStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
+  opRenderGraphFinish           { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
 {
   viewerStartTime     = HPClock::now();
   for(uint32_t i=0; i<3;++i)
@@ -222,7 +222,7 @@ void Viewer::run()
         renderContinueRun = !terminating();
         if (renderContinueRun)
         {
-          renderGraphStart.try_put(tbb::flow::continue_msg());
+          opRenderGraphStart.try_put(tbb::flow::continue_msg());
           renderGraph.wait_for_all();
         }
       }
@@ -276,7 +276,7 @@ void Viewer::run()
     {
       try
       {
-        startUpdateGraph.try_put(tbb::flow::continue_msg());
+        opStartUpdateGraph.try_put(tbb::flow::continue_msg());
         updateGraph.wait_for_all();
       }
       catch (...)
@@ -428,79 +428,147 @@ void Viewer::cleanupDebugging()
 void Viewer::buildRenderGraph()
 {
   renderGraph.reset();
-  beginSurfaceFrame.clear();
-  prepareSurfaceFrame.clear();
-  validateSurfaceFrame.clear();
-  drawSurfaceFrame.clear();
-  endSurfaceFrame.clear();
-  primaryBuffers.clear();
+
+  opSurfaceBeginFrame.clear();
+  opSurfaceEventRenderStart.clear();
+  opSurfaceValidateWorkflow.clear();
+  opSurfaceValidateSecondaryNodes.clear();
+  opSurfaceBarrier0.clear(); 
+  opSurfaceValidateSecondaryDescriptors.clear(); 
+  opSurfaceBarrier1.clear(); 
+  opSurfaceSecondaryCommandBuffers.clear(); 
+  opSurfaceDrawFrame.clear(); 
+  opSurfaceEndFrame.clear();
+
+  opSurfaceValidatePrimaryNodes.clear();
+  opSurfaceValidatePrimaryDescriptors.clear();
+  opSurfacePrimaryBuffers.clear();
 
   std::vector<Surface*> surfacePointers;
   for (auto& surf : surfaces)
   {
     Surface* surface = surf.second.get();
     surfacePointers.emplace_back(surface);
-    beginSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceBeginFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->beginFrame();
     });
-    prepareSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceEventRenderStart.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->onEventSurfaceRenderStart();
     });
-    validateSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceValidateWorkflow.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->validateWorkflow();
     });
-
-    auto jit = primaryBuffers.find(surface);
-    if(jit == end(primaryBuffers))
-      jit = primaryBuffers.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
-
-    for (uint32_t i = 0; i < surface->queues.size(); ++i)
     {
-      jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+      auto jit = opSurfaceValidatePrimaryNodes.find(surface);
+      if (jit == end(opSurfaceValidatePrimaryNodes))
+        jit = opSurfaceValidatePrimaryNodes.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
+      for (uint32_t i = 0; i < surface->queues.size(); ++i)
       {
-        surface->buildPrimaryCommandBuffer(i);
-      });
+        jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+        {
+          surface->validatePrimaryNodes(i);
+        });
+      }
     }
-    drawSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      auto jit = opSurfaceValidatePrimaryDescriptors.find(surface);
+      if (jit == end(opSurfaceValidatePrimaryDescriptors))
+        jit = opSurfaceValidatePrimaryDescriptors.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
+      for (uint32_t i = 0; i < surface->queues.size(); ++i)
+      {
+        jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+        {
+          surface->validatePrimaryDescriptors(i);
+        });
+      }
+    }
+    {
+      auto jit = opSurfacePrimaryBuffers.find(surface);
+      if (jit == end(opSurfacePrimaryBuffers))
+        jit = opSurfacePrimaryBuffers.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
+      for (uint32_t i = 0; i < surface->queues.size(); ++i)
+      {
+        jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+        {
+          surface->buildPrimaryCommandBuffer(i);
+        });
+      }
+    }
+    opSurfaceValidateSecondaryNodes.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->validateSecondaryNodes();
+    });
+    opSurfaceValidateSecondaryDescriptors.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->validateSecondaryDescriptors();
+    });
+    opSurfaceSecondaryCommandBuffers.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      surface->buildSecondaryCommandBuffers();
+    });
+    opSurfaceBarrier0.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      doNothing();
+    });
+    opSurfaceBarrier1.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      doNothing();
+    });
+    opSurfaceDrawFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->draw();
     });
-    endSurfaceFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceEndFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->endFrame();
       surface->onEventSurfaceRenderFinish();
     });
   }
 
-  tbb::flow::make_edge(renderGraphStart, renderGraphEventRenderStart);
+  tbb::flow::make_edge(opRenderGraphStart, opRenderGraphEventRenderStart);
   for (uint32_t i = 0; i < surfacePointers.size(); ++i)
   {
-    tbb::flow::make_edge(renderGraphStart, beginSurfaceFrame[i]);
-    tbb::flow::make_edge(renderGraphStart, prepareSurfaceFrame[i]);
+    tbb::flow::make_edge(opRenderGraphStart, opSurfaceBeginFrame[i]);
+    tbb::flow::make_edge(opRenderGraphStart, opSurfaceEventRenderStart[i]);
     
-    tbb::flow::make_edge(beginSurfaceFrame[i], validateSurfaceFrame[i]);
-    tbb::flow::make_edge(prepareSurfaceFrame[i], validateSurfaceFrame[i]);
-    tbb::flow::make_edge(renderGraphEventRenderStart, validateSurfaceFrame[i]);
+    tbb::flow::make_edge(opSurfaceBeginFrame[i], opSurfaceValidateWorkflow[i]);
+    tbb::flow::make_edge(opSurfaceEventRenderStart[i], opSurfaceValidateWorkflow[i]);
+    tbb::flow::make_edge(opRenderGraphEventRenderStart, opSurfaceValidateWorkflow[i]);
 
-    auto jit = primaryBuffers.find(surfacePointers[i]);
-    if (jit == end(primaryBuffers) || jit->second.size() == 0)
+    auto jit0 = opSurfaceValidatePrimaryNodes.find(surfacePointers[i]);
+    if (jit0 == end(opSurfaceValidatePrimaryNodes) || jit0->second.size() == 0)
     {
-      // no command buffer building ? Maybe we should throw an error ?
-      tbb::flow::make_edge(validateSurfaceFrame[i], drawSurfaceFrame[i]);
+      // no primary command buffer building ? Maybe we should throw an error ?
+      tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceDrawFrame[i]);
     }
     else
     {
-      for (uint32_t j = 0; j < jit->second.size(); ++j)
+      auto jit1 = opSurfaceValidatePrimaryDescriptors.find(surfacePointers[i]);
+      auto jit2 = opSurfacePrimaryBuffers.find(surfacePointers[i]);
+
+      for (uint32_t j = 0; j < jit0->second.size(); ++j)
       {
-        tbb::flow::make_edge(validateSurfaceFrame[i], jit->second[j]);
-        tbb::flow::make_edge(jit->second[j], drawSurfaceFrame[i]);
+        tbb::flow::make_edge(opSurfaceValidateWorkflow[i], jit0->second[j]);
+        tbb::flow::make_edge(jit0->second[j], opSurfaceBarrier0[i]);
+        tbb::flow::make_edge(opSurfaceBarrier0[i], jit1->second[j]);
+        tbb::flow::make_edge(jit1->second[j], opSurfaceBarrier1[i]);
+        tbb::flow::make_edge(opSurfaceBarrier1[i], jit2->second[j]);
+        tbb::flow::make_edge(jit2->second[j], opSurfaceDrawFrame[i]);
       }
     }
-    tbb::flow::make_edge(drawSurfaceFrame[i], endSurfaceFrame[i]);
-    tbb::flow::make_edge(endSurfaceFrame[i], renderGraphFinish);
+
+    tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceValidateSecondaryNodes[i]);
+    tbb::flow::make_edge(opSurfaceValidateSecondaryNodes[i], opSurfaceBarrier0[i]);
+    tbb::flow::make_edge(opSurfaceBarrier0[i], opSurfaceValidateSecondaryDescriptors[i]);
+    tbb::flow::make_edge(opSurfaceValidateSecondaryDescriptors[i], opSurfaceBarrier1[i]);
+    tbb::flow::make_edge(opSurfaceBarrier1[i], opSurfaceSecondaryCommandBuffers[i]);
+    tbb::flow::make_edge(opSurfaceSecondaryCommandBuffers[i], opSurfaceDrawFrame[i]);
+
+    tbb::flow::make_edge(opSurfaceDrawFrame[i], opSurfaceEndFrame[i]);
+    tbb::flow::make_edge(opSurfaceEndFrame[i], opRenderGraphFinish);
   }
 }
 

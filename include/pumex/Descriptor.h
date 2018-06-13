@@ -62,6 +62,8 @@ public:
   explicit DescriptorPool(uint32_t defaultPoolSize = 8);
   DescriptorPool(const DescriptorPool&)            = delete;
   DescriptorPool& operator=(const DescriptorPool&) = delete;
+  DescriptorPool(DescriptorPool&&)                 = delete;
+  DescriptorPool& operator=(DescriptorPool&&)      = delete;
   virtual ~DescriptorPool();
 
   void             registerPool(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout);
@@ -124,7 +126,7 @@ class PUMEX_EXPORT Descriptor : public std::enable_shared_from_this<Descriptor>
 public:
   Descriptor(std::shared_ptr<DescriptorSet> owner, std::shared_ptr<Resource> resource, VkDescriptorType descriptorType);
   Descriptor(std::shared_ptr<DescriptorSet> owner, const std::vector<std::shared_ptr<Resource>>& resources, VkDescriptorType descriptorType);
-  ~Descriptor();
+  virtual ~Descriptor();
 
   void registerInResources();
   void unregisterFromResources();
@@ -147,6 +149,8 @@ public:
   explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout);
   DescriptorSet(const DescriptorSet&)            = delete;
   DescriptorSet& operator=(const DescriptorSet&) = delete;
+  DescriptorSet(DescriptorSet&&)                 = delete;
+  DescriptorSet& operator=(DescriptorSet&&)      = delete;
   virtual ~DescriptorSet();
 
   void                        validate(const RenderContext& renderContext);

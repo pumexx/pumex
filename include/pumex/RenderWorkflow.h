@@ -179,21 +179,20 @@ class PUMEX_EXPORT RenderOperation
 public:
   enum Type { Graphics, Compute };
 
-  RenderOperation(const std::string& name, Type operationType, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f)), VkSubpassContents subpassContents = VK_SUBPASS_CONTENTS_INLINE);
+  RenderOperation(const std::string& name, Type operationType, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f)));
   virtual ~RenderOperation();
 
-  void setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
-  void setSceneNode(std::shared_ptr<Node> node);
+  void                  setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
+  void                  setRenderOperationNode(std::shared_ptr<Node> node);
+  std::shared_ptr<Node> getRenderOperationNode();
 
 
   std::string                   name;
   Type                          operationType;
   AttachmentSize                attachmentSize;
 
-  VkSubpassContents             subpassContents;
-
   std::weak_ptr<RenderWorkflow> renderWorkflow;
-  std::shared_ptr<Node>         sceneNode;
+  std::shared_ptr<Node>         node;
 
   bool                          enabled; // not implemented
 };
@@ -228,7 +227,7 @@ public:
   ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags, const BufferSubresourceRange& bufferSubresourceRange);
   // constructor for images
   ResourceTransition(std::shared_ptr<RenderOperation> operation, std::shared_ptr<WorkflowResource> resource, ResourceTransitionType transitionType, VkImageLayout layout, const LoadOp& load, const ImageSubresourceRange& imageSubresourceRange);
-  // destructor
+  // surprise! Destructor
   ~ResourceTransition();
 
   std::shared_ptr<RenderOperation>  operation;
@@ -274,6 +273,10 @@ class PUMEX_EXPORT RenderWorkflow : public std::enable_shared_from_this<RenderWo
 public:
   RenderWorkflow()                                 = delete;
   explicit RenderWorkflow(const std::string& name, std::shared_ptr<DeviceMemoryAllocator> frameBufferAllocator, const std::vector<QueueTraits>& queueTraits);
+  RenderWorkflow(const RenderWorkflow&)            = delete;
+  RenderWorkflow& operator=(const RenderWorkflow&) = delete;
+  RenderWorkflow(RenderWorkflow&&)                 = delete;
+  RenderWorkflow& operator=(RenderWorkflow&&)      = delete;
   ~RenderWorkflow();
 
   void                                             addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp);
@@ -285,13 +288,13 @@ public:
   inline const std::vector<QueueTraits>&           getQueueTraits() const;
 
   void                                             addRenderOperation(std::shared_ptr<RenderOperation> op);
-  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)), VkSubpassContents subpassContents = VK_SUBPASS_CONTENTS_INLINE);
+  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)));
 
   std::vector<std::string>                         getRenderOperationNames() const;
   std::shared_ptr<RenderOperation>                 getRenderOperation(const std::string& opName) const;
 
-  void                                             setSceneNode(const std::string& opName, std::shared_ptr<Node> node);
-  std::shared_ptr<Node>                            getSceneNode(const std::string& opName);
+  void                                             setRenderOperationNode(const std::string& opName, std::shared_ptr<Node> node);
+  std::shared_ptr<Node>                            getRenderOperationNode(const std::string& opName);
 
   void                                             addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
   void                                             addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);

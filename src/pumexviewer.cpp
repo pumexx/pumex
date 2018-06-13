@@ -390,7 +390,7 @@ int main( int argc, char * argv[] )
 
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
-    workflow->setSceneNode("rendering", renderRoot);
+    workflow->setRenderOperationNode("rendering", renderRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
     {
@@ -498,8 +498,8 @@ int main( int argc, char * argv[] )
       applicationData->processInput(surface);
       applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
     });
-    tbb::flow::make_edge(viewer->startUpdateGraph, update);
-    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+    tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
 
@@ -509,9 +509,19 @@ int main( int argc, char * argv[] )
   }
   catch (const std::exception& e)
   {
+#if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Exception thrown : ");
+    OutputDebugStringA(e.what());
+    OutputDebugStringA("\n");
+#endif
+    LOG_ERROR << "Exception thrown : " << e.what() << std::endl;
   }
   catch (...)
   {
+#if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Unknown error\n");
+#endif
+    LOG_ERROR << "Unknown error" << std::endl;
   }
   viewer->cleanup();
   FLUSH_LOG;

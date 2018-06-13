@@ -68,6 +68,8 @@ public:
   explicit Sampler(const SamplerTraits& samplerTraits, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage);
   Sampler(const Sampler&)            = delete;
   Sampler& operator=(const Sampler&) = delete;
+  Sampler(Sampler&&)                 = delete;
+  Sampler& operator=(Sampler&&)      = delete;
   virtual ~Sampler();
 
   void                              setSamplerTraits(const SamplerTraits& samplerTraits);

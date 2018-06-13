@@ -52,7 +52,9 @@ public:
   CommandPool()                              = delete;
   explicit CommandPool(uint32_t queueFamilyIndex);
   CommandPool(const CommandPool&)            = delete;
+  CommandPool(CommandPool&&)                 = delete;
   CommandPool& operator=(const CommandPool&) = delete;
+  CommandPool& operator=(CommandPool&&)      = delete;
   virtual ~CommandPool();
 
   void          validate(Device* device);
@@ -80,16 +82,19 @@ class CommandBufferSource;
 class PUMEX_EXPORT CommandBuffer
 {
 public:
-  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, Device* device, CommandPool* commandPool, uint32_t cbCount = 1);
+  CommandBuffer()                                = delete;
+  explicit CommandBuffer(VkCommandBufferLevel bufferLevel, Device* device, std::shared_ptr<CommandPool> commandPool, uint32_t cbCount = 1);
   CommandBuffer(const CommandBuffer&)            = delete;
   CommandBuffer& operator=(const CommandBuffer&) = delete;
+  CommandBuffer(CommandBuffer&&)                 = delete;
+  CommandBuffer& operator=(CommandBuffer&&)      = delete;
   virtual ~CommandBuffer();
 
   inline void     setActiveIndex(uint32_t index);
   inline uint32_t getActiveIndex() const;
 
   void            invalidate(uint32_t index);
-  inline bool     isValid(uint32_t index);
+  inline bool     isValid();
 
   void            addSource(CommandBufferSource* source);
   void            clearSources();
@@ -130,11 +135,13 @@ public:
   void            setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange) const;
   void            setImageLayout(Image& image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const;
 
+  void            executeCommandBuffer(const RenderContext& renderContext, CommandBuffer* secondaryBuffer);
+
   // submit queue - no fences and semaphores
   void queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores = {}, const std::vector<VkPipelineStageFlags>& waitStages = {}, const std::vector<VkSemaphore>& signalSemaphores = {}, VkFence fence = VK_NULL_HANDLE) const;
 
   VkCommandBufferLevel         bufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  CommandPool*                 commandPool;
+  std::weak_ptr<CommandPool>   commandPool;
   VkDevice                     device = VK_NULL_HANDLE;
 protected:
   std::vector<VkCommandBuffer>   commandBuffer;
@@ -146,7 +153,7 @@ protected:
 
 void     CommandBuffer::setActiveIndex(uint32_t index) { activeIndex = index % commandBuffer.size(); }
 uint32_t CommandBuffer::getActiveIndex() const         { return activeIndex; }
-bool     CommandBuffer::isValid(uint32_t index)        { return valid[index % commandBuffer.size()]; }
+bool     CommandBuffer::isValid()                      { return valid[activeIndex]; }
 
 // helper class defining pipeline barrier used later in CommandBuffer::cmdPipelineBarrier()
 struct PUMEX_EXPORT PipelineBarrier

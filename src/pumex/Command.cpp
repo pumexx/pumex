@@ -70,13 +70,13 @@ VkCommandPool CommandPool::getHandle(VkDevice device) const
   return pddit->second.commandPool;
 }
 
-CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp, uint32_t cbc)
+CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, std::shared_ptr<CommandPool> cp, uint32_t cbc)
   : bufferLevel{ bf }, commandPool{ cp }, device{ d->device }
 {
   commandBuffer.resize(cbc);
   VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
     cmdBufAllocateInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdBufAllocateInfo.commandPool        = commandPool->getHandle(device);
+    cmdBufAllocateInfo.commandPool        = commandPool.lock()->getHandle(device);
     cmdBufAllocateInfo.level              = bufferLevel;
     cmdBufAllocateInfo.commandBufferCount = cbc;
   VK_CHECK_LOG_THROW(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffer.data()), "failed vkAllocateCommandBuffers");
@@ -86,7 +86,7 @@ CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, CommandPool* cp
 CommandBuffer::~CommandBuffer()
 {
   clearSources();
-  vkFreeCommandBuffers(device, commandPool->getHandle(device), commandBuffer.size(), commandBuffer.data());
+  vkFreeCommandBuffers(device, commandPool.lock()->getHandle(device), commandBuffer.size(), commandBuffer.data());
 }
 
 void CommandBuffer::invalidate(uint32_t index) 
@@ -471,6 +471,13 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     subresourceRange.layerCount     = image.getImageTraits().arrayLayers;
   setImageLayout(image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
+
+void CommandBuffer::executeCommandBuffer(const RenderContext& renderContext, CommandBuffer* secondaryBuffer)
+{
+  VkCommandBuffer secBuffer = secondaryBuffer->getHandle();
+  vkCmdExecuteCommands(commandBuffer[activeIndex], 1, &secBuffer);
+}
+
 
 void CommandBuffer::queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores, const std::vector<VkPipelineStageFlags>& waitStages, const std::vector<VkSemaphore>& signalSemaphores, VkFence fence ) const
 {

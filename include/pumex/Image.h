@@ -63,6 +63,8 @@ public:
   explicit Image(Device* device, VkImage image, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1);
   Image(const Image&)                = delete;
   Image& operator=(const Image&)     = delete;
+  Image(Image&&)                     = delete;
+  Image& operator=(Image&&)          = delete;
   virtual ~Image();
 
   inline VkDevice           getDevice() const;

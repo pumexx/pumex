@@ -950,7 +950,7 @@ int main(int argc, char * argv[])
 
     auto computeRoot = std::make_shared<pumex::Group>();
     computeRoot->setName("computeRoot");
-    workflow->setSceneNode("crowd_compute", computeRoot);
+    workflow->setRenderOperationNode("crowd_compute", computeRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
     {
@@ -981,7 +981,7 @@ int main(int argc, char * argv[])
 
     applicationData->setupInstances(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, assetBufferFilterNode);
 
-    // FIXME : instance count
+    // TODO : instance count
     uint32_t instanceCount = applicationData->updateData.people.size() + applicationData->updateData.clothes.size();
     auto dispatchNode = std::make_shared<pumex::DispatchNode>(instanceCount / 16 + ((instanceCount % 16 > 0) ? 1 : 0), 1, 1);
     dispatchNode->setName("dispatchNode");
@@ -1008,7 +1008,7 @@ int main(int argc, char * argv[])
 
     auto renderingRoot = std::make_shared<pumex::Group>();
     renderingRoot->setName("renderingRoot");
-    workflow->setSceneNode("rendering", renderingRoot);
+    workflow->setRenderOperationNode("rendering", renderingRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
     {
@@ -1047,7 +1047,7 @@ int main(int argc, char * argv[])
     assetBufferNode->setName("assetBufferNode");
     instancedRenderPipeline->addChild(assetBufferNode);
 
-    auto assetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+    auto assetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(assetBufferFilterNode, MAIN_RENDER_MASK);
     assetBufferDrawIndirect->setName("assetBufferDrawIndirect");
     assetBufferNode->addChild(assetBufferDrawIndirect);
 
@@ -1159,8 +1159,8 @@ int main(int argc, char * argv[])
       applicationData->setTime(1020, updateBeginTime);
     });
 
-    tbb::flow::make_edge(viewer->startUpdateGraph, update);
-    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+    tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     // set render callbacks to application data
     viewer->setEventRenderStart(std::bind(&CrowdApplicationData::prepareBuffersForRendering, applicationData, std::placeholders::_1));

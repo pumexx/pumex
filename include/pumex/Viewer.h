@@ -59,7 +59,7 @@ struct PUMEX_EXPORT ViewerTraits
   // use debugReportCallback if you want to overwrite default messageCallback() logging function
   VkDebugReportCallbackEXT debugReportCallback = nullptr;
 
-  uint32_t updatesPerSecond = 100;
+  uint32_t                 updatesPerSecond = 100;
 };
 
 // Viewer class stores Vulkan instance and manages devices and surfaces.
@@ -71,6 +71,8 @@ public:
   explicit Viewer(const ViewerTraits& viewerTraits);
   Viewer(const Viewer&)            = delete;
   Viewer& operator=(const Viewer&) = delete;
+  Viewer(Viewer&&)                 = delete;
+  Viewer& operator=(Viewer&&)      = delete;
   ~Viewer();
 
   std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<const char*>& requestedExtensions);
@@ -111,8 +113,8 @@ public:
   bool                                                viewerTerminate  = false;
 
   tbb::flow::graph                                    updateGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg > startUpdateGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg > endUpdateGraph;
+  tbb::flow::continue_node< tbb::flow::continue_msg > opStartUpdateGraph;
+  tbb::flow::continue_node< tbb::flow::continue_msg > opEndUpdateGraph;
 
 protected:
   bool realized = false;
@@ -160,11 +162,11 @@ protected:
   VkDebugReportCallbackEXT                               msgCallback;
 
   tbb::flow::graph                                       renderGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphStart;
-  tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphEventRenderStart;
-  tbb::flow::continue_node< tbb::flow::continue_msg >    renderGraphFinish;
-  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> beginSurfaceFrame, prepareSurfaceFrame, validateSurfaceFrame, drawSurfaceFrame, endSurfaceFrame;
-  std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> primaryBuffers;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphStart;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphEventRenderStart;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphFinish;
+  std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> opSurfaceBeginFrame, opSurfaceEventRenderStart, opSurfaceValidateWorkflow, opSurfaceValidateSecondaryNodes, opSurfaceBarrier0, opSurfaceValidateSecondaryDescriptors, opSurfaceBarrier1, opSurfaceSecondaryCommandBuffers, opSurfaceDrawFrame, opSurfaceEndFrame;
+  std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> opSurfaceValidatePrimaryNodes, opSurfaceValidatePrimaryDescriptors, opSurfacePrimaryBuffers;
 
   bool                                                   renderGraphValid = false;
 };

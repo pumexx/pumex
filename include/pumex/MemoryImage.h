@@ -67,6 +67,8 @@ public:
   explicit MemoryImage(std::shared_ptr<gli::texture> texture, std::shared_ptr<DeviceMemoryAllocator> allocator, VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_SAMPLED_BIT, PerObjectBehaviour perObjectBehaviour = pbPerDevice);
   MemoryImage(const MemoryImage&)            = delete;
   MemoryImage& operator=(const MemoryImage&) = delete;
+  MemoryImage(MemoryImage&&)                 = delete;
+  MemoryImage& operator=(MemoryImage&&)      = delete;
   virtual ~MemoryImage();
 
   MemoryImage*  asMemoryImage() override;
@@ -118,6 +120,9 @@ public:
       : owner{ o }, type{ t }, imageRange{ r }
     {
       resize(ac);
+    }
+    virtual ~Operation()
+    {
     }
     void resize(uint32_t ac)
     {
@@ -175,6 +180,8 @@ public:
   ImageView(std::shared_ptr<MemoryImage> texture, const ImageSubresourceRange& subresourceRange, VkImageViewType viewType, VkFormat format = VK_FORMAT_UNDEFINED, const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
   ImageView(const ImageView&)            = delete;
   ImageView& operator=(const ImageView&) = delete;
+  ImageView(ImageView&&)                 = delete;
+  ImageView& operator=(ImageView&&)      = delete;
   virtual ~ImageView();
 
   VkImage      getHandleImage(const RenderContext& renderContext) const;

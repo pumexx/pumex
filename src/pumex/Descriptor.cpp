@@ -374,7 +374,7 @@ VkDescriptorSet DescriptorSet::getHandle(const RenderContext& renderContext) con
 void DescriptorSet::invalidateOwners()
 {
   for (auto& n : nodeOwners)
-    n.lock()->invalidateParents();
+    n.lock()->invalidateDescriptorsAndParents();
 }
 
 void DescriptorSet::notify()

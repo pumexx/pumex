@@ -71,12 +71,22 @@ void Node::removeParent(std::shared_ptr<Group> parent)
     parents.erase(it);
 }
 
+bool Node::isInSecondaryBuffer()
+{
+  if (secondaryBufferPresent)
+    return true;
+  for (auto& p : parents)
+    if (p.lock()->isInSecondaryBuffer())
+      return true;
+  return false;
+}
+
 void Node::setDescriptorSet(uint32_t index, std::shared_ptr<DescriptorSet> descriptorSet)
 {
   std::lock_guard<std::mutex> lock(mutex);
   descriptorSets[index] = descriptorSet;
   descriptorSet->addNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
-  invalidateParents();
+  invalidateParentsDescriptor();
 }
 
 void Node::resetDescriptorSet(uint32_t index)
@@ -87,7 +97,7 @@ void Node::resetDescriptorSet(uint32_t index)
     return;
   it->second->removeNode(std::dynamic_pointer_cast<Node>(shared_from_this()));
   descriptorSets.erase(it);
-  invalidateParents();
+  invalidateParentsDescriptor();
 }
 
 std::shared_ptr<DescriptorSet> Node::getDescriptorSet(uint32_t index)
@@ -99,12 +109,8 @@ std::shared_ptr<DescriptorSet> Node::getDescriptorSet(uint32_t index)
   return it->second;
 }
 
-
 bool Node::nodeValidate(const RenderContext& renderContext)
 {
-  for (auto& descriptorSet : descriptorSets)
-    descriptorSet.second->validate(renderContext);
-
   std::lock_guard<std::mutex> lock(mutex);
   if (activeCount < renderContext.imageCount)
   {
@@ -116,32 +122,38 @@ bool Node::nodeValidate(const RenderContext& renderContext)
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
+  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool==nullptr)
+  {
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(renderContext.surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderContext.device, pddit->second.commonData.secondaryCommandPool, activeCount);
+  }
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   if (pddit->second.valid[activeIndex])
-    return !pddit->second.data[activeIndex].childrenValid;
+    return !pddit->second.data[activeIndex].childNodesValid;
 
   validate(renderContext);
 
   pddit->second.valid[activeIndex] = true;
-  return !pddit->second.data[activeIndex].childrenValid;
+  return !pddit->second.data[activeIndex].childNodesValid;
 }
 
-void Node::setChildrenValid(const RenderContext& renderContext)
+void Node::setChildNodesValid(const RenderContext& renderContext)
 {
   auto keyValue = getKeyID(renderContext, pbPerSurface);
   auto pddit = perObjectData.find(keyValue);
   if (pddit == end(perObjectData))
     return;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
-  pddit->second.data[activeIndex].childrenValid = true;
+  pddit->second.data[activeIndex].childNodesValid = true;
 }
 
 void Node::invalidateNodeAndParents()
 {
   for (auto& pdd : perObjectData)
     pdd.second.invalidate();
-  for (auto& parent : parents)
-    parent.lock()->invalidateParents();
+  if(!hasSecondaryBuffer())
+    for (auto& parent : parents)
+      parent.lock()->invalidateParentsNode();
 }
 
 void Node::invalidateNodeAndParents(Surface* surface)
@@ -149,48 +161,167 @@ void Node::invalidateNodeAndParents(Surface* surface)
   auto pddit = perObjectData.find(surface->getID());
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
+  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool==nullptr)
+  {
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, surface->device.lock().get(), pddit->second.commonData.secondaryCommandPool, activeCount);
+  }
   pddit->second.invalidate();
-  for (auto& parent : parents)
-    parent.lock()->invalidateParents(surface);
+  if (!hasSecondaryBuffer())
+    for (auto& parent : parents)
+      parent.lock()->invalidateParentsNode(surface);
 }
 
-void Node::invalidateParents()
+void Node::invalidateDescriptorsAndParents()
+{
+  for (auto& pdd : perObjectData)
+    for (uint32_t i = 0; i < activeCount; ++i)
+      pdd.second.data[i].descriptorsValid = false;
+  if (!hasSecondaryBuffer())
+    for (auto& parent : parents)
+      parent.lock()->invalidateParentsDescriptor();
+}
+
+void Node::invalidateDescriptorsAndParents(Surface* surface)
+{
+  auto pddit = perObjectData.find(surface->getID());
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
+  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool == nullptr)
+  {
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, surface->device.lock().get(), pddit->second.commonData.secondaryCommandPool, activeCount);
+  }
+  for (uint32_t i = 0; i < activeCount; ++i)
+    pddit->second.data[i].descriptorsValid = false;
+  if (!hasSecondaryBuffer())
+    for (auto& parent : parents)
+      parent.lock()->invalidateParentsDescriptor(surface);
+}
+
+void Node::useSecondaryBuffer()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  CHECK_LOG_THROW(isInSecondaryBuffer() && !secondaryBufferPresent, "Cannot set secondary buffer : one of the parents uses secondary buffer already");
+  secondaryBufferPresent = true;
+  invalidateNodeAndParents();
+  for (auto& p : parents)
+    p.lock()->checkChildrenForSecondaryBuffers();
+}
+
+std::shared_ptr<CommandBuffer> Node::getSecondaryBuffer(const RenderContext& renderContext)
+{ 
+  std::lock_guard<std::mutex> lock(mutex);
+  if (activeCount < renderContext.imageCount)
+  {
+    activeCount = renderContext.imageCount;
+    for (auto& pdd : perObjectData)
+      pdd.second.resize(activeCount);
+  }
+  auto keyValue = getKeyID(renderContext, pbPerSurface);
+  auto pddit = perObjectData.find(keyValue);
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
+  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool == nullptr)
+  {
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(renderContext.surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderContext.device, pddit->second.commonData.secondaryCommandPool, activeCount);
+  }
+  return pddit->second.commonData.secondaryCommandBuffer;
+}
+
+
+bool Node::hasSecondaryBufferChildren()
+{
+  return false; // only groups can have children
+}
+
+void Node::invalidateParentsNode()
 {
   bool needInvalidateParents = false;
   for (auto& pdd : perObjectData)
   {
     for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
     {
-      if (pdd.second.data[i].childrenValid)
+      if (pdd.second.data[i].childNodesValid)
       {
-        pdd.second.data[i].childrenValid = false;
+        pdd.second.data[i].childNodesValid = false;
         needInvalidateParents = true;
       }
     }
   }
-  if( needInvalidateParents )
+  if( needInvalidateParents &&  !hasSecondaryBuffer() )
     for (auto& parent : parents)
-      parent.lock()->invalidateParents();
+      parent.lock()->invalidateParentsNode();
 }
 
-void Node::invalidateParents(Surface* surface)
+void Node::invalidateParentsNode(Surface* surface)
 {
   auto pddit = perObjectData.find(surface->getID());
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
+  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool == nullptr)
+  {
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, surface->device.lock().get(), pddit->second.commonData.secondaryCommandPool, activeCount);
+  }
 
   bool needInvalidateParents = false;
   for (uint32_t i = 0; i < pddit->second.data.size(); ++i)
   {
-    if (pddit->second.data[i].childrenValid)
+    if (pddit->second.data[i].childNodesValid)
     {
-      pddit->second.data[i].childrenValid = false;
+      pddit->second.data[i].childNodesValid = false;
       needInvalidateParents = true;
     }
   }
-  if (needInvalidateParents)
+  if (needInvalidateParents && !hasSecondaryBuffer())
     for (auto& parent : parents)
-      parent.lock()->invalidateParents(surface);
+      parent.lock()->invalidateParentsNode(surface);
+}
+
+void Node::invalidateParentsDescriptor()
+{
+  bool needInvalidateParents = false;
+  for (auto& pdd : perObjectData)
+  {
+    for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
+    {
+      if (pdd.second.data[i].descriptorsValid)
+      {
+        pdd.second.data[i].descriptorsValid = false;
+        needInvalidateParents = true;
+      }
+    }
+  }
+  if (needInvalidateParents && !hasSecondaryBuffer())
+    for (auto& parent : parents)
+      parent.lock()->invalidateParentsDescriptor();
+}
+
+void Node::invalidateParentsDescriptor(Surface* surface)
+{
+  auto pddit = perObjectData.find(surface->getID());
+  if (pddit == end(perObjectData))
+    pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
+  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool == nullptr)
+  {
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, surface->device.lock().get(), pddit->second.commonData.secondaryCommandPool, activeCount);
+  }
+
+  bool needInvalidateParents = false;
+  for (uint32_t i = 0; i < pddit->second.data.size(); ++i)
+  {
+    if (pddit->second.data[i].descriptorsValid)
+    {
+      pddit->second.data[i].descriptorsValid = false;
+      needInvalidateParents = true;
+    }
+  }
+  if (needInvalidateParents && !hasSecondaryBuffer())
+    for (auto& parent : parents)
+      parent.lock()->invalidateParentsDescriptor(surface);
 }
 
 Group::Group()
@@ -221,8 +352,10 @@ void Group::traverse(NodeVisitor& visitor)
 void Group::addChild(std::shared_ptr<Node> child)
 {
   std::lock_guard<std::mutex> lock(mutex);
+  CHECK_LOG_THROW(isInSecondaryBuffer() && ( child->hasSecondaryBuffer() || child->hasSecondaryBufferChildren() ), "Cannot add child : both parent and child have secondary buffers already")
   children.push_back(child);
   child->addParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
+  checkChildrenForSecondaryBuffers();
   child->invalidateNodeAndParents();
 }
 
@@ -234,11 +367,39 @@ bool Group::removeChild(std::shared_ptr<Node> child)
     return false;
   child->removeParent(std::dynamic_pointer_cast<Group>(shared_from_this()));
   children.erase(it);
-  invalidateParents();
+  checkChildrenForSecondaryBuffers();
+  invalidateParentsNode();
   child->invalidateNodeAndParents();
   return true;
+}
+
+void Group::useSecondaryBuffer()
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  CHECK_LOG_THROW(hasSecondaryBufferChildren(), "Cannot set secondary buffer : one of the children uses secondary buffer already");
+  CHECK_LOG_THROW(isInSecondaryBuffer() && !secondaryBufferPresent, "Cannot set secondary buffer : one of the parents uses secondary buffer already");
+  secondaryBufferPresent = true;
+  invalidateNodeAndParents();
+  for (auto& p : parents)
+    p.lock()->checkChildrenForSecondaryBuffers();
+}
+
+bool Group::hasSecondaryBufferChildren()
+{
+  return secondaryBufferChildren;
+}
+
+void Group::checkChildrenForSecondaryBuffers()
+{
+  bool value = false;
+  for (auto it = std::begin(children); it != std::end(children); ++it)
+    value = value || (*it)->hasSecondaryBuffer() || (*it)->hasSecondaryBufferChildren();
+  secondaryBufferChildren = value;
+  for (auto& parent : parents)
+    parent.lock()->checkChildrenForSecondaryBuffers();
 }
 
 void Group::validate(const RenderContext& renderContext)
 {
 }
+

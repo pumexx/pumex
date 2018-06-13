@@ -63,6 +63,8 @@ public:
   explicit MemoryBuffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlags bufferUsage, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage, bool sameDataPerObject = true, bool useSetDataMethods = true);
   MemoryBuffer(const MemoryBuffer&)            = delete;
   MemoryBuffer& operator=(const MemoryBuffer&) = delete;
+  MemoryBuffer(MemoryBuffer&&)                 = delete;
+  MemoryBuffer& operator=(MemoryBuffer&&)      = delete;
   virtual ~MemoryBuffer();
 
   MemoryBuffer* asMemoryBuffer() override;
@@ -104,6 +106,9 @@ public:
       : owner{ o }, type{ t }, bufferRange{ r }
     {
       resize(ac);
+    }
+    virtual ~Operation()
+    {
     }
     void resize(uint32_t ac)
     {
@@ -156,11 +161,13 @@ template <typename T>
 class Buffer : public MemoryBuffer
 {
 public:
-  Buffer() = delete;
+  Buffer()                         = delete;
   explicit Buffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlags bufferUsage, PerObjectBehaviour perObjectBehaviour = pbPerDevice, SwapChainImageBehaviour swapChainImageBehaviour = swForEachImage, bool useSetDataMethods = true);
   explicit Buffer(std::shared_ptr<T> data, std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlags bufferUsage, PerObjectBehaviour perObjectBehaviour, SwapChainImageBehaviour swapChainImageBehaviour);
-  Buffer(const Buffer&) = delete;
+  Buffer(const Buffer&)            = delete;
   Buffer& operator=(const Buffer&) = delete;
+  Buffer(Buffer&&)                 = delete;
+  Buffer& operator=(Buffer&&)      = delete;
   virtual ~Buffer();
 
   void               setBufferSize(Surface* surface, size_t bufferSize);
@@ -191,6 +198,8 @@ public:
   BufferView(std::shared_ptr<MemoryBuffer> memBuffer, const BufferSubresourceRange& subresourceRange, VkFormat format);
   BufferView(const BufferView&)            = delete;
   BufferView& operator=(const BufferView&) = delete;
+  BufferView(BufferView&&)                 = delete;
+  BufferView& operator=(BufferView&&)      = delete;
   virtual ~BufferView();
 
   VkBuffer      getHandleBuffer(const RenderContext& renderContext) const;

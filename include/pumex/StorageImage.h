@@ -36,6 +36,8 @@ public:
   StorageImage(std::shared_ptr<ImageView> imageView);
   StorageImage(const StorageImage&)            = delete;
   StorageImage& operator=(const StorageImage&) = delete;
+  StorageImage(StorageImage&&)                 = delete;
+  StorageImage& operator=(StorageImage&&)      = delete;
   virtual ~StorageImage();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;

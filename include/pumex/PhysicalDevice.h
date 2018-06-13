@@ -39,6 +39,8 @@ public:
   explicit PhysicalDevice(VkPhysicalDevice aDevice);
   PhysicalDevice(const PhysicalDevice&)            = delete;
   PhysicalDevice& operator=(const PhysicalDevice&) = delete;
+  PhysicalDevice(PhysicalDevice&&)                 = delete;
+  PhysicalDevice& operator=(PhysicalDevice&&)      = delete;
   virtual ~PhysicalDevice();
 
   std::vector<uint32_t> matchingFamilyIndices(const QueueTraits& queueDescription);

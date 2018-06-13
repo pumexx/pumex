@@ -30,18 +30,57 @@ namespace pumex
 	
 class CommandBuffer;
 
-// visitor that sends all dirty data to gpu ( descriptor sets, buffers, pipelines, etc ).
-class PUMEX_EXPORT ValidateGPUVisitor : public NodeVisitor
+class PUMEX_EXPORT FindSecondaryCommandBuffersVisitor : public NodeVisitor
 {
 public:
-  ValidateGPUVisitor(const RenderContext& renderContext, bool validateRenderGraphs);
+  FindSecondaryCommandBuffersVisitor();
+
+  void apply(Node& node) override;
+  void apply(Group& node) override;
+
+  std::set<Node*> nodes;
+};
+
+// visitor that validates all dirty nodes ( pipelines etc ).
+class PUMEX_EXPORT ValidateNodeVisitor : public NodeVisitor
+{
+public:
+  ValidateNodeVisitor(const RenderContext& renderContext);
 
   void apply(Node& node) override;
 
   RenderContext renderContext;
-  bool validateRenderGraphs;
 };
 
+// visitor that validates all dirty descriptor sets and descriptors
+class PUMEX_EXPORT ValidateDescriptorVisitor : public NodeVisitor
+{
+public:
+  ValidateDescriptorVisitor(const RenderContext& renderContext);
+
+  void apply(Node& node) override;
+
+  RenderContext renderContext;
+};
+
+// visitor that collects missing data for render contexts while building secondary command buffers
+const uint32_t CRCV_TARGETS = 2;
+
+class PUMEX_EXPORT CompleteRenderContextVisitor : public NodeVisitor
+{
+public:
+  CompleteRenderContextVisitor(RenderContext& renderContext);
+
+  void apply(GraphicsPipeline& node) override;
+  void apply(ComputePipeline& node) override;
+  void apply(AssetBufferNode& node) override;
+protected:
+  RenderContext& renderContext;
+  bool           targetCompleted[CRCV_TARGETS];
+};
+
+
+// visitor that builds command buffers
 class PUMEX_EXPORT BuildCommandBufferVisitor : public NodeVisitor
 {
 public:

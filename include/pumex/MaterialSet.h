@@ -109,6 +109,8 @@ public:
   explicit MaterialSet(std::shared_ptr<Viewer> viewer, std::shared_ptr<MaterialRegistryBase> materialRegistry, std::shared_ptr<TextureRegistryBase> textureRegistry, std::shared_ptr<DeviceMemoryAllocator> allocator, const std::vector<TextureSemantic>& textureSemantic);
   MaterialSet(const MaterialSet&)            = delete;
   MaterialSet& operator=(const MaterialSet&) = delete;
+  MaterialSet(MaterialSet&&)                 = delete;
+  MaterialSet& operator=(MaterialSet&&)      = delete;
   virtual ~MaterialSet();
 
   bool                                         getTargetTextureNames(uint32_t index, std::vector<std::string>& texNames) const;

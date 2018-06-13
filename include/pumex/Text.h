@@ -70,6 +70,8 @@ public:
   explicit Font(const std::string& fileName, glm::ivec2 textureSize, uint32_t fontPixelHeight, std::shared_ptr<DeviceMemoryAllocator> textureAllocator);
   Font(const Font&)            = delete;
   Font& operator=(const Font&) = delete;
+  Font(Font&&)                 = delete;
+  Font& operator=(Font&&)      = delete;
   virtual ~Font();
 
   void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
@@ -98,6 +100,8 @@ public:
   explicit Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator);
   Text(const Text&)            = delete;
   Text& operator=(const Text&) = delete;
+  Text(Text&&)                 = delete;
+  Text& operator=(Text&&)      = delete;
   virtual ~Text();
 
   void accept(NodeVisitor& visitor) override;

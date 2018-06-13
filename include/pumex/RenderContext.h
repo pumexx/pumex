@@ -33,8 +33,8 @@ class Device;
 class DescriptorPool;
 class RenderPass;
 class RenderOperation;
-class Pipeline;
-class AssetBufferNode;
+class PipelineLayout;
+class AssetBuffer;
 
 class PUMEX_EXPORT RenderContext
 {
@@ -44,13 +44,14 @@ public:
   inline void             setRenderPass(std::shared_ptr<RenderPass> renderPass);
   inline void             setSubpassIndex(uint32_t subpassIndex);
   inline void             setRenderOperation(std::shared_ptr<RenderOperation> renderOperation);
-  inline Pipeline*        setCurrentPipeline(Pipeline* pipeline);
-  inline AssetBufferNode* setCurrentAssetBufferNode(AssetBufferNode* assetBufferNode);
+  inline PipelineLayout*  setCurrentPipelineLayout(PipelineLayout* pipelineLayout);
+  inline AssetBuffer*     setCurrentAssetBuffer(AssetBuffer* assetBuffer);
+  inline uint32_t         setCurrentRenderMask(uint32_t renderMask);
 
   // elements of the context that are constant through visitor work
   Surface*                         surface                = nullptr;
   VkSurfaceKHR                     vkSurface              = VK_NULL_HANDLE;
-  CommandPool*                     commandPool            = nullptr;
+  std::shared_ptr<CommandPool>     commandPool;
   VkQueue                          queue                  = VK_NULL_HANDLE;
   Device*                          device                 = nullptr;
   VkDevice                         vkDevice               = VK_NULL_HANDLE;
@@ -62,25 +63,35 @@ public:
   std::shared_ptr<RenderPass>      renderPass;
   uint32_t                         subpassIndex           = 0;
   std::shared_ptr<RenderOperation> renderOperation;
-  Pipeline*                        currentPipeline        = nullptr; // graphics pipeline or compute pipeline
-  AssetBufferNode*                 currentAssetBufferNode = nullptr; // asset buffer
+  PipelineLayout*                  currentPipelineLayout  = nullptr; // pipeline layout
+  AssetBuffer*                     currentAssetBuffer     = nullptr; // asset buffer
+  uint32_t                         currentRenderMask      = 0;
 };
 
 void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)           { renderPass = rp; }
 void             RenderContext::setSubpassIndex(uint32_t si)                            { subpassIndex = si; }
 void             RenderContext::setRenderOperation(std::shared_ptr<RenderOperation> ro) { renderOperation = ro; }
 
-Pipeline*        RenderContext::setCurrentPipeline(Pipeline* pipeline) 
+PipelineLayout* RenderContext::setCurrentPipelineLayout(PipelineLayout* pipelineLayout)
 {
-  Pipeline* oldPipeline = currentPipeline;
-  currentPipeline       = pipeline;
-  return oldPipeline;
+  PipelineLayout* oldPipelineLayout = currentPipelineLayout;
+  currentPipelineLayout = pipelineLayout;
+  return oldPipelineLayout;
 }
-AssetBufferNode* RenderContext::setCurrentAssetBufferNode(AssetBufferNode* assetBufferNode)
+
+AssetBuffer* RenderContext::setCurrentAssetBuffer(AssetBuffer* assetBuffer)
 {
-  AssetBufferNode* oldAssetBufferNode = currentAssetBufferNode;
-  currentAssetBufferNode = assetBufferNode;
-  return oldAssetBufferNode;
+  AssetBuffer* oldAssetBuffer = currentAssetBuffer;
+  currentAssetBuffer = assetBuffer;
+  return oldAssetBuffer;
 }
+
+uint32_t RenderContext::setCurrentRenderMask(uint32_t renderMask)
+{
+  uint32_t oldRenderMask = currentRenderMask;
+  currentRenderMask = renderMask;
+  return oldRenderMask;
+}
+
 
 }

@@ -1278,7 +1278,7 @@ struct GpuCullApplicationData
       tbb::parallel_for
       (
         tbb::blocked_range<size_t>(0, updateData.dynamicObjectData.size()),
-        [=](const tbb::blocked_range<size_t>& r)
+        [&](const tbb::blocked_range<size_t>& r)
         {
           for (size_t i = r.begin(); i != r.end(); ++i)
             updateInstance(updateData.dynamicObjectData[i], timeSinceStart, updateStep);
@@ -1562,7 +1562,7 @@ int main(int argc, char * argv[])
 
     auto renderingRoot = std::make_shared<pumex::Group>();
     renderingRoot->setName("renderingRoot");
-    workflow->setSceneNode("rendering", renderingRoot);
+    workflow->setRenderOperationNode("rendering", renderingRoot);
 
     std::vector<pumex::VertexSemantic>                        vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     std::vector<pumex::TextureSemantic>                       textureSemantic = {};
@@ -1613,7 +1613,7 @@ int main(int argc, char * argv[])
 
       auto staticFilterRoot = std::make_shared<pumex::Group>();
       staticFilterRoot->setName("staticFilterRoot");
-      workflow->setSceneNode("static_filter", staticFilterRoot);
+      workflow->setRenderOperationNode("static_filter", staticFilterRoot);
 
       auto staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, staticFilterPipelineLayout);
       staticFilterPipeline->setName("staticFilterPipeline");
@@ -1684,7 +1684,7 @@ int main(int argc, char * argv[])
       staticAssetBufferNode->setName("staticAssetBufferNode");
       staticRenderPipeline->addChild(staticAssetBufferNode);
 
-      auto staticAssetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+      auto staticAssetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(staticAssetBufferFilterNode, MAIN_RENDER_MASK);
       staticAssetBufferDrawIndirect->setName("staticAssetBufferDrawIndirect");
       staticAssetBufferNode->addChild(staticAssetBufferDrawIndirect);
 
@@ -1722,7 +1722,7 @@ int main(int argc, char * argv[])
 
       auto dynamicFilterRoot = std::make_shared<pumex::Group>();
       dynamicFilterRoot->setName("staticFilterRoot");
-      workflow->setSceneNode("dynamic_filter", dynamicFilterRoot);
+      workflow->setRenderOperationNode("dynamic_filter", dynamicFilterRoot);
 
       auto dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, dynamicFilterPipelineLayout);
       dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_dynamic_filter_instances.comp.spv")), "main" };
@@ -1787,7 +1787,7 @@ int main(int argc, char * argv[])
       dynamicAssetBufferNode->setName("dynamicAssetBufferNode");
       dynamicRenderPipeline->addChild(dynamicAssetBufferNode);
 
-      auto dynamicAssetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(dynamicAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+      auto dynamicAssetBufferDrawIndirect = std::make_shared<pumex::AssetBufferIndirectDrawObjects>(dynamicAssetBufferFilterNode, MAIN_RENDER_MASK);
       dynamicAssetBufferDrawIndirect->setName("dynamicAssetBufferDrawIndirect");
       dynamicAssetBufferNode->addChild(dynamicAssetBufferDrawIndirect);
 
@@ -1897,8 +1897,8 @@ int main(int argc, char * argv[])
       applicationData->setTime(1020, updateBeginTime);
     });
 
-    tbb::flow::make_edge(viewer->startUpdateGraph, update);
-    tbb::flow::make_edge(update, viewer->endUpdateGraph);
+    tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
+    tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     // set render callbacks to application data
     viewer->setEventRenderStart(std::bind(&GpuCullApplicationData::prepareBuffersForRendering, applicationData, std::placeholders::_1));
@@ -1910,14 +1910,18 @@ int main(int argc, char * argv[])
   catch (const std::exception& e)
   {
 #if defined(_DEBUG) && defined(_WIN32)
+    OutputDebugStringA("Exception thrown : ");
     OutputDebugStringA(e.what());
+    OutputDebugStringA("\n");
 #endif
+    LOG_ERROR << "Exception thrown : " << e.what() << std::endl;
   }
   catch (...)
   {
 #if defined(_DEBUG) && defined(_WIN32)
     OutputDebugStringA("Unknown error\n");
 #endif
+    LOG_ERROR << "Unknown error" << std::endl;
   }
   viewer->cleanup();
   FLUSH_LOG;

@@ -37,6 +37,8 @@ public:
   CombinedImageSampler(std::shared_ptr<ImageView> imageView, std::shared_ptr<Sampler> sampler);
   CombinedImageSampler(const CombinedImageSampler&)            = delete;
   CombinedImageSampler& operator=(const CombinedImageSampler&) = delete;
+  CombinedImageSampler(CombinedImageSampler&&)                 = delete;
+  CombinedImageSampler& operator=(CombinedImageSampler&&)      = delete;
   virtual ~CombinedImageSampler();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;

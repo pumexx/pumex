@@ -29,7 +29,7 @@
 using namespace pumex;
 
 AssetBufferNode::AssetBufferNode(std::shared_ptr<AssetBuffer> ab, std::shared_ptr<MaterialSet> ms, uint32_t rm, uint32_t vb)
-  : assetBuffer{ ab }, materialSet{ ms }, renderMask { rm }, vertexBinding{ vb }
+  : assetBuffer{ ab }, materialSet{ ms }, renderMask{ rm }, vertexBinding{ vb }
 {
 }
 
@@ -182,9 +182,10 @@ float AssetBufferDrawObject::getDistanceToViewer() const
   return 10.0f;
 }
 
-AssetBufferIndirectDrawObjects::AssetBufferIndirectDrawObjects(std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> dc)
-  : drawCommands{ dc }
+AssetBufferIndirectDrawObjects::AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferFilterNode> filterNode, uint32_t rm)
+  : renderMask{ rm }, drawCommands{ filterNode->getDrawIndexedIndirectBuffer(rm) }
 {
+
 }
 
 void AssetBufferIndirectDrawObjects::accept(NodeVisitor& visitor)

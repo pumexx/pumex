@@ -146,6 +146,8 @@ public:
   explicit AssetBuffer(const std::vector<AssetBufferVertexSemantics>& vertexSemantics, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<DeviceMemoryAllocator> vertexIndexAllocator);
   AssetBuffer(const AssetBuffer&)            = delete;
   AssetBuffer& operator=(const AssetBuffer&) = delete;
+  AssetBuffer(AssetBuffer&&)                 = delete;
+  AssetBuffer& operator=(AssetBuffer&&)      = delete;
   virtual ~AssetBuffer();
 
   void                   registerType( uint32_t typeID, const AssetTypeDefinition& tdef);

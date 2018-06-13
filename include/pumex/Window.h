@@ -82,7 +82,7 @@ struct InputEvent
 
 // Helper class that enables iterating over modern C++ enums.
 // Found this gem on Stack Overflow : https://stackoverflow.com/questions/261963/how-can-i-iterate-over-an-enum
-// FIXME : this definitely should be moved out of here...
+// TODO : this definitely should be moved out of here...
 
 template < typename C, C beginVal, C endVal>
 class EnumIterator 
@@ -127,8 +127,9 @@ public:
   Window()                         = default;
   Window(const Window&)            = delete;
   Window& operator=(const Window&) = delete;
-  virtual ~Window()
-  {}
+  Window(Window&&)                 = delete;
+  Window& operator=(Window&&)      = delete;
+  virtual ~Window();
 
   static std::shared_ptr<Window> createWindow(const WindowTraits& windowTraits);
 

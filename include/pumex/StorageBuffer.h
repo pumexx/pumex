@@ -38,6 +38,8 @@ public:
   StorageBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
   StorageBuffer(const StorageBuffer&)            = delete;
   StorageBuffer& operator=(const StorageBuffer&) = delete;
+  StorageBuffer(StorageBuffer&&)                 = delete;
+  StorageBuffer& operator=(StorageBuffer&&)      = delete;
   virtual ~StorageBuffer();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;

@@ -36,6 +36,8 @@ public:
   SampledImage(std::shared_ptr<ImageView> imageView);
   SampledImage(const SampledImage&)            = delete;
   SampledImage& operator=(const SampledImage&) = delete;
+  SampledImage(SampledImage&&)                 = delete;
+  SampledImage& operator=(SampledImage&&)      = delete;
   virtual ~SampledImage();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;

@@ -22,6 +22,7 @@
 
 #pragma once
 #include <assimp/Importer.hpp> 
+#include <memory>
 #include <assimp/scene.h>     
 #include <assimp/postprocess.h>
 #include <pumex/Export.h>
@@ -35,7 +36,7 @@ class PUMEX_EXPORT AssetLoaderAssimp : public AssetLoader
 {
 public:
   explicit AssetLoaderAssimp();
-  Asset* load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) override;
+  std::shared_ptr<Asset> load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) override;
 
   inline unsigned int getImportFlags() const;
   inline void setImportFlags(unsigned int flags);

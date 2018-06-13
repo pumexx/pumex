@@ -38,6 +38,8 @@ public:
   explicit WindowWin32(const WindowTraits& windowTraits);
   WindowWin32(const WindowWin32&)            = delete;
   WindowWin32& operator=(const WindowWin32&) = delete;
+  WindowWin32(WindowWin32&&)                 = delete;
+  WindowWin32& operator=(WindowWin32&&)      = delete;
   virtual ~WindowWin32();
 
   static void              registerWindow(HWND hwnd, WindowWin32* window);
