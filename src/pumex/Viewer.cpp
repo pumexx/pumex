@@ -435,7 +435,6 @@ void Viewer::buildRenderGraph()
   opSurfaceValidateSecondaryNodes.clear();
   opSurfaceBarrier0.clear(); 
   opSurfaceValidateSecondaryDescriptors.clear(); 
-  opSurfaceBarrier1.clear(); 
   opSurfaceSecondaryCommandBuffers.clear(); 
   opSurfaceDrawFrame.clear(); 
   opSurfaceEndFrame.clear();
@@ -501,21 +500,18 @@ void Viewer::buildRenderGraph()
     {
       surface->validateSecondaryNodes();
     });
+    opSurfaceBarrier0.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    {
+      doNothing();
+    });
     opSurfaceValidateSecondaryDescriptors.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
       surface->validateSecondaryDescriptors();
     });
     opSurfaceSecondaryCommandBuffers.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
+      surface->setCommandBufferIndices();
       surface->buildSecondaryCommandBuffers();
-    });
-    opSurfaceBarrier0.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
-    {
-      doNothing();
-    });
-    opSurfaceBarrier1.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
-    {
-      doNothing();
     });
     opSurfaceDrawFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
@@ -538,11 +534,17 @@ void Viewer::buildRenderGraph()
     tbb::flow::make_edge(opSurfaceEventRenderStart[i], opSurfaceValidateWorkflow[i]);
     tbb::flow::make_edge(opRenderGraphEventRenderStart, opSurfaceValidateWorkflow[i]);
 
+    tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceValidateSecondaryNodes[i]);
+    tbb::flow::make_edge(opSurfaceValidateSecondaryNodes[i], opSurfaceBarrier0[i]);
+    tbb::flow::make_edge(opSurfaceBarrier0[i], opSurfaceValidateSecondaryDescriptors[i]);
+    tbb::flow::make_edge(opSurfaceValidateSecondaryDescriptors[i], opSurfaceSecondaryCommandBuffers[i]);
+
     auto jit0 = opSurfaceValidatePrimaryNodes.find(surfacePointers[i]);
     if (jit0 == end(opSurfaceValidatePrimaryNodes) || jit0->second.size() == 0)
     {
       // no primary command buffer building ? Maybe we should throw an error ?
-      tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceDrawFrame[i]);
+      tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceSecondaryCommandBuffers[i]);
+      tbb::flow::make_edge(opSurfaceSecondaryCommandBuffers[i], opSurfaceDrawFrame[i]);
     }
     else
     {
@@ -554,18 +556,11 @@ void Viewer::buildRenderGraph()
         tbb::flow::make_edge(opSurfaceValidateWorkflow[i], jit0->second[j]);
         tbb::flow::make_edge(jit0->second[j], opSurfaceBarrier0[i]);
         tbb::flow::make_edge(opSurfaceBarrier0[i], jit1->second[j]);
-        tbb::flow::make_edge(jit1->second[j], opSurfaceBarrier1[i]);
-        tbb::flow::make_edge(opSurfaceBarrier1[i], jit2->second[j]);
+        tbb::flow::make_edge(jit1->second[j], opSurfaceSecondaryCommandBuffers[i]);
+        tbb::flow::make_edge(opSurfaceSecondaryCommandBuffers[i], jit2->second[j]);
         tbb::flow::make_edge(jit2->second[j], opSurfaceDrawFrame[i]);
       }
     }
-
-    tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceValidateSecondaryNodes[i]);
-    tbb::flow::make_edge(opSurfaceValidateSecondaryNodes[i], opSurfaceBarrier0[i]);
-    tbb::flow::make_edge(opSurfaceBarrier0[i], opSurfaceValidateSecondaryDescriptors[i]);
-    tbb::flow::make_edge(opSurfaceValidateSecondaryDescriptors[i], opSurfaceBarrier1[i]);
-    tbb::flow::make_edge(opSurfaceBarrier1[i], opSurfaceSecondaryCommandBuffers[i]);
-    tbb::flow::make_edge(opSurfaceSecondaryCommandBuffers[i], opSurfaceDrawFrame[i]);
 
     tbb::flow::make_edge(opSurfaceDrawFrame[i], opSurfaceEndFrame[i]);
     tbb::flow::make_edge(opSurfaceEndFrame[i], opRenderGraphFinish);

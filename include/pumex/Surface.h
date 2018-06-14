@@ -74,6 +74,7 @@ public:
   void                          cleanup();
   void                          beginFrame();
   void                          validateWorkflow();
+  void                          setCommandBufferIndices();
   void                          validatePrimaryNodes(uint32_t queueNumber);
   void                          validatePrimaryDescriptors(uint32_t queueNumber);
   void                          buildPrimaryCommandBuffer(uint32_t queueNumber);
@@ -135,8 +136,11 @@ protected:
   std::vector<VkFence>                          waitFences;
   std::shared_ptr<CommandBuffer>                prepareCommandBuffer;
   std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
-  std::vector<Node*>                            secondaryCommandBufferNodes;
   std::shared_ptr<CommandBuffer>                presentCommandBuffer;
+
+  std::vector<Node*>                            secondaryCommandBufferNodes;
+  std::vector<VkRenderPass>                     secondaryCommandBufferRenderPasses;
+  std::vector<uint32_t>                         secondaryCommandBufferSubPasses;
 
   VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;
   std::vector<VkSemaphore>                      frameBufferReadySemaphores;

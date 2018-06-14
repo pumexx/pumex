@@ -359,20 +359,35 @@ void Surface::validateWorkflow()
   }
 }
 
+void Surface::setCommandBufferIndices()
+{
+  for (uint32_t i = 0; i < primaryCommandBuffers.size(); ++i)
+    primaryCommandBuffers[i]->setActiveIndex(swapChainImageIndex);
+
+  RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
+  for (uint32_t i = 0; i < secondaryCommandBufferNodes.size(); ++i)
+  {
+    auto commandBuffer = secondaryCommandBufferNodes[i]->getSecondaryBuffer(renderContext);
+    CHECK_LOG_THROW(commandBuffer == nullptr, "Secondary buffer not defined for node " << secondaryCommandBufferNodes[i]->getName());
+    commandBuffer->setActiveIndex(swapChainImageIndex);
+  }
+}
+
+
 void Surface::validatePrimaryNodes(uint32_t queueNumber)
 {
   RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
-  ValidateNodeVisitor validateNodeVisitor(renderContext);
+  ValidateNodeVisitor validateNodeVisitor(renderContext, true);
   for (auto& command : workflowSequences->commands[queueNumber])
-    command->validateNodes(validateNodeVisitor);
+    command->applyRenderContextVisitor(validateNodeVisitor);
 }
 
 void Surface::validatePrimaryDescriptors(uint32_t queueNumber)
 {
   RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
-  ValidateDescriptorVisitor validateDescriptorVisitor(renderContext);
+  ValidateDescriptorVisitor validateDescriptorVisitor(renderContext, true);
   for (auto& command : workflowSequences->commands[queueNumber])
-    command->validateDescriptors(validateDescriptorVisitor);
+    command->applyRenderContextVisitor(validateDescriptorVisitor);
 }
 
 void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
@@ -381,7 +396,7 @@ void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
   primaryCommandBuffers[queueNumber]->setActiveIndex(swapChainImageIndex);
   if (!primaryCommandBuffers[queueNumber]->isValid())
   {
-    BuildCommandBufferVisitor cbVisitor(renderContext, primaryCommandBuffers[queueNumber].get());
+    BuildCommandBufferVisitor cbVisitor(renderContext, primaryCommandBuffers[queueNumber].get(), true);
 
     primaryCommandBuffers[queueNumber]->cmdBegin();
 
@@ -394,19 +409,16 @@ void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
 
 void Surface::validateSecondaryNodes()
 {
-  // find all secondary buffer nodes and place it in a Surface owned vector;
-  FindSecondaryCommandBuffersVisitor fscbVisitor;
+  // find all secondary buffer nodes and place its data in a Surface owned vector ( is it thread friendly ?)
+  RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
+  FindSecondaryCommandBuffersVisitor fscbVisitor(renderContext);
   for (uint32_t i = 0; i < workflowSequences->commands.size(); ++i)
-  {
     for (auto& command : workflowSequences->commands[i])
-    {
-      auto rootOp = command->operation->getRenderOperationNode();
-      if (rootOp != nullptr)
-        rootOp->accept(fscbVisitor);
-    }
-  }
-  secondaryCommandBufferNodes.clear();
-  std::copy(begin(fscbVisitor.nodes), end(fscbVisitor.nodes), std::back_inserter(secondaryCommandBufferNodes));
+      command->applyRenderContextVisitor(fscbVisitor);
+
+  secondaryCommandBufferNodes        = fscbVisitor.nodes;
+  secondaryCommandBufferRenderPasses = fscbVisitor.renderPasses;
+  secondaryCommandBufferSubPasses    = fscbVisitor.subPasses;
 
   tbb::parallel_for
   (
@@ -416,7 +428,8 @@ void Surface::validateSecondaryNodes()
         for (size_t i = r.begin(); i != r.end(); ++i)
         {
           RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
-          ValidateNodeVisitor validateNodeVisitor(renderContext);
+          renderContext.commandPool = secondaryCommandBufferNodes[i]->getSecondaryCommandPool(renderContext);
+          ValidateNodeVisitor validateNodeVisitor(renderContext, false);
           secondaryCommandBufferNodes[i]->accept(validateNodeVisitor);
         }
       }
@@ -433,7 +446,8 @@ void Surface::validateSecondaryDescriptors()
         for (size_t i = r.begin(); i != r.end(); ++i)
         {
           RenderContext renderContext(this, workflowSequences->presentationQueueIndex);
-          ValidateDescriptorVisitor validateDescriptorVisitor(renderContext);
+          renderContext.commandPool = secondaryCommandBufferNodes[i]->getSecondaryCommandPool(renderContext);
+          ValidateDescriptorVisitor validateDescriptorVisitor(renderContext, false);
           secondaryCommandBufferNodes[i]->accept(validateDescriptorVisitor);
         }
       }
@@ -461,9 +475,13 @@ void Surface::buildSecondaryCommandBuffers()
             secondaryCommandBufferNodes[i]->accept(crcVisitor);
 
             // Now we are ready to build secondary command buffer
-            BuildCommandBufferVisitor cbVisitor(renderContext, commandBuffer.get());
-
-            commandBuffer->cmdBegin();
+            BuildCommandBufferVisitor cbVisitor(renderContext, commandBuffer.get(), false);
+            VkCommandBufferUsageFlags cbUsageFlags = 0;
+            if (secondaryCommandBufferNodes[i]->getNumParents() > 1)
+              cbUsageFlags |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            if (secondaryCommandBufferRenderPasses[i] != VK_NULL_HANDLE)
+              cbUsageFlags |= VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+            commandBuffer->cmdBegin(cbUsageFlags, secondaryCommandBufferRenderPasses[i], secondaryCommandBufferSubPasses[i]);
             secondaryCommandBufferNodes[i]->accept(cbVisitor);
             commandBuffer->cmdEnd();
           }
@@ -474,12 +492,10 @@ void Surface::buildSecondaryCommandBuffers()
 
 void Surface::draw()
 {
-  prepareCommandBuffer->setActiveIndex(swapChainImageIndex);
   prepareCommandBuffer->queueSubmit(queues[workflowSequences->presentationQueueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, frameBufferReadySemaphores, VK_NULL_HANDLE );
 
   for (uint32_t i = 0; i < queues.size(); ++i)
   {
-    primaryCommandBuffers[i]->setActiveIndex(swapChainImageIndex);
     // submit command buffer to each queue with a semaphore signaling ent of work (renderCompleteSemaphores[i])
     primaryCommandBuffers[i]->queueSubmit(queues[i]->queue, { frameBufferReadySemaphores[i] }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { renderCompleteSemaphores[i] }, VK_NULL_HANDLE);
   }
@@ -490,7 +506,6 @@ void Surface::endFrame()
   // wait for all queues to finish work ( using renderCompleteSemaphores ), then submit command buffer converting output image to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR layout
   std::vector<VkPipelineStageFlags> waitStages;
   waitStages.resize(renderCompleteSemaphores.size(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-  presentCommandBuffer->setActiveIndex(swapChainImageIndex);
   presentCommandBuffer->queueSubmit(queues[workflowSequences->presentationQueueIndex]->queue, renderCompleteSemaphores, waitStages, { renderFinishedSemaphore }, waitFences[swapChainImageIndex]);
 
   // present output image when its layout is transformed into VK_IMAGE_LAYOUT_PRESENT_SRC_KHR 

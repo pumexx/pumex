@@ -25,6 +25,7 @@
 #include <pumex/Surface.h>
 #include <pumex/Command.h>
 #include <pumex/RenderPass.h>
+#include <pumex/RenderWorkflow.h>
 
 using namespace pumex;
 
@@ -33,4 +34,15 @@ RenderContext::RenderContext(Surface* s, uint32_t queueNumber)
     device{ s->device.lock().get() }, vkDevice{ device->device }, descriptorPool{ device->getDescriptorPool().get() },
     activeIndex{ s->getImageIndex() }, imageCount{ s->getImageCount() }
 {
+}
+
+void RenderContext::setRenderOperation(std::shared_ptr<RenderOperation> ro)
+{
+  renderOperation = ro;
+  if (ro != nullptr)
+  {
+    currentBindPoint = (ro->operationType == RenderOperation::Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
+  }
+  else
+    currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 }

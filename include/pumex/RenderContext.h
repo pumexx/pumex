@@ -41,12 +41,13 @@ class PUMEX_EXPORT RenderContext
 public:
   explicit RenderContext(Surface* surface, uint32_t queueNumber);
 
-  inline void             setRenderPass(std::shared_ptr<RenderPass> renderPass);
-  inline void             setSubpassIndex(uint32_t subpassIndex);
-  inline void             setRenderOperation(std::shared_ptr<RenderOperation> renderOperation);
-  inline PipelineLayout*  setCurrentPipelineLayout(PipelineLayout* pipelineLayout);
-  inline AssetBuffer*     setCurrentAssetBuffer(AssetBuffer* assetBuffer);
-  inline uint32_t         setCurrentRenderMask(uint32_t renderMask);
+  inline void                setRenderPass(std::shared_ptr<RenderPass> renderPass);
+  inline void                setSubpassIndex(uint32_t subpassIndex);
+  void                       setRenderOperation(std::shared_ptr<RenderOperation> renderOperation);
+  inline PipelineLayout*     setCurrentPipelineLayout(PipelineLayout* pipelineLayout);
+  inline VkPipelineBindPoint setCurrentBindPoint(VkPipelineBindPoint bindPoint);
+  inline AssetBuffer*        setCurrentAssetBuffer(AssetBuffer* assetBuffer);
+  inline uint32_t            setCurrentRenderMask(uint32_t renderMask);
 
   // elements of the context that are constant through visitor work
   Surface*                         surface                = nullptr;
@@ -66,11 +67,18 @@ public:
   PipelineLayout*                  currentPipelineLayout  = nullptr; // pipeline layout
   AssetBuffer*                     currentAssetBuffer     = nullptr; // asset buffer
   uint32_t                         currentRenderMask      = 0;
+  VkPipelineBindPoint              currentBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
 };
 
 void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)           { renderPass = rp; }
 void             RenderContext::setSubpassIndex(uint32_t si)                            { subpassIndex = si; }
-void             RenderContext::setRenderOperation(std::shared_ptr<RenderOperation> ro) { renderOperation = ro; }
+
+inline VkPipelineBindPoint RenderContext::setCurrentBindPoint(VkPipelineBindPoint bindPoint)
+{
+  VkPipelineBindPoint oldBindPoint = currentBindPoint;
+  currentBindPoint = bindPoint;
+  return oldBindPoint;
+}
 
 PipelineLayout* RenderContext::setCurrentPipelineLayout(PipelineLayout* pipelineLayout)
 {

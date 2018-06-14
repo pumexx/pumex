@@ -1619,6 +1619,8 @@ int main(int argc, char * argv[])
       staticFilterPipeline->setName("staticFilterPipeline");
       staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
       staticFilterRoot->addChild(staticFilterPipeline);
+      staticFilterPipeline->useSecondaryBuffer();
+
 
       auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce);
       auto staticCounterSbo    = std::make_shared<pumex::StorageBuffer>(staticCounterBuffer);

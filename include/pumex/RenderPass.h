@@ -38,8 +38,7 @@ namespace pumex
 class  Resource;
 class  WorkflowResource;
 class  RenderOperation;
-class  ValidateNodeVisitor;
-class  ValidateDescriptorVisitor;
+class  RenderContextVisitor;
 class  BuildCommandBufferVisitor;
 struct FrameBufferImageDefinition;
 
@@ -158,8 +157,7 @@ public:
   RenderCommand(CommandType commandType);
 
   virtual void validate(const RenderContext& renderContext) = 0;
-  virtual void validateNodes(ValidateNodeVisitor& updateVisitor) = 0;
-  virtual void validateDescriptors(ValidateDescriptorVisitor& updateVisitor) = 0;
+  virtual void applyRenderContextVisitor(RenderContextVisitor& visitor) = 0;
   virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
 
   virtual RenderSubPass* asRenderSubPass() = 0;
@@ -181,8 +179,7 @@ public:
   void buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex);
 
   void validate(const RenderContext& renderContext) override;
-  void validateNodes(ValidateNodeVisitor& validateVisitor) override;
-  void validateDescriptors(ValidateDescriptorVisitor& validateVisitor) override;
+  void applyRenderContextVisitor(RenderContextVisitor& visitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
   RenderSubPass* asRenderSubPass() override;
@@ -201,8 +198,7 @@ public:
   explicit ComputePass();
 
   void validate(const RenderContext& renderContext) override;
-  void validateNodes(ValidateNodeVisitor& validateVisitor) override;
-  void validateDescriptors(ValidateDescriptorVisitor& validateVisitor) override;
+  void applyRenderContextVisitor(RenderContextVisitor& visitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
   RenderSubPass* asRenderSubPass() override;

@@ -173,7 +173,7 @@ protected:
   struct DescriptorSetInternal
   {
     DescriptorSetInternal()
-      : descriptorSet{ VK_NULL_HANDLE }
+      : descriptorSet{ VK_NULL_HANDLE }, pool{ VK_NULL_HANDLE }
     {
     }
     VkDescriptorSet  descriptorSet;

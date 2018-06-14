@@ -25,40 +25,44 @@
 #include <pumex/AssetBufferNode.h>
 #include <pumex/AssetNode.h>
 #include <pumex/DispatchNode.h>
+#include <pumex/RenderPass.h>
 #include <pumex/Text.h>
 
 using namespace pumex;
 
-FindSecondaryCommandBuffersVisitor::FindSecondaryCommandBuffersVisitor()
-  : NodeVisitor{ AllChildren }
+RenderContextVisitor::RenderContextVisitor(TraversalMode tm, const RenderContext& rc)
+  : NodeVisitor{ tm }, renderContext { rc }
+{
+}
+
+FindSecondaryCommandBuffersVisitor::FindSecondaryCommandBuffersVisitor(const RenderContext& rc)
+  : RenderContextVisitor{ AllChildren, rc }
 {
 }
 
 void FindSecondaryCommandBuffersVisitor::apply(Node& node)
 {
-  if (node.hasSecondaryBuffer())
-    nodes.insert(&node);
-}
-
-void FindSecondaryCommandBuffersVisitor::apply(Group& node)
-{
-  if (node.hasSecondaryBuffer())
+  if (node.hasSecondaryBuffer() && std::find(begin(nodes), end(nodes), &node)==end(nodes))
   {
-    nodes.insert(&node);
-    return;
+    nodes.push_back(&node);
+    if (renderContext.renderPass != nullptr)
+      renderPasses.push_back(renderContext.renderPass->getHandle(renderContext));
+    else
+      renderPasses.push_back(VK_NULL_HANDLE);
+    subPasses.push_back(renderContext.subpassIndex);
   }
   if (node.hasSecondaryBufferChildren())
     traverse(node);
 }
 
-ValidateNodeVisitor::ValidateNodeVisitor(const RenderContext& rc)
-  : NodeVisitor{ AllChildren }, renderContext{ rc }
+ValidateNodeVisitor::ValidateNodeVisitor(const RenderContext& rc, bool bp)
+  : RenderContextVisitor{ AllChildren , rc }, buildingPrimary{ bp }
 {
 }
 
 void ValidateNodeVisitor::apply(Node& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
     return;
   if (node.nodeValidate(renderContext))
   {
@@ -67,14 +71,14 @@ void ValidateNodeVisitor::apply(Node& node)
   }
 }
 
-ValidateDescriptorVisitor::ValidateDescriptorVisitor(const RenderContext& rc)
-  : NodeVisitor{ AllChildren }, renderContext{ rc }
+ValidateDescriptorVisitor::ValidateDescriptorVisitor(const RenderContext& rc, bool bp)
+  : RenderContextVisitor{ AllChildren, rc }, buildingPrimary{ bp }
 {
 }
 
 void ValidateDescriptorVisitor::apply(Node& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
     return;
   for (auto dit = node.descriptorSetBegin(); dit != node.descriptorSetEnd(); ++dit)
     dit->second->validate(renderContext);
@@ -93,6 +97,7 @@ void CompleteRenderContextVisitor::apply(GraphicsPipeline& node)
   if (!targetCompleted[0])
   {
     renderContext.currentPipelineLayout = node.pipelineLayout.get();
+    renderContext.setCurrentBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS);
     targetCompleted[0] = true;
   }
   bool allTargetsCompleted = true;
@@ -107,6 +112,7 @@ void CompleteRenderContextVisitor::apply(ComputePipeline& node)
   if (!targetCompleted[0])
   {
     renderContext.setCurrentPipelineLayout(node.pipelineLayout.get());
+    renderContext.setCurrentBindPoint(VK_PIPELINE_BIND_POINT_COMPUTE);
     targetCompleted[0] = true;
   }
   bool allTargetsCompleted = true;
@@ -131,15 +137,14 @@ void CompleteRenderContextVisitor::apply(AssetBufferNode& node)
     traverse(node);
 }
 
-BuildCommandBufferVisitor::BuildCommandBufferVisitor(const RenderContext& rc, CommandBuffer* cb)
-  : NodeVisitor{ AllChildren }, renderContext{ rc }, commandBuffer{ cb }
+BuildCommandBufferVisitor::BuildCommandBufferVisitor(const RenderContext& rc, CommandBuffer* cb, bool bp)
+  : RenderContextVisitor{ AllChildren, rc }, commandBuffer{ cb }, buildingPrimary{ bp }
 {
-
 }
 
 void BuildCommandBufferVisitor::apply(Node& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
@@ -150,37 +155,41 @@ void BuildCommandBufferVisitor::apply(Node& node)
 
 void BuildCommandBufferVisitor::apply(GraphicsPipeline& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
   }
-  PipelineLayout* previous = renderContext.setCurrentPipelineLayout(node.pipelineLayout.get());
+  PipelineLayout* previousPL     = renderContext.setCurrentPipelineLayout(node.pipelineLayout.get());
+  VkPipelineBindPoint previousBP = renderContext.setCurrentBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS);
   commandBuffer->cmdBindPipeline(renderContext, &node);
   applyDescriptorSets(node);
   traverse(node);
   // FIXME - bind previous ?
-  renderContext.setCurrentPipelineLayout(previous);
+  renderContext.setCurrentPipelineLayout(previousPL);
+  renderContext.setCurrentBindPoint(previousBP);
 }
 
 void BuildCommandBufferVisitor::apply(ComputePipeline& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
   }
-  PipelineLayout* previous = renderContext.setCurrentPipelineLayout(node.pipelineLayout.get());
+  PipelineLayout* previousPL     = renderContext.setCurrentPipelineLayout(node.pipelineLayout.get());
+  VkPipelineBindPoint previousBP = renderContext.setCurrentBindPoint(VK_PIPELINE_BIND_POINT_COMPUTE);
   commandBuffer->cmdBindPipeline(renderContext, &node);
   applyDescriptorSets(node);
   traverse(node);
   // FIXME - bind previous ?
-  renderContext.setCurrentPipelineLayout(previous);
+  renderContext.setCurrentPipelineLayout(previousPL);
+  renderContext.setCurrentBindPoint(previousBP);
 }
 
 void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
@@ -198,7 +207,7 @@ void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
 
 void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
@@ -212,7 +221,7 @@ void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
 
 void BuildCommandBufferVisitor::apply(AssetBufferIndirectDrawObjects& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
@@ -226,7 +235,7 @@ void BuildCommandBufferVisitor::apply(AssetBufferIndirectDrawObjects& node)
 
 void BuildCommandBufferVisitor::apply(AssetNode& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
@@ -238,7 +247,7 @@ void BuildCommandBufferVisitor::apply(AssetNode& node)
 
 void BuildCommandBufferVisitor::apply(DispatchNode& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
@@ -250,7 +259,7 @@ void BuildCommandBufferVisitor::apply(DispatchNode& node)
 
 void BuildCommandBufferVisitor::apply(Text& node)
 {
-  if (node.hasSecondaryBuffer())
+  if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;

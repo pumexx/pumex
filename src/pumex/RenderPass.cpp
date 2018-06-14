@@ -350,32 +350,19 @@ void RenderSubPass::validate(const RenderContext& renderContext)
   renderPass->validate(renderContext);
 }
 
-void RenderSubPass::validateNodes(ValidateNodeVisitor& validateVisitor)
+void RenderSubPass::applyRenderContextVisitor(RenderContextVisitor& visitor)
 {
-  validateVisitor.renderContext.setRenderPass(renderPass);
-  validateVisitor.renderContext.setSubpassIndex(subpassIndex);
-  validateVisitor.renderContext.setRenderOperation(operation);
+//  if (!operation->node->hasSecondaryBuffer())
+//    return;
+  visitor.renderContext.setRenderPass(renderPass);
+  visitor.renderContext.setSubpassIndex(subpassIndex);
+  visitor.renderContext.setRenderOperation(operation);
 
-  if (!operation->node->hasSecondaryBuffer())
-    operation->node->accept(validateVisitor);
+  operation->node->accept(visitor);
 
-  validateVisitor.renderContext.setRenderOperation(nullptr);
-  validateVisitor.renderContext.setSubpassIndex(0);
-  validateVisitor.renderContext.setRenderPass(nullptr);
-}
-
-void RenderSubPass::validateDescriptors(ValidateDescriptorVisitor& validateVisitor)
-{
-  validateVisitor.renderContext.setRenderPass(renderPass);
-  validateVisitor.renderContext.setSubpassIndex(subpassIndex);
-  validateVisitor.renderContext.setRenderOperation(operation);
-
-  if (!operation->node->hasSecondaryBuffer())
-    operation->node->accept(validateVisitor);
-
-  validateVisitor.renderContext.setRenderOperation(nullptr);
-  validateVisitor.renderContext.setSubpassIndex(0);
-  validateVisitor.renderContext.setRenderPass(nullptr);
+  visitor.renderContext.setRenderOperation(nullptr);
+  visitor.renderContext.setSubpassIndex(0);
+  visitor.renderContext.setRenderPass(nullptr);
 }
 
 void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
@@ -448,20 +435,15 @@ void ComputePass::validate(const RenderContext& renderContext)
 {
 } 
 
-void ComputePass::validateNodes(ValidateNodeVisitor& validateVisitor)
+void ComputePass::applyRenderContextVisitor(RenderContextVisitor& visitor)
 {
-  validateVisitor.renderContext.setRenderOperation(operation);
-  if (!operation->node->hasSecondaryBuffer())
-    operation->node->accept(validateVisitor);
-  validateVisitor.renderContext.setRenderOperation(nullptr);
-}
+//  if (!operation->node->hasSecondaryBuffer())
+//    return;
+  visitor.renderContext.setRenderOperation(operation);
 
-void ComputePass::validateDescriptors(ValidateDescriptorVisitor& validateVisitor)
-{
-  validateVisitor.renderContext.setRenderOperation(operation);
-  if (!operation->node->hasSecondaryBuffer())
-    operation->node->accept(validateVisitor);
-  validateVisitor.renderContext.setRenderOperation(nullptr);
+  operation->node->accept(visitor);
+
+  visitor.renderContext.setRenderOperation(nullptr);
 }
 
 void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)

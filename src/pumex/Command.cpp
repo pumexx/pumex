@@ -45,7 +45,6 @@ CommandPool::~CommandPool()
     vkDestroyCommandPool(pddit.first, pddit.second.commandPool, nullptr);
 }
 
-
 void CommandPool::validate(Device* device)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -85,7 +84,7 @@ CommandBuffer::CommandBuffer(VkCommandBufferLevel bf, Device* d, std::shared_ptr
 
 CommandBuffer::~CommandBuffer()
 {
-  clearSources();
+//  clearSources();
   vkFreeCommandBuffers(device, commandPool.lock()->getHandle(device), commandBuffer.size(), commandBuffer.data());
 }
 
@@ -117,12 +116,20 @@ VkCommandBuffer CommandBuffer::getHandle() const
   return commandBuffer[activeIndex];
 }
 
-void CommandBuffer::cmdBegin(VkCommandBufferUsageFlags usageFlags)
+void CommandBuffer::cmdBegin(VkCommandBufferUsageFlags usageFlags, VkRenderPass renderPass, uint32_t subPass)
 {
   clearSources();
   VkCommandBufferBeginInfo cmdBufInfo{};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmdBufInfo.flags = usageFlags;
+  VkCommandBufferInheritanceInfo inheritanceInfo{};
+  if (bufferLevel == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
+  {
+    inheritanceInfo.sType       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    inheritanceInfo.renderPass  = renderPass;
+    inheritanceInfo.subpass     = subPass;
+    cmdBufInfo.pInheritanceInfo = &inheritanceInfo;
+  }
   VK_CHECK_LOG_THROW(vkBeginCommandBuffer(commandBuffer[activeIndex], &cmdBufInfo), "failed vkBeginCommandBuffer");
 }
 
@@ -281,8 +288,6 @@ void CommandBuffer::cmdBindPipeline(const RenderContext& renderContext, Graphics
 
 void CommandBuffer::cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, const std::vector<DescriptorSet*> descriptorSets)
 {
-  VkPipelineBindPoint bindPoint = (renderContext.renderOperation->operationType == RenderOperation::Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
-
   std::vector<VkDescriptorSet> descSets;
   for (auto& d : descriptorSets)
   {
@@ -290,16 +295,15 @@ void CommandBuffer::cmdBindDescriptorSets(const RenderContext& renderContext, Pi
     descSets.push_back(d->getHandle(renderContext));
   }
   // TODO : dynamic offset counts
-  vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, descSets.size(), descSets.data(), 0, nullptr);
+  vkCmdBindDescriptorSets(commandBuffer[activeIndex], renderContext.currentBindPoint, pipelineLayout->getHandle(device), firstSet, descSets.size(), descSets.data(), 0, nullptr);
 }
 
 void CommandBuffer::cmdBindDescriptorSets(const RenderContext& renderContext, PipelineLayout* pipelineLayout, uint32_t firstSet, DescriptorSet* descriptorSet)
 {
-  VkPipelineBindPoint bindPoint = (renderContext.renderOperation->operationType == RenderOperation::Graphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
   addSource(descriptorSet);
   VkDescriptorSet descSet = descriptorSet->getHandle(renderContext);
   // TODO : dynamic offset counts
-  vkCmdBindDescriptorSets(commandBuffer[activeIndex], bindPoint, pipelineLayout->getHandle(device), firstSet, 1, &descSet, 0, nullptr);
+  vkCmdBindDescriptorSets(commandBuffer[activeIndex], renderContext.currentBindPoint, pipelineLayout->getHandle(device), firstSet, 1, &descSet, 0, nullptr);
 }
 
 void CommandBuffer::cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) const
@@ -481,6 +485,7 @@ void CommandBuffer::executeCommandBuffer(const RenderContext& renderContext, Com
 
 void CommandBuffer::queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores, const std::vector<VkPipelineStageFlags>& waitStages, const std::vector<VkSemaphore>& signalSemaphores, VkFence fence ) const
 {
+  std::lock_guard<std::mutex> lock(mutex);
   VkPipelineStageFlags stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     VkSubmitInfo submitInfo{};
     submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;

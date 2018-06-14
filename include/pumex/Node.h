@@ -48,6 +48,9 @@ public:
   inline void                           setName(const std::string& name);
   inline const std::string&             getName() const;
 
+  inline uint32_t                       getNumParents() const;
+  std::weak_ptr<Group>                  getParent(uint32_t index);
+
   virtual void                          accept( NodeVisitor& visitor );
 
   virtual void                          traverse(NodeVisitor& visitor);
@@ -70,6 +73,7 @@ public:
   virtual void                          useSecondaryBuffer();
   inline bool                           hasSecondaryBuffer() const;
   std::shared_ptr<CommandBuffer>        getSecondaryBuffer(const RenderContext& renderContext);
+  std::shared_ptr<CommandPool>          getSecondaryCommandPool(const RenderContext& renderContext);
   virtual bool                          hasSecondaryBufferChildren();
 
   virtual void                          validate(const RenderContext& renderContext) = 0;
@@ -154,6 +158,8 @@ void                                   Node::setMask(uint32_t m)            { ma
 uint32_t                               Node::getMask() const                { return mask; }
 void                                   Node::setName(const std::string& n)  { name = n; }
 const std::string&                     Node::getName() const                { return name; }
+uint32_t                               Node::getNumParents() const          { return parents.size(); }
+
 bool                                   Node::hasSecondaryBuffer() const     { return secondaryBufferPresent; }
 
 uint32_t                               Group::getNumChildren()              { return children.size(); }

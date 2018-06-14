@@ -152,6 +152,7 @@ protected:
   std::shared_ptr<DescriptorPool>             descriptorPool;
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
   mutable std::mutex                          stagingMutex;
+  mutable std::mutex                          submitMutex;
 };
 
 void     Device::resetRequestedQueues()                   { requestedQueues.clear(); }

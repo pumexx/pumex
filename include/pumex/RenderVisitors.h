@@ -30,37 +30,47 @@ namespace pumex
 	
 class CommandBuffer;
 
-class PUMEX_EXPORT FindSecondaryCommandBuffersVisitor : public NodeVisitor
+class PUMEX_EXPORT RenderContextVisitor : public NodeVisitor
 {
 public:
-  FindSecondaryCommandBuffersVisitor();
+  RenderContextVisitor(TraversalMode traversalMode, const RenderContext& renderContext);
+
+  RenderContext renderContext;
+};
+
+
+class PUMEX_EXPORT FindSecondaryCommandBuffersVisitor : public RenderContextVisitor
+{
+public:
+  FindSecondaryCommandBuffersVisitor(const RenderContext& renderContext);
 
   void apply(Node& node) override;
-  void apply(Group& node) override;
 
-  std::set<Node*> nodes;
+  std::vector<Node*>        nodes;
+  std::vector<VkRenderPass> renderPasses;
+  std::vector<uint32_t>     subPasses;
 };
 
 // visitor that validates all dirty nodes ( pipelines etc ).
-class PUMEX_EXPORT ValidateNodeVisitor : public NodeVisitor
+class PUMEX_EXPORT ValidateNodeVisitor : public RenderContextVisitor
 {
 public:
-  ValidateNodeVisitor(const RenderContext& renderContext);
+  ValidateNodeVisitor(const RenderContext& renderContext, bool buildingPrimary);
 
   void apply(Node& node) override;
 
-  RenderContext renderContext;
+  bool buildingPrimary;
 };
 
 // visitor that validates all dirty descriptor sets and descriptors
-class PUMEX_EXPORT ValidateDescriptorVisitor : public NodeVisitor
+class PUMEX_EXPORT ValidateDescriptorVisitor : public RenderContextVisitor
 {
 public:
-  ValidateDescriptorVisitor(const RenderContext& renderContext);
+  ValidateDescriptorVisitor(const RenderContext& renderContext, bool buildingPrimary);
 
   void apply(Node& node) override;
 
-  RenderContext renderContext;
+  bool buildingPrimary;
 };
 
 // visitor that collects missing data for render contexts while building secondary command buffers
@@ -81,10 +91,10 @@ protected:
 
 
 // visitor that builds command buffers
-class PUMEX_EXPORT BuildCommandBufferVisitor : public NodeVisitor
+class PUMEX_EXPORT BuildCommandBufferVisitor : public RenderContextVisitor
 {
 public:
-  BuildCommandBufferVisitor(const RenderContext& renderContext, CommandBuffer* commandBuffer);
+  BuildCommandBufferVisitor(const RenderContext& renderContext, CommandBuffer* commandBuffer, bool buildingPrimary);
 
   void apply(Node& node) override;
   void apply(GraphicsPipeline& node) override;
@@ -99,8 +109,8 @@ public:
   void applyDescriptorSets(Node& node);
 
   // elements of the context that are constant through visitor work
-  RenderContext renderContext;
   CommandBuffer* commandBuffer;
+  bool           buildingPrimary;
 };
 
 }

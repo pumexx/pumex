@@ -102,7 +102,7 @@ public:
   VkCommandBuffer getHandle() const;
 
   // Vulkan commands
-  void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0);
+  void            cmdBegin(VkCommandBufferUsageFlags usageFlags = 0, VkRenderPass renderPass = VK_NULL_HANDLE, uint32_t subPass = 0);
   void            cmdEnd();
 
   void            cmdBeginRenderPass(const RenderContext& renderContext, RenderSubPass* renderSubPass, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents);

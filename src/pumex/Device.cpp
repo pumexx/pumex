@@ -246,6 +246,7 @@ void Device::releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer)
 
 std::shared_ptr<CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool)
 {
+  std::lock_guard<std::mutex> lock(submitMutex);
   std::shared_ptr<CommandBuffer> commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, this, commandPool);
   commandBuffer->cmdBegin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
   return commandBuffer;
@@ -253,6 +254,7 @@ std::shared_ptr<CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<C
 
 void Device::endSingleTimeCommands(std::shared_ptr<CommandBuffer> commandBuffer, VkQueue queue, bool submit)
 {
+  std::lock_guard<std::mutex> lock(submitMutex);
   commandBuffer->cmdEnd();
   if (submit)
   {
