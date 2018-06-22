@@ -37,10 +37,12 @@ class Viewer;
 class Window;
 class RenderWorkflow;
 class RenderWorkflowCompiler;
-class RenderWorkflowSequences;
+class RenderWorkflowResults;
 class CommandPool;
 class CommandBuffer;
 class FrameBuffer;
+class MemoryObject;
+class ImageView;
 class Image;
 class Node;
   
@@ -92,7 +94,8 @@ public:
   inline void                   setID(uint32_t newID);
   inline uint32_t               getID() const;
 
-  std::shared_ptr<FrameBuffer>  getFrameBuffer() const;
+  std::shared_ptr<MemoryObject> getRegisteredMemoryObject(const std::string name);
+  std::shared_ptr<ImageView>    getRegisteredImageView(const std::string name);
 
   inline void                   setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
   inline void                   setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);
@@ -109,9 +112,10 @@ public:
 
   VkSurfaceKHR                                  surface                      = VK_NULL_HANDLE;
   SurfaceTraits                                 surfaceTraits;
+
   std::shared_ptr<RenderWorkflow>               renderWorkflow;
   std::shared_ptr<RenderWorkflowCompiler>       renderWorkflowCompiler;
-  std::shared_ptr<RenderWorkflowSequences>      workflowSequences;
+  std::shared_ptr<RenderWorkflowResults>        workflowResults;
 
   VkSurfaceCapabilitiesKHR                      surfaceCapabilities;
   std::vector<VkPresentModeKHR>                 presentModes;

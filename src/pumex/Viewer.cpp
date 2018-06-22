@@ -41,8 +41,8 @@
 
 using namespace pumex;
 
-ViewerTraits::ViewerTraits(const std::string& aName, bool uv, const std::vector<std::string>& rl, uint32_t ups)
-  : applicationName(aName), useValidation{ uv }, requestedLayers(rl), updatesPerSecond(ups)
+ViewerTraits::ViewerTraits(const std::string& aName, const std::vector<std::string>& rie, const std::vector<std::string>& rdl, uint32_t ups)
+  : applicationName{ aName }, requestedInstanceExtensions{ rie }, requestedDebugLayers{ rdl }, updatesPerSecond{ ups }
 {
 }
 
@@ -115,19 +115,21 @@ Viewer::Viewer(const ViewerTraits& vt)
 #endif
 
   // create vulkan instance with required extensions
-  std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+  enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
 #if defined(_WIN32)
-  enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+  enabledInstanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(__linux__)
-  enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+  enabledInstanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
   XInitThreads();
 #elif defined(__ANDROID__)
-  enabledExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+  enabledInstanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #endif
-  if (viewerTraits.useValidation)
-  {
-    enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-  }
+  if (viewerTraits.useDebugLayers())
+    enabledInstanceExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+
+  // add instance extensions requested by user
+  for( const auto& extension : viewerTraits.requestedInstanceExtensions )
+    enabledInstanceExtensions.push_back(extension.c_str());
 
   VkApplicationInfo applicationInfo{};
     applicationInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -140,25 +142,20 @@ Viewer::Viewer(const ViewerTraits& vt)
   VkInstanceCreateInfo instanceCreateInfo{};
     instanceCreateInfo.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceCreateInfo.pApplicationInfo        = &applicationInfo;
-    instanceCreateInfo.enabledExtensionCount   = (uint32_t)enabledExtensions.size();
-    instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+    instanceCreateInfo.enabledExtensionCount   = static_cast<uint32_t>(enabledInstanceExtensions.size());
+    instanceCreateInfo.ppEnabledExtensionNames = enabledInstanceExtensions.data();
 
-  char** layerTab = nullptr;
-  if (viewerTraits.useValidation)
+  if (viewerTraits.useDebugLayers())
   {
-    instanceCreateInfo.enabledLayerCount   = viewerTraits.requestedLayers.size();
-    layerTab = new char*[viewerTraits.requestedLayers.size()];
-    for (uint32_t i=0; i<viewerTraits.requestedLayers.size(); ++i)
-      layerTab[i] = const_cast<char*>(viewerTraits.requestedLayers[i].c_str());
-    instanceCreateInfo.ppEnabledLayerNames = layerTab;
+    for (const auto& layer : viewerTraits.requestedDebugLayers)
+      enabledDebugLayers.push_back(layer.c_str());
+    instanceCreateInfo.enabledLayerCount   = static_cast<uint32_t>(enabledDebugLayers.size());
+    instanceCreateInfo.ppEnabledLayerNames = enabledDebugLayers.data();
   }
 
   VK_CHECK_LOG_THROW(vkCreateInstance(&instanceCreateInfo, nullptr, &instance), "Cannot create instance");
 
-  if (layerTab!=nullptr)
-    delete[] layerTab;
-
-  if (viewerTraits.useValidation)
+  if (viewerTraits.useDebugLayers())
     setupDebugging(viewerTraits.debugReportFlags, viewerTraits.debugReportCallback);
 
   // collect all available physical devices
@@ -167,10 +164,10 @@ Viewer::Viewer(const ViewerTraits& vt)
   std::vector<VkPhysicalDevice> phDevices(deviceCount);
   VK_CHECK_LOG_THROW(vkEnumeratePhysicalDevices(instance, &deviceCount, phDevices.data()), "Cannot enumerate physical devices " << deviceCount );
 
-  for (auto it : phDevices)
-    physicalDevices.push_back(std::make_shared<PhysicalDevice>(it));
+  for (auto phDev : phDevices)
+    physicalDevices.push_back(std::make_shared<PhysicalDevice>(phDev, this));
 
-  // collect information about extensions
+  // collect information about all implemented extensions
   uint32_t extensionCount = 0;
   vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
   extensionProperties.resize(extensionCount);
@@ -317,7 +314,7 @@ void Viewer::cleanup()
     }
     devices.clear();
     physicalDevices.clear();
-    if (viewerTraits.useValidation)
+    if (viewerTraits.useDebugLayers())
       cleanupDebugging();
     vkDestroyInstance(instance, nullptr);
     instance = VK_NULL_HANDLE;
@@ -351,7 +348,7 @@ void Viewer::setTerminate()
   viewerTerminate = true;
 }
 
-std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<const char*>& requestedExtensions)
+std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, const std::vector<std::string>& requestedExtensions)
 {
   CHECK_LOG_THROW(physicalDeviceIndex >= physicalDevices.size(), "Could not create device. Index is too high : " << physicalDeviceIndex);
 
@@ -401,6 +398,22 @@ std::string Viewer::getFullFilePath(const std::string& shortFileName) const
       return fullFilePath;
   }
   return std::string();
+}
+
+bool Viewer::instanceExtensionImplemented(const char* extensionName) const
+{
+  for (const auto& e : extensionProperties)
+    if (!std::strcmp(extensionName, e.extensionName))
+      return true;
+  return false;
+}
+
+bool Viewer::instanceExtensionEnabled(const char* extensionName) const
+{
+  for (const auto& e : enabledInstanceExtensions)
+    if (!std::strcmp(extensionName, e))
+      return true;
+  return false;
 }
 
 void Viewer::setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack)
@@ -567,6 +580,7 @@ void Viewer::buildRenderGraph()
   }
 }
 
+// put a breakpoint inside this function if you want to see what code generated layer error
 VkBool32 pumex::messageCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
 {
   std::string prefix("");

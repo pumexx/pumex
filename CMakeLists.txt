@@ -273,6 +273,10 @@ add_dependencies( pumexvoxelizer shaders args-external )
 target_link_libraries( pumexvoxelizer pumex )
 set_executable_postfixes( pumexvoxelizer )
 
+add_executable( pumexmultiview src/pumexmultiview.cpp )
+add_dependencies( pumexmultiview shaders args-external )
+target_link_libraries( pumexmultiview pumex )
+set_executable_postfixes( pumexmultiview )
 
 set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
 

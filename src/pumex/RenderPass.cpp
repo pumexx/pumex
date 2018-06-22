@@ -72,12 +72,12 @@ VkAttachmentReference AttachmentReference::getReference() const
 }
 
 SubpassDefinition::SubpassDefinition()
-  : pipelineBindPoint{ VK_PIPELINE_BIND_POINT_GRAPHICS }, depthStencilAttachment{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED }, flags{ 0 }
+  : pipelineBindPoint{ VK_PIPELINE_BIND_POINT_GRAPHICS }, depthStencilAttachment{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED }, flags{ 0 }, multiViewMask{ 0x0 }
 {
 }
 
-SubpassDefinition::SubpassDefinition(VkPipelineBindPoint pbp, const std::vector<AttachmentReference>& ia, const std::vector<AttachmentReference>& ca, const std::vector<AttachmentReference>& ra, const AttachmentReference& da, const std::vector<uint32_t>& pa, VkSubpassDescriptionFlags fs)
-  : pipelineBindPoint{ pbp }, preserveAttachments(pa), flags{ fs }
+SubpassDefinition::SubpassDefinition(VkPipelineBindPoint pbp, const std::vector<AttachmentReference>& ia, const std::vector<AttachmentReference>& ca, const std::vector<AttachmentReference>& ra, const AttachmentReference& da, const std::vector<uint32_t>& pa, VkSubpassDescriptionFlags fs, uint32_t mvm)
+  : pipelineBindPoint{ pbp }, preserveAttachments(pa), flags{ fs }, multiViewMask{ mvm }
 {
   for ( const auto& a : ia)
     inputAttachments.emplace_back(a.getReference());
@@ -99,6 +99,7 @@ SubpassDefinition& SubpassDefinition::operator=(const SubpassDefinition& subpass
     depthStencilAttachment = subpassDefinition.depthStencilAttachment;
     preserveAttachments    = subpassDefinition.preserveAttachments;
     flags                  = subpassDefinition.flags;
+    multiViewMask          = subpassDefinition.multiViewMask;
   }
   return *this;
 }
@@ -153,83 +154,22 @@ RenderPass::~RenderPass()
       vkDestroyRenderPass(pdd.second.device, pdd.second.data[i].renderPass, nullptr);
 }
 
-void RenderPass::initializeAttachments(const std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout)
-{
-  attachments.clear();
-  clearValues.clear();
-  clearValuesInitialized.clear();
-
-  for (uint32_t i = 0; i < frameBufferDefinitions.size(); ++i)
-  {
-    attachments.push_back( AttachmentDefinition(
-      i,
-      frameBufferDefinitions[i].format,
-      frameBufferDefinitions[i].samples,
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      lastLayout[i],
-      lastLayout[i],
-      0
-    ));
-
-  }
-  clearValues.resize(attachments.size(), makeColorClearValue(glm::vec4(0.0f)));
-  clearValuesInitialized.resize(attachments.size(), false);
-}
-
 void RenderPass::addSubPass(std::shared_ptr<RenderSubPass> renderSubPass)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   renderSubPass->renderPass = shared_from_this();
   renderSubPass->subpassIndex = subPasses.size();
   subPasses.push_back(renderSubPass);
 }
 
-void RenderPass::updateAttachments(std::shared_ptr<RenderSubPass> renderSubPass, std::vector<FrameBufferImageDefinition>& frameBufferDefinitions, const std::unordered_map<std::string, uint32_t>& attachmentIndex, std::vector<VkImageLayout>& lastLayout)
+void RenderPass::setRenderPassData(std::shared_ptr<FrameBuffer> fb, const std::vector<AttachmentDefinition>& at, const std::vector<VkClearValue>& cv)
 {
-  // fill attachment information with render subpass specifics ( initial layout, final layout, load op, clear values )
-  std::shared_ptr<RenderWorkflow> rw = renderSubPass->operation->renderWorkflow.lock();
-  auto allAttachmentTransitions = rw->getOperationIO(renderSubPass->operation->name, rttAllAttachments);
-  for (auto& transition : allAttachmentTransitions)
-  {
-    uint32_t attIndex = attachmentIndex.at(transition->resource->name);
-
-    frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(transition->layout);
-    attachments[attIndex].finalLayout      = lastLayout[attIndex] = transition->layout;
-
-    AttachmentType at = transition->resource->resourceType->attachment.attachmentType;
-    bool colorDepthAttachment   = (at == atSurface) || (at == atColor) || (at == atDepth) || (at == atDepthStencil);
-    bool stencilAttachment      = (at == atDepthStencil) || (at == atStencil);
-    bool stencilDepthAttachment = (at == atDepth) || (at == atDepthStencil) || (at == atStencil);
-
-    // if it's an output transition
-    if ((transition->transitionType & rttAllOutputs) != 0)
-    {
-      if (attachments[attIndex].initialLayout == VK_IMAGE_LAYOUT_UNDEFINED)
-        attachments[attIndex].initialLayout = transition->layout;
-    }
-
-    // if it's an input transition
-    if ((transition->transitionType & rttAllInputs) != 0)
-    {
-      // FIXME
-    }
-
-    if(attachments[attIndex].loadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-      attachments[attIndex].loadOp        = colorDepthAttachment ? (VkAttachmentLoadOp)transition->load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    if (attachments[attIndex].stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-      attachments[attIndex].stencilLoadOp = stencilAttachment    ? (VkAttachmentLoadOp)transition->load.loadType : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-
-    if (!clearValuesInitialized[attIndex])
-    {
-      if (stencilDepthAttachment)
-        clearValues[attIndex] = makeDepthStencilClearValue(transition->load.clearColor.x, transition->load.clearColor.y);
-      else
-        clearValues[attIndex] = makeColorClearValue(transition->load.clearColor);
-      clearValuesInitialized[attIndex] = true;
-    }
-  }
+  std::lock_guard<std::mutex> lock(mutex);
+  frameBuffer = fb;
+  attachments = at;
+  clearValues = cv;
+  for( auto& pdd : perObjectData)
+    pdd.second.invalidate();
 }
 
 void RenderPass::invalidate(const RenderContext& renderContext)
@@ -265,8 +205,12 @@ void RenderPass::validate(const RenderContext& renderContext)
     attachmentDescriptions.emplace_back(ad.getDescription());
 
   std::vector<VkSubpassDescription> subpassDescriptions;
+  std::vector<uint32_t> multiViewMasks;
   for (auto& sp : subPasses)
+  {
     subpassDescriptions.emplace_back(sp.lock()->definition.getDescription());
+    multiViewMasks.push_back(sp.lock()->definition.multiViewMask);
+  }
 
   std::vector<VkSubpassDependency> dependencyDescriptors;
   for (const auto& dp : dependencies)
@@ -280,6 +224,19 @@ void RenderPass::validate(const RenderContext& renderContext)
     renderPassCI.pSubpasses      = subpassDescriptions.data();
     renderPassCI.dependencyCount = dependencyDescriptors.size();
     renderPassCI.pDependencies   = dependencyDescriptors.data();
+
+  if(multiViewRenderPass && renderContext.device->deviceExtensionEnabled(VK_KHR_MULTIVIEW_EXTENSION_NAME))
+  {
+    uint32_t correlationMask = 0x3U; // FIXME - hardcoded
+
+    VkRenderPassMultiviewCreateInfo renderPassMultiviewCI{};
+      renderPassMultiviewCI.sType                = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO;
+      renderPassMultiviewCI.subpassCount         = static_cast<uint32_t>(multiViewMasks.size());
+      renderPassMultiviewCI.pViewMasks           = multiViewMasks.data();
+      renderPassMultiviewCI.correlationMaskCount = 1;
+      renderPassMultiviewCI.pCorrelationMasks    = &correlationMask;
+    renderPassCI.pNext = &renderPassMultiviewCI;
+  }
   VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.data[activeIndex].renderPass), "Could not create render pass" );
   pddit->second.valid[activeIndex] = true;
 }
@@ -303,46 +260,9 @@ RenderSubPass::RenderSubPass()
 {
 }
 
-void RenderSubPass::buildSubPassDefinition(const std::unordered_map<std::string, uint32_t>& attachmentIndex)
+void RenderSubPass::setSubPassDefinition(const SubpassDefinition& subPassDefinition)
 {
-  // Fun fact : VkSubpassDescription with compute bind point is forbidden by Vulkan spec
-  VkPipelineBindPoint              bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-  std::vector<AttachmentReference> ia;
-  std::vector<AttachmentReference> oa;
-  std::vector<AttachmentReference> ra;
-  AttachmentReference              dsa;
-  std::vector<uint32_t>            pa;
-
-
-  std::shared_ptr<RenderWorkflow> rw = operation->renderWorkflow.lock();
-  auto inputAttachments   = rw->getOperationIO(operation->name, rttAttachmentInput);
-  auto outputAttachments  = rw->getOperationIO(operation->name, rttAttachmentOutput);
-  auto resolveAttachments = rw->getOperationIO(operation->name, rttAttachmentResolveOutput);
-  auto depthAttachments   = rw->getOperationIO(operation->name, rttAttachmentDepthOutput);
-
-  for (auto& inputAttachment : inputAttachments)
-    ia.push_back({ attachmentIndex.at(inputAttachment->resource->name), inputAttachment->layout });
-  for (auto& outputAttachment : outputAttachments)
-  {
-    oa.push_back({ attachmentIndex.at(outputAttachment->resource->name), outputAttachment->layout });
-
-    if (!resolveAttachments.empty())
-    {
-      auto it = std::find_if(begin(resolveAttachments), end(resolveAttachments), [outputAttachment](const std::shared_ptr<ResourceTransition>& rt) -> bool { return rt->resolveResource == outputAttachment->resource; });
-      if (it != end(resolveAttachments))
-        ra.push_back({ attachmentIndex.at((*it)->resource->name), (*it)->layout });
-      else
-        ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
-    }
-    else
-      ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
-  }
-  if (!depthAttachments.empty())
-    dsa = { attachmentIndex.at(depthAttachments[0]->resource->name), depthAttachments[0]->layout };
-  else
-    dsa = { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
-
-  definition = SubpassDefinition(VK_PIPELINE_BIND_POINT_GRAPHICS, ia, oa, ra, dsa, pa);
+  definition = subPassDefinition;
 }
 
 void RenderSubPass::validate(const RenderContext& renderContext)
@@ -352,8 +272,7 @@ void RenderSubPass::validate(const RenderContext& renderContext)
 
 void RenderSubPass::applyRenderContextVisitor(RenderContextVisitor& visitor)
 {
-//  if (!operation->node->hasSecondaryBuffer())
-//    return;
+  visitor.renderContext.setFrameBuffer(renderPass->frameBuffer);
   visitor.renderContext.setRenderPass(renderPass);
   visitor.renderContext.setSubpassIndex(subpassIndex);
   visitor.renderContext.setRenderOperation(operation);
@@ -363,10 +282,12 @@ void RenderSubPass::applyRenderContextVisitor(RenderContextVisitor& visitor)
   visitor.renderContext.setRenderOperation(nullptr);
   visitor.renderContext.setSubpassIndex(0);
   visitor.renderContext.setRenderPass(nullptr);
+  visitor.renderContext.setFrameBuffer(nullptr);
 }
 
 void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 {
+  commandVisitor.renderContext.setFrameBuffer(renderPass->frameBuffer);
   commandVisitor.renderContext.setRenderPass(renderPass);
   commandVisitor.renderContext.setSubpassIndex(subpassIndex);
   commandVisitor.renderContext.setRenderOperation(operation);
@@ -414,6 +335,7 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   commandVisitor.renderContext.setRenderOperation(nullptr);
   commandVisitor.renderContext.setSubpassIndex(0);
   commandVisitor.renderContext.setRenderPass(nullptr);
+  commandVisitor.renderContext.setFrameBuffer(nullptr);
 }
 
 RenderSubPass* RenderSubPass::asRenderSubPass()

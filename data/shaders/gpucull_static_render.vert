@@ -30,11 +30,11 @@ struct MaterialVariantDefinition
 
 layout (set = 0, binding = 0) uniform CameraUbo
 {
-  mat4  viewMatrix;
-  mat4  viewMatrixInverse;
-  mat4  projectionMatrix;
-  vec4  observerPosition;
-  float currentTime;
+  mat4 viewMatrix;
+  mat4 viewMatrixInverse;
+  mat4 projectionMatrix;
+  vec4 observerPosition;
+  vec4 params;
 } camera;
 
 layout (set = 0, binding = 1) readonly buffer ResultIndexSbo
@@ -73,7 +73,7 @@ void main()
 	mat4 modelMatrix   = instances[instanceIndex].position;
 
     float wavingAmplitute = max(0.0,inPos.z * instances[instanceIndex].params[1]);
-	vec2 windTranslation = windDirection * wavingAmplitute * sin( instances[instanceIndex].params[2] * camera.currentTime + instances[instanceIndex].params[3] );
+	vec2 windTranslation = windDirection * wavingAmplitute * sin( instances[instanceIndex].params[2] * camera.params[0] + instances[instanceIndex].params[3] );
 
 	vec4 modelPosition = modelMatrix * vec4(inPos.xyz, 1.0);
 	modelPosition.xy   += windTranslation;

@@ -82,7 +82,7 @@ class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>
 {
 public:
   Device()                         = delete;
-  explicit Device(std::shared_ptr<Viewer> viewer, std::shared_ptr<PhysicalDevice> physical, const std::vector<const char*>& requestedExtensions);
+  explicit Device(std::shared_ptr<Viewer> viewer, std::shared_ptr<PhysicalDevice> physical, const std::vector<std::string>& requestedExtensions);
   Device(const Device&)            = delete;
   Device& operator=(const Device&) = delete;
   Device(Device&&)                 = delete;
@@ -109,6 +109,8 @@ public:
   
   inline void                     setID(uint32_t newID);
   inline uint32_t                 getID() const;
+
+  bool                            deviceExtensionEnabled(const char* extensionName) const;
 
   // debug markers extension stuff - not tested yet
   void                            setObjectName(uint64_t object, VkDebugReportObjectTypeEXT objectType, const std::string& name);
@@ -146,11 +148,14 @@ protected:
   PFN_vkCmdDebugMarkerEndEXT        pfnCmdDebugMarkerEnd        = VK_NULL_HANDLE;
   PFN_vkCmdDebugMarkerInsertEXT     pfnCmdDebugMarkerInsert     = VK_NULL_HANDLE;
 
-  std::vector<const char*>                    requestedExtensions;
   std::vector<QueueTraits>                    requestedQueues;
   std::vector<std::shared_ptr<Queue>>         queues;
   std::shared_ptr<DescriptorPool>             descriptorPool;
   std::vector<std::shared_ptr<StagingBuffer>> stagingBuffers;
+
+  std::vector<const char*>                    requestedDeviceExtensions;
+  std::vector<const char*>                    enabledDeviceExtensions;
+
   mutable std::mutex                          stagingMutex;
   mutable std::mutex                          submitMutex;
 };

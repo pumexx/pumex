@@ -341,8 +341,11 @@ int main( int argc, char * argv[] )
   std::string windowName = "Pumex viewer : ";
   windowName += modelFileName;
 
-  const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", enableDebugging, requestDebugLayers, 60 };
+  std::vector<std::string> instanceExtensions;
+  std::vector<std::string> requestDebugLayers;
+  if (enableDebugging)
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -359,7 +362,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
     CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
 
-    std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };

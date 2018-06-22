@@ -58,7 +58,6 @@
 // pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
 // compare Vulkan and OpenGL performance ( I used ordinary graphics shaders instead of compute shaders in OpenGL demo, but performance of rendering is comparable ).
 
-const uint32_t MAX_SURFACES = 6;
 const uint32_t MAIN_RENDER_MASK = 1;
 
 const uint32_t STATIC_GROUND_TYPE_ID   = 1;
@@ -1484,10 +1483,12 @@ int main(int argc, char * argv[])
     LOG_INFO << " : Vulkan debugging enabled";
   LOG_INFO << std::endl;
 
-
   // Below is the definition of Vulkan instance, devices, queues, surfaces, windows, render passes and render threads. All in one place - with all parameters listed
-  const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", enableDebugging, requestDebugLayers, 60 };
+  std::vector<std::string> instanceExtensions;
+  std::vector<std::string> requestDebugLayers;
+  if (enableDebugging)
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", instanceExtensions, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -1516,7 +1517,7 @@ int main(int argc, char * argv[])
       windows.push_back(pumex::Window::createWindow(t));
 
     // all created surfaces will use the same device
-    std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };

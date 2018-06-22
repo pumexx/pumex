@@ -41,9 +41,11 @@ Queue::Queue(const QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
 {
 }
 
-Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, const std::vector<const char*>& re )
-  : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }, requestedExtensions{ re }
+Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, const std::vector<std::string>& re )
+  : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }
 {
+  for (const auto& extension : re)
+    requestedDeviceExtensions.push_back(extension.c_str());
 }
 
 Device::~Device()
@@ -122,20 +124,18 @@ void Device::realize()
     deviceCreateInfo.pQueueCreateInfos    = deviceQueues.data();
     deviceCreateInfo.pEnabledFeatures     = &physicalDevice->features;
 
-  std::vector<const char*> deviceExtensions;
-  // Enable the debug marker extension if it is present (likely meaning a debugging tool is present)
-  if (physicalDevice->hasExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
+  if (viewer.lock()->viewerTraits.useDebugLayers() && physicalDevice->deviceExtensionImplemented(VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
   {
-    deviceExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+    enabledDeviceExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
     enableDebugMarkers = true;
   }
 
-  std::copy( cbegin(requestedExtensions), cend(requestedExtensions), std::back_inserter(deviceExtensions) );
+  std::copy( cbegin(requestedDeviceExtensions), cend(requestedDeviceExtensions), std::back_inserter(enabledDeviceExtensions) );
 
-  if (deviceExtensions.size() > 0)
+  if (enabledDeviceExtensions.size() > 0)
   {
-    deviceCreateInfo.enabledExtensionCount = (uint32_t)deviceExtensions.size();
-    deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledDeviceExtensions.size();
+    deviceCreateInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
   }
 
   VK_CHECK_LOG_THROW( vkCreateDevice(physicalDevice->physicalDevice, &deviceCreateInfo, nullptr, &device), "Could not create logical device" );
@@ -206,7 +206,6 @@ std::shared_ptr<DescriptorPool> Device::getDescriptorPool()
   return descriptorPool;
 }
 
-
 std::shared_ptr<StagingBuffer> Device::acquireStagingBuffer(const void* data, VkDeviceSize size)
 {
   // find smallest staging buffer that is able to transfer data
@@ -242,6 +241,14 @@ void Device::releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer)
 {
   std::lock_guard<std::mutex> lock(stagingMutex);
   buffer->setReserved(false);
+}
+
+bool Device::deviceExtensionEnabled(const char* extensionName) const
+{
+  for (const auto& e : enabledDeviceExtensions)
+    if (!std::strcmp(extensionName, e))
+      return true;
+  return false;
 }
 
 std::shared_ptr<CommandBuffer> Device::beginSingleTimeCommands(std::shared_ptr<CommandPool> commandPool)

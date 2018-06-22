@@ -25,7 +25,7 @@
 using namespace pumex;
 
 Camera::Camera(const glm::mat4& vm, const glm::mat4& pm, const glm::vec4& p, float t)
-  : viewMatrix{ vm }, projectionMatrix{ pm }, observerPosition{p}, timeSinceStart{ t }
+  : viewMatrix{ vm }, projectionMatrix{ pm }, observerPosition{p}, params{ t, 0.0f, 0.0f, 0.0f }
 {
 }
 
@@ -67,6 +67,6 @@ void Camera::setObserverPosition(const glm::vec3& pos)
 
 void Camera::setTimeSinceStart(float tss)
 {
-  timeSinceStart = tss;
+  params.x = tss;
 }
 

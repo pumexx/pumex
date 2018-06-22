@@ -32,14 +32,49 @@
 
 using namespace pumex;
 
+FrameBufferImageDefinition::FrameBufferImageDefinition()
+  : attachmentType{ atUndefined }, format{ VK_FORMAT_UNDEFINED }, usage{ 0x0 }, aspectMask{ 0x0 }, samples{ VK_SAMPLE_COUNT_1_BIT }, name{}, attachmentSize{}, swizzles{ gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA) }
+{
+}
+
+
 FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkFormat f, VkImageUsageFlags u, VkImageAspectFlags am, VkSampleCountFlagBits s, const std::string& n, const AttachmentSize& as, const gli::swizzles& sw)
   : attachmentType{ at }, format{ f }, usage{ u }, aspectMask{ am }, samples{ s }, name{ n }, attachmentSize { as }, swizzles{ sw }
 {
 }
 
-FrameBuffer::FrameBuffer(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::shared_ptr<DeviceMemoryAllocator> a)
-  : imageDefinitions(fbid), renderPass{ rp }, allocator{ a }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::shared_ptr<DeviceMemoryAllocator> allocator)
+  : imageDefinitions(fbid), renderPass{ rp }, activeCount{ 1 }
 {
+  for (uint32_t i = 0; i < imageDefinitions.size(); i++)
+  {
+    FrameBufferImageDefinition& definition = imageDefinitions[i];
+    VkExtent3D imSize{ 1,1,1 };
+    uint32_t layerCount = static_cast<uint32_t>(definition.attachmentSize.imageSize.z);
+    ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, layerCount, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+    SwapChainImageBehaviour scib = (definition.attachmentType == atSurface) ? swForEachImage : swOnce;
+    auto memoryImage = std::make_shared<MemoryImage>(imageTraits, allocator, definition.aspectMask, pbPerSurface, scib, false, false);
+    memoryImages.push_back(memoryImage);
+    ImageSubresourceRange range(definition.aspectMask, 0, 1, 0, layerCount);
+    VkImageViewType imageViewType = (layerCount > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+    imageViews.push_back(std::make_shared<ImageView>(memoryImage, range, imageViewType));
+  }
+}
+
+FrameBuffer::FrameBuffer(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::map<std::string, std::shared_ptr<MemoryImage>> mi, std::map<std::string, std::shared_ptr<ImageView>> iv)
+  : imageDefinitions(fbid), renderPass{ rp }, activeCount{ 1 }
+{
+  for (uint32_t i = 0; i < imageDefinitions.size(); i++)
+  {
+    FrameBufferImageDefinition& definition = imageDefinitions[i];
+    auto mit = mi.find(definition.name);
+    CHECK_LOG_THROW(mit == end(mi), "FrameBuffer::FrameBuffer() : not all memory images have been supplied");
+    memoryImages.push_back(mit->second);
+
+    auto vit = iv.find(definition.name);
+    CHECK_LOG_THROW(vit == end(iv), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied");
+    imageViews.push_back(vit->second);
+  }
 }
 
 FrameBuffer::~FrameBuffer()
@@ -52,6 +87,7 @@ FrameBuffer::~FrameBuffer()
 
 void FrameBuffer::validate(const RenderContext& renderContext)
 {
+  CHECK_LOG_THROW(renderPass.use_count() == 0, "FrameBuffer::validate() : render pass was not defined");
   auto rp = renderPass.lock();
   rp->validate(renderContext);
 
@@ -69,8 +105,6 @@ void FrameBuffer::validate(const RenderContext& renderContext)
   if (pddit->second.valid[activeIndex])
     return;
 
-  CHECK_LOG_THROW(renderPass.use_count() == 0, "FrameBuffer::validate() : render pass was not defined");
-
   if (pddit->second.data[activeIndex].frameBuffer != VK_NULL_HANDLE)
     vkDestroyFramebuffer(renderContext.vkDevice, pddit->second.data[activeIndex].frameBuffer, nullptr);
 
@@ -81,15 +115,37 @@ void FrameBuffer::validate(const RenderContext& renderContext)
   std::vector<VkImageView> iViews(imageDefinitions.size(), VK_NULL_HANDLE);
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
     iViews[i] = imageViews[i]->getImageView(renderContext);
+  // find framebuffer size from first image definition
 
+  uint32_t frameBufferWidth  = 1;
+  uint32_t frameBufferHeight = 1;
+  if (imageDefinitions.size() > 0)
+  {
+    auto& definition = imageDefinitions[0];
+    switch (definition.attachmentSize.attachmentSize)
+    {
+    case AttachmentSize::SurfaceDependent:
+    {
+      frameBufferWidth  = renderContext.surface->swapChainSize.width  * definition.attachmentSize.imageSize.x;
+      frameBufferHeight = renderContext.surface->swapChainSize.height * definition.attachmentSize.imageSize.y;
+      break;
+    }
+    case AttachmentSize::Absolute:
+    {
+      frameBufferWidth  = definition.attachmentSize.imageSize.x;
+      frameBufferHeight = definition.attachmentSize.imageSize.y;
+      break;
+    }
+    }
+  }
   // define frame buffers
   VkFramebufferCreateInfo frameBufferCreateInfo{};
     frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     frameBufferCreateInfo.renderPass      = rp->getHandle(renderContext);
     frameBufferCreateInfo.attachmentCount = iViews.size();
     frameBufferCreateInfo.pAttachments    = iViews.data();
-    frameBufferCreateInfo.width           = renderContext.surface->swapChainSize.width;
-    frameBufferCreateInfo.height          = renderContext.surface->swapChainSize.height;
+    frameBufferCreateInfo.width           = frameBufferWidth;
+    frameBufferCreateInfo.height          = frameBufferHeight;
     frameBufferCreateInfo.layers          = 1;
   VK_CHECK_LOG_THROW(vkCreateFramebuffer(renderContext.vkDevice, &frameBufferCreateInfo, nullptr, &pddit->second.data[activeIndex].frameBuffer), "Could not create frame buffer " << activeIndex);
   pddit->second.valid[activeIndex] = true;
@@ -108,20 +164,6 @@ void FrameBuffer::invalidate(const RenderContext& renderContext)
 void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  if (memoryImages.empty())
-  {
-    for (uint32_t i = 0; i < imageDefinitions.size(); i++)
-    {
-      FrameBufferImageDefinition& definition = imageDefinitions[i];
-      VkExtent3D imSize{ 1,1,1 };
-      ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-      SwapChainImageBehaviour scib = (definition.attachmentType == atSurface) ? swForEachImage : swOnce;
-      auto memoryImage = std::make_shared<MemoryImage>(imageTraits, allocator, definition.aspectMask, pbPerSurface, scib, false, false);
-      memoryImages.push_back(memoryImage);
-      ImageSubresourceRange range(definition.aspectMask, 0, 1, 0, 1);
-      imageViews.push_back(std::make_shared<ImageView>(memoryImage, range, VK_IMAGE_VIEW_TYPE_2D));
-    }
-  }
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
   {
     FrameBufferImageDefinition& definition = imageDefinitions[i];
@@ -149,7 +191,8 @@ void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::v
         break;
       }
       }
-      ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, 1, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      uint32_t layerCount = static_cast<uint32_t>(definition.attachmentSize.imageSize.z);
+      ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, layerCount, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
       memoryImages[i]->setImageTraits(renderContext.surface, imageTraits);
     }
   }
@@ -190,6 +233,12 @@ std::shared_ptr<MemoryImage> FrameBuffer::getMemoryImage(uint32_t index) const
 {
   CHECK_LOG_THROW(index >= memoryImages.size(), "Texture index out of bounds");
   return memoryImages[index];
+}
+
+std::shared_ptr<ImageView> FrameBuffer::getImageView(uint32_t index) const
+{
+  CHECK_LOG_THROW(index >= memoryImages.size(), "Texture index out of bounds");
+  return imageViews[index];
 }
 
 std::shared_ptr<ImageView> FrameBuffer::getImageView(const std::string& name) const

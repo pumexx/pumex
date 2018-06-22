@@ -15,11 +15,11 @@ layout (location = 4) in vec4 inBoneIndex;
 
 layout (binding = 0) uniform CameraUbo
 {
-  mat4  viewMatrix;
-  mat4  viewMatrixInverse;
-  mat4  projectionMatrix;
-  vec4  observerPosition;
-  float currentTime;
+  mat4 viewMatrix;
+  mat4 viewMatrixInverse;
+  mat4 projectionMatrix;
+  vec4 observerPosition;
+  vec4 params;
 } camera;
 
 layout (binding = 1) uniform PositionSbo

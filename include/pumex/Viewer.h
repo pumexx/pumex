@@ -49,17 +49,18 @@ class  Surface;
 // struct storing all info required to create or describe the viewer
 struct PUMEX_EXPORT ViewerTraits
 {
-  ViewerTraits(const std::string& applicationName, bool useValidation, const std::vector<std::string>& requestedLayers, uint32_t updatesPerSecond);
+  ViewerTraits(const std::string& applicationName, const std::vector<std::string>& requestedInstanceExtensions, const std::vector<std::string>& requestedDebugLayers, uint32_t updatesPerSecond);
 
   std::string              applicationName;
-  bool                     useValidation;
-  std::vector<std::string> requestedLayers;
+  std::vector<std::string> requestedInstanceExtensions;
+  std::vector<std::string> requestedDebugLayers;
+  uint32_t                 updatesPerSecond = 100;
 
   VkDebugReportFlagsEXT    debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT; // | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
   // use debugReportCallback if you want to overwrite default messageCallback() logging function
   VkDebugReportCallbackEXT debugReportCallback = nullptr;
 
-  uint32_t                 updatesPerSecond = 100;
+  inline bool useDebugLayers() const;
 };
 
 // Viewer class stores Vulkan instance and manages devices and surfaces.
@@ -75,7 +76,7 @@ public:
   Viewer& operator=(Viewer&&)      = delete;
   ~Viewer();
 
-  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<const char*>& requestedExtensions);
+  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<std::string>& requestedExtensions);
   std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
   Device*                    getDevice(uint32_t id);
   Surface*                   getSurface(uint32_t id);
@@ -106,20 +107,16 @@ public:
   inline void                addDefaultDirectory(std::string directory);
   std::string                getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
 
+  bool                       instanceExtensionImplemented(const char* extensionName) const;
+  bool                       instanceExtensionEnabled(const char* extensionName) const;
 
-  ViewerTraits                                        viewerTraits;
-  VkInstance                                          instance         = VK_NULL_HANDLE;
-  std::vector<VkExtensionProperties>                  extensionProperties;
-  bool                                                viewerTerminate  = false;
+  ViewerTraits                                           viewerTraits;
 
-  tbb::flow::graph                                    updateGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg > opStartUpdateGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg > opEndUpdateGraph;
+  tbb::flow::graph                                       updateGraph;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    opStartUpdateGraph;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    opEndUpdateGraph;
 
 protected:
-  bool realized = false;
-
-
   void            setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
   void            cleanupDebugging();
 
@@ -140,6 +137,13 @@ protected:
   std::vector<std::shared_ptr<Window>>                   windows;
   std::function<void(std::shared_ptr<Viewer>)>           eventRenderStart;
   std::function<void(std::shared_ptr<Viewer>)>           eventRenderFinish;
+  bool                                                   realized                      = false;
+  bool                                                   viewerTerminate               = false;
+  VkInstance                                             instance                      = VK_NULL_HANDLE;
+
+  std::vector<const char*>                               enabledInstanceExtensions;
+  std::vector<VkExtensionProperties>                     extensionProperties;
+  std::vector<const char*>                               enabledDebugLayers;
 
   uint32_t                                               nextSurfaceID                 = 0;
   uint32_t                                               nextDeviceID                  = 0;
@@ -170,6 +174,8 @@ protected:
 
   bool                                                   renderGraphValid = false;
 };
+
+bool                ViewerTraits::useDebugLayers() const    { return !requestedDebugLayers.empty(); }
 
 bool                Viewer::isRealized() const              { return realized; }
 uint32_t            Viewer::getNumDevices() const           { return devices.size(); }

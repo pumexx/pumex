@@ -2,6 +2,7 @@
 
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
+#extension GL_EXT_multiview : enable
 
 #define MAX_BONES 511
 
@@ -11,6 +12,15 @@ layout (location = 2) in vec3 inTangent;
 layout (location = 3) in vec3 inUV;
 layout (location = 4) in float inBoneWeight;
 layout (location = 5) in float inBoneIndex;
+
+struct Camera
+{
+  mat4 viewMatrix;
+  mat4 viewMatrixInverse;
+  mat4 projectionMatrix;
+  vec4 observerPosition;
+  vec4 params;
+};
 
 struct MaterialTypeDefinition
 {
@@ -26,12 +36,8 @@ struct MaterialVariantDefinition
 
 layout (binding = 0) uniform CameraUbo
 {
-  mat4 viewMatrix;
-  mat4 viewMatrixInverse;
-  mat4 projectionMatrix;
-  vec4 observerPosition;
-  vec4 params;
-} camera;
+  Camera cam[2];
+} cameras;
 
 layout (binding = 1) uniform PositionSbo
 {
@@ -62,7 +68,7 @@ void main()
 	mat4 modelMatrix = object.position * boneTransform;
 
     outPosition    = modelMatrix * vec4(inPos.xyz, 1.0);
-	gl_Position    = camera.projectionMatrix * camera.viewMatrix * outPosition;
+	gl_Position    = cameras.cam[gl_ViewIndex].projectionMatrix * cameras.cam[gl_ViewIndex].viewMatrix * outPosition;
     outPosition    /= outPosition.w;
     mat3 normalMat = mat3(inverse(transpose(modelMatrix)));
 	outNormal      = normalize(normalMat * inNormal);

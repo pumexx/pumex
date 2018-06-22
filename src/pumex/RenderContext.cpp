@@ -24,6 +24,7 @@
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
 #include <pumex/Command.h>
+#include <pumex/FrameBuffer.h>
 #include <pumex/RenderPass.h>
 #include <pumex/RenderWorkflow.h>
 

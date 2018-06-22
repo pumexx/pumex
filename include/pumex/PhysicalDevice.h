@@ -30,13 +30,14 @@ namespace pumex
 {
 
 struct QueueTraits;
+class Viewer;
 
 // Implementation of a Vulkan physical device, works mainly as a database of device properties
 class PUMEX_EXPORT PhysicalDevice
 {
 public:
   PhysicalDevice()                                 = delete;
-  explicit PhysicalDevice(VkPhysicalDevice aDevice);
+  explicit PhysicalDevice(VkPhysicalDevice aDevice, Viewer* viewer);
   PhysicalDevice(const PhysicalDevice&)            = delete;
   PhysicalDevice& operator=(const PhysicalDevice&) = delete;
   PhysicalDevice(PhysicalDevice&&)                 = delete;
@@ -45,17 +46,25 @@ public:
 
   std::vector<uint32_t> matchingFamilyIndices(const QueueTraits& queueDescription);
   uint32_t              getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr);
-  bool                  hasExtension(const char* extensionName);
+
+  bool                  deviceExtensionImplemented(const char* extensionName) const;
 
   // physical device
-  VkPhysicalDevice                     physicalDevice        = VK_NULL_HANDLE;
-  VkPhysicalDeviceProperties           properties;
-  VkPhysicalDeviceFeatures             features;
-  VkPhysicalDeviceMemoryProperties     memoryProperties;
-  std::vector<VkExtensionProperties>   extensions;
-  std::vector<VkQueueFamilyProperties> queueFamilyProperties;
+  VkPhysicalDevice                       physicalDevice        = VK_NULL_HANDLE;
+
+  VkPhysicalDeviceProperties             properties;
+  VkPhysicalDeviceMultiviewPropertiesKHR multiViewProperties;
+
+  VkPhysicalDeviceFeatures               features;
+  VkPhysicalDeviceMultiviewFeaturesKHR   multiViewFeatures;
+
+  VkPhysicalDeviceMemoryProperties       memoryProperties;
+
+  std::vector<VkExtensionProperties>     extensionProperties;
+
+  std::vector<VkQueueFamilyProperties>   queueFamilyProperties;
   // only when VK_EXT_KHR_display extension is present
-  //    std::vector<VkDisplayPropertiesKHR>  displayProperties;
+  std::vector<VkDisplayPropertiesKHR>    displayProperties;
 
 };
   

@@ -37,7 +37,7 @@
 // This example shows how to setup basic deferred renderer with antialiasing.
 
 const uint32_t              MAX_BONES = 511;
-const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_4_BIT;
+const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 const uint32_t              MODEL_SPONZA_ID = 1;
 
 struct PositionData
@@ -137,8 +137,8 @@ struct DeferredApplicationData
 {
   DeferredApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
   {
-    cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
-    textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    cameraBuffer     = std::make_shared<pumex::Buffer<std::vector<pumex::Camera>>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    textCameraBuffer = std::make_shared<pumex::Buffer<std::vector<pumex::Camera>>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     positionData     = std::make_shared<PositionData>();
     positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
@@ -306,18 +306,29 @@ struct DeferredApplicationData
 
     glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
 
-    pumex::Camera camera;
-    camera.setViewMatrix(viewMatrix);
-    camera.setObserverPosition(realEye);
-    camera.setTimeSinceStart(renderTime);
     uint32_t renderWidth = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
-    camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
-    cameraBuffer->setData(surface.get(), camera);
+    std::vector<pumex::Camera> cameras;
+    {
+      pumex::Camera camera;
+      camera.setViewMatrix(viewMatrix);
+      camera.setObserverPosition(realEye);
+      camera.setTimeSinceStart(renderTime);
+      camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), 0.5f * (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
+      cameras.push_back(camera);
+      // FIXME
+      cameras.push_back(camera);
+    }
+    cameraBuffer->setData(surface.get(), cameras);
 
-    pumex::Camera textCamera;
-    textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
-    textCameraBuffer->setData(surface.get(), textCamera);
+    std::vector<pumex::Camera> textCameras;
+    {
+      pumex::Camera textCamera;
+      textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+      textCameras.push_back(textCamera);
+      textCameras.push_back(textCamera);
+    }
+    textCameraBuffer->setData(surface.get(), textCameras);
   }
 
   void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::AssetBuffer> assetBuffer, uint32_t modelTypeID)
@@ -376,31 +387,49 @@ struct DeferredApplicationData
     double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
     lastFrameStart = thisFrameStart;
 
-    std::wstringstream stream;
-    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-    textDefault->setText(viewer->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+    //std::wstringstream stream;
+    //stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
+    //textDefault->setText(viewer->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
-
 
   UpdateData                                            updateData;
   std::array<RenderData, 3>                             renderData;
 
-  std::shared_ptr<pumex::Buffer<pumex::Camera>>         cameraBuffer;
-  std::shared_ptr<pumex::Buffer<pumex::Camera>>         textCameraBuffer;
-  std::shared_ptr<PositionData>                         positionData;
-  std::shared_ptr<pumex::Buffer<PositionData>>          positionBuffer;
+  std::shared_ptr<pumex::Buffer<std::vector<pumex::Camera>>> cameraBuffer;
+  std::shared_ptr<pumex::Buffer<std::vector<pumex::Camera>>> textCameraBuffer;
+  std::shared_ptr<PositionData>                              positionData;
+  std::shared_ptr<pumex::Buffer<PositionData>>               positionBuffer;
 
   std::shared_ptr<pumex::Buffer<std::vector<LightPointData>>> lightsBuffer;
   pumex::HPClock::time_point                            lastFrameStart;
   std::shared_ptr<pumex::Text>                          textDefault;
 };
 
+std::shared_ptr<pumex::Asset> buildMultiViewQuads()
+{
+  auto result = std::make_shared<pumex::Asset>();
+  std::vector<pumex::VertexSemantic> vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::TexCoord, 3 }};
+
+  pumex::Geometry quads;
+  quads.name = "multiview_quads";
+  quads.semantic = vertexSemantic;
+  pumex::addQuad(quads, glm::vec3(-1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -2.0f, 0.0f), 0.0f, 1.0f, 1.0f, 0.0f, 0.0f);
+  pumex::addQuad(quads, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -2.0f, 0.0f), 0.0f, 1.0f, 1.0f, 0.0f, 1.0f);
+  result->geometries.push_back(quads);
+
+  pumex::Skeleton::Bone bone;
+  result->skeleton.bones.emplace_back(bone);
+  result->skeleton.boneNames.push_back("root");
+  result->skeleton.invBoneNames.insert({ "root", 0 });
+
+  return result;
+}
 
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
 
-  args::ArgumentParser parser("pumex example : deferred rendering with physically based rendering and antialiasing");
+  args::ArgumentParser parser("pumex example : multiview deferred rendering with PBR and antialiasing");
   args::HelpFlag       help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
@@ -428,16 +457,16 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  LOG_INFO << "Deferred rendering with physically based rendering and antialiasing";
+  LOG_INFO << "Multiview deferred rendering with PBR and antialiasing";
   if (enableDebugging)
     LOG_INFO << " : Vulkan debugging enabled";
   LOG_INFO << std::endl;
 
-  std::vector<std::string> instanceExtensions;
+  std::vector<std::string> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  pumex::ViewerTraits viewerTraits{ "Deferred PBR", instanceExtensions, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "Multiview Deferred PBR", instanceExtensions, requestDebugLayers, 60 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -445,10 +474,10 @@ int main( int argc, char * argv[] )
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
-    std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MULTIVIEW_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing" };
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Multiview deferred rendering with PBR and antialiasing" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
@@ -459,27 +488,32 @@ int main( int argc, char * argv[] )
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          SAMPLE_COUNT,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          SAMPLE_COUNT,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("color",         false, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+      workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) },      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics);
+    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f, 1.0f, 2.0f) });
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics);
+    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f, 1.0f, 2.0f) });
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position",         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals",          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentInput        ("lighting", "color_samples", "albedo",           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentInput        ("lighting", "color_samples", "pbr",              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve",          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
-      workflow->addAttachmentResolveOutput("lighting", "surface",       "color", "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+      workflow->addAttachmentResolveOutput("lighting", "color",         "color", "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
 
+     workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, 0x0, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) });
+     workflow->addImageInput      ("multiview", "color",      "color",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+     workflow->addAttachmentOutput("multiview", "surface", "multiview", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+     
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -487,6 +521,8 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     std::shared_ptr<DeferredApplicationData> applicationData = std::make_shared<DeferredApplicationData>(buffersAllocator);
+
+/*************************************/
 
     auto gbufferRoot = std::make_shared<pumex::Group>();
     gbufferRoot->setName("gbufferRoot");
@@ -519,8 +555,8 @@ int main( int argc, char * argv[] )
 
     gbufferPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_gbuffers.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_gbuffers.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/multiview_gbuffers.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/multiview_gbuffers.frag.spv")), "main" }
     };
     gbufferPipeline->vertexInput =
     {
@@ -599,6 +635,7 @@ int main( int argc, char * argv[] )
     modelDraw->setDescriptorSet(0, descriptorSet);
 
 /**********************/
+
     auto lightingRoot = std::make_shared<pumex::Group>();
     lightingRoot->setName("lightingRoot");
     workflow->setRenderOperationNode("lighting", lightingRoot);
@@ -624,8 +661,8 @@ int main( int argc, char * argv[] )
     compositePipeline->setName("compositePipeline");
     compositePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_composite.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_composite.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/multiview_composite.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/multiview_composite.frag.spv")), "main" }
     };
     compositePipeline->depthTestEnable = VK_FALSE;
     compositePipeline->depthWriteEnable = VK_FALSE;
@@ -658,57 +695,113 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
-    std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
-    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
-    auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-    textDefault->setName("textDefault");
-    applicationData->textDefault = textDefault;
+    /*********************/
 
-    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    auto multiviewRoot = std::make_shared<pumex::Group>();
+    multiviewRoot->setName("multiviewRoot");
+    workflow->setRenderOperationNode("multiview", multiviewRoot);
+
+    std::shared_ptr<pumex::Asset> multiviewQuads = buildMultiViewQuads();
+
+    std::vector<pumex::DescriptorSetLayoutBinding> multiviewLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 0, 1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_SAMPLER,          VK_SHADER_STAGE_FRAGMENT_BIT }//,
+//      { 2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   VK_SHADER_STAGE_FRAGMENT_BIT }
     };
-    auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    // building pipeline layout
-    auto textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
-    auto textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
-    textPipeline->setName("textPipeline");
-    textPipeline->vertexInput =
+    auto multiviewDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(multiviewLayoutBindings);
+
+    // building gbufferPipeline layout
+    auto multiviewPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    multiviewPipelineLayout->descriptorSetLayouts.push_back(multiviewDescriptorSetLayout);
+
+    auto multiviewPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, multiviewPipelineLayout);
+    multiviewPipeline->setName("multiviewPipeline");
+    multiviewPipeline->shaderStages =
     {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/multiview_display.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/multiview_display.frag.spv")), "main" }
     };
-    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    textPipeline->blendAttachments =
+    multiviewPipeline->depthTestEnable = VK_FALSE;
+    multiviewPipeline->depthWriteEnable = VK_FALSE;
+
+    multiviewPipeline->vertexInput =
     {
-      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, multiviewQuads->geometries[0].semantic }
     };
-    textPipeline->depthTestEnable = VK_FALSE;
-    textPipeline->depthWriteEnable = VK_FALSE;
-    textPipeline->shaderStages =
+    multiviewPipeline->blendAttachments =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+      { VK_FALSE, 0xF }
     };
-    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    textPipeline->rasterizationSamples = SAMPLE_COUNT;
+    multiviewPipeline->rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multiviewPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
-    lightingRoot->addChild(textPipeline);
-    textPipeline->addChild(textDefault);
+    multiviewRoot->addChild(multiviewPipeline);
 
-    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
-    auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
+    std::shared_ptr<pumex::AssetNode> quadsAssetNode = std::make_shared<pumex::AssetNode>(multiviewQuads, verticesAllocator, 1, 0);
+    quadsAssetNode->setName("quadsAssetNode");
+    multiviewPipeline->addChild(quadsAssetNode);
 
-    auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
+    auto mvSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
-    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
-    textDescriptorSet->setDescriptor(0, textCameraUbo);
-    textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
-    textDefault->setDescriptorSet(0, textDescriptorSet);
+    auto multiviewDescriptorSet = std::make_shared<pumex::DescriptorSet>(multiviewDescriptorSetLayout);
+    // connect "color" attachment as pumex::SampledImage
+    multiviewDescriptorSet->setDescriptor(0, std::make_shared<pumex::SampledImage>("color"));
+    multiviewDescriptorSet->setDescriptor(1, mvSampler);
+    //    multiviewDescriptorSet->setDescriptor(2, cameraUbo);
+    quadsAssetNode->setDescriptorSet(0, multiviewDescriptorSet);
+
+    //std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
+    //auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
+    //auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+    //textDefault->setName("textDefault");
+    //applicationData->textDefault = textDefault;
+
+    //std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
+    //{
+    //  { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+    //  { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    //};
+    //auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
+    //// building pipeline layout
+    //auto textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    //textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
+    //auto textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
+    //textPipeline->setName("textPipeline");
+    //textPipeline->vertexInput =
+    //{
+    //  { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
+    //};
+    //textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    //textPipeline->blendAttachments =
+    //{
+    //  { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    //  VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
+    //  VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
+    //};
+    //textPipeline->depthTestEnable = VK_FALSE;
+    //textPipeline->depthWriteEnable = VK_FALSE;
+    //textPipeline->shaderStages =
+    //{
+    //  { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
+    //  { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
+    //  { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+    //};
+    //textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    //textPipeline->rasterizationSamples = SAMPLE_COUNT;
+
+    //lightingRoot->addChild(textPipeline);
+    //textPipeline->addChild(textDefault);
+
+    //auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+    //auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
+
+    //auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
+
+    //auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
+    //textDescriptorSet->setDescriptor(0, textCameraUbo);
+    //textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
+    //textDefault->setDescriptorSet(0, textDescriptorSet);
 
     // connect workflow to a surface
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();

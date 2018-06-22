@@ -43,6 +43,7 @@ class ImageView;
 
 struct PUMEX_EXPORT FrameBufferImageDefinition
 {
+  FrameBufferImageDefinition();
   FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const std::string& name, const AttachmentSize& attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
   AttachmentType        attachmentType;
   VkFormat              format;
@@ -59,6 +60,7 @@ class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 public:
   FrameBuffer()                              = delete;
   explicit FrameBuffer(const std::vector<FrameBufferImageDefinition>& imageDefinitions, std::shared_ptr<RenderPass> renderPass, std::shared_ptr<DeviceMemoryAllocator> allocator);
+  explicit FrameBuffer(const std::vector<FrameBufferImageDefinition>& imageDefinitions, std::shared_ptr<RenderPass> renderPass, std::map<std::string, std::shared_ptr<MemoryImage>> memoryImages, std::map<std::string, std::shared_ptr<ImageView>> imageViews);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   FrameBuffer(FrameBuffer&&)                 = delete;
@@ -70,9 +72,11 @@ public:
   void                              prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                              reset(Surface* surface);
 
-  const FrameBufferImageDefinition& getSwapChainImageDefinition() const;
+  inline size_t                     getNumImageDefinitions() const;
   const FrameBufferImageDefinition& getImageDefinition(uint32_t index) const;
+  const FrameBufferImageDefinition& getSwapChainImageDefinition() const;
   std::shared_ptr<MemoryImage>      getMemoryImage(uint32_t index) const;
+  std::shared_ptr<ImageView>        getImageView(uint32_t index) const;
   std::shared_ptr<ImageView>        getImageView(const std::string& name) const;
   VkFramebuffer                     getHandleFrameBuffer(const RenderContext& renderContext) const;
 
@@ -90,11 +94,13 @@ protected:
 
   std::vector<FrameBufferImageDefinition>           imageDefinitions;
   std::weak_ptr<RenderPass>                         renderPass;
-  std::shared_ptr<DeviceMemoryAllocator>            allocator;
   std::vector<std::shared_ptr<MemoryImage>>         memoryImages;
   std::vector<std::shared_ptr<ImageView>>           imageViews;
   mutable std::mutex                                mutex;
   uint32_t                                          activeCount;
 };
+
+size_t FrameBuffer::getNumImageDefinitions() const { return imageDefinitions.size(); }
+
 
 }

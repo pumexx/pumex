@@ -21,6 +21,7 @@
 //
 
 #pragma once
+#include <unordered_map>
 #include <pumex/Export.h>
 #include <pumex/Resource.h>
 
@@ -34,6 +35,7 @@ class PUMEX_EXPORT SampledImage : public Resource
 public:
   SampledImage()                               = delete;
   SampledImage(std::shared_ptr<ImageView> imageView);
+  SampledImage(const std::string& resourceName);
   SampledImage(const SampledImage&)            = delete;
   SampledImage& operator=(const SampledImage&) = delete;
   SampledImage(SampledImage&&)                 = delete;
@@ -44,8 +46,9 @@ public:
   void                              validate(const RenderContext& renderContext) override;
   DescriptorValue                   getDescriptorValue(const RenderContext& renderContext) override;
 
-  std::shared_ptr<ImageView> imageView;
 protected:
+  std::shared_ptr<ImageView> imageView;
+  std::string                resourceName;
   bool                       registered = false;
 };
 	

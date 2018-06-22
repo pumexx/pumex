@@ -59,7 +59,7 @@ protected:
   glm::mat4 viewMatrixInverse;
   glm::mat4 projectionMatrix;
   glm::vec4 observerPosition; // used for LOD computations. Usually the same as in viewMatrix
-  float     timeSinceStart;  // FIXME - check std430 padding in a spare time
+  glm::vec4 params;           // params.x = timeSinceStart
 };
 
 template <typename T>
@@ -80,6 +80,6 @@ glm::tmat4x4<T, glm::defaultp> orthoGL( T left, T right, T bottom, T top,	T zNea
 glm::mat4 Camera::getViewMatrix() const        { return viewMatrix; }
 glm::mat4 Camera::getViewMatrixInverse() const { return viewMatrixInverse; }
 glm::vec4 Camera::getObserverPosition() const  { return observerPosition; }
-float     Camera::getTimeSinceStart() const    { return timeSinceStart; }
+float     Camera::getTimeSinceStart() const    { return params.x; }
 
 }

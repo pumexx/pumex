@@ -31,6 +31,7 @@ class Surface;
 class CommandPool;
 class Device;	
 class DescriptorPool;
+class FrameBuffer;
 class RenderPass;
 class RenderOperation;
 class PipelineLayout;
@@ -41,6 +42,7 @@ class PUMEX_EXPORT RenderContext
 public:
   explicit RenderContext(Surface* surface, uint32_t queueNumber);
 
+  inline void                setFrameBuffer(std::shared_ptr<FrameBuffer> frameBuffer);
   inline void                setRenderPass(std::shared_ptr<RenderPass> renderPass);
   inline void                setSubpassIndex(uint32_t subpassIndex);
   void                       setRenderOperation(std::shared_ptr<RenderOperation> renderOperation);
@@ -61,6 +63,7 @@ public:
   uint32_t                         imageCount             = 1;
 
   // elements of the context that may change during visitor work
+  std::shared_ptr<FrameBuffer>     frameBuffer;
   std::shared_ptr<RenderPass>      renderPass;
   uint32_t                         subpassIndex           = 0;
   std::shared_ptr<RenderOperation> renderOperation;
@@ -70,8 +73,9 @@ public:
   VkPipelineBindPoint              currentBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
 };
 
-void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)           { renderPass = rp; }
-void             RenderContext::setSubpassIndex(uint32_t si)                            { subpassIndex = si; }
+void             RenderContext::setFrameBuffer(std::shared_ptr<FrameBuffer> fb) { frameBuffer = fb; }
+void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)   { renderPass = rp; }
+void             RenderContext::setSubpassIndex(uint32_t si)                    { subpassIndex = si; }
 
 inline VkPipelineBindPoint RenderContext::setCurrentBindPoint(VkPipelineBindPoint bindPoint)
 {

@@ -337,7 +337,7 @@ void addCapsule(Geometry& geometry, const glm::vec3& origin, float radius, float
     addHalfSphere(geometry, origin + glm::vec3(0, 0, 0.5*cylinderHeight), radius, numSegments, numRows, true, drawFrontFace);
 }
 
-void addQuad(Geometry& geometry, const glm::vec3& corner, const glm::vec3& widthVec, const glm::vec3& heightVec, float l, float b, float r, float t)
+void addQuad(Geometry& geometry, const glm::vec3& corner, const glm::vec3& widthVec, const glm::vec3& heightVec, float l, float b, float r, float t, float z)
 {
   VertexAccumulator acc(geometry.semantic);
   uint32_t verticesSoFar = geometry.getVertexCount();
@@ -350,22 +350,22 @@ void addQuad(Geometry& geometry, const glm::vec3& corner, const glm::vec3& width
 
   acc.set(VertexSemantic::Position, c0.x, c0.y, c0.z);
   acc.set(VertexSemantic::Normal, n.x, n.y, n.z );
-  acc.set(VertexSemantic::TexCoord, l, t );
+  acc.set(VertexSemantic::TexCoord, l, t, z );
   geometry.pushVertex(acc);
 
   acc.set(VertexSemantic::Position, c1.x, c1.y, c1.z);
   acc.set(VertexSemantic::Normal, n.x, n.y, n.z);
-  acc.set(VertexSemantic::TexCoord, l, b);
+  acc.set(VertexSemantic::TexCoord, l, b, z);
   geometry.pushVertex(acc);
 
   acc.set(VertexSemantic::Position, c2.x, c2.y, c2.z);
   acc.set(VertexSemantic::Normal, n.x, n.y, n.z);
-  acc.set(VertexSemantic::TexCoord, r, b);
+  acc.set(VertexSemantic::TexCoord, r, b, z);
   geometry.pushVertex(acc);
 
   acc.set(VertexSemantic::Position, c3.x, c3.y, c3.z);
   acc.set(VertexSemantic::Normal, n.x, n.y, n.z);
-  acc.set(VertexSemantic::TexCoord, r, t);
+  acc.set(VertexSemantic::TexCoord, r, t, z);
   geometry.pushVertex(acc);
 
   geometry.indices.push_back(verticesSoFar + 0);
@@ -616,6 +616,5 @@ std::shared_ptr<Asset> createFullScreenTriangle()
 
   return result;
 }
-
 
 }

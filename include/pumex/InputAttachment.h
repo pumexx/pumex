@@ -34,7 +34,7 @@ class ImageView;
 class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
-  InputAttachment(const std::string& attachmentName, std::shared_ptr<Sampler> sampler = nullptr);
+  InputAttachment(const std::string& resourceName, std::shared_ptr<Sampler> sampler = nullptr);
   virtual ~InputAttachment();
 
   std::pair<bool, VkDescriptorType> getDefaultDescriptorType() override;
@@ -42,19 +42,11 @@ public:
   DescriptorValue                   getDescriptorValue(const RenderContext& renderContext) override;
 
 protected:
-  struct InputAttachmentInternal
-  {
-  };
-  struct InputAttachmentImageView
-  {
-    std::shared_ptr<ImageView> imageView;
-  };
-
-  typedef PerObjectData<InputAttachmentInternal, InputAttachmentImageView> InputAttachmentData;
-  std::unordered_map<uint32_t, InputAttachmentData> perObjectData;
-  std::string                                       attachmentName;
-  std::shared_ptr<Sampler>                          sampler;
-  bool                                              registered = false;
+  std::shared_ptr<ImageView> imageView;
+  std::string                resourceName;
+  std::shared_ptr<Sampler>   sampler;
+  bool                       registered        = false;
+  bool                       samplerRegistered = false;
 };
 
 

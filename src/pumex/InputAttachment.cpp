@@ -28,9 +28,10 @@
 
 using namespace pumex;
 
-InputAttachment::InputAttachment(const std::string& an, std::shared_ptr<Sampler> s)
-  : Resource{ pbPerSurface, swForEachImage }, attachmentName{ an }, sampler{ s }
+InputAttachment::InputAttachment(const std::string& rn, std::shared_ptr<Sampler> s)
+  : Resource{ pbPerSurface, swForEachImage }, resourceName{ rn }, sampler{ s }
 {
+  CHECK_LOG_THROW(resourceName.empty(), "InputAttachment : resourceName is not defined");
 }
 
 InputAttachment::~InputAttachment()
@@ -44,48 +45,36 @@ std::pair<bool, VkDescriptorType> InputAttachment::getDefaultDescriptorType()
 
 void InputAttachment::validate(const RenderContext& renderContext)
 {
-  if (!registered)
+  std::lock_guard<std::mutex> lock(mutex);
+  if (!samplerRegistered)
   {
     if (sampler != nullptr)
       sampler->addResourceOwner(shared_from_this());
-    registered = true;
+    samplerRegistered = true;
   }
   if (sampler != nullptr)
     sampler->validate(renderContext);
 
-  std::lock_guard<std::mutex> lock(mutex);
-  if (renderContext.imageCount > activeCount)
+  auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
+  imageView = renderContext.surface->getRegisteredImageView(resourceAlias);
+  registered = false;
+
+  if (!registered)
   {
-    activeCount = renderContext.imageCount;
-    for (auto& pdd : perObjectData)
-      pdd.second.resize(activeCount);
+    if (imageView != nullptr)
+      imageView->addResource(shared_from_this());
+    registered = true;
   }
-
-  auto keyValue = getKeyID(renderContext, perObjectBehaviour);
-  auto pddit = perObjectData.find(keyValue);
-  if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, InputAttachmentData(renderContext, swForEachImage) }).first;
-  uint32_t activeIndex = renderContext.activeIndex % activeCount;
-  if (pddit->second.valid[activeIndex])
-    return;
-
-  auto frameBuffer                   = renderContext.surface->getFrameBuffer();
-  pddit->second.commonData.imageView = frameBuffer->getImageView(attachmentName);
-  pddit->second.commonData.imageView->addResource(shared_from_this());
-  notifyDescriptors(renderContext);
-
-  pddit->second.valid[activeIndex] = true;
+  if (imageView != nullptr)
+    imageView->validate(renderContext);
 }
 
 DescriptorValue InputAttachment::getDescriptorValue(const RenderContext& renderContext)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  auto keyValue = getKeyID(renderContext, perObjectBehaviour);
-  auto pddit = perObjectData.find(keyValue);
-  if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, InputAttachmentData(renderContext, swForEachImage) }).first;
-
   VkSampler samp = (sampler != nullptr) ? sampler->getHandleSampler(renderContext) : VK_NULL_HANDLE;
-  VkImageView iv = (pddit->second.commonData.imageView != nullptr) ? pddit->second.commonData.imageView->getImageView(renderContext) : VK_NULL_HANDLE;
-  return DescriptorValue(samp, iv, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  if (imageView != nullptr)
+    return DescriptorValue(samp, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  // FIXME : CHECK_LOG_THROW ?
+  return DescriptorValue(samp, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }

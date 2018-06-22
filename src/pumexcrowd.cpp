@@ -54,7 +54,6 @@
 // 2. Above mentioned buffer is used during rendering to choose appropriate object parameters ( position, bone matrices, object specific parameters, material ids, etc )
 
 
-const uint32_t MAX_SURFACES = 6;
 const uint32_t MAX_BONES = 63;
 const uint32_t MAIN_RENDER_MASK = 1;
 
@@ -860,8 +859,11 @@ int main(int argc, char * argv[])
     LOG_INFO << " : Vulkan debugging enabled";
   LOG_INFO << std::endl;
 
-  const std::vector<std::string> requestDebugLayers = { { "VK_LAYER_LUNARG_standard_validation" } };
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", enableDebugging, requestDebugLayers, 50 };
+  std::vector<std::string> instanceExtensions;
+  std::vector<std::string> requestDebugLayers;
+  if (enableDebugging)
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", instanceExtensions, requestDebugLayers, 50 };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -886,7 +888,7 @@ int main(int argc, char * argv[])
       windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Crowd rendering" });
     }
 
-    std::vector<const char*> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device            = viewer->addDevice(0, requestDeviceExtensions);
 
     std::vector<std::shared_ptr<pumex::Window>> windows;

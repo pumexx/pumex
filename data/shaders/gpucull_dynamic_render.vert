@@ -33,11 +33,11 @@ struct MaterialVariantDefinition
 
 layout (set = 0, binding = 0) uniform CameraUbo
 {
-  mat4  viewMatrix;
-  mat4  viewMatrixInverse;
-  mat4  projectionMatrix;
-  vec4  observerPosition;
-  float currentTime;
+  mat4 viewMatrix;
+  mat4 viewMatrixInverse;
+  mat4 projectionMatrix;
+  vec4 observerPosition;
+  vec4 params;
 } camera;
 
 layout (set = 0, binding = 1) readonly buffer DynamicInstanceDataSbo

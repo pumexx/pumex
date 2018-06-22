@@ -142,14 +142,14 @@ void CommandBuffer::cmdEnd()
 void CommandBuffer::cmdBeginRenderPass(const RenderContext& renderContext, RenderSubPass* renderSubPass, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues, VkSubpassContents subpassContents)
 {
   addSource(renderSubPass);
-  addSource(renderContext.surface->getFrameBuffer().get());
+  addSource(renderContext.frameBuffer.get());
   VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.renderPass      = renderSubPass->renderPass->getHandle(renderContext);
     renderPassBeginInfo.renderArea      = renderArea;
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues    = clearValues.data();
-    renderPassBeginInfo.framebuffer     = renderContext.surface->getFrameBuffer()->getHandleFrameBuffer(renderContext);
+    renderPassBeginInfo.framebuffer     = renderContext.frameBuffer->getHandleFrameBuffer(renderContext);
   vkCmdBeginRenderPass(commandBuffer[renderContext.activeIndex], &renderPassBeginInfo, subpassContents);
 }
 
