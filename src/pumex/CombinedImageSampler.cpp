@@ -23,14 +23,23 @@
 #include <pumex/CombinedImageSampler.h>
 #include <pumex/MemoryImage.h>
 #include <pumex/Sampler.h>
+#include <pumex/RenderContext.h>
+#include <pumex/RenderWorkflow.h>
+#include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
 
 CombinedImageSampler::CombinedImageSampler(std::shared_ptr<ImageView> iv, std::shared_ptr<Sampler> s)
-  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }, sampler{ s }
+  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }, resourceName{}, sampler { s }
 {
-  CHECK_LOG_THROW((iv->memoryImage->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "Combined image sampler resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
+  CHECK_LOG_THROW((iv->memoryImage->getImageTraits().usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0, "CombinedImageSampler resource connected to a texture that does not have VK_IMAGE_USAGE_SAMPLED_BIT");
+}
+
+CombinedImageSampler::CombinedImageSampler(const std::string& rn, std::shared_ptr<Sampler> s)
+  : Resource{ pbPerSurface, swForEachImage }, imageView{}, resourceName{ rn }, sampler{ s }
+{
+  CHECK_LOG_THROW(resourceName.empty(), "CombinedImageSampler : resourceName is not defined");
 }
 
 CombinedImageSampler::~CombinedImageSampler()
@@ -44,16 +53,30 @@ std::pair<bool, VkDescriptorType> CombinedImageSampler::getDefaultDescriptorType
 
 void CombinedImageSampler::validate(const RenderContext& renderContext)
 {
-  if (!registered)
+  std::lock_guard<std::mutex> lock(mutex);
+  if (!samplerRegistered)
   {
-    imageView->addResource(shared_from_this());
-    if(sampler!=nullptr)
+    if (sampler != nullptr)
       sampler->addResourceOwner(shared_from_this());
-    registered = true;
+    samplerRegistered = true;
   }
-  imageView->validate(renderContext);
   if (sampler != nullptr)
     sampler->validate(renderContext);
+
+  if (!resourceName.empty())
+  {
+    auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
+    imageView          = renderContext.surface->getRegisteredImageView(resourceAlias);
+    registered         = false;
+  }
+  if (!registered)
+  {
+    if (imageView != nullptr)
+      imageView->addResource(shared_from_this());
+    registered = true;
+  }
+  if (imageView != nullptr)
+    imageView->validate(renderContext);
 }
 
 DescriptorValue CombinedImageSampler::getDescriptorValue(const RenderContext& renderContext)

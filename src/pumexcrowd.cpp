@@ -1132,8 +1132,8 @@ int main(int argc, char * argv[])
     }
     else if(renderVRwindows)
     {
-      applicationData->setSlaveViewMatrix(0, glm::translate(glm::mat4(), glm::vec3( 0.03f, 0.0f, 0.0f)));
-      applicationData->setSlaveViewMatrix(1, glm::translate(glm::mat4(), glm::vec3( -0.03f, 0.0f, 0.0f)));
+      applicationData->setSlaveViewMatrix(0, glm::translate(glm::mat4(), glm::vec3( 0.0325f, 0.0f, 0.0f)));
+      applicationData->setSlaveViewMatrix(1, glm::translate(glm::mat4(), glm::vec3( -0.0325f, 0.0f, 0.0f)));
     }
     else
     {

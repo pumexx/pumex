@@ -3,7 +3,6 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-//layout (binding = 0) uniform texture2DArray color;
 layout (binding = 0) uniform texture2DArray color;
 layout (binding = 1) uniform sampler samp;
 
@@ -11,14 +10,20 @@ layout (location = 0) in vec3 inUV;
 
 layout (location = 0) out vec4 outColor;
 
+const float a = 0.2f;
+const float b = 0.0f;
+const float c = 0.0f;
+const float d = 1 - (a + b + c);
+
 void main() 
 {
-	float alpha = 0.3;
+	vec2 p1 = 2.0 * inUV.xy - vec2(1.0);
+	float len0 = length(p1);
+    float len1 = a * pow(len0,4) + b * pow(len0,3) + c * pow(len0,2) + d * len0;
+	vec2 p2 = normalize(p1) * len1;
+	p2 = (p2 + vec2(1.0)) * 0.5;
 
-	vec2 p1 = vec2(2.0 * inUV - 1.0);
-	vec2 p2 = p1 / (1.0 - alpha * length(p1));
-	p2 = (p2 + 1.0) * 0.5;
-
-	bool inside = ((p2.x >= 0.0) && (p2.x <= 1.0) && (p2.y >= 0.0 ) && (p2.y <= 1.0));
-	outColor = inside ? texture(sampler2DArray(color,samp), inUV) : vec4(0.0);
+	if( (p2.x < 0.0) || (p2.x > 1.0) || (p2.y < 0.0 ) || (p2.y > 1.0))
+	  discard;
+	outColor = texture(sampler2DArray(color,samp), vec3(p2,inUV.z));
 }

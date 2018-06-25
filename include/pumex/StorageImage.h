@@ -34,6 +34,7 @@ class PUMEX_EXPORT StorageImage : public Resource
 public:
   StorageImage()                               = delete;
   StorageImage(std::shared_ptr<ImageView> imageView);
+  StorageImage(const std::string& resourceName);
   StorageImage(const StorageImage&)            = delete;
   StorageImage& operator=(const StorageImage&) = delete;
   StorageImage(StorageImage&&)                 = delete;
@@ -44,8 +45,9 @@ public:
   void                              validate(const RenderContext& renderContext) override;
   DescriptorValue                   getDescriptorValue(const RenderContext& renderContext) override;
 
-  std::shared_ptr<ImageView> imageView;
 protected:
+  std::shared_ptr<ImageView> imageView;
+  std::string                resourceName;
   bool                       registered = false;
 };
 

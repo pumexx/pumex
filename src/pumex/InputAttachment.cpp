@@ -56,8 +56,8 @@ void InputAttachment::validate(const RenderContext& renderContext)
     sampler->validate(renderContext);
 
   auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
-  imageView = renderContext.surface->getRegisteredImageView(resourceAlias);
-  registered = false;
+  imageView          = renderContext.surface->getRegisteredImageView(resourceAlias);
+  registered         = false;
 
   if (!registered)
   {

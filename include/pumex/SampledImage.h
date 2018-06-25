@@ -21,7 +21,6 @@
 //
 
 #pragma once
-#include <unordered_map>
 #include <pumex/Export.h>
 #include <pumex/Resource.h>
 

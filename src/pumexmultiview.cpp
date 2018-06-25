@@ -311,12 +311,12 @@ struct DeferredApplicationData
     std::vector<pumex::Camera> cameras;
     {
       pumex::Camera camera;
-      camera.setViewMatrix(viewMatrix);
+      camera.setViewMatrix(glm::translate(glm::mat4(), glm::vec3(0.0325f, 0.0f, 0.0f)) * viewMatrix);
       camera.setObserverPosition(realEye);
       camera.setTimeSinceStart(renderTime);
       camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), 0.5f * (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
       cameras.push_back(camera);
-      // FIXME
+      camera.setViewMatrix(glm::translate(glm::mat4(), glm::vec3(-0.0325f, 0.0f, 0.0f)) * viewMatrix);
       cameras.push_back(camera);
     }
     cameraBuffer->setData(surface.get(), cameras);

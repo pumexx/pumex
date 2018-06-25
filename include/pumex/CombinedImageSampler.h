@@ -35,6 +35,7 @@ class PUMEX_EXPORT CombinedImageSampler : public Resource
 public:
   CombinedImageSampler()                                       = delete;
   CombinedImageSampler(std::shared_ptr<ImageView> imageView, std::shared_ptr<Sampler> sampler);
+  CombinedImageSampler(const std::string& resourceName, std::shared_ptr<Sampler> sampler);
   CombinedImageSampler(const CombinedImageSampler&)            = delete;
   CombinedImageSampler& operator=(const CombinedImageSampler&) = delete;
   CombinedImageSampler(CombinedImageSampler&&)                 = delete;
@@ -45,10 +46,12 @@ public:
   void                              validate(const RenderContext& renderContext) override;
   DescriptorValue                   getDescriptorValue(const RenderContext& renderContext) override;
 
-  std::shared_ptr<ImageView> imageView;
-  std::shared_ptr<Sampler>   sampler;
 protected:
-  bool                       registered = false;
+  std::shared_ptr<ImageView> imageView;
+  std::string                resourceName;
+  std::shared_ptr<Sampler>   sampler;
+  bool                       registered        = false;
+  bool                       samplerRegistered = false;
 };
 	
 }

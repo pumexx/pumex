@@ -22,14 +22,23 @@
 
 #include <pumex/StorageImage.h>
 #include <pumex/MemoryImage.h>
+#include <pumex/RenderContext.h>
+#include <pumex/RenderWorkflow.h>
+#include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
 
 StorageImage::StorageImage(std::shared_ptr<ImageView> iv)
-  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }
+  : Resource{ iv->memoryImage->getPerObjectBehaviour(), iv->memoryImage->getSwapChainImageBehaviour() }, imageView{ iv }, resourceName{}
 {
   CHECK_LOG_THROW((iv->memoryImage->getImageTraits().usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0, "StorageImage resource connected to a texture that does not have VK_IMAGE_USAGE_STORAGE_BIT");
+}
+
+StorageImage::StorageImage(const std::string& rn)
+  : Resource{ pbPerSurface, swForEachImage }, imageView{}, resourceName{ rn }
+{
+  CHECK_LOG_THROW(resourceName.empty(), "StorageImage : resourceName is not defined");
 }
 
 StorageImage::~StorageImage()
@@ -43,16 +52,28 @@ std::pair<bool, VkDescriptorType> StorageImage::getDefaultDescriptorType()
 
 void StorageImage::validate(const RenderContext& renderContext)
 {
+  std::lock_guard<std::mutex> lock(mutex);
+  if (!resourceName.empty())
+  {
+    auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
+    imageView          = renderContext.surface->getRegisteredImageView(resourceAlias);
+    registered         = false;
+  }
   if (!registered)
   {
-    imageView->addResource(shared_from_this());
+    if (imageView != nullptr)
+      imageView->addResource(shared_from_this());
     registered = true;
   }
-  imageView->validate(renderContext);
+  if (imageView != nullptr)
+    imageView->validate(renderContext);
 }
 
 DescriptorValue StorageImage::getDescriptorValue(const RenderContext& renderContext)
 {
-  return DescriptorValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_UNDEFINED);
+  if (imageView != nullptr)
+    return DescriptorValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  // FIXME : CHECK_LOG_THROW ?
+  return DescriptorValue(VK_NULL_HANDLE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }
 

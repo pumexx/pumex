@@ -225,16 +225,16 @@ void RenderPass::validate(const RenderContext& renderContext)
     renderPassCI.dependencyCount = dependencyDescriptors.size();
     renderPassCI.pDependencies   = dependencyDescriptors.data();
 
+  VkRenderPassMultiviewCreateInfo renderPassMultiviewCI{};
   if(multiViewRenderPass && renderContext.device->deviceExtensionEnabled(VK_KHR_MULTIVIEW_EXTENSION_NAME))
   {
     uint32_t correlationMask = 0x3U; // FIXME - hardcoded
 
-    VkRenderPassMultiviewCreateInfo renderPassMultiviewCI{};
-      renderPassMultiviewCI.sType                = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO;
-      renderPassMultiviewCI.subpassCount         = static_cast<uint32_t>(multiViewMasks.size());
-      renderPassMultiviewCI.pViewMasks           = multiViewMasks.data();
-      renderPassMultiviewCI.correlationMaskCount = 1;
-      renderPassMultiviewCI.pCorrelationMasks    = &correlationMask;
+    renderPassMultiviewCI.sType                = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO;
+    renderPassMultiviewCI.subpassCount         = static_cast<uint32_t>(multiViewMasks.size());
+    renderPassMultiviewCI.pViewMasks           = multiViewMasks.data();
+    renderPassMultiviewCI.correlationMaskCount = 1;
+    renderPassMultiviewCI.pCorrelationMasks    = &correlationMask;
     renderPassCI.pNext = &renderPassMultiviewCI;
   }
   VK_CHECK_LOG_THROW( vkCreateRenderPass(renderContext.vkDevice, &renderPassCI, nullptr, &pddit->second.data[activeIndex].renderPass), "Could not create render pass" );
