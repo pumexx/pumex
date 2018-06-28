@@ -36,12 +36,12 @@ uint32_t Font::fontCount = 0;
 
 const uint32_t PUMEX_GLYPH_MARGIN = 4;
 
-Font::Font(const std::string& fileName, glm::ivec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator)
+Font::Font(const filesystem::path& fileName, glm::ivec2 ts, uint32_t fph, std::shared_ptr<DeviceMemoryAllocator> textureAllocator)
   : textureSize{ ts }, fontPixelHeight{ fph }
 {
   if (fontLibrary == nullptr)
     FT_Init_FreeType(&fontLibrary);
-  CHECK_LOG_THROW( FT_New_Face(fontLibrary, fileName.c_str(), 0, &fontFace) != 0, "Cannot load a font : " << fileName);
+  CHECK_LOG_THROW( FT_New_Face(fontLibrary, fileName.string().c_str(), 0, &fontFace) != 0, "Cannot load a font : " << fileName);
   fontCount++;
 
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);

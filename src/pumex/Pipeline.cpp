@@ -102,7 +102,7 @@ VkPipelineCache PipelineCache::getHandle(VkDevice device) const
   return pddit->second.pipelineCache;
 }
 
-ShaderModule::ShaderModule(const std::string& f)
+ShaderModule::ShaderModule(const filesystem::path& f)
   : fileName(f)
 {
   std::ifstream file(fileName.c_str(),std::ios::in | std::ios::binary);

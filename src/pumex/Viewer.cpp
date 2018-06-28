@@ -63,17 +63,19 @@ Viewer::Viewer(const ViewerTraits& vt)
   lastRenderDuration  = viewerStartTime - renderStartTime;
   lastUpdateDuration  = viewerStartTime - updateStartTimes[0];
 
-  // register basic directories - directories listed in PUMEX_DATA_DIR environment variable, spearated by semicolon
-  const char* dataDirVariable = getenv("PUMEX_DATA_DIR");
+  // register basic directories - directories listed in PUMEX_DATA_DIR environment variable, separated by colon or semicolon
+  const char* dataDirVariable = std::getenv("PUMEX_DATA_DIR");
   if (dataDirVariable != nullptr)
   {
     const char* currentPos = dataDirVariable;
     do
     {
-      const char *begin = currentPos;
+      const char *beginPos = currentPos;
       while (*currentPos != ';' && *currentPos != ':' && *currentPos != 0)
         currentPos++;
-      addDefaultDirectory( std::string(begin, currentPos) );
+      std::error_code ec;
+      filesystem::path currentPath(std::string(beginPos, currentPos));
+      addDefaultDirectory(currentPath);
     } while (*currentPos++ != 0);
   }
 
@@ -81,38 +83,31 @@ Viewer::Viewer(const ViewerTraits& vt)
   char strCurrentPath[MAX_PATH_LENGTH];
   if (getcwd(strCurrentPath, MAX_PATH_LENGTH))
   {
-    std::string currentDir(strCurrentPath);
+    filesystem::path currentDir(strCurrentPath);
     addDefaultDirectory(currentDir);
-    currentDir = currentDir.substr(0, currentDir.find_last_of("/"));
-    addDefaultDirectory(currentDir + "/data");
-    addDefaultDirectory(currentDir + "../data");
-    addDefaultDirectory(currentDir + "../../data");
+    addDefaultDirectory(currentDir / filesystem::path("data") );
+    addDefaultDirectory(currentDir / filesystem::path("../data"));
+    addDefaultDirectory(currentDir / filesystem::path("../../data"));
   }
   // register basic directories - executable directory and data directory
-  char strExePath[MAX_PATH_LENGTH];
+  char strExecPath[MAX_PATH_LENGTH];
+  filesystem::path execDir;
 #if defined(_WIN32)
-  GetModuleFileNameA(NULL, strExePath, MAX_PATH_LENGTH);
-  std::string exeDir = strExePath;
-  exeDir = exeDir.substr(0, exeDir.find_last_of("\\"));
-  addDefaultDirectory(exeDir);
-  addDefaultDirectory(exeDir + "\\data");
+  GetModuleFileNameA(NULL, strExecPath, MAX_PATH_LENGTH);
+  execDir = strExecPath;
 #else
   {
     char id[MAX_PATH_LENGTH];
     sprintf(id, "/proc/%d/exe", getpid());
-    ssize_t size = readlink(id, strExePath, 255);
-    if ((size < 0) || (size > MAX_PATH_LENGTH))
+    ssize_t size = readlink(id, strExecPath, MAX_PATH_LENGTH-1);
+    if ((size < 0) || (size >= MAX_PATH_LENGTH))
       size = 0;
-    strExePath[size] = '\0';
+    strExecPath[size] = '\0';
   }
-  std::string exeDir = strExePath;
-  if(!exeDir.empty())
-  {
-    exeDir = exeDir.substr(0, exeDir.find_last_of("/"));
-    addDefaultDirectory(exeDir);
-    addDefaultDirectory(exeDir+"/data");
-  }
+  execDir = strExePath;
 #endif
+  addDefaultDirectory(execDir);
+  addDefaultDirectory(execDir / filesystem::path("data"));
 
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
@@ -383,21 +378,31 @@ Surface* Viewer::getSurface(uint32_t id)
   return it->second.get();
 }
 
-std::string Viewer::getFullFilePath(const std::string& shortFileName) const
+void Viewer::addDefaultDirectory(const filesystem::path & directory) 
 {
-  struct stat buf;
-  for (auto d : defaultDirectories)
+  std::error_code ec;
+  filesystem::path canonicalPath = filesystem::canonical(directory, ec);
+  // inform the user that it's not a canonnical path
+  CHECK_LOG_RETURN_VOID(ec.value() != 0, "Viewer::addDefaultDirectory() : Cannot create cannonical path from " << directory << " Error message : " << ec.message());
+  // skip directory if it already exists in defaultDirectories
+  if (std::find(begin(defaultDirectories), end(defaultDirectories), canonicalPath) != end(defaultDirectories))
+    return;
+  // silently skip it if it's not a directory ( it may not even exist on disk )
+  if (!filesystem::is_directory(canonicalPath))
+    return;
+  CHECK_LOG_RETURN_VOID(!canonicalPath.is_absolute(), "Viewer::addDefaultDirectory() : Default directory must be absolute : " << directory);
+  defaultDirectories.push_back(canonicalPath);
+}
+
+filesystem::path Viewer::getAbsoluteFilePath(const filesystem::path& relativeFilePath) const
+{
+  for (auto directory : defaultDirectories)
   {
-#if defined(_WIN32)
-    std::replace(begin(d), end(d), '/', '\\');
-    std::string fullFilePath( d + "\\" + shortFileName );
-#else
-    std::string fullFilePath(d + "/" + shortFileName);
-#endif
-    if (stat(fullFilePath.c_str(), &buf) == 0)
-      return fullFilePath;
+    filesystem::path targetPath = directory / relativeFilePath;
+    if (filesystem::exists(targetPath))
+      return targetPath;
   }
-  return std::string();
+  return filesystem::path();
 }
 
 bool Viewer::instanceExtensionImplemented(const char* extensionName) const

@@ -324,7 +324,7 @@ struct CrowdApplicationData
     // We assume that animations use the same skeleton as skeletal models
     for (auto& animDef : animationDefinitions)
     {
-      std::string fullAssetFileName = viewer->getFullFilePath(std::get<0>(animDef));
+      auto fullAssetFileName = viewer->getAbsoluteFilePath(std::get<0>(animDef));
       if (fullAssetFileName.empty())
       {
         LOG_WARNING << "Cannot find asset : " << std::get<0>(animDef) << std::endl;
@@ -353,7 +353,7 @@ struct CrowdApplicationData
       {
         if (fileNames[j].empty())
           continue;
-        std::string fullAssetFileName = viewer->getFullFilePath(fileNames[j]);
+        auto fullAssetFileName = viewer->getAbsoluteFilePath(fileNames[j]);
         if (fullAssetFileName.empty())
         {
           LOG_WARNING << "Cannot find asset : " << fileNames[j] << std::endl;
@@ -970,7 +970,7 @@ int main(int argc, char * argv[])
     auto filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
     auto filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
+    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/crowd_filter_instances.comp.spv")), "main" };
     computeRoot->addChild(filterPipeline);
 
     auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), localBuffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
@@ -1030,8 +1030,8 @@ int main(int argc, char * argv[])
     auto instancedRenderPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, instancedRenderPipelineLayout);
     instancedRenderPipeline->shaderStages   =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_instanced_animation.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/crowd_instanced_animation.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/crowd_instanced_animation.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/crowd_instanced_animation.frag.spv")), "main" }
     };
     instancedRenderPipeline->vertexInput =
     {
@@ -1065,12 +1065,12 @@ int main(int argc, char * argv[])
     assetBufferDrawIndirect->setDescriptorSet(0, instancedRenderDescriptorSet);
 
     // build text render pipeline
-    std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
-    auto fontDefault             = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
-    auto fontSmall               = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512),   16, texturesAllocator);
+    auto fullFontFileName = viewer->getAbsoluteFilePath("fonts/DejaVuSans.ttf");
+    auto fontDefault      = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
+    auto fontSmall        = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512),   16, texturesAllocator);
 
-    auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-    auto textSmall   = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
+    auto textDefault      = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
+    auto textSmall        = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
 
     // building text rendering pipeline layout
     std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
@@ -1097,9 +1097,9 @@ int main(int argc, char * argv[])
     textPipeline->depthWriteEnable = VK_FALSE;
     textPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderingRoot->addChild(textPipeline);

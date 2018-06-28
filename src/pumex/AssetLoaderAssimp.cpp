@@ -76,9 +76,9 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
     mat.properties.insert({ std::string(key), glm::vec4(value, 0.0f, 0.0f, 0.0f) });
 }
 
-std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
+std::shared_ptr<Asset> AssetLoaderAssimp::load(const filesystem::path& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
-  const aiScene* scene = Importer.ReadFile(fileName.c_str(), importFlags);
+  const aiScene* scene = Importer.ReadFile(fileName.string().c_str(), importFlags);
   if ( scene == nullptr )
     return nullptr;
 

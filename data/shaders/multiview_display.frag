@@ -22,8 +22,7 @@ void main()
     float len1 = a * pow(len0,4) + b * pow(len0,3) + c * pow(len0,2) + d * len0;
 	vec2 p2 = normalize(p1) * len1;
 	p2 = (p2 + vec2(1.0)) * 0.5;
-
-	if( (p2.x < 0.0) || (p2.x > 1.0) || (p2.y < 0.0 ) || (p2.y > 1.0))
+    if( any( lessThan(p2,vec2(0.0)) ) || any(lessThan(vec2(1.0),p2) ) )
 	  discard;
 	outColor = texture(sampler2DArray(color,samp), vec3(p2,inUV.z));
 }

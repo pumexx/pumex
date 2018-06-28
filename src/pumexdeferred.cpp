@@ -519,8 +519,8 @@ int main( int argc, char * argv[] )
 
     gbufferPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_gbuffers.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_gbuffers.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/deferred_gbuffers.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/deferred_gbuffers.frag.spv")), "main" }
     };
     gbufferPipeline->vertexInput =
     {
@@ -550,13 +550,8 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
-    std::string sponzaFileName;
-#if defined(_WIN32)
-    sponzaFileName = "sponza\\sponza.dae";
-#else
-    sponzaFileName = "sponza/sponza.dae";
-#endif
-    sponzaFileName = viewer->getFullFilePath(sponzaFileName);
+    filesystem::path sponzaFileName("sponza/sponza.dae") ;
+    sponzaFileName = viewer->getAbsoluteFilePath(sponzaFileName);
 
     pumex::AssetLoaderAssimp loader;
     loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace );
@@ -624,8 +619,8 @@ int main( int argc, char * argv[] )
     compositePipeline->setName("compositePipeline");
     compositePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_composite.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/deferred_composite.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/deferred_composite.vert.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/deferred_composite.frag.spv")), "main" }
     };
     compositePipeline->depthTestEnable = VK_FALSE;
     compositePipeline->depthWriteEnable = VK_FALSE;
@@ -658,7 +653,7 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
-    std::string fullFontFileName = viewer->getFullFilePath("fonts/DejaVuSans.ttf");
+    auto fullFontFileName = viewer->getAbsoluteFilePath("fonts/DejaVuSans.ttf");
     auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
     textDefault->setName("textDefault");
@@ -690,9 +685,9 @@ int main( int argc, char * argv[] )
     textPipeline->depthWriteEnable = VK_FALSE;
     textPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getFullFilePath("shaders/text_draw.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.vert.spv")), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
     };
     textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     textPipeline->rasterizationSamples = SAMPLE_COUNT;

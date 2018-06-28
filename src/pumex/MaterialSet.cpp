@@ -162,9 +162,9 @@ std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Ma
           textureIndex = textureNames[s.index].size();
           textureNames[s.index].push_back(it->second);
 
-          std::string fullFileName = viewer.lock()->getFullFilePath(it->second);
+          auto fullFileName = viewer.lock()->getAbsoluteFilePath(it->second);
           CHECK_LOG_THROW(fullFileName.empty(), "Cannot find file : " << it->second);
-          auto tex = std::make_shared<gli::texture>(gli::load(fullFileName));
+          auto tex = std::make_shared<gli::texture>(gli::load(fullFileName.string()));
           CHECK_LOG_THROW(tex->empty(), "Texture not loaded : " << it->second);
           textureRegistry->setTexture(s.index, textureIndex, tex);
         }

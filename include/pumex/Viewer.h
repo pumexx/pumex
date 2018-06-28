@@ -21,7 +21,6 @@
 //
 
 #pragma once
-
 #include <memory>
 #include <vector>
 #include <map>
@@ -30,10 +29,13 @@
 #include <thread>
 #include <condition_variable>
 #include <mutex>
+#include <filesystem>
 #include <vulkan/vulkan.h>
 #include <tbb/flow_graph.h>
 #include <pumex/Export.h>
 #include <pumex/HPClock.h>
+
+namespace filesystem = std::experimental::filesystem;
 
 namespace pumex
 {
@@ -104,8 +106,8 @@ public:
   inline HPClock::time_point getUpdateTime() const;          // get the time point of the update
   inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
 
-  inline void                addDefaultDirectory(std::string directory);
-  std::string                getFullFilePath(const std::string& shortFilePath) const; // FIXME - needs transition to <filesystem>
+  void                       addDefaultDirectory( const filesystem::path & directory);
+  filesystem::path           getAbsoluteFilePath( const filesystem::path& relativeFilePath ) const;
 
   bool                       instanceExtensionImplemented(const char* extensionName) const;
   bool                       instanceExtensionEnabled(const char* extensionName) const;
@@ -130,7 +132,7 @@ protected:
 
   void            buildRenderGraph();
 
-  std::vector<std::string>                               defaultDirectories; // FIXME - needs transition to <filesystem> ASAP
+  std::vector<filesystem::path>                          defaultDirectories;
   std::vector<std::shared_ptr<PhysicalDevice>>           physicalDevices;
   std::unordered_map<uint32_t, std::shared_ptr<Device>>  devices;
   std::unordered_map<uint32_t, std::shared_ptr<Surface>> surfaces;
@@ -189,13 +191,11 @@ HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStart
 HPClock::duration   Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
 HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
 HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
-void                Viewer::addDefaultDirectory(std::string directory) { std::replace( begin(directory), end(directory), '\\', '/'); defaultDirectories.push_back(directory); }
 void                Viewer::doNothing() const               {}
 void                Viewer::setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event)  { eventRenderStart = event; }
 void                Viewer::setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event) { eventRenderFinish = event; }
 void                Viewer::onEventRenderStart()            { if (eventRenderStart != nullptr)  eventRenderStart(shared_from_this()); }
 void                Viewer::onEventRenderFinish()           { if (eventRenderFinish != nullptr)  eventRenderFinish(shared_from_this()); }
-
 
 uint32_t   Viewer::getNextUpdateSlot() const
 {
