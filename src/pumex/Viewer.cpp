@@ -104,11 +104,16 @@ Viewer::Viewer(const ViewerTraits& vt)
       size = 0;
     strExecPath[size] = '\0';
   }
-  execDir = strExePath;
+  execDir = strExecPath;
 #endif
   addDefaultDirectory(execDir);
   addDefaultDirectory(execDir / filesystem::path("data"));
 
+  //// list all existing default directories
+  //LOG_INFO << "Default directories :" << std::endl;
+  //for(auto& d : defaultDirectories)
+  //  LOG_INFO << d << std::endl;
+  
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
 #if defined(_WIN32)
@@ -382,12 +387,14 @@ void Viewer::addDefaultDirectory(const filesystem::path & directory)
 {
   std::error_code ec;
   filesystem::path canonicalPath = filesystem::canonical(directory, ec);
-  // inform the user that it's not a canonnical path
-  CHECK_LOG_RETURN_VOID(ec.value() != 0, "Viewer::addDefaultDirectory() : Cannot create cannonical path from " << directory << " Error message : " << ec.message());
+  // skip directory if it's not a canonnical path
+  if(ec.value() != 0)
+    return;
+//  CHECK_LOG_RETURN_VOID(ec.value() != 0, "Viewer::addDefaultDirectory() : Cannot create cannonical path from " << directory << " Error message : " << ec.message());
   // skip directory if it already exists in defaultDirectories
   if (std::find(begin(defaultDirectories), end(defaultDirectories), canonicalPath) != end(defaultDirectories))
     return;
-  // silently skip it if it's not a directory ( it may not even exist on disk )
+  // skip it if it's not a directory ( it may not even exist on disk )
   if (!filesystem::is_directory(canonicalPath))
     return;
   CHECK_LOG_RETURN_VOID(!canonicalPath.is_absolute(), "Viewer::addDefaultDirectory() : Default directory must be absolute : " << directory);
