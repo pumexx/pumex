@@ -84,7 +84,7 @@ struct PUMEX_EXPORT VertexSemantic
   VkFormat getVertexFormat() const;
 };
 
-inline PUMEX_EXPORT bool operator==(const VertexSemantic& lhs, const VertexSemantic& rhs)
+inline bool operator==(const VertexSemantic& lhs, const VertexSemantic& rhs)
 {
   return (lhs.type == rhs.type) && (lhs.size == rhs.size);
 }

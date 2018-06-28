@@ -28,6 +28,7 @@
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
 #include <pumex/RenderWorkflow.h>
+#include <pumex/Version.h>
 #if defined(_WIN32)
   #include <pumex/platform/win32/WindowWin32.h>
   #include <direct.h>
@@ -50,8 +51,8 @@ const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const ViewerTraits& vt)
   : viewerTraits{ vt }, 
-  opStartUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  opEndUpdateGraph                { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opStartUpdateGraph            { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opEndUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   opRenderGraphStart            { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   opRenderGraphEventRenderStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
   opRenderGraphFinish           { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
@@ -136,7 +137,7 @@ Viewer::Viewer(const ViewerTraits& vt)
     applicationInfo.pApplicationName   = viewerTraits.applicationName.c_str();
     applicationInfo.applicationVersion = 1;
     applicationInfo.pEngineName        = "pumex";
-    applicationInfo.engineVersion      = 1;
+    applicationInfo.engineVersion      = 10000 * PUMEX_VERSION_MAJOR + 100 * PUMEX_VERSION_MINOR + PUMEX_VERSION_PATCH;
     applicationInfo.apiVersion         = VK_API_VERSION_1_0;
 
   VkInstanceCreateInfo instanceCreateInfo{};

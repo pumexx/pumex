@@ -49,12 +49,12 @@ struct PUMEX_EXPORT QueueTraits
   float         priority;
 };
 
-inline PUMEX_EXPORT bool operator==(const QueueTraits& lhs, const QueueTraits& rhs)
+inline bool operator==(const QueueTraits& lhs, const QueueTraits& rhs)
 {
   return (lhs.mustHave == rhs.mustHave) && (lhs.mustNotHave == rhs.mustNotHave) && (lhs.priority == rhs.priority);
 }
 
-inline PUMEX_EXPORT bool operator!=(const QueueTraits& lhs, const QueueTraits& rhs)
+inline bool operator!=(const QueueTraits& lhs, const QueueTraits& rhs)
 {
   return (lhs.mustHave != rhs.mustHave) || (lhs.mustNotHave != rhs.mustNotHave) || (lhs.priority != rhs.priority);
 }

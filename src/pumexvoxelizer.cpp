@@ -507,7 +507,12 @@ int main( int argc, char * argv[] )
     renderRoot->setName("renderRoot");
     workflow->setRenderOperationNode("rendering", renderRoot);
 
-    std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
+    pumex::Geometry voxelBox;
+    voxelBox.name = "voxelBox";
+    voxelBox.semantic = requiredSemantic;
+    voxelBox.materialIndex = 0;
+    pumex::addBox(voxelBox, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), false);
+    std::shared_ptr<pumex::Asset> voxelBoxAsset(pumex::createSimpleAsset(voxelBox, "voxelBox"));
 
     // create pipeline for ray marching
     std::vector<pumex::DescriptorSetLayoutBinding> raymarchLayoutBindings =
@@ -527,7 +532,7 @@ int main( int argc, char * argv[] )
     };
     raymarchPipeline->vertexInput =
     {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, fullScreenTriangle->geometries[0].semantic }
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, voxelBoxAsset->geometries[0].semantic }
     };
     raymarchPipeline->blendAttachments =
     {
@@ -536,15 +541,15 @@ int main( int argc, char * argv[] )
     raymarchPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderRoot->addChild(raymarchPipeline);
 
-    std::shared_ptr<pumex::AssetNode> fstAssetNode = std::make_shared<pumex::AssetNode>(fullScreenTriangle, verticesAllocator, 1, 0);
-    fstAssetNode->setName("fullScreenTriangleAssetNode");
-    raymarchPipeline->addChild(fstAssetNode);
+    std::shared_ptr<pumex::AssetNode> vbaAssetNode = std::make_shared<pumex::AssetNode>(voxelBoxAsset, verticesAllocator, 1, 0);
+    vbaAssetNode->setName("vbaAssetNode");
+    raymarchPipeline->addChild(vbaAssetNode);
 
     auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(raymarchDescriptorSetLayout);
     raymarchDescriptorSet->setDescriptor(0, cameraUbo);
     raymarchDescriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->voxelPositionBuffer));
     raymarchDescriptorSet->setDescriptor(2, volumeStorageImage);
-    fstAssetNode->setDescriptorSet(0, raymarchDescriptorSet);
+    vbaAssetNode->setDescriptorSet(0, raymarchDescriptorSet);
 
     // create pipeline for basic model rendering
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
