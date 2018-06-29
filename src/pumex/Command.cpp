@@ -482,7 +482,6 @@ void CommandBuffer::executeCommandBuffer(const RenderContext& renderContext, Com
   vkCmdExecuteCommands(commandBuffer[activeIndex], 1, &secBuffer);
 }
 
-
 void CommandBuffer::queueSubmit(VkQueue queue, const std::vector<VkSemaphore>& waitSemaphores, const std::vector<VkPipelineStageFlags>& waitStages, const std::vector<VkSemaphore>& signalSemaphores, VkFence fence ) const
 {
   std::lock_guard<std::mutex> lock(mutex);

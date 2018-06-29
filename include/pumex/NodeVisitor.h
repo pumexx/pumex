@@ -35,6 +35,7 @@ class AssetNode;
 class DispatchNode;
 class Text;
 
+// Node visitor is a class allowing user to visit direct acyclic graphs
 class PUMEX_EXPORT NodeVisitor
 {
 public:
@@ -60,7 +61,6 @@ public:
   virtual void apply(AssetNode& node);
   virtual void apply(DispatchNode& node);
   virtual void apply(Text& node);
-
 
 protected:
   uint32_t           mask = 0xFFFFFFFF;

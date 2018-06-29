@@ -191,7 +191,6 @@ protected:
     std::shared_ptr<Buffer<std::vector<AssetGeometryDefinition>>> geomBuffer;
   };
 
-
   struct InternalGeometryDefinition
   {
     InternalGeometryDefinition(uint32_t tid, uint32_t lid, uint32_t rm, uint32_t ai, uint32_t gi)

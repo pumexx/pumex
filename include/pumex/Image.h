@@ -22,9 +22,12 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
+#include <experimental/filesystem>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
+
+namespace filesystem = std::experimental::filesystem;
 
 namespace pumex
 {
@@ -52,7 +55,7 @@ struct PUMEX_EXPORT ImageTraits
   VkSharingMode            sharingMode    = VK_SHARING_MODE_EXCLUSIVE;
 };
 
-// Class implementing Vulkan image
+// Class implementing Vulkan image (VkImage ) on a single device/surface
 class PUMEX_EXPORT Image
 {
 public:
@@ -90,7 +93,6 @@ VkImage              Image::getHandleImage() const { return image; }
 VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }
 const ImageTraits&   Image::getImageTraits() const { return imageTraits; }
 
-
 // helper functions
 PUMEX_EXPORT ImageTraits        getImageTraitsFromTexture(const gli::texture& texture, VkImageUsageFlags usage);
 
@@ -105,7 +107,7 @@ PUMEX_EXPORT VkComponentMapping vulkanComponentMappingFromGliComponentMapping(co
 class PUMEX_EXPORT TextureLoader
 {
 public:
-  virtual std::shared_ptr<gli::texture> load(const std::string& fileName) = 0;
+  virtual std::shared_ptr<gli::texture> load(const filesystem::path& fileName) = 0;
 };
 
 }

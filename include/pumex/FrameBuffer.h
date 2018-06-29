@@ -102,5 +102,4 @@ protected:
 
 size_t FrameBuffer::getNumImageDefinitions() const { return imageDefinitions.size(); }
 
-
 }

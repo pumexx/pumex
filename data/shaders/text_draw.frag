@@ -12,6 +12,6 @@ layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-  float alpha = texture( fontTexture, inUV ).r;
-  outFragColor  = vec4( inColor.xyz, alpha );
+  float alpha  = texture( fontTexture, inUV ).r;
+  outFragColor = vec4( inColor.xyz, alpha );
 }

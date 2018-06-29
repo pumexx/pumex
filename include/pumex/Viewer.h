@@ -226,7 +226,6 @@ uint32_t   Viewer::getNextRenderSlot() const
   return slot;
 }
 
-
 PUMEX_EXPORT VkBool32 messageCallback( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
 
 }

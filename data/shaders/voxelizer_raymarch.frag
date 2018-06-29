@@ -88,7 +88,7 @@ void main()
       return;
     }
     vec3 deltas = (step(0, rayDirInTex) - fract(texCoordInTex)) * invRayDirInTex;
-    t += max(min(deltas.x,min(deltas.y,deltas.z)), 0.0001) ;
+    t           += max(min(deltas.x,min(deltas.y,deltas.z)), 0.0001) ;
   }
   discard;
 }

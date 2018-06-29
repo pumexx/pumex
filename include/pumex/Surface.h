@@ -159,16 +159,15 @@ protected:
   bool                                          checkWorkflow();
 };
 
-bool                         Surface::isRealized() const     { return realized; }
-void                         Surface::setID(uint32_t newID)  { id = newID; }
-uint32_t                     Surface::getID() const          { return id; }
-uint32_t                     Surface::getImageCount() const  { return surfaceTraits.imageCount; }
-uint32_t                     Surface::getImageIndex() const  { return swapChainImageIndex; }
+bool                         Surface::isRealized() const                                                               { return realized; }
+void                         Surface::setID(uint32_t newID)                                                            { id = newID; }
+uint32_t                     Surface::getID() const                                                                    { return id; }
+uint32_t                     Surface::getImageCount() const                                                            { return surfaceTraits.imageCount; }
+uint32_t                     Surface::getImageIndex() const                                                            { return swapChainImageIndex; }
 void                         Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
 void                         Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }
 void                         Surface::onEventSurfaceRenderStart()                                                      { if (eventSurfaceRenderStart != nullptr)  eventSurfaceRenderStart(shared_from_this()); }
 void                         Surface::onEventSurfaceRenderFinish()                                                     { if (eventSurfaceRenderFinish != nullptr)  eventSurfaceRenderFinish(shared_from_this()); }
-
 
 }
 

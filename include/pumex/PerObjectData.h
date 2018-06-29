@@ -32,6 +32,7 @@ namespace pumex
 enum PerObjectBehaviour { pbPerDevice, pbPerSurface };
 enum SwapChainImageBehaviour { swOnce, swForEachImage };
 
+// helper class that stores info about internal data for many classes in a library
 template<typename T, typename U>
 struct PerObjectData
 {

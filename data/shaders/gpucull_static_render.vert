@@ -39,22 +39,22 @@ layout (set = 0, binding = 0) uniform CameraUbo
 
 layout (set = 0, binding = 1) readonly buffer ResultIndexSbo
 {
-	uint instanceIndices[];
+  uint instanceIndices[];
 };
 
 layout (set = 0, binding = 2) readonly buffer InstanceDataSbo
 {
-	StaticInstanceData instances[];
+  StaticInstanceData instances[];
 };
 
 layout (set = 0, binding = 3) readonly buffer MaterialTypesSbo
 {
-	MaterialTypeDefinition materialTypes[];
+  MaterialTypeDefinition materialTypes[];
 };
 
 layout (set = 0, binding = 4) readonly buffer MaterialVariantsSbo
 {
-	MaterialVariantDefinition materialVariants[];
+  MaterialVariantDefinition materialVariants[];
 };
 
 const vec3 lightDirection = vec3(0,0,1);
@@ -69,22 +69,22 @@ layout (location = 5) flat out uint materialID;
 
 void main() 
 {
-	uint instanceIndex = instanceIndices[gl_InstanceIndex];
-	mat4 modelMatrix   = instances[instanceIndex].position;
+  uint instanceIndex = instanceIndices[gl_InstanceIndex];
+  mat4 modelMatrix   = instances[instanceIndex].position;
 
-    float wavingAmplitute = max(0.0,inPos.z * instances[instanceIndex].params[1]);
-	vec2 windTranslation = windDirection * wavingAmplitute * sin( instances[instanceIndex].params[2] * camera.params[0] + instances[instanceIndex].params[3] );
+  float wavingAmplitute = max(0.0,inPos.z * instances[instanceIndex].params[1]);
+  vec2 windTranslation  = windDirection * wavingAmplitute * sin( instances[instanceIndex].params[2] * camera.params[0] + instances[instanceIndex].params[3] );
 
-	vec4 modelPosition = modelMatrix * vec4(inPos.xyz, 1.0);
-	modelPosition.xy   += windTranslation;
-	gl_Position        = camera.projectionMatrix * camera.viewMatrix * modelPosition;
-	outNormal          = mat3(inverse(transpose(modelMatrix))) * inNormal;
-	outColor           = vec3(1.0,1.0,1.0) * instances[instanceIndex].params[0] ;
-	outUV              = inUV.xy;
+  vec4 modelPosition = modelMatrix * vec4(inPos.xyz, 1.0);
+  modelPosition.xy   += windTranslation;
+  gl_Position        = camera.projectionMatrix * camera.viewMatrix * modelPosition;
+  outNormal          = mat3(inverse(transpose(modelMatrix))) * inNormal;
+  outColor           = vec3(1.0,1.0,1.0) * instances[instanceIndex].params[0] ;
+  outUV              = inUV.xy;
 	
-    vec4 pos           = camera.viewMatrix * modelPosition;
-    outLightVec        = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
-    outViewVec         = -pos.xyz;
+  vec4 pos           = camera.viewMatrix * modelPosition;
+  outLightVec        = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
+  outViewVec         = -pos.xyz;
 
-	materialID  = materialVariants[materialTypes[instances[instanceIndex].id.y].variantFirst + instances[instanceIndex].id.z].materialFirst + uint(inUV.z);
+  materialID  = materialVariants[materialTypes[instances[instanceIndex].id.y].variantFirst + instances[instanceIndex].id.z].materialFirst + uint(inUV.z);
 }

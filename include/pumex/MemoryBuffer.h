@@ -45,6 +45,8 @@ class RenderContext;
 class CommandBuffer;
 class BufferView;
 
+
+// struct defining subresource range for buffer
 struct PUMEX_EXPORT BufferSubresourceRange
 {
   BufferSubresourceRange();
@@ -56,6 +58,7 @@ struct PUMEX_EXPORT BufferSubresourceRange
   VkDeviceSize range;
 };
 
+// class that manages buffer data in a memory. This class is not used directly - use Buffer<T> instead ( see below )
 class PUMEX_EXPORT MemoryBuffer : public MemoryObject
 {
 public:
@@ -157,6 +160,7 @@ protected:
   std::vector<std::weak_ptr<BufferView>>          bufferViews;
 };
 
+// class that is an interface to MemoryBuffer. May store any structured data in a buffer
 template <typename T>
 class Buffer : public MemoryBuffer
 {
@@ -191,6 +195,7 @@ protected:
   void internalSetData(uint32_t key, VkDevice device, VkSurfaceKHR surface, std::shared_ptr<T> data);
 };
 
+// VkBufferView implementation. Not used at the moment, because texel buffers are not implemented yet
 class PUMEX_EXPORT BufferView : public std::enable_shared_from_this<BufferView>
 {
 public:
@@ -254,7 +259,6 @@ const PerObjectBehaviour&              MemoryBuffer::getPerObjectBehaviour() con
 const SwapChainImageBehaviour&         MemoryBuffer::getSwapChainImageBehaviour() const { return swapChainImageBehaviour; }
 std::shared_ptr<DeviceMemoryAllocator> MemoryBuffer::getAllocator() const               { return allocator; }
 VkBufferUsageFlags                     MemoryBuffer::getBufferUsage() const             { return bufferUsage; }
-
 
 template <typename T>
 Buffer<T>::Buffer(std::shared_ptr<DeviceMemoryAllocator> allocator, VkBufferUsageFlags bufferUsage, PerObjectBehaviour perObjectBehaviour, SwapChainImageBehaviour swapChainImageBehaviour, bool useSetDataMethods)

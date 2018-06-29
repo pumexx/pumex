@@ -29,6 +29,8 @@ namespace pumex
 
 class MaterialSet;
 
+// Node class that stores a pointer to AssetBuffer for drawing shaders ( shaders that draw objects using instance data ). There may be many such objects pointing at the same AssetBuffer
+
 class PUMEX_EXPORT AssetBufferNode : public Group
 {
 public:
@@ -43,6 +45,8 @@ public:
   uint32_t                     vertexBinding;
   bool                         registered = false;
 };
+
+// Node class that stores a pointer to AssetBuffer for compute shaders ( shaders that filter instances for later rendering )
 
 class PUMEX_EXPORT AssetBufferFilterNode : public Group
 {
@@ -83,7 +87,7 @@ protected:
 void AssetBufferFilterNode::setEventResizeOutputs(std::function<void(uint32_t, size_t)> event) { eventResizeOutputs = event; }
 void AssetBufferFilterNode::onEventResizeOutputs(uint32_t mask, size_t instanceCount) { if (eventResizeOutputs != nullptr)  eventResizeOutputs(mask, instanceCount); }
 
-// class that draws single object registered in AssetBufferNode
+// Node class that draws single object registered in AssetBufferNode
 class PUMEX_EXPORT AssetBufferDrawObject : public Node
 {
 public:
@@ -98,8 +102,7 @@ public:
   uint32_t firstInstance;
 };
 
-
-// class that draws series of objects registered in AssetBufferNode using cmdDrawIndexedIndirect - needs a buffer to work
+// Node class that draws series of objects registered in AssetBufferNode using cmdDrawIndexedIndirect - needs a buffer to work
 class PUMEX_EXPORT AssetBufferIndirectDrawObjects : public Node
 {
 public:
@@ -114,6 +117,5 @@ protected:
   std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands;
   bool                                                             registered = false;
 };
-
 
 }

@@ -37,6 +37,7 @@ class RenderOperation;
 class PipelineLayout;
 class AssetBuffer;
 
+// class that is used extensively in Pumex : handles information about currently bound objects during data validation and command buffer creation
 class PUMEX_EXPORT RenderContext
 {
 public:
@@ -104,6 +105,5 @@ uint32_t RenderContext::setCurrentRenderMask(uint32_t renderMask)
   currentRenderMask = renderMask;
   return oldRenderMask;
 }
-
 
 }

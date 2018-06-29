@@ -59,7 +59,6 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
-
 class PUMEX_EXPORT PipelineCache
 {
 public:
@@ -82,6 +81,7 @@ protected:
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
 
+// Node class that manages information about current VkPipeline ( graphics or compute : see GraphicsPipeline and ComputePipeline )
 class PUMEX_EXPORT Pipeline : public Group
 {
 public:
@@ -158,7 +158,6 @@ protected:
   };
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
 };
-
 
 struct PUMEX_EXPORT ShaderStageDefinition
 {
@@ -258,7 +257,6 @@ public:
   // shader stage
   ShaderStageDefinition             shaderStage;
 };
-
 
 bool GraphicsPipeline::hasDynamicState(VkDynamicState state) const
 {

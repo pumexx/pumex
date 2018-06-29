@@ -29,7 +29,7 @@ namespace pumex
 {
 
 // struct storing position, orientation and velocity ( both linear and angular ) of a single 3D object
-// Using during update phase and then extrapolated to glm::mat4 during rendering phase.
+// Used during update phase and then extrapolated to glm::mat4 during rendering phase.
 struct Kinematic
 {
   Kinematic(const glm::vec3& p = glm::vec3(), const glm::quat& o = glm::quat(), const glm::vec3& v=glm::vec3(), const glm::vec3& r = glm::vec3())

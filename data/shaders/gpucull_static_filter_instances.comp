@@ -58,25 +58,25 @@ layout (set = 0, binding = 0) uniform CameraUbo
 // Binding 0,1 : information about types
 layout(set = 0, binding = 1) readonly buffer types
 {
-   AssetType assetTypes[];
+  AssetType assetTypes[];
 };
 
 // Binding 0,2 : information about type lods
 layout(set = 0, binding = 2) readonly buffer lods
 {
-   AssetLOD assetLods[];
+  AssetLOD assetLods[];
 };
 
 // Binding 0,3 : output DrawIndexedIndirectCommands
 layout (set = 0, binding = 3) buffer DrawCommands
 {
-	DrawIndexedIndirectCommand drawCommands[];
+  DrawIndexedIndirectCommand drawCommands[];
 };
 
 // Binding 0,4 : output instances
 layout (set = 0, binding = 4) buffer OutInstanceDataSbo
 {
-	StaticInstanceData outInstances[];
+  StaticInstanceData outInstances[];
 };
 
 //
@@ -93,7 +93,7 @@ layout (set = 0, binding = 6) buffer ResultCounterSbo
 // Binding 1,0 : input instances
 layout (set = 1, binding = 0) readonly buffer InInstanceDataSbo
 {
-	StaticInstanceData inInstances[];
+  StaticInstanceData inInstances[];
 };
 
 bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )

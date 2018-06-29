@@ -29,6 +29,8 @@ namespace pumex
 
 class ImageView;
 
+// Resource that stores information about storage image
+// May be referenced in glsl shader as for example : image2D
 class PUMEX_EXPORT StorageImage : public Resource
 {
 public:
@@ -50,8 +52,5 @@ protected:
   std::string                resourceName;
   bool                       registered = false;
 };
-
-
-
 	
 }

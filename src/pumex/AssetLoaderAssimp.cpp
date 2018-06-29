@@ -29,7 +29,6 @@ using namespace pumex;
 
 AssetLoaderAssimp::AssetLoaderAssimp()
 {
-
 }
 
 glm::mat4 toMat4( const aiMatrix4x4& matrix )

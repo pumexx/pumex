@@ -62,7 +62,7 @@ struct PUMEX_EXPORT SymbolData
   glm::vec4 color;     // font color
 };
 
-
+// class that stores Font texture and glyph data in memory ( ready to send it to GPU )
 class PUMEX_EXPORT Font
 {
 public:
@@ -93,6 +93,7 @@ protected:
   glm::ivec2                          lastRegisteredPosition;
 };
 
+// class that stores texts that may be written on screen
 class PUMEX_EXPORT Text : public Node
 {
 public:

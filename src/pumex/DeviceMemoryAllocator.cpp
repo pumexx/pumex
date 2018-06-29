@@ -33,19 +33,15 @@ DeviceMemoryBlock::DeviceMemoryBlock()
 {
 }
 
-
 DeviceMemoryBlock::DeviceMemoryBlock(VkDeviceMemory m, VkDeviceSize ro, VkDeviceSize ao, VkDeviceSize rs, VkDeviceSize as)
   : memory{ m }, realOffset{ ro }, alignedOffset{ ao }, realSize{ rs }, alignedSize{ as }
 {
-
 }
 
 FreeBlock::FreeBlock(VkDeviceSize o, VkDeviceSize s)
   : offset{ o }, size{ s }
 {
-
 }
-
 
 DeviceMemoryAllocator::DeviceMemoryAllocator(VkMemoryPropertyFlags pf, VkDeviceSize s, EnumStrategy st)
   : propertyFlags{ pf }, size{ s }
@@ -54,7 +50,6 @@ DeviceMemoryAllocator::DeviceMemoryAllocator(VkMemoryPropertyFlags pf, VkDeviceS
   {
   case FIRST_FIT: allocationStrategy = std::make_unique<FirstFitAllocationStrategy>(); break;
   }
-
 }
 
 DeviceMemoryAllocator::~DeviceMemoryAllocator()

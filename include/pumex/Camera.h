@@ -33,7 +33,7 @@ namespace pumex
 // To facilitate this we premultiply projection matrix by below defined correction matrix
 const glm::mat4 vulkanPerspectiveCorrectionMatrix(1, 0, 0, 0,   0, -1, 0, 0,   0, 0, 1.0, 0,   0, 0, 0.0, 1);
 
-// class that represents camera object and may be transfered to GPU ( using UniformBufferPerSurface ) for use in shaders
+// class that represents camera object and may be transfered to GPU ( using Buffer<Camera> or Buffer<vector<Camera>> and UniformBuffer ) for use in shaders
 class PUMEX_EXPORT Camera
 {
 public:

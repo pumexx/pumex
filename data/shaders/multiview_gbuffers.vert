@@ -48,12 +48,12 @@ layout (binding = 1) uniform PositionSbo
 
 layout (std430,binding = 2) readonly buffer MaterialTypesSbo
 {
-	MaterialTypeDefinition materialTypes[];
+  MaterialTypeDefinition materialTypes[];
 };
 
 layout (std430,binding = 3) readonly buffer MaterialVariantsSbo
 {
-	MaterialVariantDefinition materialVariants[];
+  MaterialVariantDefinition materialVariants[];
 };
 
 layout (location = 0) out vec3 outNormal;
@@ -64,16 +64,16 @@ layout (location = 4) flat out uint materialID;
 
 void main() 
 {
-	mat4 boneTransform = object.bones[int(inBoneIndex)] * inBoneWeight;
-	mat4 modelMatrix = object.position * boneTransform;
+  mat4 boneTransform = object.bones[int(inBoneIndex)] * inBoneWeight;
+  mat4 modelMatrix = object.position * boneTransform;
 
-    outPosition    = modelMatrix * vec4(inPos.xyz, 1.0);
-	gl_Position    = cameras.cam[gl_ViewIndex].projectionMatrix * cameras.cam[gl_ViewIndex].viewMatrix * outPosition;
-    outPosition    /= outPosition.w;
-    mat3 normalMat = mat3(inverse(transpose(modelMatrix)));
-	outNormal      = normalize(normalMat * inNormal);
-	outTangent     = normalize(normalMat * inTangent);
-	outUV       = inUV.xy;
+  outPosition    = modelMatrix * vec4(inPos.xyz, 1.0);
+  gl_Position    = cameras.cam[gl_ViewIndex].projectionMatrix * cameras.cam[gl_ViewIndex].viewMatrix * outPosition;
+  outPosition    /= outPosition.w;
+  mat3 normalMat = mat3(inverse(transpose(modelMatrix)));
+  outNormal      = normalize(normalMat * inNormal);
+  outTangent     = normalize(normalMat * inTangent);
+  outUV          = inUV.xy;
 	
-	materialID  = materialVariants[materialTypes[object.typeID].variantFirst + 0].materialFirst + uint(inUV.z);
+  materialID     = materialVariants[materialTypes[object.typeID].variantFirst + 0].materialFirst + uint(inUV.z);
 }

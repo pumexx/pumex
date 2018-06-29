@@ -25,7 +25,7 @@
 
 using namespace pumex;
 
-std::shared_ptr<gli::texture> TextureLoaderGli::load(const std::string& fileName)
+std::shared_ptr<gli::texture> TextureLoaderGli::load(const filesystem::path& fileName)
 {
-  return std::make_shared<gli::texture>( gli::load(fileName) );
+  return std::make_shared<gli::texture>( gli::load(fileName.string()) );
 }

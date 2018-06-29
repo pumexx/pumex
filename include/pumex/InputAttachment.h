@@ -31,6 +31,8 @@ namespace pumex
 class Sampler;
 class ImageView;
 
+// Resource that stores information about input attachment defined in a framebuffer
+// May be referenced in glsl shader as for example : layout(input_attachment_index=0, binding = 2) uniform subpassInputMS
 class PUMEX_EXPORT InputAttachment : public Resource
 {
 public:
@@ -48,6 +50,5 @@ protected:
   bool                       registered        = false;
   bool                       samplerRegistered = false;
 };
-
 
 }

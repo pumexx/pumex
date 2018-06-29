@@ -31,7 +31,7 @@ class PUMEX_EXPORT TextureLoaderGli : public TextureLoader
 {
 public:
   explicit TextureLoaderGli() = default;
-  std::shared_ptr<gli::texture> load(const std::string& fileName) override;
+  std::shared_ptr<gli::texture> load(const filesystem::path& fileName) override;
 };
 
 }

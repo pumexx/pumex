@@ -30,6 +30,7 @@ namespace pumex
 	
 class CommandBuffer;
 
+// NodeVisitor subclass that provides RenderContext for different shenanigans
 class PUMEX_EXPORT RenderContextVisitor : public NodeVisitor
 {
 public:
@@ -38,7 +39,7 @@ public:
   RenderContext renderContext;
 };
 
-
+// visitor responsible for identyfying secondary buffers in a tree ( dag )
 class PUMEX_EXPORT FindSecondaryCommandBuffersVisitor : public RenderContextVisitor
 {
 public:
@@ -51,7 +52,8 @@ public:
   std::vector<uint32_t>     subPasses;
 };
 
-// visitor that validates all dirty nodes ( pipelines etc ).
+// Visitor that validates all dirty nodes ( pipelines etc ).
+// Validation means sending all data ( buffers, images ) to GPU before building command buffers
 class PUMEX_EXPORT ValidateNodeVisitor : public RenderContextVisitor
 {
 public:
@@ -62,7 +64,7 @@ public:
   bool buildingPrimary;
 };
 
-// visitor that validates all dirty descriptor sets and descriptors
+// Visitor that validates all dirty descriptor sets and descriptors ( updates them before building command buffers )
 class PUMEX_EXPORT ValidateDescriptorVisitor : public RenderContextVisitor
 {
 public:
@@ -73,7 +75,7 @@ public:
   bool buildingPrimary;
 };
 
-// visitor that collects missing data for render contexts while building secondary command buffers
+// Visitor that collects missing data for render contexts while building secondary command buffers
 const uint32_t CRCV_TARGETS = 2;
 
 class PUMEX_EXPORT CompleteRenderContextVisitor : public NodeVisitor
@@ -89,8 +91,7 @@ protected:
   bool           targetCompleted[CRCV_TARGETS];
 };
 
-
-// visitor that builds command buffers
+// Visitor that builds command buffers
 class PUMEX_EXPORT BuildCommandBufferVisitor : public RenderContextVisitor
 {
 public:

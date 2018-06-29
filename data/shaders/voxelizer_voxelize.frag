@@ -19,7 +19,7 @@ void main()
   if( any( lessThan(inPosition,inMinAABB) ) || any(lessThan(inMaxAABB,inPosition) ) )
     discard;
 
-  vec4 color = vec4(inColor,1);
+  vec4 color     = vec4(inColor,1);
   vec3 address3D = inPosition * 0.5 + vec3(0.5);
   imageStore(voxelTexture[0], ivec3(imageSize(voxelTexture[0]) * address3D), color);
 }

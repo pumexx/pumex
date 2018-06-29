@@ -49,6 +49,7 @@ struct PUMEX_EXPORT DescriptorValue
   };
 };
 
+// Resource is an object stored in a descriptor ( SampledImage, UniformBuffer, etc. )
 class PUMEX_EXPORT Resource : public std::enable_shared_from_this<Resource>
 {
 public:

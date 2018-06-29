@@ -43,7 +43,9 @@ const glm::mat4 mat4unity = glm::mat4();
 class Device;
 
 // Class representing a tree of bones to animate the asset
-// One rule : parents in bone vector must be defined before their children
+// Two rules are mandatory: 
+// - parents in bone vector must be defined before their children
+// - there must be at least one bone in each asset ( the root )
 class PUMEX_EXPORT Skeleton
 {
 public:
@@ -93,7 +95,7 @@ PUMEX_EXPORT uint32_t calcVertexSize(const std::vector<VertexSemantic>& layout);
 PUMEX_EXPORT uint32_t calcPrimitiveSize(VkPrimitiveTopology topology);
 
 // helper class to deal with vertices having different vertex semantics
-class VertexAccumulator
+class PUMEX_EXPORT VertexAccumulator
 {
 public:
   explicit VertexAccumulator(const std::vector<VertexSemantic>& semantic);
@@ -122,7 +124,6 @@ public:
   std::vector<float> values;
 protected:
   inline uint32_t getOffset(VertexSemantic::Type semanticType, uint32_t channel) const;
-  void            set(const VertexSemantic& semantic, uint32_t channel, float val0, float val1, float val2, float val3);
   std::vector<VertexSemantic> semantic;
 
   std::vector<uint32_t> positionOffset;
@@ -134,7 +135,7 @@ protected:
   std::vector<uint32_t> boneIndexOffset;
   std::vector<uint32_t> boneWeightOffset;
 
-  std::vector<float> valuesReset;
+  std::vector<float>    valuesReset;
 };
 
 // basic class for storing vertices and indices - subject of vkCmdDraw* commands
@@ -273,7 +274,6 @@ uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_
   return UINT32_MAX;
 }
 
-
 VkDeviceSize Geometry::getVertexCount() const    { return vertices.size() / calcVertexSize(semantic); }
 VkDeviceSize Geometry::getVertexSize() const     { return vertices.size() * sizeof(float); }
 VkDeviceSize Geometry::getIndexCount() const     { return indices.size(); }
@@ -369,6 +369,7 @@ inline float PUMEX_EXPORT calculateAnimationTime( float time, float begin, float
   return time;
 }
 
+// linear interpolation
 template<typename T>
 inline T mix(const TimeLine<T>* values, const uint32_t size, float time)
 {
@@ -377,6 +378,7 @@ inline T mix(const TimeLine<T>* values, const uint32_t size, float time)
   return   glm::mix(values[i].value, values[(i+1)%size].value, a);
 }
 
+// spherical interpolation
 template<typename T>
 inline T slerp(const TimeLine<T>* values, const uint32_t size, float time)
 {

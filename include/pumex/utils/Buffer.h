@@ -30,6 +30,7 @@ namespace pumex
 {
 
 // collection of helper functions to create Vulkan buffers
+// Note : this file is mainly outdated ( except for StagingBuffer class )
 
 class Device;
 

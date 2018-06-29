@@ -143,7 +143,6 @@ VkSubpassDependency SubpassDependencyDefinition::getDependency() const
 RenderPass::RenderPass()
   : activeCount{ 1 }
 {
-
 }
 
 RenderPass::~RenderPass()

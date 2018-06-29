@@ -493,7 +493,6 @@ void MemoryImage::notifyCommandBufferSources(const RenderContext& renderContext)
   commandBufferSources.erase(eit, end(commandBufferSources));
 }
 
-
 void MemoryImage::addImageView(std::shared_ptr<ImageView> imageView)
 {
   if (std::find_if(begin(imageViews), end(imageViews), [&imageView](std::weak_ptr<ImageView> iv) { return !iv.expired() && iv.lock().get() == imageView.get(); }) == end(imageViews))
@@ -516,7 +515,6 @@ void MemoryImage::invalidateImageViews()
     it->lock()->invalidateResources();
   imageViews.erase(eit, end(imageViews));
 }
-
 
 // caution : mutex lock must be called prior to this method
 void MemoryImage::internalSetImageTraits(uint32_t key, VkDevice device, VkSurfaceKHR surface, const ImageTraits& traits, VkImageAspectFlags aMask)
@@ -588,7 +586,6 @@ void MemoryImage::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR 
   pddit->second.invalidate();
   invalidateImageViews();
 }
-
 
 // build clear value depending on Texture aspectMask
 // caution : mutex lock must be called prior to this method

@@ -282,6 +282,7 @@ std::shared_ptr<Buffer<std::vector<AssetTypeDefinition>>> AssetBuffer::getTypeBu
   CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getTypeBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.typeBuffer;
 }
+
 std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>> AssetBuffer::getLodBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -289,6 +290,7 @@ std::shared_ptr<Buffer<std::vector<AssetLodDefinition>>> AssetBuffer::getLodBuff
   CHECK_LOG_THROW(it == end(perRenderMaskData), "AssetBuffer::getLodBuffer() attempting to get a buffer for nonexisting render mask");
   return it->second.lodBuffer;
 }
+
 std::shared_ptr<Buffer<std::vector<AssetGeometryDefinition>>> AssetBuffer::getGeomBuffer(uint32_t renderMask)
 {
   std::lock_guard<std::mutex> lock(mutex);

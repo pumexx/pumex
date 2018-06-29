@@ -51,7 +51,6 @@ glm::mat4 Camera::getProjectionMatrix(bool usePerspectiveCorrection) const
     return projectionMatrix;
 }
 
-
 void Camera::setObserverPosition(const glm::vec4& pos)
 {
   observerPosition = pos;

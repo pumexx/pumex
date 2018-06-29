@@ -36,6 +36,8 @@ public:
   explicit ActionQueue()                     = default;
   ActionQueue(const ActionQueue&)            = delete;
   ActionQueue& operator=(const ActionQueue&) = delete;
+  ActionQueue(ActionQueue&&)                 = delete;
+  ActionQueue& operator=(ActionQueue&&)      = delete;
 
   void addAction(const std::function<void(void)>& fun)
   {
@@ -54,7 +56,7 @@ public:
       a();
   }
 private:
-	std::vector<std::function<void(void)>> actions;
+  std::vector<std::function<void(void)>> actions;
   mutable std::mutex mutex;
 };
 	

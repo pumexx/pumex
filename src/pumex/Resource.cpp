@@ -54,7 +54,6 @@ DescriptorValue::DescriptorValue(VkSampler sampler, VkImageView imageView, VkIma
 Resource::Resource(PerObjectBehaviour pob, SwapChainImageBehaviour scib)
   : perObjectBehaviour{ pob }, swapChainImageBehaviour { scib }, activeCount{ 1 }
 {
-
 }
 
 Resource::~Resource()

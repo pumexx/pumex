@@ -36,6 +36,7 @@ class NodeVisitor;
 class DescriptorSet;
 class RenderContext;
 
+// base class for directed acyclic graph, that is connected to render operations in a workflow
 class PUMEX_EXPORT Node : public CommandBufferSource
 {
 public:
@@ -120,7 +121,7 @@ public:
   inline decltype(cend(descriptorSets))   descriptorSetEnd() const   { return cend(descriptorSets); }
 };
 
-
+// Node class that may have children
 class PUMEX_EXPORT Group : public Node
 {
 public:

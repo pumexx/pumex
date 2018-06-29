@@ -74,11 +74,7 @@ struct PipelineBarrier;
 
 class CommandBufferSource;
 
-// class representing Vulkan command buffer. Most of the vkCmd* commands will be defined here. 
-// For now only commands used in examples are defined.
-// Remark : commandPool is delivered by raw pointer, it is in user's responsibility to  ensure, 
-// that command pool exists as long as the command buffer. Most of the command buffers from examples
-// uses Surface::commandPool, so this condition is fullfilled.
+// Class representing Vulkan command buffer. Most of the vkCmd* commands will be defined here. 
 class PUMEX_EXPORT CommandBuffer
 {
 public:

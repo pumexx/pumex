@@ -49,7 +49,6 @@ void Skeleton::refreshChildren()
   }
 }
 
-
 VkFormat VertexSemantic::getVertexFormat() const
 {
   switch (size)
@@ -65,7 +64,6 @@ VkFormat VertexSemantic::getVertexFormat() const
   }
   return VK_FORMAT_UNDEFINED;
 }
-
 
 uint32_t calcVertexSize(const std::vector<VertexSemantic>& layout)
 {
@@ -298,7 +296,6 @@ void Animation::Channel::calcBeginEndTimes()
   scaleTimeEnd      = tEndTime(scale);
 }
 
-
 float Animation::Channel::beginTime() const
 {
   return std::min(positionTimeBegin, std::min(rotationTimeBegin, scaleTimeBegin));
@@ -340,7 +337,6 @@ void Geometry::getVertex(uint32_t position, VertexAccumulator& vertexAccumulator
   std::copy(begin(vertices) + position, begin(vertices) + position + vertexAccumulator.values.size(), begin(vertexAccumulator.values) );
 }
 
-
 glm::vec4 Material::getProperty(const std::string& name, glm::vec4 defaultValue) const
 {
   auto it = properties.find(name);
@@ -349,7 +345,6 @@ glm::vec4 Material::getProperty(const std::string& name, glm::vec4 defaultValue)
   else
     return defaultValue;
 }
-
 
 void copyAndConvertVertices(std::vector<float>& targetBuffer, const std::vector<VertexSemantic>& targetSemantic, const std::vector<float>& sourceBuffer, const std::vector<VertexSemantic>& sourceSemantic)
 {
@@ -591,7 +586,6 @@ BoundingBox calculateBoundingBox(const Asset& asset, uint32_t renderMask)
       bbox += calculateBoundingBox(asset.geometries[geomIndex], resetTransforms);
   return bbox;
 }
-
 
 BoundingBox calculateBoundingBox(const Geometry& geometry, const std::vector<glm::mat4>& bones)
 {

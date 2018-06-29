@@ -30,6 +30,7 @@ namespace pumex
 template <typename T> class Buffer;
 class DeviceMemoryAllocator;
 
+// Simple Node class that stores and draws single asset
 
 class PUMEX_EXPORT AssetNode : public Node
 {

@@ -59,6 +59,7 @@ inline bool operator!=(const QueueTraits& lhs, const QueueTraits& rhs)
   return (lhs.mustHave != rhs.mustHave) || (lhs.mustNotHave != rhs.mustNotHave) || (lhs.priority != rhs.priority);
 }
 
+// internal class that stores infromation about one reserved queue
 class Queue
 {
 public:
@@ -76,8 +77,7 @@ public:
   VkQueue     queue       = VK_NULL_HANDLE;
 };
 
-
-// class representing Vulkan logical device
+// class representing Vulkan logical device. There may be many logical devices used in a single Viewer object
 class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>
 {
 public:

@@ -388,7 +388,6 @@ void Surface::setCommandBufferIndices()
   }
 }
 
-
 void Surface::validatePrimaryNodes(uint32_t queueNumber)
 {
   RenderContext renderContext(this, workflowResults->presentationQueueIndex);

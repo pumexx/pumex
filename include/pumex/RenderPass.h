@@ -150,7 +150,6 @@ protected:
   uint32_t                                     activeCount;
 };
 
-class RenderSubPass;
 class ComputePass;
 
 // really - I don't have idea how to name this crucial class :(
@@ -174,7 +173,7 @@ public:
 };
 
 
-// class representing Vulkan graphics render pass along with its attachments, subpasses and dependencies
+// class representing Vulkan graphics render subpass - created during render compilation from RenderOperation objects
 class PUMEX_EXPORT RenderSubPass : public RenderCommand
 {
 public:
@@ -196,6 +195,7 @@ public:
   SubpassDefinition                definition;
 };
 
+// class representing Vulkan compute pass - created during render compilation from RenderOperation objects
 class PUMEX_EXPORT ComputePass : public RenderCommand
 {
 public:

@@ -33,15 +33,15 @@
 namespace pumex
 {
 
-class Asset;
+class  Asset;
 struct Material;
-class Resource;
-class Sampler;
-class MemoryImage;
-class CombinedImageSampler;
-class DeviceMemoryAllocator;
-class Viewer;
-class RenderContext;
+class  Resource;
+class  Sampler;
+class  MemoryImage;
+class  CombinedImageSampler;
+class  DeviceMemoryAllocator;
+class  Viewer;
+class  RenderContext;
 template <typename T> class Buffer;
 
 // Assimp does not load textures, but only its names and semantics ( diffuse, normal, etc )
@@ -137,7 +137,6 @@ private:
   std::map<uint32_t, std::vector<std::string>> textureNames;
 };
 
-
 // material registry that is able to store any material in a form of T class
 template <typename T>
 class MaterialRegistry : public MaterialRegistryBase
@@ -169,7 +168,6 @@ protected:
   std::map<uint32_t, std::vector<Material>> materials;
 };
 
-
 class PUMEX_EXPORT TextureRegistryTextureArray : public TextureRegistryBase
 {
 public:
@@ -198,7 +196,6 @@ protected:
   std::map<uint32_t, std::shared_ptr<Sampler>>                   textureSamplers;
   std::map<uint32_t, std::vector<std::shared_ptr<Resource>>>     resources;
 };
-
 
 class TextureRegistryNull : public TextureRegistryBase
 {
@@ -292,6 +289,5 @@ void MaterialRegistry<T>::buildTypesAndVariants(std::vector<MaterialTypeDefiniti
   }
   materialDefinitionBuffer->invalidateData();
 }
-
 
 }

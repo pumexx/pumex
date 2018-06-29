@@ -90,8 +90,6 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
    	} \
 } 
 
-
-
 extern PUMEX_EXPORT bool isLogEnabled(float severity);
 extern PUMEX_EXPORT std::ostream& doLog(float severity);
 extern PUMEX_EXPORT void setLogSeverity(float severity);

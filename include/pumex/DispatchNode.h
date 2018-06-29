@@ -25,7 +25,8 @@
 
 namespace pumex
 {
-	
+
+// Node class that performs compute operations ( vkCmdDispatch )
 class PUMEX_EXPORT DispatchNode : public Node
 {
 public:
@@ -48,6 +49,5 @@ protected:
 uint32_t DispatchNode::getX() const { return x; }
 uint32_t DispatchNode::getY() const { return y; }
 uint32_t DispatchNode::getZ() const { return z; }
-
 
 }

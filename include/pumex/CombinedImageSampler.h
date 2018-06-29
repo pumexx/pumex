@@ -30,6 +30,8 @@ namespace pumex
 class ImageView;
 class Sampler;
 
+// Resource that stores information about image and sampler
+// May be referenced in glsl shader as for example : sampler2D
 class PUMEX_EXPORT CombinedImageSampler : public Resource
 {
 public:

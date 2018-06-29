@@ -26,11 +26,11 @@
 #include <pumex/Resource.h>
 #include <pumex/MemoryBuffer.h>
 
-// Storage buffer 
-
 namespace pumex
 {
 
+// Resource that stores information about storage buffer
+// May be referenced in glsl shader as for example : layout (std430,binding = 1) readonly buffer
 class PUMEX_EXPORT StorageBuffer : public Resource
 {
 public:

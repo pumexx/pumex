@@ -133,7 +133,6 @@ ImageTraits getImageTraitsFromTexture(const gli::texture& texture, VkImageUsageF
     texture.levels(), texture.layers(), VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, vulkanImageTypeFromTextureExtents(t), VK_SHARING_MODE_EXCLUSIVE);
 }
 
-
 VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)
 {
   // Formats are almost identical. Looks like someone implemented GLI and Vulkan at the same time
@@ -175,7 +174,6 @@ VkImageType vulkanImageTypeFromTextureExtents(const gli::extent3d& extents)
     return VK_IMAGE_TYPE_2D;
   return VK_IMAGE_TYPE_1D;
 }
-
 
 VkComponentSwizzle vulkanSwizzlesFromGliSwizzles(const gli::swizzle& s)
 {

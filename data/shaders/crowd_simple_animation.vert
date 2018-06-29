@@ -25,7 +25,6 @@ struct InstanceData
   uint mainInstance;
 };
 
-
 struct MaterialTypeDefinition
 {
   uint variantFirst;
@@ -37,7 +36,6 @@ struct MaterialVariantDefinition
   uint materialFirst;
   uint materialSize;
 };
-
 
 layout (binding = 0) uniform CameraUbo
 {
@@ -67,7 +65,6 @@ layout (std430,binding = 4) readonly buffer MaterialVariantsSbo
 {
 	MaterialVariantDefinition materialVariants[];
 };
-
 
 const vec3 lightDirection = vec3(0,0,1);
 

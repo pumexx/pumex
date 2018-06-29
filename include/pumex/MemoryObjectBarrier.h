@@ -32,6 +32,7 @@
 namespace pumex
 {
 
+// MemoryObjectBarrier objects are created during workflow compilation
 class PUMEX_EXPORT MemoryObjectBarrier
 {
 public:
@@ -72,6 +73,5 @@ inline bool operator<(const MemoryObjectBarrierGroup& lhs, const MemoryObjectBar
     return lhs.dstStageMask < rhs.dstStageMask;
   return lhs.dependencyFlags < rhs.dependencyFlags;
 }
-
 
 }

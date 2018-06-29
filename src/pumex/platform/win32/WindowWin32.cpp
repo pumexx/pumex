@@ -155,7 +155,6 @@ WindowWin32::~WindowWin32()
     ::UnregisterClass(windowClassName.c_str(), ::GetModuleHandle(NULL));
 }
 
-
 std::shared_ptr<Surface> WindowWin32::createSurface(std::shared_ptr<Viewer> v, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
   VkSurfaceKHR vkSurface;
@@ -187,7 +186,6 @@ bool WindowWin32::checkWindowMessages()
   }
   return true;
 }
-
 
 LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -333,7 +331,6 @@ void WindowWin32::normalizeMouseCoordinates(float& x, float& y)
   x = (x - rect.left) / (rect.right - rect.left);
   y = (y - rect.top) / (rect.bottom - rect.top);
 }
-
 
 void WindowWin32::registerWindow(HWND hwnd, WindowWin32* window)
 {

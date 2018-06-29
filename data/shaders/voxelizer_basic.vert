@@ -49,5 +49,5 @@ void main()
   outLightVec      = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
   outViewVec       = -eyePosition.xyz;
 
-  gl_Position = camera.projectionMatrix * eyePosition;
+  gl_Position      = camera.projectionMatrix * eyePosition;
 }

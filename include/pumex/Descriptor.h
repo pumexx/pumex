@@ -40,9 +40,9 @@ class Surface;
 class Node;
 class RenderContext;
 
-// A set of classes implementing different Vulkan pipeline elementsz
+// A set of classes implementing different Vulkan pipeline elements
 
-// descriptor set layout creation
+// Descriptor set layout definition
 struct PUMEX_EXPORT DescriptorSetLayoutBinding
 {
   DescriptorSetLayoutBinding(uint32_t binding, uint32_t bindingCount, VkDescriptorType descriptorType, VkShaderStageFlags stageFlags);
@@ -121,6 +121,7 @@ protected:
 class DescriptorSet;
 struct DescriptorValue;
 
+// Descriptor stores information about a set of resources in a descriptor set
 class PUMEX_EXPORT Descriptor : public std::enable_shared_from_this<Descriptor>
 {
 public:
@@ -141,7 +142,7 @@ public:
   VkDescriptorType                       descriptorType;
 };
 
-
+// DescriptorSet stores a set of descriptors
 class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {
 public:
@@ -193,6 +194,5 @@ std::size_t DescriptorSetLayout::getHashValue() const                           
 const std::vector<DescriptorSetLayoutBinding>& DescriptorSetLayout::getBindings() const { return bindings; }
 void DescriptorSetLayout::setPreferredPoolSize(uint32_t pps)                            { preferredPoolSize = pps;  }
 uint32_t DescriptorSetLayout::getPreferredPoolSize() const                              { return preferredPoolSize; }
-
 
 }

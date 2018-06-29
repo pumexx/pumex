@@ -161,7 +161,6 @@ FrameBufferImageDefinition RenderWorkflowResults::getSwapChainImageDefinition() 
   return FrameBufferImageDefinition();
 }
 
-
 RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<DeviceMemoryAllocator> fba, const std::vector<QueueTraits>& qt)
   : name{ n }, frameBufferAllocator{ fba }, queueTraits{ qt }
 {

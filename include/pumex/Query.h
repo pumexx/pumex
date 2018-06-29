@@ -70,6 +70,5 @@ protected:
   mutable std::mutex                               mutex;
   std::unordered_map<VkSurfaceKHR, PerSurfaceData> perSurfaceData;
 };
-
 	
 }

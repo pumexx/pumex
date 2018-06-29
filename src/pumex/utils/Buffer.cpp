@@ -71,7 +71,6 @@ void destroyBuffer(VkDevice device, VkBuffer buffer, VkDeviceMemory memory)
   vkFreeMemory(device, memory, nullptr);
 }
 
-
 NBufferMemory::NBufferMemory(VkBufferUsageFlags uf, VkDeviceSize s, void* d)
   : usageFlags{uf}, size{s}, data{d}
 {

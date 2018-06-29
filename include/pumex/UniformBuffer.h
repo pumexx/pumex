@@ -26,11 +26,11 @@
 #include <pumex/Resource.h>
 #include <pumex/MemoryBuffer.h>
 
-// Uniform buffer resource class
-
 namespace pumex
 {
 
+// Resource that stores information about uniform buffer
+// May be referenced in glsl shader as for example : layout (binding = 0) uniform
 class PUMEX_EXPORT UniformBuffer : public Resource
 {
 public:

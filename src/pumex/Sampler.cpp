@@ -38,7 +38,6 @@ SamplerTraits::SamplerTraits(bool lt, VkFilter maf, VkFilter mif, VkSamplerMipma
 Sampler::Sampler(const SamplerTraits& st, SwapChainImageBehaviour scib)
   : Resource{ pbPerDevice, scib }, samplerTraits{ st }
 {
-
 }
 
 Sampler::~Sampler()

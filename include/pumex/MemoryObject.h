@@ -55,6 +55,4 @@ MemoryObject::Type MemoryObject::getType()
   return type;
 }
 
-	
-
 }

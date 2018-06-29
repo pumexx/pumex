@@ -40,6 +40,7 @@ class CommandBuffer;
 class CommandBufferSource;
 class ImageView;
 
+// struct defining subresource range for image
 struct PUMEX_EXPORT ImageSubresourceRange
 {
   ImageSubresourceRange();
@@ -58,7 +59,6 @@ struct PUMEX_EXPORT ImageSubresourceRange
 // pumex::MemoryImage class stores Vulkan images per sufrace or per device ( according to user's needs )
 // Class uses gli::texture to store texture data on CPU
 // MemoryImage may contain 1D, 2D and 3D textures, texture arrays, texture cubes, arrays of texture cubes etc, but cubes were not tested in real life ( be aware )
-
 class PUMEX_EXPORT MemoryImage : public MemoryObject
 {
 public:

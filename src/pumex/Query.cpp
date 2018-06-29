@@ -26,7 +26,6 @@
 #include <pumex/Command.h>
 #include <pumex/utils/Log.h>
 
-
 using namespace pumex;
 
 QueryPool::QueryPool(VkQueryType qt, uint32_t p, VkQueryPipelineStatisticFlags ps)
@@ -39,7 +38,6 @@ QueryPool::~QueryPool()
   for (auto& pddit : perSurfaceData)
     vkDestroyQueryPool(pddit.second.device, pddit.second.queryPool, nullptr);
 }
-
 
 void QueryPool::validate(Surface* surface)
 {
