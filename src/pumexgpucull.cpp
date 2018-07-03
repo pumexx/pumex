@@ -51,12 +51,11 @@
 // Demo presents possibility to render both static and dynamic objects :
 // - static objects consist mainly of trees, so animation of waving in the wind was added ( amplitude of waving was set to 0 for buildings :) ).
 // - in this example all static objects are sent at once ( that's why compute shader takes so much time - compare it to 500 people rendered in crowd example ). 
-//   In real application CPU would only sent objects that are visible to a user. Such objects would be stored in some form of quad tree
-// - dynamic objects present the possibility to animate object parts of an object ( wheels, propellers ) 
+//   At the moment Pumex sends whole trees to rendering while it should send only visible parts of it.
+// - dynamic objects present the possibility to animate parts of an object ( wheels, propellers ) 
 // - static and dynamic object use different set of rendering parameters : compare StaticInstanceData and DynamicInstanceData structures
 //
-// pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example ), so you may
-// compare Vulkan and OpenGL performance ( I used ordinary graphics shaders instead of compute shaders in OpenGL demo, but performance of rendering is comparable ).
+// pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example )
 
 const uint32_t MAIN_RENDER_MASK = 1;
 
@@ -1680,7 +1679,6 @@ int main(int argc, char * argv[])
       {
         { VK_FALSE, 0xF }
       };
-      staticRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
       renderingRoot->addChild(staticRenderPipeline);
 
       auto staticAssetBufferNode = std::make_shared<pumex::AssetBufferNode>(staticAssetBuffer, staticMaterialSet, MAIN_RENDER_MASK, 0);
@@ -1783,7 +1781,6 @@ int main(int argc, char * argv[])
       {
         { VK_FALSE, 0xF }
       };
-      dynamicRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
       renderingRoot->addChild(dynamicRenderPipeline);
 
       auto dynamicAssetBufferNode = std::make_shared<pumex::AssetBufferNode>(dynamicAssetBuffer, dynamicMaterialSet, MAIN_RENDER_MASK, 0);
@@ -1840,7 +1837,6 @@ int main(int argc, char * argv[])
       { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
     };
-    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderingRoot->addChild(textPipeline);
 
     textPipeline->addChild(textDefault);

@@ -34,7 +34,18 @@
 #endif
 #include <args.hxx>
 
-// This example shows how to setup basic deferred renderer with antialiasing.
+// This example uses code from deferred example ( renders the same scene using deferred rendering )
+// The real purpose of this example is how to render to multiview device ( Oculus VR for example ).
+//
+// Main differences between normal rendering and multiview rendering in Vulkan:
+// - vulkan instance ( Viewer class ) has to use VK_KHR_get_physical_device_properties2 extension
+// - logical device ( Device class ) has to use VK_KHR_multiview extension
+// - render operations that use multiview extension have to have multiview mask set to values other than 0U
+// - shaders used in these render operations must enable GL_EXT_multiview extension to use gl_ViewIndex variable
+//
+// Keep in mind that this example is not full Oculus ready, because :
+// - Oculus SDK uses its own functions replacing some of the functions from Vulkan SDK ( swapchain image acquirement, swapchain image presentation, etc )
+// - Oculus performs barrel distortion itself, so you don't have to really do this. Example performs barrel distortion for educational purposes
 
 const uint32_t              MAX_BONES = 511;
 const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
@@ -487,6 +498,8 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
+    // images used to create and consume gbuffers in "gbuffers" and "lighting" operations are half the width of the screen, but there are two layers in each image.
+    // Thanks to this little trick we don't have to change viewports and scissors
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
       workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
@@ -510,9 +523,10 @@ int main( int argc, char * argv[] )
       workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve",          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
       workflow->addAttachmentResolveOutput("lighting", "color",         "color", "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
 
-     workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, 0x0, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) });
-     workflow->addImageInput      ("multiview", "color",      "color",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-     workflow->addAttachmentOutput("multiview", "surface", "multiview", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+    // third operation copies images created in "lighting" operation to a single texture ( full width image ) and performs barrel distortion on it
+    workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, 0x0, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) });
+      workflow->addImageInput      ("multiview", "color",      "color",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentOutput("multiview", "surface", "multiview", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
      
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -570,7 +584,6 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF }
     };
     gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
-    gbufferPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     gbufferRoot->addChild(gbufferPipeline);
 
@@ -671,7 +684,6 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF }
     };
     compositePipeline->rasterizationSamples = SAMPLE_COUNT;
-    compositePipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     lightingRoot->addChild(compositePipeline);
 
@@ -690,19 +702,21 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
-    /*********************/
+/*********************/
 
     auto multiviewRoot = std::make_shared<pumex::Group>();
     multiviewRoot->setName("multiviewRoot");
     workflow->setRenderOperationNode("multiview", multiviewRoot);
 
+    // Look closely at method that builds geometry for "multiview" operation ( buildMultiViewQuads() )
+    // Geometry consists of two quads - each of them covers half of the screen. Z texture coordinate for the left quad is equal to 0, while Z texture coordinate for the right quad is equal to 1.
+    // This way we are able to use multilayered textures created in previous operations to cover the whole screen.
     std::shared_ptr<pumex::Asset> multiviewQuads = buildMultiViewQuads();
 
     std::vector<pumex::DescriptorSetLayoutBinding> multiviewLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_SAMPLER,          VK_SHADER_STAGE_FRAGMENT_BIT }//,
-//      { 2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 1, 1, VK_DESCRIPTOR_TYPE_SAMPLER,          VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto multiviewDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(multiviewLayoutBindings);
 
@@ -729,7 +743,6 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF }
     };
     multiviewPipeline->rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multiviewPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     multiviewRoot->addChild(multiviewPipeline);
 
@@ -743,7 +756,6 @@ int main( int argc, char * argv[] )
     // connect "color" attachment as pumex::SampledImage
     multiviewDescriptorSet->setDescriptor(0, std::make_shared<pumex::SampledImage>("color"));
     multiviewDescriptorSet->setDescriptor(1, mvSampler);
-    //    multiviewDescriptorSet->setDescriptor(2, cameraUbo);
     quadsAssetNode->setDescriptorSet(0, multiviewDescriptorSet);
 
     //std::string fullFontFileName = viewer->getAbsoluteFilePath("fonts/DejaVuSans.ttf");
@@ -782,7 +794,6 @@ int main( int argc, char * argv[] )
     //  { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
     //  { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
     //};
-    //textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     //textPipeline->rasterizationSamples = SAMPLE_COUNT;
 
     //lightingRoot->addChild(textPipeline);

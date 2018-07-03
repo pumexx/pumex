@@ -34,7 +34,11 @@
 #endif
 #include <args.hxx>
 
-// pumexvoxelizer is a test area for voxelization algorithms ( creation and rendering )
+// pumexvoxelizer shows how to voxelize a model ( model may be animated ).
+// This example is based on pumexviewer.
+// Render workflow performs two render operations per frame :
+// - model voxelization
+// - rendering of original model and ray marching of voxelized model
 
 const uint32_t MAX_BONES = 511;
 
@@ -103,9 +107,7 @@ struct VoxelizerApplicationData
 
     // build 3D texture
     pumex::ImageTraits   volumeImageTraits( VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
-//    pumex::SamplerTraits volumeSamplerTraits(false, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 0.0f, VK_FALSE, 8, false, VK_COMPARE_OP_NEVER, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false);
     volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
-
 
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
@@ -117,7 +119,6 @@ struct VoxelizerApplicationData
     updateData.moveLeft                    = false;
     updateData.moveRight                   = false;
 
-    // FIXME - voxelBoundingBox should be calculated from asset bb
     pumex::BoundingBox bbox;
     if (asset->animations.size() > 0)
       bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
@@ -440,10 +441,12 @@ int main( int argc, char * argv[] )
       workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
       workflow->addResourceType("image_3d",      false, pumex::RenderWorkflowResourceType::Image);
 
+    // first operation creates 3D texture of underlying model ( model voxelization )
     workflow->addRenderOperation("voxelization", pumex::RenderOperation::Graphics, 0, pumex::AttachmentSize( pumex::AttachmentSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)));
       workflow->addAttachmentOutput("voxelization", "voxel_space", "false_image", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
       workflow->addImageOutput("voxelization", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
 
+    // second operation renders 3D model and raymarches 3D texture to show that model and texture are in the same position
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
       workflow->addImageInput("rendering", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL);
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
@@ -451,6 +454,8 @@ int main( int argc, char * argv[] )
 
     std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(buffersAllocator, volumeAllocator, asset);
 
+    // memory objects that are not attachments must be provided to workflow through associateMemoryObject()
+    // if they're not provided then there are no pipeline barriers for them
     workflow->associateMemoryObject("voxels", applicationData->volumeMemoryImage);
 
     // create pipeline cache
@@ -480,7 +485,6 @@ int main( int argc, char * argv[] )
     voxelizePipeline->cullMode         = VK_CULL_MODE_NONE;
     voxelizePipeline->depthTestEnable  = VK_FALSE;
     voxelizePipeline->depthWriteEnable = VK_FALSE;
-    voxelizePipeline->dynamicStates    = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     workflow->setRenderOperationNode("voxelization", voxelizePipeline);
 
     auto voxelizeGroup = std::make_shared<pumex::Group>();
@@ -538,7 +542,6 @@ int main( int argc, char * argv[] )
     {
       { VK_FALSE, 0xF }
     };
-    raymarchPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderRoot->addChild(raymarchPipeline);
 
     std::shared_ptr<pumex::AssetNode> vbaAssetNode = std::make_shared<pumex::AssetNode>(voxelBoxAsset, verticesAllocator, 1, 0);
@@ -574,7 +577,6 @@ int main( int argc, char * argv[] )
     {
       { VK_FALSE, 0xF }
     };
-    pipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderRoot->addChild(pipeline);
 
     auto renderGroup = std::make_shared<pumex::Group>();

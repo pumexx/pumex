@@ -48,22 +48,22 @@ layout (binding = 0) uniform CameraUbo
 
 layout (binding = 1) readonly buffer PositionSbo
 {
-	PositionData positions[ ];
+  PositionData positions[ ];
 };
 
 layout (std430,binding = 2) readonly buffer InstanceDataSbo
 {
-	InstanceData instances[ ];
+  InstanceData instances[ ];
 };
 
 layout (std430,binding = 3) readonly buffer MaterialTypesSbo
 {
-	MaterialTypeDefinition materialTypes[];
+  MaterialTypeDefinition materialTypes[];
 };
 
 layout (std430,binding = 4) readonly buffer MaterialVariantsSbo
 {
-	MaterialVariantDefinition materialVariants[];
+  MaterialVariantDefinition materialVariants[];
 };
 
 const vec3 lightDirection = vec3(0,0,1);
@@ -77,23 +77,23 @@ layout (location = 5) flat out uint materialID;
 
 void main() 
 {
-	uint instanceIndex = gl_InstanceIndex;
-    uint positionIndex = instances[instanceIndex].positionIndex;
+  uint instanceIndex = gl_InstanceIndex;
+  uint positionIndex = instances[instanceIndex].positionIndex;
 
-	mat4 boneTransform = positions[positionIndex].bones[int(inBoneIndex[0])] * inBoneWeight[0];
-	boneTransform     += positions[positionIndex].bones[int(inBoneIndex[1])] * inBoneWeight[1];
-	boneTransform     += positions[positionIndex].bones[int(inBoneIndex[2])] * inBoneWeight[2];
-	boneTransform     += positions[positionIndex].bones[int(inBoneIndex[3])] * inBoneWeight[3];	
-	mat4 modelMatrix  = positions[positionIndex].position * boneTransform;
+  mat4 boneTransform = positions[positionIndex].bones[int(inBoneIndex[0])] * inBoneWeight[0];
+  boneTransform     += positions[positionIndex].bones[int(inBoneIndex[1])] * inBoneWeight[1];
+  boneTransform     += positions[positionIndex].bones[int(inBoneIndex[2])] * inBoneWeight[2];
+  boneTransform     += positions[positionIndex].bones[int(inBoneIndex[3])] * inBoneWeight[3];	
+  mat4 modelMatrix  = positions[positionIndex].position * boneTransform;
 
-	gl_Position = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-	outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;
-	outColor    = vec3(1.0,1.0,1.0);
-	outUV       = inUV.xy;
+  gl_Position = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
+  outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;
+  outColor    = vec3(1.0,1.0,1.0);
+  outUV       = inUV.xy;
 	
-    vec4 pos    = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-    outLightVec = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
-    outViewVec  = -pos.xyz;
+  vec4 pos    = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
+  outLightVec = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
+  outViewVec  = -pos.xyz;
 
-	materialID  = materialVariants[materialTypes[instances[instanceIndex].typeID].variantFirst + instances[instanceIndex].materialVariant].materialFirst + uint(inUV.z);
+  materialID  = materialVariants[materialTypes[instances[instanceIndex].typeID].variantFirst + instances[instanceIndex].materialVariant].materialFirst + uint(inUV.z);
 }

@@ -387,10 +387,13 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
     colorBlendState.attachmentCount            = vkBlendAttachments.size();
     colorBlendState.pAttachments               = vkBlendAttachments.data();
 
+  std::vector<VkDynamicState> allDynamicStates = dynamicStates;
+  allDynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+  allDynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
   VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType                         = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.pDynamicStates                = dynamicStates.data();
-    dynamicState.dynamicStateCount             = dynamicStates.size();
+    dynamicState.pDynamicStates                = allDynamicStates.data();
+    dynamicState.dynamicStateCount             = allDynamicStates.size();
 
   pipelineLayout->validate(renderContext);
   VkGraphicsPipelineCreateInfo pipelineCI{};

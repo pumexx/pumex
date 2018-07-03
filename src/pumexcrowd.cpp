@@ -1041,7 +1041,6 @@ int main(int argc, char * argv[])
     {
       { VK_FALSE, 0xF }
     };
-    instancedRenderPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     renderingRoot->addChild(instancedRenderPipeline);
 
@@ -1101,7 +1100,6 @@ int main(int argc, char * argv[])
       { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
     };
-    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderingRoot->addChild(textPipeline);
 
     textPipeline->addChild(textDefault);

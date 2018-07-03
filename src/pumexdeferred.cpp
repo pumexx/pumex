@@ -35,6 +35,10 @@
 #include <args.hxx>
 
 // This example shows how to setup basic deferred renderer with antialiasing.
+// Render workflow defines two render operations : 
+// - first one fills gbuffers with data
+// - second one renders lights using gbuffers as input
+// Each gbuffer has SAMPLE_COUNT samples and there is resolve operation defined at the end of second operation.
 
 const uint32_t              MAX_BONES = 511;
 const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_4_BIT;
@@ -55,6 +59,8 @@ struct PositionData
   // std430 ?
 };
 
+// MaterialData stores information about texture indices. This structure is produced by MaterialSet and therefore it must implement registerProperties() and registerTextures() methods.
+// This structure will be used through a storage buffer in shaders 
 struct MaterialData
 {
   uint32_t  diffuseTextureIndex   = 0;
@@ -381,7 +387,6 @@ struct DeferredApplicationData
     textDefault->setText(viewer->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
 
-
   UpdateData                                            updateData;
   std::array<RenderData, 3>                             renderData;
 
@@ -394,7 +399,6 @@ struct DeferredApplicationData
   pumex::HPClock::time_point                            lastFrameStart;
   std::shared_ptr<pumex::Text>                          textDefault;
 };
-
 
 int main( int argc, char * argv[] )
 {
@@ -534,7 +538,6 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF }
     };
     gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
-    gbufferPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     gbufferRoot->addChild(gbufferPipeline);
 
@@ -594,6 +597,7 @@ int main( int argc, char * argv[] )
     modelDraw->setDescriptorSet(0, descriptorSet);
 
 /**********************/
+
     auto lightingRoot = std::make_shared<pumex::Group>();
     lightingRoot->setName("lightingRoot");
     workflow->setRenderOperationNode("lighting", lightingRoot);
@@ -634,7 +638,6 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF }
     };
     compositePipeline->rasterizationSamples = SAMPLE_COUNT;
-    compositePipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
     lightingRoot->addChild(compositePipeline);
 
@@ -689,7 +692,6 @@ int main( int argc, char * argv[] )
       { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
     };
-    textPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     textPipeline->rasterizationSamples = SAMPLE_COUNT;
 
     lightingRoot->addChild(textPipeline);

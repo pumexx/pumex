@@ -14,7 +14,7 @@ struct MaterialData
 
 layout (std430,binding = 6) readonly buffer MaterialDataSbo
 {
-	MaterialData materialData[];
+  MaterialData materialData[];
 };
 
 layout (binding = 7) uniform sampler2DArray samplerColorMap;

@@ -34,7 +34,8 @@
 #endif
 #include <args.hxx>
 
-// pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a commandline
+// pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
+// The whole render workflow consists of only one render operation
 
 const uint32_t MAX_BONES = 511;
 
@@ -87,11 +88,13 @@ struct ViewerApplicationData
 {
   ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
   {
+    // create buffers visible from renderer
     cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     positionData     = std::make_shared<PositionData>();
     positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
+    // reset camera position
     updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
     updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
     updateData.cameraDistance              = 1.0f;
@@ -105,6 +108,7 @@ struct ViewerApplicationData
 
   void processInput(std::shared_ptr<pumex::Surface> surface)
   {
+    // use mouse and keyboard input to transform camera state
     std::shared_ptr<pumex::Window> window = surface->window.lock();
     std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
 
@@ -204,6 +208,7 @@ struct ViewerApplicationData
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
+    // prepare camera state for rendering
     std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
     uint32_t renderIndex = viewer->getRenderIndex();
     const RenderData& rData = renderData[renderIndex];
@@ -249,6 +254,7 @@ struct ViewerApplicationData
 
   void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Asset> asset)
   {
+    // animate asset if it has animation
     if (asset->animations.empty())
       return;
 
@@ -290,23 +296,26 @@ struct ViewerApplicationData
     positionBuffer->invalidateData();
   }
 
-  UpdateData                                           updateData;
-  std::array<RenderData, 3>                            renderData;
+  UpdateData                                    updateData;
+  std::array<RenderData, 3>                     renderData;
 
-  std::shared_ptr<pumex::Buffer<pumex::Camera>>        cameraBuffer;
-  std::shared_ptr<pumex::Buffer<pumex::Camera>>        textCameraBuffer;
-  std::shared_ptr<PositionData>                        positionData;
-  std::shared_ptr<pumex::Buffer<PositionData>>         positionBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>> cameraBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>> textCameraBuffer;
+  std::shared_ptr<PositionData>                 positionData;
+  std::shared_ptr<pumex::Buffer<PositionData>>  positionBuffer;
 };
 
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
+
+  // process command line using args library
   args::ArgumentParser         parser("pumex example : minimal 3D model viewer without textures");
   args::HelpFlag               help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::ValueFlag<std::string> modelNameArg(parser, "model", "3D model filename", { 'm' });
+  args::ValueFlag<std::string> animationNameArg(parser, "animation", "3D model with animation", { 'a' });
   try
   {
     parser.ParseCLI(argc, argv);
@@ -337,34 +346,50 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  std::string modelFileName = args::get(modelNameArg);
-  std::string windowName = "Pumex viewer : ";
+  std::string modelFileName     = args::get(modelNameArg);
+  std::string animationFileName = args::get(animationNameArg);
+  std::string windowName        = "Pumex viewer : ";
   windowName += modelFileName;
-
-  std::vector<std::string> instanceExtensions;
-  std::vector<std::string> requestDebugLayers;
-  if (enableDebugging)
-    requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, 60 };
-  viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
   try
   {
+    // We need to prepare ViewerTraits object. It stores all basic configuration for Vulkan instance ( Viewer class )
+    std::vector<std::string> instanceExtensions;
+    std::vector<std::string> requestDebugLayers;
+    if (enableDebugging)
+      requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+    pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, 60 };
+    viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+
+    // Viewer object is created 
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
+    // check if the file provided in command line exists
     auto fullModelFileName = viewer->getAbsoluteFilePath(modelFileName);
     CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
 
+    // vertex semantic defines how a single vertex in an asset will look like
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
 
+    // we load an asset using Assimp asset loader
     pumex::AssetLoaderAssimp loader;
     std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName.string(), false, requiredSemantic));
     CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
 
+    auto fullAnimationFileName = viewer->getAbsoluteFilePath(animationFileName);
+    if (!animationFileName.empty() && !fullAnimationFileName.empty())
+    {
+      std::shared_ptr<pumex::Asset> animAsset(loader.load(fullAnimationFileName, true, requiredSemantic));
+      CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationFileName);
+      asset->animations = animAsset->animations;
+    }
+
+    // now is the time to create devices, windows and surfaces.
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
+    // window traits define the screen on which the window will be shown, coordinates on that window, etc
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
@@ -378,23 +403,34 @@ int main( int argc, char * argv[] )
     // allocate 64 MB for vertex and index buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
+    // render workflow will use one queue with below defined traits
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
       workflow->addResourceType("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
+    // workflow will only have one operation that has two output attachments : depth buffer and swapchain image
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
-    // create application data
-    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator);
-
+    // our render operation named "rendering" must have scenegraph attached
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
     workflow->setRenderOperationNode("rendering", renderRoot);
 
+    // If render operation is defined as graphics operation ( pumex::RenderOperation::Graphics ) then scene graph must have :
+    // - at least one graphics pipeline
+    // - at least one vertex buffer ( and if we use nodes calling vkCmdDrawIndexed* then index buffer is also required )
+    // - at least one node that calls one of vkCmdDraw* commands
+    //
+    // In case of compute operations the scene graph must have :
+    // - at least one compute pipeline
+    // - at least one node calling vkCmdDispatch
+    // 
+    // Here is the simple definition of graphics pipeline infrastructure : descriptor set layout, pipeline layout, pipeline cache, shaders and graphics pipeline itself :
+    // Shaders will use two uniform buffers ( both in vertex shader )
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
@@ -409,11 +445,13 @@ int main( int argc, char * argv[] )
     auto pipelineCache = std::make_shared<pumex::PipelineCache>();
 
     auto pipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
+    // loading vertex and fragment shader
     pipeline->shaderStages =
     {
       { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.vert.spv")), "main" },
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.frag.spv")), "main" }
     };
+    // vertex input - we will use the same vertex semantic that the loaded model has
     pipeline->vertexInput =
     {
       { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
@@ -422,57 +460,53 @@ int main( int argc, char * argv[] )
     {
       { VK_FALSE, 0xF }
     };
-    pipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     renderRoot->addChild(pipeline);
 
-    auto boxPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
-    boxPipeline->polygonMode = VK_POLYGON_MODE_LINE;
-    boxPipeline->cullMode = VK_CULL_MODE_NONE;
-    boxPipeline->shaderStages =
+    // AssetNode class is a simple class that binds vertex and index buffers and also performs vkCmdDrawIndexed call on a model
+    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
+    assetNode->setName("assetNode");
+    pipeline->addChild(assetNode);
+
+    // Our additional pipeline will draw a wireframe bounding box using polygon mode VK_POLYGON_MODE_LINE using the same shaders
+    auto wireframePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
+    wireframePipeline->polygonMode = VK_POLYGON_MODE_LINE;
+    wireframePipeline->cullMode = VK_CULL_MODE_NONE;
+    wireframePipeline->shaderStages =
     {
       { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.vert.spv")), "main" },
       { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.frag.spv")), "main" }
     };
-    boxPipeline->vertexInput =
+    wireframePipeline->vertexInput =
     {
       { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
     };
-    boxPipeline->blendAttachments =
+    wireframePipeline->blendAttachments =
     {
       { VK_FALSE, 0xF }
     };
-    boxPipeline->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    renderRoot->addChild(boxPipeline);
+    renderRoot->addChild(wireframePipeline);
 
+    // if model uses animation then calculate bounding box using animation. Otherwise calculate bounding box using only vertices
     pumex::BoundingBox bbox;
     if (asset->animations.size() > 0)
       bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
     else
       bbox = pumex::calculateBoundingBox(*asset, 1);
 
+    // create a bounding box as a geometry to render
     pumex::Geometry boxg;
     boxg.name = "box";
     boxg.semantic = requiredSemantic;
     pumex::addBox(boxg, bbox.bbMin, bbox.bbMax, true);
     std::shared_ptr<pumex::Asset> boxAsset(pumex::createSimpleAsset(boxg, "root"));
 
-    pumex::Geometry cone;
-    cone.name = "cone";
-    cone.semantic = requiredSemantic;
-    pumex::addCone(cone, glm::vec3(0, 0, 0), 0.1f, 0.1f, 16, 8, true);
-    std::shared_ptr<pumex::Asset> testAsset(pumex::createSimpleAsset(cone, "root"));
-
-    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
-    assetNode->setName("assetNode");
-    pipeline->addChild(assetNode);
-
-    std::shared_ptr<pumex::AssetNode> testAssetNode = std::make_shared<pumex::AssetNode>(testAsset, verticesAllocator, 1, 0);
-    testAssetNode->setName("testAssetNode");
-    pipeline->addChild(testAssetNode);
-
+    // and connect this geometry to pipeline that draws wireframe
     std::shared_ptr<pumex::AssetNode> boxAssetNode = std::make_shared<pumex::AssetNode>(boxAsset, verticesAllocator, 1, 0);
     boxAssetNode->setName("boxAssetNode");
-    boxPipeline->addChild(boxAssetNode);
+    wireframePipeline->addChild(boxAssetNode);
+
+    // Application data class stores all information required to update rendering ( animation state, camera position, etc )
+    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator);
 
     // is this the fastest way to calculate all global transformations for a model ?
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
@@ -480,6 +514,7 @@ int main( int argc, char * argv[] )
     std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
     (*applicationData->positionData) = modelData;
 
+    // here we create above mentioned uniform buffers - one for camera state and one for model state
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 
@@ -488,14 +523,16 @@ int main( int argc, char * argv[] )
       descriptorSet->setDescriptor(1, positionUbo);
     pipeline->setDescriptorSet(0, descriptorSet);
 
-    auto boxDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
-      boxDescriptorSet->setDescriptor(0, cameraUbo);
-      boxDescriptorSet->setDescriptor(1, positionUbo);
-    boxPipeline->setDescriptorSet(0, boxDescriptorSet);
+    auto wireframeDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
+      wireframeDescriptorSet->setDescriptor(0, cameraUbo);
+      wireframeDescriptorSet->setDescriptor(1, positionUbo);
+    wireframePipeline->setDescriptorSet(0, wireframeDescriptorSet);
 
+    // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
     surface->setRenderWorkflow(workflow, workflowCompiler);
 
+    // We must connect update graph that works independently from render graph
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
       applicationData->processInput(surface);
@@ -504,10 +541,12 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
+    // events are used to call aplication data update methods. These methods generate data visisble by renderer through uniform buffers
     viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
 
     surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
 
+    // main renderer loop is inside Viewer::run()
     viewer->run();
   }
   catch (const std::exception& e)
@@ -526,6 +565,7 @@ int main( int argc, char * argv[] )
 #endif
     LOG_ERROR << "Unknown error" << std::endl;
   }
+  // here are all windows, surfaces, devices, workflows and scene graphs destroyed
   viewer->cleanup();
   FLUSH_LOG;
   return 0;

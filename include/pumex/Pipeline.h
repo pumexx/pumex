@@ -225,7 +225,8 @@ public:
   // viewport and scissor
   std::vector<VkViewport>                   viewports;
   std::vector<VkRect2D>                     scissors;
-  std::vector<VkDynamicState>               dynamicStates; // VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_LINE_WIDTH, VK_DYNAMIC_STATE_DEPTH_BIAS, VK_DYNAMIC_STATE_BLEND_CONSTANTS, VK_DYNAMIC_STATE_DEPTH_BOUNDS, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK, VK_DYNAMIC_STATE_STENCIL_REFERENCE
+  std::vector<VkDynamicState>               dynamicStates; // VK_DYNAMIC_STATE_LINE_WIDTH, VK_DYNAMIC_STATE_DEPTH_BIAS, VK_DYNAMIC_STATE_BLEND_CONSTANTS, VK_DYNAMIC_STATE_DEPTH_BOUNDS, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK, VK_DYNAMIC_STATE_STENCIL_REFERENCE
+                                                           // VK_DYNAMIC_STATE_VIEWPORT and VK_DYNAMIC_STATE_SCISSOR are used ALWAYS in pumex
 
   // multisample support
   VkSampleCountFlagBits                     rasterizationSamples      = VK_SAMPLE_COUNT_1_BIT;
@@ -260,8 +261,11 @@ public:
 
 bool GraphicsPipeline::hasDynamicState(VkDynamicState state) const
 {
+  if (state == VK_DYNAMIC_STATE_VIEWPORT) return true;
+  if (state == VK_DYNAMIC_STATE_SCISSOR)  return true;
+
   for (const auto& d : dynamicStates)
-    if (d==state)
+    if (state == d)
       return true;
   return false;
 }
