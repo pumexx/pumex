@@ -19,7 +19,7 @@ Elements that are required to install Pumex on Windows :
 - [Vulkan SDK](https://vulkan.lunarg.com/)
 - [CMake](https://cmake.org/) **version at least 3.7.0** ( earlier versions do not have FindVulkan.cmake module) and if you are using Vulkan SDK newer than 1.0.42 then use CMake **version at least 3.9.0**.
 - [git](https://git-scm.com/)
-- Microsoft Visual Studio 2013 ( 64 bit ) or Microsoft Visual Studio 2015 ( 64 bit )
+- Microsoft Visual Studio 2015 ( 64 bit ) or Microsoft Visual Studio 2017 ( 64 bit )
 
 Steps needed to build a library :
 

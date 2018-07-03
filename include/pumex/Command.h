@@ -149,7 +149,7 @@ protected:
 
 void     CommandBuffer::setActiveIndex(uint32_t index) { activeIndex = index % commandBuffer.size(); }
 uint32_t CommandBuffer::getActiveIndex() const         { return activeIndex; }
-bool     CommandBuffer::isValid()                      { return valid[activeIndex]; }
+bool     CommandBuffer::isValid()                      { return valid[activeIndex]!=0; }
 
 // helper class defining pipeline barrier used later in CommandBuffer::cmdPipelineBarrier()
 struct PUMEX_EXPORT PipelineBarrier

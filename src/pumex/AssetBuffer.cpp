@@ -22,6 +22,7 @@
 
 #include <pumex/AssetBuffer.h>
 #include <set>
+#include <iterator>
 #include <pumex/Device.h>
 #include <pumex/Node.h>
 #include <pumex/PhysicalDevice.h>

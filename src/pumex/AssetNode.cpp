@@ -24,6 +24,7 @@
 #include <pumex/MemoryBuffer.h>
 #include <pumex/NodeVisitor.h>
 #include <algorithm>
+#include <iterator>
 
 using namespace pumex;
 

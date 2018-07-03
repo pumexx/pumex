@@ -26,12 +26,6 @@
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
-// suppression of noexcept keyword used in args library ( so that code may compile on VS 2013 )
-#ifdef _MSC_VER
-  #if _MSC_VER<1900
-    #define noexcept 
-  #endif
-#endif
 #include <args.hxx>
 
 // This example shows how to setup basic deferred renderer with antialiasing.
