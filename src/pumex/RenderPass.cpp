@@ -309,6 +309,10 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
       rectangle = makeVkRect2D(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y);
       viewport  = makeViewport(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y, 0.0f, 1.0f);
       break;
+    default:
+      rectangle = makeVkRect2D(0, 0, 1, 1);
+      viewport  = makeViewport(0, 0, 1, 1, 0.0f, 1.0f);
+      break;
     }
     
     commandVisitor.commandBuffer->cmdBeginRenderPass( commandVisitor.renderContext, this, rectangle, renderPass->clearValues, subpassContents );

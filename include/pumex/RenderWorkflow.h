@@ -445,13 +445,16 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
       srcStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
-      dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
-      break;
+      srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+    default:
+      srcStageMask = 0; break;
     }
     break;
   case rttBufferOutput:
     srcStageMask = generatingTransition->pipelineStage;
     break;
+  default:
+    srcStageMask = 0; break;
   }
 
   switch (consumingTransition->transitionType)
@@ -468,11 +471,15 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
       dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
       dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; break;
+    default:
+      dstStageMask = 0; break;
     }
     break;
   case rttBufferInput:
     dstStageMask = consumingTransition->pipelineStage;
     break;
+  default:
+    dstStageMask = 0; break;
   }
 
 }
@@ -495,11 +502,15 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
       srcAccessMask = VK_ACCESS_SHADER_READ_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
       srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT; break;
+    default:
+      srcAccessMask = 0; break;
     }
     break;
   case rttBufferOutput:
     srcAccessMask = generatingTransition->accessFlags;
     break;
+  default:
+    srcAccessMask = 0; break;
   }
 
   switch (consumingTransition->transitionType)
@@ -516,11 +527,15 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
       dstAccessMask = VK_ACCESS_SHADER_READ_BIT; break;
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
       dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT; break;
+    default:
+      dstAccessMask = 0; break;
     }
     break;
   case rttBufferInput:
     dstAccessMask = consumingTransition->accessFlags;
     break;
+  default:
+    dstAccessMask = 0; break;
   }
 }
 

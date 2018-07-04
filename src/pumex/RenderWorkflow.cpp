@@ -395,6 +395,8 @@ void RenderWorkflow::associateMemoryObject(const std::string& name, std::shared_
   case MemoryObject::moImage:
     CHECK_LOG_THROW(resIt->second->resourceType->metaType != RenderWorkflowResourceType::Image, "RenderWorkflow : cannot associate memory image and resource " << resIt->second->name);
     break;
+  default:
+    break;
   }
   associatedMemoryObjects.insert({ name, memoryObject });
   valid = false;
@@ -1442,5 +1444,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<Resource
     rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, memoryObject, oldLayout, newLayout, imageRange));
     break;
   }
+  default:
+    break;
   }
 }

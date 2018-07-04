@@ -50,6 +50,7 @@ Animation::Channel::State toChannelState(aiAnimBehaviour behaviour)
   case aiAnimBehaviour_CONSTANT: return Animation::Channel::CLAMP;
   case aiAnimBehaviour_LINEAR:   return Animation::Channel::CLAMP;
   case aiAnimBehaviour_REPEAT:   return Animation::Channel::REPEAT;
+  default :                      return Animation::Channel::CLAMP;
   }
   return Animation::Channel::CLAMP;
 }

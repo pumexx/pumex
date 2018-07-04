@@ -141,6 +141,7 @@ struct ViewerApplicationData
         case pumex::InputEvent::S: updateData.moveBackward = true; break;
         case pumex::InputEvent::A: updateData.moveLeft     = true; break;
         case pumex::InputEvent::D: updateData.moveRight    = true; break;
+        default: break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
@@ -150,8 +151,11 @@ struct ViewerApplicationData
         case pumex::InputEvent::S: updateData.moveBackward = false; break;
         case pumex::InputEvent::A: updateData.moveLeft     = false; break;
         case pumex::InputEvent::D: updateData.moveRight    = false; break;
+        default: break;
         }
         break;
+        default: 
+          break;
       }
     }
 

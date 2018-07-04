@@ -331,6 +331,12 @@ void Surface::validateWorkflow()
         oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
         dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
         break;
+      default:
+        srcAccessFlags = 0;
+        dstAccessFlags = 0;
+        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+        dstStageFlags |= 0;
+        break;
       }
       auto it = workflowResults->registeredImageViews.find(iLayout.first);
       if (it != end(workflowResults->registeredImageViews))

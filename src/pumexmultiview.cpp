@@ -212,6 +212,7 @@ struct DeferredApplicationData
         case pumex::InputEvent::Q:     updateData.moveUp       = true; break;
         case pumex::InputEvent::Z:     updateData.moveDown     = true; break;
         case pumex::InputEvent::SHIFT: updateData.moveFast     = true; break;
+        default: break;
         }
         break;
       case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
@@ -224,7 +225,10 @@ struct DeferredApplicationData
         case pumex::InputEvent::Q:     updateData.moveUp       = false; break;
         case pumex::InputEvent::Z:     updateData.moveDown     = false; break;
         case pumex::InputEvent::SHIFT: updateData.moveFast     = false; break;
+        default: break;
         }
+        break;
+      default:
         break;
       }
     }

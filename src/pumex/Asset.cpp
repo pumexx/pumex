@@ -386,6 +386,8 @@ void copyAndConvertVertices(std::vector<float>& targetBuffer, const std::vector<
     case VertexSemantic::BoneWeight:
       defaultValues[offset + 0] = 1.0;
       break;
+    default:
+      break;
     }
     offset += t.size;
   }

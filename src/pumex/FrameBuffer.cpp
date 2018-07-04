@@ -136,6 +136,12 @@ void FrameBuffer::validate(const RenderContext& renderContext)
       frameBufferHeight = definition.attachmentSize.imageSize.y;
       break;
     }
+    default:
+    {
+      frameBufferWidth  = 1;
+      frameBufferHeight = 1;
+      break;
+    }
     }
   }
   // define frame buffers
@@ -187,6 +193,13 @@ void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::v
       {
         imSize.width  = definition.attachmentSize.imageSize.x;
         imSize.height = definition.attachmentSize.imageSize.y;
+        imSize.depth  = 1;
+        break;
+      }
+      default:
+      {
+        imSize.width  = 1;
+        imSize.height = 1;
         imSize.depth  = 1;
         break;
       }

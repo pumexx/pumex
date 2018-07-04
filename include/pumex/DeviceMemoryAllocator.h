@@ -56,6 +56,7 @@ struct FreeBlock
 class PUMEX_EXPORT AllocationStrategy
 {
 public:
+  virtual ~AllocationStrategy();
   virtual DeviceMemoryBlock allocate(VkDeviceMemory storageMemory, std::list<FreeBlock>& freeBlocks, VkMemoryRequirements memoryRequirements) = 0;
   virtual void deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) = 0;
 };
@@ -110,6 +111,7 @@ class PUMEX_EXPORT FirstFitAllocationStrategy : public AllocationStrategy
 {
 public:
   FirstFitAllocationStrategy();
+  virtual ~FirstFitAllocationStrategy();
 
   DeviceMemoryBlock allocate(VkDeviceMemory storageMemory, std::list<FreeBlock>& freeBlocks, VkMemoryRequirements memoryRequirements) override;
   void              deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) override;

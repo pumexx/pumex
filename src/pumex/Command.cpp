@@ -193,6 +193,8 @@ void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipe
     case PipelineBarrier::Image:
       imageBarriers.push_back(b.imageBarrier);
       break;
+    default:
+      break;
     }
   }
   vkCmdPipelineBarrier(commandBuffer[activeIndex], srcStageMask, dstStageMask, dependencyFlags,
@@ -211,6 +213,8 @@ void CommandBuffer::cmdPipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipe
     break;
   case PipelineBarrier::Image:
     vkCmdPipelineBarrier(commandBuffer[activeIndex], srcStageMask, dstStageMask, dependencyFlags, 0, nullptr, 0, nullptr, 1, &barrier.imageBarrier );
+    break;
+  default:
     break;
   }
 }
@@ -258,6 +262,8 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
       imageBarriers.emplace_back(imageBarrier);
       break;
     }
+    default:
+      break;
     }
   }
   vkCmdPipelineBarrier(commandBuffer[activeIndex], barrierGroup.srcStageMask, barrierGroup.dstStageMask, barrierGroup.dependencyFlags,
@@ -406,6 +412,10 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
     srcStageFlags = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     break;
+  default:
+    srcAccessMask = 0;
+    srcStageFlags = 0;
+    break;
   }
 
   // Target layouts (new)
@@ -458,6 +468,11 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
     dstStageFlags = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     break;
+  default:
+    dstAccessMask = 0;
+    dstStageFlags = 0;
+    break;
+    
   }
 
   VkDependencyFlags dependencyFlags = 0;

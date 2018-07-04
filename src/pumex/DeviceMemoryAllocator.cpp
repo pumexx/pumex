@@ -43,6 +43,10 @@ FreeBlock::FreeBlock(VkDeviceSize o, VkDeviceSize s)
 {
 }
 
+AllocationStrategy::~AllocationStrategy()
+{
+}
+
 DeviceMemoryAllocator::DeviceMemoryAllocator(VkMemoryPropertyFlags pf, VkDeviceSize s, EnumStrategy st)
   : propertyFlags{ pf }, size{ s }
 {
@@ -106,6 +110,10 @@ void DeviceMemoryAllocator::bindBufferMemory(Device* device, VkBuffer buffer, Vk
 }
 
 FirstFitAllocationStrategy::FirstFitAllocationStrategy()
+{
+}
+
+FirstFitAllocationStrategy::~FirstFitAllocationStrategy()
 {
 }
 
