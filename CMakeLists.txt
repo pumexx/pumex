@@ -1,297 +1,201 @@
 cmake_minimum_required(VERSION 3.7.0 FATAL_ERROR)
 
-project( PUMEX_LIB )
-set(PUMEX_VERSION_MAJOR 0)
-set(PUMEX_VERSION_MINOR 1)
-set(PUMEX_VERSION_PATCH 0)
-set(PUMEX_VERSION ${PUMEX_VERSION_MAJOR}.${PUMEX_VERSION_MINOR}.${PUMEX_VERSION_PATCH} )
-set(PUMEX_SOVERSION 1)
+project( PUMEX LANGUAGES CXX VERSION 0.1.0 )
+set( PUMEX_SOVERSION 1 )
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules")
+message( STATUS "Building PUMEX library version ${PUMEX_VERSION_MAJOR}.${PUMEX_VERSION_MINOR}.${PUMEX_VERSION_PATCH}" )
+
+option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
+if(WIN32)
+  option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ARGS     "Download ARGS library"      ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP   "Download Assimp library"    ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE "Download Freetype2 library" ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       ON )
+else()
+  option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ARGS     "Download ARGS library"      ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP   "Download Assimp library"    OFF )
+  option( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE "Download Freetype2 library" OFF )
+  option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       OFF )
+endif()
+
+
+list( APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" )
+list( APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/Modules" )
+
+set( CMAKE_CXX_STANDARD 14 )
+set( CMAKE_CXX_STANDARD_REQUIRED ON )
+set( CMAKE_CXX_EXTENSIONS OFF )
 
 configure_file (
   "${PROJECT_SOURCE_DIR}/include/pumex/Version.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h"
-  )
-include_directories( ${PROJECT_SOURCE_DIR}/include )
-include_directories( ${CMAKE_CURRENT_BINARY_DIR}/include )
-
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-find_package(Vulkan REQUIRED)
-include_directories(${Vulkan_INCLUDE_DIRS})
-  
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
-    string( TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG )
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/bin)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/bin)
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_CURRENT_BINARY_DIR}/lib)
-endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
-
-include(ExternalProject)
-include(FindPackageHandleStandardArgs)
-
-set(GLM_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/glm")
-ExternalProject_Add( glm-external
-  PREFIX "${GLM_BUILD_DIR}"
-  BINARY_DIR "${GLM_BUILD_DIR}/build"
-  STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/glm"
-  GIT_REPOSITORY "https://github.com/g-truc/glm.git"
-  GIT_TAG "0.9.8"
-  SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/glm"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  UPDATE_COMMAND ""
-  PATCH_COMMAND ""
-  TEST_COMMAND ""
-  INSTALL_COMMAND ""
-  UPDATE_DISCONNECTED 1
-)
-ExternalProject_Add_Step( glm-external glm-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/external/glm/glm" "${CMAKE_CURRENT_BINARY_DIR}/include/glm"
-  COMMENT "Copying glm headers"
-  DEPENDEES install
-)
-
-set(GLI_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/gli")
-ExternalProject_Add( gli-external
-  PREFIX "${GLI_BUILD_DIR}"
-  BINARY_DIR "${GLI_BUILD_DIR}/build"
-  STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/gli"
-  GIT_REPOSITORY "https://github.com/g-truc/gli.git"
-  GIT_TAG "0.8.2"
-  SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/gli"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  UPDATE_COMMAND ""
-  PATCH_COMMAND ""
-  TEST_COMMAND ""
-  INSTALL_COMMAND ""
-  UPDATE_DISCONNECTED 1
-)
-ExternalProject_Add_Step( gli-external gli-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/external/gli/gli" "${CMAKE_CURRENT_BINARY_DIR}/include/gli"
-  COMMENT "Copying gli headers"
-  DEPENDEES install
-)
-
-set(ARGS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/args")
-ExternalProject_Add( args-external
-  PREFIX "${ARGS_BUILD_DIR}"
-  BINARY_DIR "${ARGS_BUILD_DIR}/build"
-  STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/args"
-  GIT_REPOSITORY "https://github.com/Taywee/args.git"
-  GIT_TAG "6.1.0"
-  SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/args"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  UPDATE_COMMAND ""
-  PATCH_COMMAND ""
-  TEST_COMMAND ""
-  INSTALL_COMMAND ""
-  UPDATE_DISCONNECTED 1
-)
-ExternalProject_Add_Step( args-external args-external-copy-includes
-  COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/external/args/args.hxx" "${CMAKE_CURRENT_BINARY_DIR}/include/args.hxx"
-  COMMENT "Copying args headers"
-  DEPENDEES install
-)
-
-set( PUMEX_DEPENDENCIES )
-
-if(WIN32)
-  set(ASSIMP_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/assimp)
-  set(ASSIMP_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/assimp")
-  ExternalProject_Add( assimp-external
-    PREFIX "${ASSIMP_BUILD_DIR}"
-    BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/assimp"
-    GIT_REPOSITORY "https://github.com/assimp/assimp.git"
-    GIT_TAG "v4.1.0"
-    SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
-    UPDATE_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DASSIMP_BUILD_TESTS=off -DCMAKE_DEBUG_POSTFIX=d
-    UPDATE_DISCONNECTED 1
-  )
-  if(WIN32)
-    if(MSVC12)
-      set(ASSIMP_MSVC_VERSION "vc120")
-    elseif(MSVC14)	
-      set(ASSIMP_MSVC_VERSION "vc140")
-    endif(MSVC12)
-    if(MSVC12 OR MSVC14)
-      set(ASSIMP_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/assimp-${ASSIMP_MSVC_VERSION}-mt.lib)
-      set(ASSIMP_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/assimp-${ASSIMP_MSVC_VERSION}-mtd.lib)
-      set(ASSIMP_LIBRARIES optimized "${ASSIMP_LIBRARY_RELEASE}" debug "${ASSIMP_LIBRARY_DEBUG}")
-    endif()
-    list ( APPEND PUMEX_DEPENDENCIES assimp-external )
-  else(WIN32)
-# This code is inactive now.
-      set(ASSIMP_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libassimp.so)
-      set(ASSIMP_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libassimpd.so)
-      set(ASSIMP_LIBRARIES optimized "${ASSIMP_LIBRARY_RELEASE}" debug "${ASSIMP_LIBRARY_DEBUG}")
-  endif(WIN32)
-else(WIN32)
-  find_package( ASSIMP REQUIRED )
-#  find_package_handle_standard_args( ASSIMP REQUIRED_VARS ASSIMP_LIBRARIES )
-endif(WIN32)
-
-if( WIN32 )
-  set(FREETYPE_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/freetype )
-  set(FREETYPE_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/freetype")
-  ExternalProject_Add( freetype-external
-    PREFIX "${FREETYPE_BUILD_DIR}"
-    BINARY_DIR "${FREETYPE_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/freetype"
-    GIT_REPOSITORY "git://git.sv.nongnu.org/freetype/freetype2.git"
-    GIT_TAG "VER-2-8"
-    SOURCE_DIR "${FREETYPE_SOURCE_DIR}"
-    UPDATE_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DCMAKE_DEBUG_POSTFIX=d
-    UPDATE_DISCONNECTED 1
-  )
-  set(FREETYPE_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/freetype.lib)
-  set(FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/freetyped.lib)
-  set(FREETYPE_LIBRARIES optimized "${FREETYPE_LIBRARY_RELEASE}" debug "${FREETYPE_LIBRARY_DEBUG}")
-  include_directories( ${CMAKE_CURRENT_BINARY_DIR}/include/freetype2 )
-  list ( APPEND PUMEX_DEPENDENCIES freetype-external )
-else( WIN32 )
-  find_package( Freetype REQUIRED )
-  include_directories( ${FREETYPE_INCLUDE_DIRS} )
-endif( WIN32 )
-
-if(WIN32)
-  set(TBB_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/tbb)
-  set(TBB_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/tbb")
-  ExternalProject_Add( tbb-external
-    PREFIX "${TBB_BUILD_DIR}"
-    BINARY_DIR "${TBB_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/tbb"
-    GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
-    SOURCE_DIR "${TBB_SOURCE_DIR}"
-    UPDATE_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR} -DCMAKE_DEBUG_POSTFIX=_debug -DTBB_BUILD_TESTS=OFF
-    UPDATE_DISCONNECTED 1
+  "${CMAKE_BINARY_DIR}/include/pumex/Version.h"
   )
 
-  if(WIN32)
-    set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib)
-    set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb_debug.lib)
-    set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
-  else(WIN32)
-#  find_library(TBB_LIBRARIES NAMES tbb PATHS /usr/local/lib/ )
-    set(TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb.so)
-    set(TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb_debug.so)
-    set(TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}")
-  endif(WIN32)
-  list ( APPEND PUMEX_DEPENDENCIES tbb-external )
-else( WIN32 )
-  find_package( TBB COMPONENTS tbbmalloc tbbmalloc_proxy )
-endif( WIN32 )
+include( pumex_macros )
+include( pumex_externals )
 
-# FIXME - android not implemented
+set( pumexlib_input_shaders 
+  shaders/text_draw.vert
+  shaders/text_draw.geom
+  shaders/text_draw.frag
+)
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexlib_input_shaders pumexlib_output_shaders )
+add_custom_target ( pumexlib-shaders DEPENDS ${pumexlib_output_shaders} SOURCES ${pumexlib_input_shaders} )
+
+add_library( pumexlib SHARED "" )
+target_sources( pumexlib PUBLIC 
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Asset.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetBuffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetBufferNode.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetLoaderAssimp.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetNode.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/BoundingBox.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Camera.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/CombinedImageSampler.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Command.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Descriptor.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Device.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/DeviceMemoryAllocator.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/DispatchNode.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Export.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/FrameBuffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/HPClock.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Image.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/InputAttachment.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Kinematic.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MaterialSet.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryBuffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryImage.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryObject.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryObjectBarrier.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Node.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/NodeVisitor.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/PerObjectData.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/PhysicalDevice.h 
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Pipeline.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Pumex.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Query.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderContext.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderPass.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderVisitors.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderWorkflow.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Resource.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/SampledImage.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Sampler.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/StorageBuffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/StorageImage.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Surface.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Text.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/TextureLoaderGli.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/UniformBuffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Viewer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Window.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/ActionQueue.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/Buffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/HashCombine.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/Log.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/Shapes.h  
+  ${CMAKE_BINARY_DIR}/include/pumex/Version.h
+)
+target_sources( pumexlib PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Asset.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetBuffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetBufferNode.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetLoaderAssimp.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetNode.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/BoundingBox.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Camera.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/CombinedImageSampler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Command.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Descriptor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Device.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/DeviceMemoryAllocator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/DispatchNode.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/FrameBuffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Image.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/InputAttachment.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Kinematic.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MaterialSet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryBuffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryImage.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryObject.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryObjectBarrier.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/NodeVisitor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/PerObjectData.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/PhysicalDevice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Pipeline.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Query.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderContext.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderPass.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderVisitors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderWorkflow.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Resource.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/SampledImage.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Sampler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/StorageBuffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/StorageImage.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Surface.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Text.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/TextureLoaderGli.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/UniformBuffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Viewer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Window.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/utils/Buffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/utils/Log.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/utils/Shapes.cpp
+)
 if(WIN32)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_WIN32_KHR")
-  set( SYSTEM_LIBRARIES ${WINLIBS} )
-else(WIN32)
-  find_package(X11 REQUIRED)
-  find_package(XCB REQUIRED)
-  find_package(Threads REQUIRED)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_XCB_KHR")
-  set( SYSTEM_LIBRARIES ${XCB_LIBRARIES} ${X11_LIBRARIES} )
-endif(WIN32)
-
-# FIXME - android not implemented
-file(GLOB PUMEX_SOURCE include/pumex/*.h include/pumex/utils/*.h src/pumex/*.cpp src/pumex/utils/*.cpp)
-if(WIN32)
-  file(GLOB PUMEX_PLATFORM_SOURCE include/pumex/platform/win32/*.h src/pumex/platform/win32/*.cpp)
-else(WIN32)
-  file(GLOB PUMEX_PLATFORM_SOURCE include/pumex/platform/linux/*.h src/pumex/platform/linux/*.cpp)
-endif(WIN32)
-
-file( GLOB PUMEX_SHADERS data/shaders/*.vert data/shaders/*.tesc data/shaders/*.tese data/shaders/*.geom data/shaders/*.frag data/shaders/*.comp )
-set( PUMEX_SHADERS_COMPILED )
-foreach( _file ${PUMEX_SHADERS} )
-  set( _file_out ${_file}.spv )
-  add_custom_command (OUTPUT  ${_file_out}
-                      DEPENDS ${_file}
-                      COMMAND glslangValidator
-                      ARGS    -V ${_file} -o ${_file_out} )
-  list (APPEND PUMEX_SHADERS_COMPILED ${_file_out})
-endforeach()
-
-add_custom_target (shaders DEPENDS ${PUMEX_SHADERS_COMPILED} SOURCES ${PUMEX_SHADERS})
-
-SET(CMAKE_DEBUG_POSTFIX "d")
-SET(CMAKE_RELEASE_POSTFIX "")
-SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
-SET(CMAKE_MINSIZEREL_POSTFIX "s")
-
-MACRO(set_executable_postfixes target)
-  set_target_properties(${target} PROPERTIES DEBUG_OUTPUT_NAME "${target}${CMAKE_DEBUG_POSTFIX}")
-  set_target_properties(${target} PROPERTIES RELEASE_OUTPUT_NAME "${target}${CMAKE_RELEASE_POSTFIX}")
-  set_target_properties(${target} PROPERTIES RELWITHDEBINFO_OUTPUT_NAME "${target}${CMAKE_RELWITHDEBINFO_POSTFIX}")
-  set_target_properties(${target} PROPERTIES MINSIZEREL_OUTPUT_NAME "${target}${CMAKE_MINSIZEREL_POSTFIX}")
-ENDMACRO(set_executable_postfixes)
-
-add_library( pumex SHARED ${PUMEX_SOURCE} ${PUMEX_PLATFORM_SOURCE} )
-target_compile_definitions( pumex PRIVATE PUMEX_EXPORTS=1 )
-target_compile_definitions( pumex PUBLIC NOMINMAX=1 GLM_ENABLE_EXPERIMENTAL=1 GLM_FORCE_RADIANS=1 GLM_FORCE_DEPTH_ZERO_TO_ONE=1 )
-add_dependencies( pumex glm-external gli-external ${PUMEX_DEPENDENCIES} )
-set_target_properties(pumex PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
-target_link_libraries( pumex ${SYSTEM_LIBRARIES} ${Vulkan_LIBRARIES} ${TBB_LIBRARIES} ${ASSIMP_LIBRARIES} ${FREETYPE_LIBRARIES} )
-set_executable_postfixes( pumex )
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  SET(EXPERIMENTAL_FILESYSTEM_LIBRARIES stdc++fs)
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-  SET(EXPERIMENTAL_FILESYSTEM_LIBRARIES c++experimental)
-else()   
-  SET(EXPERIMENTAL_FILESYSTEM_LIBRARIES )
+  target_sources( pumexlib PUBLIC 
+    ${CMAKE_CURRENT_LIST_DIR}/include/pumex/platform/win32/HPClockWin32.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/pumex/platform/win32/WindowWin32.h
+  )
+  target_sources( pumexlib PRIVATE 
+    ${CMAKE_CURRENT_LIST_DIR}/src/pumex/platform/win32/HPClockWin32.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/pumex/platform/win32/WindowWin32.cpp
+  )
+elseif(UNIX AND NOT APPLE)
+  target_sources( pumexlib PUBLIC 
+    ${CMAKE_CURRENT_LIST_DIR}/include/pumex/platform/linux/WindowXcb.h
+  )
+  target_sources( pumexlib PRIVATE 
+    ${CMAKE_CURRENT_LIST_DIR}/src/pumex/platform/linux/WindowXcb.cpp
+  )
 endif()
 
-add_executable( pumexviewer src/pumexviewer.cpp )
-add_dependencies( pumexviewer shaders args-external )
-target_link_libraries( pumexviewer pumex ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
-set_executable_postfixes( pumexviewer )
+target_include_directories( pumexlib PUBLIC  ${PUMEXLIB_PUBLIC_INCLUDES} )
+target_include_directories( pumexlib PRIVATE ${PUMEXLIB_PRIVATE_INCLUDES} )
+target_compile_definitions( pumexlib PRIVATE PUMEX_EXPORTS )
+target_compile_definitions( pumexlib PUBLIC NOMINMAX GLM_ENABLE_EXPERIMENTAL GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE )
+if(WIN32)
+  target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_WIN32_KHR )
+elseif(UNIX AND NOT APPLE)
+  target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
+endif()
+add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
+set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
+set_target_properties( pumexlib PROPERTIES RESOURCE "${pumexlib_output_shaders}" )
+target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
+set_executable_postfixes( pumexlib )
 
-add_executable( pumexcrowd src/pumexcrowd.cpp )
-add_dependencies( pumexcrowd shaders args-external )
-target_link_libraries( pumexcrowd pumex ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
-set_executable_postfixes( pumexcrowd )
-
-add_executable( pumexgpucull src/pumexgpucull.cpp )
-add_dependencies( pumexgpucull shaders args-external )
-target_link_libraries( pumexgpucull pumex ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
-set_executable_postfixes( pumexgpucull )
-
-add_executable( pumexdeferred src/pumexdeferred.cpp )
-add_dependencies( pumexdeferred shaders args-external )
-target_link_libraries( pumexdeferred pumex ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
-set_executable_postfixes( pumexdeferred )
-
-add_executable( pumexvoxelizer src/pumexvoxelizer.cpp )
-add_dependencies( pumexvoxelizer shaders args-external )
-target_link_libraries( pumexvoxelizer pumex ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
-set_executable_postfixes( pumexvoxelizer )
-
-add_executable( pumexmultiview src/pumexmultiview.cpp )
-add_dependencies( pumexmultiview shaders args-external )
-target_link_libraries( pumexmultiview pumex ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
-set_executable_postfixes( pumexmultiview )
-
-set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumexcrowd)
-
-if( NOT WIN32 )
-  install( TARGETS pumex pumexviewer pumexcrowd pumexgpucull pumexdeferred pumexvoxelizer pumexmultiview ${PUMEX_DEPENDENCIES}
+install( TARGETS pumexlib
          ARCHIVE DESTINATION lib 
          LIBRARY DESTINATION lib 
-         RUNTIME DESTINATION bin )
-  install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
-  install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION include )
-endif( NOT WIN32 )
+         RUNTIME DESTINATION bin 
+         INCLUDES DESTINATION include
+         RESOURCE DESTINATION share/pumex/shaders
+         )
+install( FILES ${PUMEX_INSTALL_LIBRARIES} DESTINATION lib )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
+install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION include )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/fonts DESTINATION share/pumex )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/people DESTINATION share/pumex )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/sponza DESTINATION share/pumex )
+
+if( PUMEX_BUILD_EXAMPLES )
+  add_subdirectory( examples )
+endif()
