@@ -177,6 +177,9 @@ elseif(UNIX AND NOT APPLE)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
 endif()
 add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
+add_custom_command( TARGET pumexlib PRE_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${INTERMEDIATE_INSTALL_DIR} ${CMAKE_BINARY_DIR}
+)
 set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
 set_target_properties( pumexlib PROPERTIES RESOURCE "${pumexlib_output_shaders}" )
 target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
@@ -189,12 +192,14 @@ install( TARGETS pumexlib
          INCLUDES DESTINATION include
          RESOURCE DESTINATION share/pumex/shaders
          )
-install( FILES ${PUMEX_INSTALL_LIBRARIES} DESTINATION lib )
 install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
-install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION include )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/fonts DESTINATION share/pumex )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/people DESTINATION share/pumex )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/sponza DESTINATION share/pumex )
+install( FILES ${CMAKE_BINARY_DIR}/include/pumex/Version.h DESTINATION include/pumex )
+install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/include/ DESTINATION include )
+install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin/ DESTINATION bin )
+install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/lib/ DESTINATION lib )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/people/ DESTINATION share/pumex )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex )
 
 if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )
