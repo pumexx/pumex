@@ -1,8 +1,8 @@
-set( pumexviewer_input_shaders 
+set( pumexviewer_shader_names 
   shaders/viewer_basic.vert
   shaders/viewer_basic.frag
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexviewer_input_shaders pumexviewer_output_shaders )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexviewer_shader_names pumexviewer_input_shaders pumexviewer_output_shaders )
 add_custom_target ( pumexviewer-shaders DEPENDS ${pumexviewer_output_shaders} SOURCES ${pumexviewer_input_shaders})
 
 add_executable( pumexviewer pumexviewer.cpp )

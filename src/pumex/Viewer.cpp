@@ -109,6 +109,14 @@ Viewer::Viewer(const ViewerTraits& vt)
 #endif
   addDefaultDirectory(execDir);
   addDefaultDirectory(execDir / filesystem::path("data"));
+  // for files INSTALLED on Windows 
+#if defined(_WIN32)
+  addDefaultDirectory(execDir / filesystem::path("../share/pumex"));
+#else
+  // for files INSTALLED on Linux
+  addDefaultDirectory(filesystem::path("/usr/share/pumex"));
+  addDefaultDirectory(filesystem::path("/usr/local/share/pumex"));
+#endif  
 
   //// list all existing default directories
   //LOG_INFO << "Default directories :" << std::endl;

@@ -1,4 +1,4 @@
-set( pumexvoxelizer_input_shaders 
+set( pumexvoxelizer_shader_names 
   shaders/voxelizer_basic.frag
   shaders/voxelizer_basic.vert
   shaders/voxelizer_raymarch.frag
@@ -7,7 +7,7 @@ set( pumexvoxelizer_input_shaders
   shaders/voxelizer_voxelize.geom
   shaders/voxelizer_voxelize.vert
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexvoxelizer_input_shaders pumexvoxelizer_output_shaders )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexvoxelizer_shader_names pumexvoxelizer_input_shaders pumexvoxelizer_output_shaders )
 add_custom_target ( pumexvoxelizer-shaders DEPENDS ${pumexvoxelizer_output_shaders} SOURCES ${pumexvoxelizer_input_shaders})
 
 add_executable( pumexvoxelizer pumexvoxelizer.cpp )

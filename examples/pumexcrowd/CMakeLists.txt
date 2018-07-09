@@ -1,9 +1,9 @@
-set( pumexcrowd_input_shaders 
+set( pumexcrowd_shader_names 
   shaders/crowd_filter_instances.comp
   shaders/crowd_instanced_animation.vert
   shaders/crowd_instanced_animation.frag
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexcrowd_input_shaders pumexcrowd_output_shaders )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexcrowd_shader_names pumexcrowd_input_shaders pumexcrowd_output_shaders )
 add_custom_target ( pumexcrowd-shaders DEPENDS ${pumexcrowd_output_shaders} SOURCES ${pumexcrowd_input_shaders})
 
 add_executable( pumexcrowd pumexcrowd.cpp )

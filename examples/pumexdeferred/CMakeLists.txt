@@ -1,10 +1,10 @@
-set( pumexdeferred_input_shaders 
+set( pumexdeferred_shader_names 
   shaders/deferred_composite.frag
   shaders/deferred_composite.vert
   shaders/deferred_gbuffers.frag
   shaders/deferred_gbuffers.vert
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexdeferred_input_shaders pumexdeferred_output_shaders )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexdeferred_shader_names pumexdeferred_input_shaders pumexdeferred_output_shaders )
 add_custom_target ( pumexdeferred-shaders DEPENDS ${pumexdeferred_output_shaders} SOURCES ${pumexdeferred_input_shaders})
 
 add_executable( pumexdeferred pumexdeferred.cpp )

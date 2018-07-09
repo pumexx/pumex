@@ -20,16 +20,20 @@ MACRO(set_executable_postfixes target)
   set_target_properties(${target} PROPERTIES MINSIZEREL_OUTPUT_NAME "${target}${CMAKE_MINSIZEREL_POSTFIX}")
 ENDMACRO(set_executable_postfixes)
 
-function( process_shaders IN_DIR IN_SHADERS OUT_SHADERS )
-  set ( RESULT )
-  foreach( _file ${${IN_SHADERS}})
+function( process_shaders INPUT_DIR INPUT_SHADER_NAMES SHADERS_IN SHADERS_OUT )
+  set ( RESULT_IN )
+  set ( RESULT_OUT )
+  foreach( _file ${${INPUT_SHADER_NAMES}})
+    set( _file_in  "${INPUT_DIR}/${_file}" )
     set( _file_out "${CMAKE_BINARY_DIR}/${_file}.spv" )
     add_custom_command (OUTPUT  ${_file_out}
-                        DEPENDS ${IN_DIR}/${_file}
+                        DEPENDS ${_file_in}
                         COMMAND glslangValidator
-                        ARGS    -V ${IN_DIR}/${_file} -o ${_file_out} )
-    list (APPEND RESULT ${_file_out} )
+                        ARGS    -V ${_file_in} -o ${_file_out} )
+    list (APPEND RESULT_IN  ${_file_in} )
+    list (APPEND RESULT_OUT ${_file_out} )
   endforeach(_file)
-  set( ${OUT_SHADERS} "${RESULT}" PARENT_SCOPE )
+  set( ${SHADERS_IN}  "${RESULT_IN}"  PARENT_SCOPE )
+  set( ${SHADERS_OUT} "${RESULT_OUT}" PARENT_SCOPE )
 endfunction(process_shaders)
 

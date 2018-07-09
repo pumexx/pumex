@@ -38,13 +38,14 @@ configure_file (
 include( pumex_macros )
 include( pumex_externals )
 
-set( pumexlib_input_shaders 
+set( pumexlib_shader_names 
   shaders/text_draw.vert
   shaders/text_draw.geom
   shaders/text_draw.frag
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexlib_input_shaders pumexlib_output_shaders )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexlib_shader_names pumexlib_input_shaders pumexlib_output_shaders )
 add_custom_target ( pumexlib-shaders DEPENDS ${pumexlib_output_shaders} SOURCES ${pumexlib_input_shaders} )
+add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders")
 
 add_library( pumexlib SHARED "" )
 target_sources( pumexlib PUBLIC 
@@ -197,9 +198,9 @@ install( FILES ${CMAKE_BINARY_DIR}/include/pumex/Version.h DESTINATION include/p
 install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/include/ DESTINATION include )
 install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin/ DESTINATION bin )
 install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/lib/ DESTINATION lib )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/people/ DESTINATION share/pumex )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex/fonts )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/people/ DESTINATION share/pumex/people )
+install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex/sponza )
 
 if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )

@@ -1,4 +1,4 @@
-set( pumexmultiview_input_shaders 
+set( pumexmultiview_shader_names 
   shaders/multiview_composite.frag
   shaders/multiview_composite.vert
   shaders/multiview_display.frag
@@ -6,7 +6,7 @@ set( pumexmultiview_input_shaders
   shaders/multiview_gbuffers.frag
   shaders/multiview_gbuffers.vert
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexmultiview_input_shaders pumexmultiview_output_shaders )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexmultiview_shader_names pumexmultiview_input_shaders pumexmultiview_output_shaders )
 add_custom_target ( pumexmultiview-shaders DEPENDS ${pumexmultiview_output_shaders} SOURCES ${pumexmultiview_input_shaders})
 
 add_executable( pumexmultiview pumexmultiview.cpp )
