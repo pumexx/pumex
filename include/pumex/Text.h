@@ -39,6 +39,7 @@ namespace pumex
 class MemoryImage;
 class DeviceMemoryAllocator;
 template <typename T> class Buffer;
+class Viewer;
 
 struct PUMEX_EXPORT GlyphData
 {
@@ -67,7 +68,7 @@ class PUMEX_EXPORT Font
 {
 public:
   Font()                       = delete;
-  explicit Font(const filesystem::path& fileName, glm::ivec2 textureSize, uint32_t fontPixelHeight, std::shared_ptr<DeviceMemoryAllocator> textureAllocator);
+  explicit Font(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName, glm::ivec2 textureSize, uint32_t fontPixelHeight, std::shared_ptr<DeviceMemoryAllocator> textureAllocator);
   Font(const Font&)            = delete;
   Font& operator=(const Font&) = delete;
   Font(Font&&)                 = delete;

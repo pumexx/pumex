@@ -34,6 +34,7 @@ namespace pumex
 {
 
 class DescriptorSetLayout;
+class Viewer;
 
 class PUMEX_EXPORT PipelineLayout
 {
@@ -139,7 +140,7 @@ class PUMEX_EXPORT ShaderModule
 {
 public:
   ShaderModule()                               = delete;
-  explicit ShaderModule( const filesystem::path& fileName );
+  explicit ShaderModule(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName );
   ShaderModule(const ShaderModule&)            = delete;
   ShaderModule& operator=(const ShaderModule&) = delete;
   ShaderModule(ShaderModule&&)                 = delete;

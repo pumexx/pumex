@@ -393,18 +393,13 @@ int main( int argc, char * argv[] )
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
-    auto fullModelFileName = viewer->getAbsoluteFilePath(modelFileName);
-    CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
-    auto fullAnimationFileName = viewer->getAbsoluteFilePath(animationFileName);
-
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     pumex::AssetLoaderAssimp loader;
-    std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName, false, requiredSemantic));
+    std::shared_ptr<pumex::Asset> asset(loader.load(viewer, modelFileName, false, requiredSemantic));
     CHECK_LOG_THROW (asset.get() == nullptr,  "Model not loaded : " << modelFileName);
-    if (!animationFileName.empty() && !fullAnimationFileName.empty())
+    if (!animationFileName.empty() )
     {
-      std::shared_ptr<pumex::Asset> animAsset(loader.load(fullAnimationFileName, true, requiredSemantic));
-      CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationFileName);
+      std::shared_ptr<pumex::Asset> animAsset(loader.load(viewer, animationFileName, true, requiredSemantic));
       asset->animations = animAsset->animations;
     }
 
@@ -471,9 +466,9 @@ int main( int argc, char * argv[] )
     };
     voxelizePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_voxelize.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_voxelize.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_voxelize.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_voxelize.vert.spv"), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_voxelize.geom.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_voxelize.frag.spv"), "main" }
     };
     voxelizePipeline->cullMode         = VK_CULL_MODE_NONE;
     voxelizePipeline->depthTestEnable  = VK_FALSE;
@@ -524,8 +519,8 @@ int main( int argc, char * argv[] )
     auto raymarchPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, raymarchPipelineLayout);
     raymarchPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_raymarch.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_raymarch.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_raymarch.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_raymarch.frag.spv"), "main" }
     };
     raymarchPipeline->vertexInput =
     {
@@ -559,8 +554,8 @@ int main( int argc, char * argv[] )
     auto pipeline               = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
     pipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/voxelizer_basic.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_basic.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/voxelizer_basic.frag.spv"), "main" }
     };
     pipeline->vertexInput  =
     {

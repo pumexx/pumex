@@ -15,6 +15,6 @@ target_link_libraries( pumexdeferred pumexlib )
 set_executable_postfixes( pumexdeferred )
 
 install( TARGETS pumexdeferred EXPORT PumexTargets
-         RUNTIME DESTINATION bin 
-         RESOURCE DESTINATION share/pumex/shaders
+         RUNTIME DESTINATION bin COMPONENT examples
+         RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )

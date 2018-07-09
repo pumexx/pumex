@@ -31,8 +31,8 @@
 #include <pumex/Version.h>
 #if defined(_WIN32)
   #include <pumex/platform/win32/WindowWin32.h>
-  #include <direct.h>
-  #define getcwd _getcwd
+//  #include <direct.h>
+//  #define getcwd _getcwd
 #elif defined(__linux__)
   #include <pumex/platform/linux/WindowXcb.h>
   #include <X11/Xlib.h>
@@ -72,8 +72,13 @@ Viewer::Viewer(const ViewerTraits& vt)
     do
     {
       const char *beginPos = currentPos;
+#if defined(_WIN32)
+      while (*currentPos != ';' && *currentPos != 0)
+        currentPos++;
+#else
       while (*currentPos != ';' && *currentPos != ':' && *currentPos != 0)
         currentPos++;
+#endif
       std::error_code ec;
       filesystem::path currentPath(std::string(beginPos, currentPos));
       addDefaultDirectory(currentPath);
@@ -81,15 +86,13 @@ Viewer::Viewer(const ViewerTraits& vt)
   }
 
   // register basic directories - current directory
-  char strCurrentPath[MAX_PATH_LENGTH];
-  if (getcwd(strCurrentPath, MAX_PATH_LENGTH))
-  {
-    filesystem::path currentDir(strCurrentPath);
-    addDefaultDirectory(currentDir);
-    addDefaultDirectory(currentDir / filesystem::path("data") );
-    addDefaultDirectory(currentDir / filesystem::path("../data"));
-    addDefaultDirectory(currentDir / filesystem::path("../../data"));
-  }
+  filesystem::path currentDir = filesystem::current_path();
+  addDefaultDirectory(currentDir);
+  addDefaultDirectory(currentDir / filesystem::path("data") );
+  addDefaultDirectory(currentDir / filesystem::path("../data"));
+  addDefaultDirectory(currentDir / filesystem::path("../../data"));
+  addDefaultDirectory(currentDir / filesystem::path("../../../data"));
+
   // register basic directories - executable directory and data directory
   char strExecPath[MAX_PATH_LENGTH];
   filesystem::path execDir;
@@ -107,10 +110,12 @@ Viewer::Viewer(const ViewerTraits& vt)
   }
   execDir = strExecPath;
 #endif
+  if (execDir.has_filename())
+    execDir.remove_filename();
   addDefaultDirectory(execDir);
   addDefaultDirectory(execDir / filesystem::path("data"));
-  // for files INSTALLED on Windows 
 #if defined(_WIN32)
+  // for files INSTALLED on Windows 
   addDefaultDirectory(execDir / filesystem::path("../share/pumex"));
 #else
   // for files INSTALLED on Linux
@@ -118,10 +123,10 @@ Viewer::Viewer(const ViewerTraits& vt)
   addDefaultDirectory(filesystem::path("/usr/local/share/pumex"));
 #endif  
 
-  //// list all existing default directories
-  //LOG_INFO << "Default directories :" << std::endl;
-  //for(auto& d : defaultDirectories)
-  //  LOG_INFO << d << std::endl;
+////// list all existing default directories
+//  LOG_INFO << "Default directories :" << std::endl;
+//  for(auto& d : defaultDirectories)
+//    LOG_INFO << d << std::endl;
   
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );

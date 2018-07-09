@@ -17,6 +17,6 @@ target_link_libraries( pumexgpucull pumexlib )
 set_executable_postfixes( pumexgpucull )
 
 install( TARGETS pumexgpucull EXPORT PumexTargets
-         RUNTIME DESTINATION bin 
-         RESOURCE DESTINATION share/pumex/shaders
+         RUNTIME DESTINATION bin COMPONENT examples
+         RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )

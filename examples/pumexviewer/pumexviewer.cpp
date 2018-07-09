@@ -363,23 +363,16 @@ int main( int argc, char * argv[] )
     // Viewer object is created 
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
-    // check if the file provided in command line exists
-    auto fullModelFileName = viewer->getAbsoluteFilePath(modelFileName);
-    CHECK_LOG_THROW(fullModelFileName.empty(), "Cannot find model file : " << modelFileName);
-
     // vertex semantic defines how a single vertex in an asset will look like
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
 
     // we load an asset using Assimp asset loader
     pumex::AssetLoaderAssimp loader;
-    std::shared_ptr<pumex::Asset> asset(loader.load(fullModelFileName.string(), false, requiredSemantic));
-    CHECK_LOG_THROW(asset.get() == nullptr, "Model not loaded : " << fullModelFileName);
+    std::shared_ptr<pumex::Asset> asset(loader.load(viewer, modelFileName, false, requiredSemantic));
 
-    auto fullAnimationFileName = viewer->getAbsoluteFilePath(animationFileName);
-    if (!animationFileName.empty() && !fullAnimationFileName.empty())
+    if (!animationFileName.empty() )
     {
-      std::shared_ptr<pumex::Asset> animAsset(loader.load(fullAnimationFileName, true, requiredSemantic));
-      CHECK_LOG_THROW(animAsset.get() == nullptr, "Model with animation not loaded : " << animationFileName);
+      std::shared_ptr<pumex::Asset> animAsset(loader.load(viewer, animationFileName, true, requiredSemantic));
       asset->animations = animAsset->animations;
     }
 
@@ -446,8 +439,8 @@ int main( int argc, char * argv[] )
     // loading vertex and fragment shader
     pipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.frag.spv"), "main" }
     };
     // vertex input - we will use the same vertex semantic that the loaded model has
     pipeline->vertexInput =
@@ -471,8 +464,8 @@ int main( int argc, char * argv[] )
     wireframePipeline->cullMode = VK_CULL_MODE_NONE;
     wireframePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.vert.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/viewer_basic.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.frag.spv"), "main" }
     };
     wireframePipeline->vertexInput =
     {

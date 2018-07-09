@@ -1611,7 +1611,7 @@ int main(int argc, char * argv[])
 
       auto staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, staticFilterPipelineLayout);
       staticFilterPipeline->setName("staticFilterPipeline");
-      staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/gpucull_static_filter_instances.comp.spv")), "main" };
+      staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_static_filter_instances.comp.spv"), "main" };
       staticFilterRoot->addChild(staticFilterPipeline);
       staticFilterPipeline->useSecondaryBuffer();
 
@@ -1662,8 +1662,8 @@ int main(int argc, char * argv[])
       auto staticRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, staticRenderPipelineLayout);
       staticRenderPipeline->shaderStages =
       {
-        { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/gpucull_static_render.vert.spv")), "main" },
-        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/gpucull_static_render.frag.spv")), "main" }
+        { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_static_render.vert.spv"), "main" },
+        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_static_render.frag.spv"), "main" }
       };
       staticRenderPipeline->vertexInput =
       {
@@ -1720,7 +1720,7 @@ int main(int argc, char * argv[])
       workflow->setRenderOperationNode("dynamic_filter", dynamicFilterRoot);
 
       auto dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, dynamicFilterPipelineLayout);
-      dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/gpucull_dynamic_filter_instances.comp.spv")), "main" };
+      dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_dynamic_filter_instances.comp.spv"), "main" };
       
       dynamicFilterRoot->addChild(dynamicFilterPipeline);
 
@@ -1764,8 +1764,8 @@ int main(int argc, char * argv[])
       auto dynamicRenderPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, dynamicRenderPipelineLayout);
       dynamicRenderPipeline->shaderStages =
       {
-        { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/gpucull_dynamic_render.vert.spv")), "main" },
-        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/gpucull_dynamic_render.frag.spv")), "main" }
+        { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_dynamic_render.vert.spv"), "main" },
+        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_dynamic_render.frag.spv"), "main" }
       };
       dynamicRenderPipeline->vertexInput =
       {
@@ -1795,11 +1795,10 @@ int main(int argc, char * argv[])
       dynamicAssetBufferDrawIndirect->setDescriptorSet(0, dynamicRenderDescriptorSet);
     }
 
-    auto fullFontFileName = viewer->getAbsoluteFilePath("fonts/DejaVuSans.ttf");
-    auto fontDefault = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(1024, 1024), 24, texturesAllocator);
+    auto fontDefault = std::make_shared<pumex::Font>(viewer, "fonts/DejaVuSans.ttf", glm::uvec2(1024, 1024), 24, texturesAllocator);
     auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
 
-    auto fontSmall   = std::make_shared<pumex::Font>(fullFontFileName, glm::uvec2(512, 512), 16, texturesAllocator);
+    auto fontSmall   = std::make_shared<pumex::Font>(viewer, "fonts/DejaVuSans.ttf", glm::uvec2(512, 512), 16, texturesAllocator);
     auto textSmall   = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
 
     // building text pipeline layout
@@ -1827,9 +1826,9 @@ int main(int argc, char * argv[])
     textPipeline->depthWriteEnable = VK_FALSE;
     textPipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.vert.spv")), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.geom.spv")), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer->getAbsoluteFilePath("shaders/text_draw.frag.spv")), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.vert.spv"), "main" },
+      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.geom.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.frag.spv"), "main" }
     };
     renderingRoot->addChild(textPipeline);
 

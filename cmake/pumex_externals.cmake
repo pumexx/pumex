@@ -5,10 +5,10 @@ set( PUMEXLIB_LIBRARIES )
 set( PUMEX_EXAMPLES_EXTERNALS )
 set( PUMEX_EXAMPLES_INCLUDES )
 
-set( INTERMEDIATE_INSTALL_DIR ${CMAKE_BINARY_DIR}/deps )
+set( INTERMEDIATE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/deps )
 file ( MAKE_DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin ${INTERMEDIATE_INSTALL_DIR}/lib ${INTERMEDIATE_INSTALL_DIR}/include )
 
-list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include )
+list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR}/include )
 
 if( WIN32 )
   set( SYSTEM_LIBRARIES ${WINLIBS} )
@@ -38,7 +38,7 @@ include( ExternalProject )
 
 if( PUMEX_DOWNLOAD_EXTERNAL_GLM )
   set( GLM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glm )
-  set( GLM_BUILD_DIR ${CMAKE_BINARY_DIR}/external/glm )
+  set( GLM_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/glm )
   ExternalProject_Add( glm-external
     PREFIX "${GLM_BUILD_DIR}"
     BINARY_DIR "${GLM_BUILD_DIR}/build"
@@ -62,7 +62,7 @@ endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_GLI )
   set( GLI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/gli )
-  set( GLI_BUILD_DIR ${CMAKE_BINARY_DIR}/external/gli )
+  set( GLI_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gli )
   ExternalProject_Add( gli-external
     PREFIX "${GLI_BUILD_DIR}"
     BINARY_DIR "${GLI_BUILD_DIR}/build"
@@ -87,7 +87,7 @@ endif()
 if( PUMEX_BUILD_EXAMPLES )
   if( PUMEX_DOWNLOAD_EXTERNAL_ARGS )
     set( ARGS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/args )
-    set( ARGS_BUILD_DIR "${CMAKE_BINARY_DIR}/external/args" )
+    set( ARGS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/args" )
     ExternalProject_Add( args-external
       PREFIX "${ARGS_BUILD_DIR}"
       BINARY_DIR "${ARGS_BUILD_DIR}/build"
@@ -112,7 +112,7 @@ endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP )
   set( ASSIMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/assimp )
-  set( ASSIMP_BUILD_DIR ${CMAKE_BINARY_DIR}/external/assimp )
+  set( ASSIMP_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/assimp )
   ExternalProject_Add( assimp-external
     PREFIX "${ASSIMP_BUILD_DIR}"
     BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
@@ -145,7 +145,7 @@ endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE )
   set( FREETYPE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/freetype )
-  set( FREETYPE_BUILD_DIR ${CMAKE_BINARY_DIR}/external/freetype )
+  set( FREETYPE_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/freetype )
   ExternalProject_Add( freetype-external
     PREFIX "${FREETYPE_BUILD_DIR}"
     BINARY_DIR "${FREETYPE_BUILD_DIR}/build"
@@ -158,11 +158,11 @@ if( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE )
     UPDATE_DISCONNECTED 1
   )
   if(WIN32)
-    set( FREETYPE_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/lib/freetype.lib )
-    set( FREETYPE_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/lib/freetyped.lib )
+    set( FREETYPE_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/freetype.lib )
+    set( FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/freetyped.lib )
   else()
-    set( FREETYPE_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/lib/freetype.so )
-    set( FREETYPE_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/lib/freetyped.so )
+    set( FREETYPE_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/freetype.so )
+    set( FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/freetyped.so )
   endif()
   set( FREETYPE_LIBRARIES optimized "${FREETYPE_LIBRARY_RELEASE}" debug "${FREETYPE_LIBRARY_DEBUG}" )
   list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${FREETYPE_SOURCE_DIR}/include )
@@ -176,7 +176,7 @@ endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_TBB )
   set( TBB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/tbb )
-  set( TBB_BUILD_DIR ${CMAKE_BINARY_DIR}/external/tbb )
+  set( TBB_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/tbb )
   ExternalProject_Add( tbb-external
     PREFIX "${TBB_BUILD_DIR}"
     BINARY_DIR "${TBB_BUILD_DIR}/build"
@@ -188,11 +188,11 @@ if( PUMEX_DOWNLOAD_EXTERNAL_TBB )
     UPDATE_DISCONNECTED 1
   )
   if( WIN32 )
-    set( TBB_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/lib/tbb.lib )
-    set( TBB_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/lib/tbb_debug.lib )
+    set( TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib )
+    set( TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb_debug.lib )
   else()
-    set( TBB_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/lib/libtbb.so )
-    set( TBB_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/lib/libtbb_debug.so )
+    set( TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb.so )
+    set( TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb_debug.so )
   endif()
   set( TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}" )
   list( APPEND PUMEXLIB_LIBRARIES ${TBB_LIBRARIES} )

@@ -17,6 +17,6 @@ target_link_libraries( pumexmultiview pumexlib )
 set_executable_postfixes( pumexmultiview )
 
 install( TARGETS pumexmultiview EXPORT PumexTargets
-         RUNTIME DESTINATION bin 
-         RESOURCE DESTINATION share/pumex/shaders
+         RUNTIME DESTINATION bin COMPONENT examples
+         RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )

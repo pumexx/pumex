@@ -41,6 +41,7 @@ namespace pumex
 const glm::mat4 mat4unity = glm::mat4();
 
 class Device;
+class Viewer;
 
 // Class representing a tree of bones to animate the asset
 // Two rules are mandatory: 
@@ -239,7 +240,7 @@ public:
 class PUMEX_EXPORT AssetLoader
 {
 public:
-  virtual std::shared_ptr<Asset> load(const filesystem::path& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
+  virtual std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
 };
 
 uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_t channel) const

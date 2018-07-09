@@ -26,6 +26,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/utils/Log.h>
 #include <pumex/RenderContext.h>
+#include <pumex/Viewer.h>
 #include <fstream>
 
 using namespace pumex;
@@ -102,11 +103,12 @@ VkPipelineCache PipelineCache::getHandle(VkDevice device) const
   return pddit->second.pipelineCache;
 }
 
-ShaderModule::ShaderModule(const filesystem::path& f)
-  : fileName(f)
+ShaderModule::ShaderModule(std::shared_ptr<Viewer> viewer, const filesystem::path& f)
 {
+  fileName = viewer->getAbsoluteFilePath(f);
+  CHECK_LOG_THROW(fileName.empty(), "Cannot find shader file : " << f);
   std::ifstream file(fileName.c_str(),std::ios::in | std::ios::binary);
-  CHECK_LOG_THROW(!file, "Cannot read shader file : " << fileName);
+  CHECK_LOG_THROW(!file, "Cannot load shader file : " << fileName);
   file.seekg(0, std::ios::end);
   std::ifstream::pos_type pos = file.tellg();
   file.seekg(0, std::ios::beg);

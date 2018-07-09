@@ -15,6 +15,6 @@ set_executable_postfixes( pumexcrowd )
 
 install( TARGETS pumexcrowd 
          EXPORT PumexTargets
-         RUNTIME DESTINATION bin 
-         RESOURCE DESTINATION share/pumex/shaders
+         RUNTIME DESTINATION bin COMPONENT examples
+         RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )
