@@ -13,7 +13,8 @@ set_target_properties( pumexcrowd PROPERTIES RESOURCE "${pumexcrowd_output_shade
 target_link_libraries( pumexcrowd pumexlib )
 set_executable_postfixes( pumexcrowd )
 
-install( TARGETS pumexcrowd
+install( TARGETS pumexcrowd 
+         EXPORT PumexTargets
          RUNTIME DESTINATION bin 
          RESOURCE DESTINATION share/pumex/shaders
        )

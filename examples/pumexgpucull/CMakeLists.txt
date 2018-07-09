@@ -16,7 +16,7 @@ set_target_properties( pumexgpucull PROPERTIES RESOURCE "${pumexgpucull_output_s
 target_link_libraries( pumexgpucull pumexlib )
 set_executable_postfixes( pumexgpucull )
 
-install( TARGETS pumexgpucull
+install( TARGETS pumexgpucull EXPORT PumexTargets
          RUNTIME DESTINATION bin 
          RESOURCE DESTINATION share/pumex/shaders
        )

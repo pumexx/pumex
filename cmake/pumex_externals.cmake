@@ -8,7 +8,7 @@ set( PUMEX_EXAMPLES_INCLUDES )
 set( INTERMEDIATE_INSTALL_DIR ${CMAKE_BINARY_DIR}/deps )
 file ( MAKE_DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin ${INTERMEDIATE_INSTALL_DIR}/lib ${INTERMEDIATE_INSTALL_DIR}/include )
 
-list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${PROJECT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include )
+list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include )
 
 if( WIN32 )
   set( SYSTEM_LIBRARIES ${WINLIBS} )
@@ -37,12 +37,12 @@ include( ExternalProject )
 #include( FindPackageHandleStandardArgs )
 
 if( PUMEX_DOWNLOAD_EXTERNAL_GLM )
-  set( GLM_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/glm )
+  set( GLM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glm )
   set( GLM_BUILD_DIR ${CMAKE_BINARY_DIR}/external/glm )
   ExternalProject_Add( glm-external
     PREFIX "${GLM_BUILD_DIR}"
     BINARY_DIR "${GLM_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/glm"
+    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/glm"
     GIT_REPOSITORY "https://github.com/g-truc/glm.git"
     GIT_TAG "0.9.8"
     SOURCE_DIR "${GLM_SOURCE_DIR}"
@@ -61,12 +61,12 @@ else()
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_GLI )
-  set( GLI_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/gli )
+  set( GLI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/gli )
   set( GLI_BUILD_DIR ${CMAKE_BINARY_DIR}/external/gli )
   ExternalProject_Add( gli-external
     PREFIX "${GLI_BUILD_DIR}"
     BINARY_DIR "${GLI_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/gli"
+    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/gli"
     GIT_REPOSITORY "https://github.com/g-truc/gli.git"
     GIT_TAG "0.8.2"
     SOURCE_DIR "${GLI_SOURCE_DIR}"
@@ -86,12 +86,12 @@ endif()
 
 if( PUMEX_BUILD_EXAMPLES )
   if( PUMEX_DOWNLOAD_EXTERNAL_ARGS )
-    set( ARGS_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/args )
+    set( ARGS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/args )
     set( ARGS_BUILD_DIR "${CMAKE_BINARY_DIR}/external/args" )
     ExternalProject_Add( args-external
       PREFIX "${ARGS_BUILD_DIR}"
       BINARY_DIR "${ARGS_BUILD_DIR}/build"
-      STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/args"
+      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/args"
       GIT_REPOSITORY "https://github.com/Taywee/args.git"
       GIT_TAG "6.1.0"
       SOURCE_DIR "${ARGS_SOURCE_DIR}"
@@ -111,12 +111,12 @@ if( PUMEX_BUILD_EXAMPLES )
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP )
-  set( ASSIMP_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/assimp )
+  set( ASSIMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/assimp )
   set( ASSIMP_BUILD_DIR ${CMAKE_BINARY_DIR}/external/assimp )
   ExternalProject_Add( assimp-external
     PREFIX "${ASSIMP_BUILD_DIR}"
     BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/assimp"
+    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/assimp"
     GIT_REPOSITORY "https://github.com/assimp/assimp.git"
     GIT_TAG "v4.1.0"
     SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
@@ -144,12 +144,12 @@ else()
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE )
-  set( FREETYPE_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/freetype )
+  set( FREETYPE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/freetype )
   set( FREETYPE_BUILD_DIR ${CMAKE_BINARY_DIR}/external/freetype )
   ExternalProject_Add( freetype-external
     PREFIX "${FREETYPE_BUILD_DIR}"
     BINARY_DIR "${FREETYPE_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/freetype"
+    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/freetype"
     GIT_REPOSITORY "git://git.sv.nongnu.org/freetype/freetype2.git"
     GIT_TAG "VER-2-8"
     SOURCE_DIR "${FREETYPE_SOURCE_DIR}"
@@ -175,12 +175,12 @@ else()
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_TBB )
-  set( TBB_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/tbb )
+  set( TBB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/tbb )
   set( TBB_BUILD_DIR ${CMAKE_BINARY_DIR}/external/tbb )
   ExternalProject_Add( tbb-external
     PREFIX "${TBB_BUILD_DIR}"
     BINARY_DIR "${TBB_BUILD_DIR}/build"
-    STAMP_DIR "${PROJECT_SOURCE_DIR}/stamp/tbb"
+    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/tbb"
     GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
     SOURCE_DIR "${TBB_SOURCE_DIR}"
     UPDATE_COMMAND ""

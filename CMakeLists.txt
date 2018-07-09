@@ -23,16 +23,16 @@ else()
 endif()
 
 
-list( APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" )
-list( APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/Modules" )
+list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" )
+list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules" )
 
 set( CMAKE_CXX_STANDARD 14 )
 set( CMAKE_CXX_STANDARD_REQUIRED ON )
 set( CMAKE_CXX_EXTENSIONS OFF )
 
 configure_file (
-  "${PROJECT_SOURCE_DIR}/include/pumex/Version.in"
-  "${CMAKE_BINARY_DIR}/include/pumex/Version.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Version.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h"
   )
 
 include( pumex_macros )
@@ -45,133 +45,155 @@ set( pumexlib_shader_names
 )
 process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexlib_shader_names pumexlib_input_shaders pumexlib_output_shaders )
 add_custom_target ( pumexlib-shaders DEPENDS ${pumexlib_output_shaders} SOURCES ${pumexlib_input_shaders} )
-add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders")
+add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
-add_library( pumexlib SHARED "" )
-target_sources( pumexlib PUBLIC 
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Asset.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetBuffer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetBufferNode.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetLoaderAssimp.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/AssetNode.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/BoundingBox.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Camera.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/CombinedImageSampler.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Command.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Descriptor.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Device.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/DeviceMemoryAllocator.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/DispatchNode.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Export.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/FrameBuffer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/HPClock.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Image.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/InputAttachment.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Kinematic.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MaterialSet.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryBuffer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryImage.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryObject.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/MemoryObjectBarrier.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Node.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/NodeVisitor.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/PerObjectData.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/PhysicalDevice.h 
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Pipeline.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Pumex.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Query.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderContext.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderPass.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderVisitors.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/RenderWorkflow.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Resource.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/SampledImage.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Sampler.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/StorageBuffer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/StorageImage.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Surface.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Text.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/TextureLoaderGli.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/UniformBuffer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Viewer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/Window.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/ActionQueue.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/Buffer.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/HashCombine.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/Log.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/pumex/utils/Shapes.h  
-  ${CMAKE_BINARY_DIR}/include/pumex/Version.h
-)
-target_sources( pumexlib PRIVATE
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Asset.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetBuffer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetBufferNode.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetLoaderAssimp.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/AssetNode.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/BoundingBox.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Camera.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/CombinedImageSampler.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Command.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Descriptor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Device.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/DeviceMemoryAllocator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/DispatchNode.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/FrameBuffer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Image.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/InputAttachment.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Kinematic.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MaterialSet.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryBuffer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryImage.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryObject.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/MemoryObjectBarrier.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Node.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/NodeVisitor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/PerObjectData.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/PhysicalDevice.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Pipeline.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Query.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderContext.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderPass.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderVisitors.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/RenderWorkflow.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Resource.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/SampledImage.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Sampler.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/StorageBuffer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/StorageImage.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Surface.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Text.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/TextureLoaderGli.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/UniformBuffer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Viewer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/Window.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/utils/Buffer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/utils/Log.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/pumex/utils/Shapes.cpp
+set( PUMEXLIB_HEADERS )
+list( APPEND PUMEXLIB_HEADERS 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Asset.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBuffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBufferNode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetLoaderAssimp.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetNode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/BoundingBox.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Camera.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/CombinedImageSampler.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Command.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Descriptor.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Device.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DeviceMemoryAllocator.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DispatchNode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Export.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/FrameBuffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/HPClock.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Image.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/InputAttachment.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Kinematic.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MaterialSet.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MemoryBuffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MemoryImage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MemoryObject.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MemoryObjectBarrier.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Node.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/NodeVisitor.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/PerObjectData.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/PhysicalDevice.h 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Pipeline.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Pumex.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Query.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderContext.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderPass.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderVisitors.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderWorkflow.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Resource.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/SampledImage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Sampler.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/StorageBuffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/StorageImage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Surface.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Text.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderGli.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/UniformBuffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Viewer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Window.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/ActionQueue.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Buffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/HashCombine.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Log.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Shapes.h  
+  ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h
 )
 if(WIN32)
-  target_sources( pumexlib PUBLIC 
-    ${CMAKE_CURRENT_LIST_DIR}/include/pumex/platform/win32/HPClockWin32.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/pumex/platform/win32/WindowWin32.h
-  )
-  target_sources( pumexlib PRIVATE 
-    ${CMAKE_CURRENT_LIST_DIR}/src/pumex/platform/win32/HPClockWin32.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/pumex/platform/win32/WindowWin32.cpp
+  list( APPEND PUMEXLIB_HEADERS 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/HPClockWin32.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/WindowWin32.h
   )
 elseif(UNIX AND NOT APPLE)
-  target_sources( pumexlib PUBLIC 
-    ${CMAKE_CURRENT_LIST_DIR}/include/pumex/platform/linux/WindowXcb.h
-  )
-  target_sources( pumexlib PRIVATE 
-    ${CMAKE_CURRENT_LIST_DIR}/src/pumex/platform/linux/WindowXcb.cpp
+  list( APPEND PUMEXLIB_HEADERS 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/linux/WindowXcb.h
   )
 endif()
 
-target_include_directories( pumexlib PUBLIC  ${PUMEXLIB_PUBLIC_INCLUDES} )
-target_include_directories( pumexlib PRIVATE ${PUMEXLIB_PRIVATE_INCLUDES} )
-target_compile_definitions( pumexlib PRIVATE PUMEX_EXPORTS )
-target_compile_definitions( pumexlib PUBLIC NOMINMAX GLM_ENABLE_EXPERIMENTAL GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE )
+set( PUMEXLIB_SOURCES )
+list( APPEND PUMEXLIB_SOURCES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Asset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBuffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBufferNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetLoaderAssimp.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/BoundingBox.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Camera.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/CombinedImageSampler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Command.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Descriptor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Device.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DeviceMemoryAllocator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DispatchNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/FrameBuffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Image.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/InputAttachment.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Kinematic.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/MaterialSet.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/MemoryBuffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/MemoryImage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/MemoryObject.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/MemoryObjectBarrier.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Node.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/NodeVisitor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/PerObjectData.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/PhysicalDevice.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Pipeline.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Query.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderContext.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderPass.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderVisitors.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderWorkflow.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Resource.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/SampledImage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Sampler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/StorageBuffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/StorageImage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Surface.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Text.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderGli.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/UniformBuffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Viewer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Window.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Buffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Log.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Shapes.cpp
+)
+if(WIN32)
+  list( APPEND PUMEXLIB_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/win32/HPClockWin32.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/win32/WindowWin32.cpp
+  )
+elseif(UNIX AND NOT APPLE)
+  list( APPEND PUMEXLIB_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/linux/WindowXcb.cpp
+  )
+endif()
+
+add_library( pumexlib SHARED "" )
+target_sources( pumexlib 
+  PUBLIC 
+    $<BUILD_INTERFACE:${PUMEXLIB_HEADERS}> 
+  PRIVATE 
+    ${PUMEXLIB_SOURCES} 
+)
+target_include_directories( pumexlib 
+  PUBLIC 
+    $<BUILD_INTERFACE:${PUMEXLIB_PUBLIC_INCLUDES}> 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE 
+    $<BUILD_INTERFACE:${PUMEXLIB_PRIVATE_INCLUDES}> 
+)
+target_compile_definitions( pumexlib 
+  PUBLIC 
+    NOMINMAX GLM_ENABLE_EXPERIMENTAL GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE 
+  PRIVATE
+    PUMEX_EXPORTS
+)
 if(WIN32)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_WIN32_KHR )
 elseif(UNIX AND NOT APPLE)
@@ -179,29 +201,41 @@ elseif(UNIX AND NOT APPLE)
 endif()
 add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
 add_custom_command( TARGET pumexlib PRE_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${INTERMEDIATE_INSTALL_DIR} ${CMAKE_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${INTERMEDIATE_INSTALL_DIR} ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
 set_target_properties( pumexlib PROPERTIES RESOURCE "${pumexlib_output_shaders}" )
 target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
 set_executable_postfixes( pumexlib )
 
-install( TARGETS pumexlib
-         ARCHIVE DESTINATION lib 
-         LIBRARY DESTINATION lib 
-         RUNTIME DESTINATION bin 
-         INCLUDES DESTINATION include
+install( TARGETS pumexlib EXPORT PumexTargets
+         ARCHIVE DESTINATION lib
+         LIBRARY DESTINATION lib
+         RUNTIME DESTINATION bin
          RESOURCE DESTINATION share/pumex/shaders
          )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
-install( FILES ${CMAKE_BINARY_DIR}/include/pumex/Version.h DESTINATION include/pumex )
+install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include FILES_MATCHING PATTERN "*.h" )
+install( FILES ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h DESTINATION include/pumex )
 install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/include/ DESTINATION include )
 install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin/ DESTINATION bin )
 install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/lib/ DESTINATION lib )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex/fonts )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/people/ DESTINATION share/pumex/people )
-install( DIRECTORY ${PROJECT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex/sponza )
+install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex/fonts )
+install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/people/ DESTINATION share/pumex/people )
+install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex/sponza )
 
 if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )
 endif()
+
+install( EXPORT PumexTargets
+  FILE pumex-config.cmake
+  NAMESPACE pumex::
+  DESTINATION lib/cmake/pumex
+)  
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake
+  VERSION ${PUMEX_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+install( FILES ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake DESTINATION lib/cmake/pumex )
