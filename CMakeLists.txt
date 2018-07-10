@@ -38,13 +38,13 @@ configure_file (
 include( pumex_macros )
 include( pumex_externals )
 
-set( pumexlib_shader_names 
+set( PUMEXLIB_SHADER_NAMES 
   shaders/text_draw.vert
   shaders/text_draw.geom
   shaders/text_draw.frag
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexlib_shader_names pumexlib_input_shaders pumexlib_output_shaders )
-add_custom_target ( pumexlib-shaders DEPENDS ${pumexlib_output_shaders} SOURCES ${pumexlib_input_shaders} )
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXLIB_SHADER_NAMES PUMEXLIB_INPUT_SHADERS PUMEXLIB_OUTPUT_SHADERS )
+add_custom_target ( pumexlib-shaders DEPENDS ${PUMEXLIB_OUTPUT_SHADERS} SOURCES ${PUMEXLIB_INPUT_SHADERS} )
 add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set( PUMEXLIB_HEADERS )
@@ -200,11 +200,8 @@ elseif(UNIX AND NOT APPLE)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
 endif()
 add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
-add_custom_command( TARGET pumexlib PRE_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${INTERMEDIATE_INSTALL_DIR} ${CMAKE_CURRENT_BINARY_DIR} 
-  )
 set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
-set_target_properties( pumexlib PROPERTIES RESOURCE "${pumexlib_output_shaders}" )
+set_target_properties( pumexlib PROPERTIES RESOURCE "${PUMEXLIB_OUTPUT_SHADERS}" )
 target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
 #set_executable_postfixes( pumexlib )
 
@@ -292,4 +289,3 @@ cpack_add_component( examples
   INSTALL_TYPES Full
   DEPENDS libraries
 )  
-

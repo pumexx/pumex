@@ -1,15 +1,15 @@
-set( pumexcrowd_shader_names 
+set( PUMEXCROWD_SHADER_NAMES 
   shaders/crowd_filter_instances.comp
   shaders/crowd_instanced_animation.vert
   shaders/crowd_instanced_animation.frag
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} pumexcrowd_shader_names pumexcrowd_input_shaders pumexcrowd_output_shaders )
-add_custom_target ( pumexcrowd-shaders DEPENDS ${pumexcrowd_output_shaders} SOURCES ${pumexcrowd_input_shaders})
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXCROWD_SHADER_NAMES PUMEXCROWD_INPUT_SHADERS PUMEXCROWD_OUTPUT_SHADERS )
+add_custom_target ( pumexcrowd-shaders DEPENDS ${PUMEXCROWD_OUTPUT_SHADERS} SOURCES ${PUMEXCROWD_INPUT_SHADERS})
 
 add_executable( pumexcrowd pumexcrowd.cpp )
 target_include_directories( pumexcrowd PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexcrowd pumexcrowd-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
-set_target_properties( pumexcrowd PROPERTIES RESOURCE "${pumexcrowd_output_shaders}" )
+set_target_properties( pumexcrowd PROPERTIES RESOURCE "${PUMEXCROWD_OUTPUT_SHADERS}" )
 target_link_libraries( pumexcrowd pumexlib )
 set_executable_postfixes( pumexcrowd )
 
