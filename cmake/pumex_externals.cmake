@@ -51,12 +51,12 @@ if( PUMEX_DOWNLOAD_EXTERNAL_GLM )
     UPDATE_COMMAND ""
     PATCH_COMMAND ""
     TEST_COMMAND ""
-    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory ${GLM_SOURCE_DIR}/glm ${INTERMEDIATE_INSTALL_DIR}/include/glm
+    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory "${GLM_SOURCE_DIR}/glm" "${INTERMEDIATE_INSTALL_DIR}/include/glm"
     UPDATE_DISCONNECTED TRUE
   )
-  ExternalProject_Add_Step( glm-external glm-build-install
+  ExternalProject_Add_Step( glm-external glm-copy-intermediate
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES INSTALL
+    DEPENDEES install
   )
   list( APPEND PUMEXLIB_EXTERNALS glm-external )
 else()
@@ -79,12 +79,12 @@ if( PUMEX_DOWNLOAD_EXTERNAL_GLI )
     UPDATE_COMMAND ""
     PATCH_COMMAND ""
     TEST_COMMAND ""
-    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory ${GLI_SOURCE_DIR}/gli ${INTERMEDIATE_INSTALL_DIR}/include/gli
+    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory "${GLI_SOURCE_DIR}/gli" "${INTERMEDIATE_INSTALL_DIR}/include/gli"
     UPDATE_DISCONNECTED TRUE
   )
-  ExternalProject_Add_Step( gli-external gli-build-install
+  ExternalProject_Add_Step( gli-external gli-copy-intermediate
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES INSTALL
+    DEPENDEES install
   )
   list( APPEND PUMEXLIB_EXTERNALS gli-external )
 else()
@@ -108,12 +108,12 @@ if( PUMEX_BUILD_EXAMPLES )
       UPDATE_COMMAND ""
       PATCH_COMMAND ""
       TEST_COMMAND ""
-      INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ARGS_SOURCE_DIR}/args.hxx ${INTERMEDIATE_INSTALL_DIR}/include/args.hxx
+      INSTALL_COMMAND ${CMAKE_COMMAND} -E copy "${ARGS_SOURCE_DIR}/args.hxx" "${INTERMEDIATE_INSTALL_DIR}/include/args.hxx"
       UPDATE_DISCONNECTED TRUE
     )
-    ExternalProject_Add_Step( args-external args-build-install
+    ExternalProject_Add_Step( args-external args-copy-intermediate
       COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-      DEPENDEES INSTALL
+      DEPENDEES install
     )
     list( APPEND PUMEX_EXAMPLES_EXTERNALS args-external )
   else()
@@ -136,9 +136,9 @@ if( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP )
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DASSIMP_BUILD_TESTS=off -DCMAKE_DEBUG_POSTFIX=d
     UPDATE_DISCONNECTED TRUE
   )
-  ExternalProject_Add_Step( assimp-external assimp-build-install
+  ExternalProject_Add_Step( assimp-external assimp-copy-intermediate
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES INSTALL
+    DEPENDEES install
   )
   
   if( MSVC12 )
@@ -173,9 +173,9 @@ if( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE )
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d
     UPDATE_DISCONNECTED TRUE
   )
-  ExternalProject_Add_Step( freetype-external freetype-build-install
+  ExternalProject_Add_Step( freetype-external freetype-copy-intermediate
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES INSTALL
+    DEPENDEES install
   )
   
   if(WIN32)
@@ -208,9 +208,9 @@ if( PUMEX_DOWNLOAD_EXTERNAL_TBB )
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=_debug -DTBB_BUILD_TESTS=OFF
     UPDATE_DISCONNECTED TRUE
   )
-  ExternalProject_Add_Step( tbb-external tbb-build-install
+  ExternalProject_Add_Step( tbb-external tbb-copy-intermediate
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES INSTALL
+    DEPENDEES install
   )
   if( WIN32 )
     set( TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib )
