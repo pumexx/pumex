@@ -21,7 +21,6 @@
 //
 
 #pragma once
-
 #include <vector>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>

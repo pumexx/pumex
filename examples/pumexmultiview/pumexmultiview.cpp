@@ -138,9 +138,9 @@ struct RenderData
 
 };
 
-struct DeferredApplicationData
+struct MultiviewApplicationData
 {
-  DeferredApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
+  MultiviewApplicationData(std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator)
   {
     cameraBuffer     = std::make_shared<pumex::Buffer<std::vector<pumex::Camera>>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     textCameraBuffer = std::make_shared<pumex::Buffer<std::vector<pumex::Camera>>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
@@ -333,7 +333,7 @@ struct DeferredApplicationData
     std::vector<pumex::Camera> textCameras;
     {
       pumex::Camera textCamera;
-      textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+      textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth*0.5f, 0.0f, (float)renderHeight), false);
       textCameras.push_back(textCamera);
       textCameras.push_back(textCamera);
     }
@@ -342,8 +342,6 @@ struct DeferredApplicationData
 
   void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::AssetBuffer> assetBuffer, uint32_t modelTypeID)
   {
-    fillFPS(viewer);
-
     std::shared_ptr<pumex::Asset> assetX = assetBuffer->getAsset(modelTypeID, 0);
     if (assetX->animations.empty())
       return;
@@ -364,7 +362,7 @@ struct DeferredApplicationData
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
     {
       auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-      boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
+      boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : std::numeric_limits<uint32_t>::max();
     }
 
     std::vector<glm::mat4> localTransforms(MAX_BONES);
@@ -372,12 +370,12 @@ struct DeferredApplicationData
 
     anim.calculateLocalTransforms(renderTime, localTransforms.data(), numAnimChannels);
     uint32_t bcVal = boneChannelMapping[0];
-    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+    glm::mat4 localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[0].localTransformation : localTransforms[bcVal];
     globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
     for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
     {
       bcVal = boneChannelMapping[boneIndex];
-      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+      localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
       globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
     }
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
@@ -388,17 +386,6 @@ struct DeferredApplicationData
 
   void finishFrame(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Surface> surface)
   {
-  }
-
-  void fillFPS(std::shared_ptr<pumex::Viewer> viewer)
-  {
-    pumex::HPClock::time_point thisFrameStart = pumex::HPClock::now();
-    double fpsValue = 1.0 / pumex::inSeconds(thisFrameStart - lastFrameStart);
-    lastFrameStart = thisFrameStart;
-
-    //std::wstringstream stream;
-    //stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-    //textDefault->setText(viewer->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
 
   UpdateData                                            updateData;
@@ -532,7 +519,7 @@ int main( int argc, char * argv[] )
     // allocate 80 MB memory for textures
     std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
-    std::shared_ptr<DeferredApplicationData> applicationData = std::make_shared<DeferredApplicationData>(buffersAllocator);
+    std::shared_ptr<MultiviewApplicationData> applicationData = std::make_shared<MultiviewApplicationData>(buffersAllocator);
 
 /*************************************/
 
@@ -696,6 +683,10 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator);
+    tsHandler->setTextCameraBuffer(applicationData->textCameraBuffer);
+    lightingRoot->addChild(tsHandler->getRoot());
+
 /*********************/
 
     auto multiviewRoot = std::make_shared<pumex::Group>();
@@ -752,55 +743,7 @@ int main( int argc, char * argv[] )
     multiviewDescriptorSet->setDescriptor(1, mvSampler);
     quadsAssetNode->setDescriptorSet(0, multiviewDescriptorSet);
 
-    //auto fontDefault = std::make_shared<pumex::Font>(viewer, "fonts/DejaVuSans.ttf", glm::uvec2(1024, 1024), 24, texturesAllocator);
-    //auto textDefault = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-    //textDefault->setName("textDefault");
-    //applicationData->textDefault = textDefault;
-
-    //std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
-    //{
-    //  { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-    //  { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    //};
-    //auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    //// building pipeline layout
-    //auto textPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    //textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
-    //auto textPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
-    //textPipeline->setName("textPipeline");
-    //textPipeline->vertexInput =
-    //{
-    //  { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
-    //};
-    //textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    //textPipeline->blendAttachments =
-    //{
-    //  { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    //  VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
-    //  VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
-    //};
-    //textPipeline->depthTestEnable = VK_FALSE;
-    //textPipeline->depthWriteEnable = VK_FALSE;
-    //textPipeline->shaderStages =
-    //{
-    //  { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.vert.spv"), "main" },
-    //  { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.geom.spv"), "main" },
-    //  { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.frag.spv"), "main" }
-    //};
-    //textPipeline->rasterizationSamples = SAMPLE_COUNT;
-
-    //lightingRoot->addChild(textPipeline);
-    //textPipeline->addChild(textDefault);
-
-    //auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
-    //auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
-
-    //auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
-
-    //auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
-    //textDescriptorSet->setDescriptor(0, textCameraUbo);
-    //textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
-    //textDefault->setDescriptorSet(0, textDescriptorSet);
+    /***********************************/
 
     // connect workflow to a surface
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
@@ -816,8 +759,9 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     // set render callbacks to application data
-    viewer->setEventRenderStart(std::bind(&DeferredApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, assetBuffer, MODEL_SPONZA_ID));
-    surface->setEventSurfaceRenderStart(std::bind(&DeferredApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
+    viewer->setEventRenderStart(std::bind(&MultiviewApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, assetBuffer, MODEL_SPONZA_ID));
+    surface->setEventSurfaceRenderStart(std::bind(&MultiviewApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
+    surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
     viewer->run();
   }

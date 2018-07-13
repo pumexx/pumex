@@ -52,5 +52,5 @@ void UniformBuffer::validate(const RenderContext& renderContext)
 
 DescriptorValue UniformBuffer::getDescriptorValue(const RenderContext& renderContext)
 {
-  return DescriptorValue(memoryBuffer->getHandleBuffer(renderContext), 0, memoryBuffer->getDataSize(renderContext));
+  return DescriptorValue(memoryBuffer->getHandleBuffer(renderContext), 0, memoryBuffer->getDataSizeRC(renderContext));
 }

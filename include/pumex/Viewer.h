@@ -47,6 +47,22 @@ struct WindowTraits;
 class  Window;
 struct SurfaceTraits;
 class  Surface;
+class TimeStatistics;
+
+const uint32_t TSV_STAT_UPDATE                = 1;
+const uint32_t TSV_STAT_RENDER                = 2;
+const uint32_t TSV_STAT_RENDER_EVENTS         = 4;
+
+const uint32_t TSV_GROUP_UPDATE                = 1;
+const uint32_t TSV_GROUP_RENDER                = 2;
+const uint32_t TSV_GROUP_RENDER_EVENTS         = 3;
+
+const uint32_t TSV_CHANNEL_UPDATE              = 1;
+const uint32_t TSV_CHANNEL_RENDER              = 2;
+const uint32_t TSV_CHANNEL_FRAME               = 3;
+const uint32_t TSV_CHANNEL_EVENT_RENDER_START  = 4;
+const uint32_t TSV_CHANNEL_EVENT_RENDER_FINISH = 5;
+
 
 // struct storing all info required to create or describe the viewer
 struct PUMEX_EXPORT ViewerTraits
@@ -126,9 +142,8 @@ protected:
   inline uint32_t getNextUpdateSlot() const;
   inline void     doNothing() const;
 
-  inline void     onEventRenderStart();
-  inline void     onEventRenderFinish();
-
+  void            onEventRenderStart();
+  void            onEventRenderFinish();
 
   void            buildRenderGraph();
 
@@ -155,6 +170,7 @@ protected:
   HPClock::time_point                                    updateStartTimes[3];
   HPClock::duration                                      lastRenderDuration;
   HPClock::duration                                      lastUpdateDuration;
+  std::unique_ptr<TimeStatistics>                        timeStatistics;
 
   uint32_t                                               renderIndex                   = 0;
   uint32_t                                               updateIndex                   = 1;
@@ -168,9 +184,7 @@ protected:
   VkDebugReportCallbackEXT                               msgCallback;
 
   tbb::flow::graph                                       renderGraph;
-  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphStart;
-  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphEventRenderStart;
-  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphFinish;
+  tbb::flow::continue_node< tbb::flow::continue_msg >    opRenderGraphStart, opRenderGraphEventRenderStart, opRenderGraphFinish;
   std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> opSurfaceBeginFrame, opSurfaceEventRenderStart, opSurfaceValidateWorkflow, opSurfaceValidateSecondaryNodes, opSurfaceBarrier0, opSurfaceValidateSecondaryDescriptors, opSurfaceSecondaryCommandBuffers, opSurfaceDrawFrame, opSurfaceEndFrame;
   std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> opSurfaceValidatePrimaryNodes, opSurfaceValidatePrimaryDescriptors, opSurfacePrimaryBuffers;
 
@@ -194,8 +208,6 @@ HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStart
 void                Viewer::doNothing() const               {}
 void                Viewer::setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event)  { eventRenderStart = event; }
 void                Viewer::setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event) { eventRenderFinish = event; }
-void                Viewer::onEventRenderStart()            { if (eventRenderStart != nullptr)  eventRenderStart(shared_from_this()); }
-void                Viewer::onEventRenderFinish()           { if (eventRenderFinish != nullptr)  eventRenderFinish(shared_from_this()); }
 
 uint32_t   Viewer::getNextUpdateSlot() const
 {

@@ -95,7 +95,7 @@ uint32_t AssetBuffer::getLodID(uint32_t typeID, float distance) const
   for (uint32_t i = 0; i < lodDefinitions[typeID].size(); ++i)
     if (lodDefinitions[typeID][i].active(distance))
       return i;
-  return UINT32_MAX;
+  return std::numeric_limits<uint32_t>::max();
 }
 
 std::shared_ptr<Asset> AssetBuffer::getAsset(uint32_t typeID, uint32_t lodID)

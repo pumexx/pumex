@@ -93,7 +93,7 @@ std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, c
     // STEP 1 :  collect ALL NODES and write it into BONE hierarchy
     {
       std::queue<std::tuple<const aiNode*, glm::mat4, uint32_t>> nodeQueue;
-      nodeQueue.push(std::make_tuple(scene->mRootNode, glm::mat4(), UINT32_MAX));
+      nodeQueue.push(std::make_tuple(scene->mRootNode, glm::mat4(), std::numeric_limits<uint32_t>::max()));
       while (!nodeQueue.empty())
       {
         auto nodeData = nodeQueue.front();
@@ -143,7 +143,7 @@ std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, c
               uint32_t boneIndex = it->second;
               asset->skeleton.bones[boneIndex].offsetMatrix = toMat4(bone->mOffsetMatrix);
 
-              while (boneIndex != UINT32_MAX)
+              while (boneIndex != std::numeric_limits<uint32_t>::max())
               {
                 asset->skeleton.bones[boneIndex].boneTag = 1;
                 boneIndex = asset->skeleton.bones[boneIndex].parentIndex;

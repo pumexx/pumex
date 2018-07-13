@@ -20,9 +20,11 @@
 // SOFTWARE.
 //
 
+#pragma once
 #include <pumex/AssetBuffer.h>
 #include <pumex/Export.h>
 #include <pumex/Node.h>
+#include <pumex/DrawNode.h>
 
 namespace pumex
 {
@@ -88,13 +90,14 @@ void AssetBufferFilterNode::setEventResizeOutputs(std::function<void(uint32_t, s
 void AssetBufferFilterNode::onEventResizeOutputs(uint32_t mask, size_t instanceCount) { if (eventResizeOutputs != nullptr)  eventResizeOutputs(mask, instanceCount); }
 
 // Node class that draws single object registered in AssetBufferNode
-class PUMEX_EXPORT AssetBufferDrawObject : public Node
+class PUMEX_EXPORT AssetBufferDrawObject : public DrawNode
 {
 public:
   AssetBufferDrawObject(uint32_t typeID, uint32_t firstInstance = 0);
 
-  void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
+
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) override;
 
   float getDistanceToViewer() const;
 
@@ -103,15 +106,14 @@ public:
 };
 
 // Node class that draws series of objects registered in AssetBufferNode using cmdDrawIndexedIndirect - needs a buffer to work
-class PUMEX_EXPORT AssetBufferIndirectDrawObjects : public Node
+class PUMEX_EXPORT AssetBufferIndirectDrawObjects : public DrawNode
 {
 public:
   AssetBufferIndirectDrawObjects(std::shared_ptr<AssetBufferFilterNode> filterNode, uint32_t renderMask);
 
-  void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) override;
 
-  std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> getDrawCommands();
   uint32_t                                                         renderMask;
 protected:
   std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> drawCommands;

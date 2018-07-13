@@ -11,7 +11,7 @@ target_include_directories( pumexcrowd PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexcrowd pumexcrowd-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexcrowd PROPERTIES RESOURCE "${PUMEXCROWD_OUTPUT_SHADERS}" )
 target_link_libraries( pumexcrowd pumexlib )
-set_executable_postfixes( pumexcrowd )
+set_target_postfixes( pumexcrowd )
 
 install( TARGETS pumexcrowd 
          EXPORT PumexTargets

@@ -10,7 +10,7 @@ target_include_directories( pumexviewer PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexviewer pumexviewer-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexviewer PROPERTIES RESOURCE "${PUMEXVIEWER_OUTPUT_SHADERS}" )
 target_link_libraries( pumexviewer pumexlib )
-set_executable_postfixes( pumexviewer )
+set_target_postfixes( pumexviewer )
 
 install( TARGETS pumexviewer EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples

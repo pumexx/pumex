@@ -15,7 +15,7 @@ target_include_directories( pumexvoxelizer PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexvoxelizer pumexvoxelizer-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexvoxelizer PROPERTIES RESOURCE "${PUMEXVOXELIZER_OUTPUT_SHADERS}" )
 target_link_libraries( pumexvoxelizer pumexlib )
-set_executable_postfixes( pumexvoxelizer )
+set_target_postfixes( pumexvoxelizer )
 
 install( TARGETS pumexvoxelizer EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples

@@ -14,7 +14,7 @@ target_include_directories( pumexgpucull PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexgpucull pumexgpucull-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexgpucull PROPERTIES RESOURCE "${PUMEXGPUCULL_OUTPUT_SHADERS}" )
 target_link_libraries( pumexgpucull pumexlib )
-set_executable_postfixes( pumexgpucull )
+set_target_postfixes( pumexgpucull )
 
 install( TARGETS pumexgpucull EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples

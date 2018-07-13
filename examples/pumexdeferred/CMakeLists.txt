@@ -12,7 +12,7 @@ target_include_directories( pumexdeferred PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexdeferred pumexdeferred-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexdeferred PROPERTIES RESOURCE "${PUMEXDEFERRED_OUTPUT_SHADERS}" )
 target_link_libraries( pumexdeferred pumexlib )
-set_executable_postfixes( pumexdeferred )
+set_target_postfixes( pumexdeferred )
 
 install( TARGETS pumexdeferred EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples

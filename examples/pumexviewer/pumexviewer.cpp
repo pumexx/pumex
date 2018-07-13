@@ -272,7 +272,7 @@ struct ViewerApplicationData
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
     {
       auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-      boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
+      boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : std::numeric_limits<uint32_t>::max();
     }
 
     std::vector<glm::mat4> localTransforms(MAX_BONES);
@@ -280,12 +280,12 @@ struct ViewerApplicationData
 
     anim.calculateLocalTransforms(renderTime, localTransforms.data(), numAnimChannels);
     uint32_t bcVal = boneChannelMapping[0];
-    glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+    glm::mat4 localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[0].localTransformation : localTransforms[bcVal];
     globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
     for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
     {
       bcVal = boneChannelMapping[boneIndex];
-      localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+      localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
       globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
     }
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
@@ -393,6 +393,9 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 8 MB memory for font textures
+    auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
 
     // render workflow will use one queue with below defined traits
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
@@ -519,6 +522,12 @@ int main( int argc, char * argv[] )
       wireframeDescriptorSet->setDescriptor(1, positionUbo);
     wireframePipeline->setDescriptorSet(0, wireframeDescriptorSet);
 
+    // lets add object that calculates time statistics and is able to render it
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator);
+    tsHandler->setTextCameraBuffer(applicationData->textCameraBuffer);
+    renderRoot->addChild(tsHandler->getRoot());
+
+
     // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
     surface->setRenderWorkflow(workflow, workflowCompiler);
@@ -534,8 +543,9 @@ int main( int argc, char * argv[] )
 
     // events are used to call aplication data update methods. These methods generate data visisble by renderer through uniform buffers
     viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
-
     surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
+    // object calculating statistics must be also connected as an event
+    surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
     // main renderer loop is inside Viewer::run()
     viewer->run();

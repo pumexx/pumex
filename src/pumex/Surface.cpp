@@ -32,6 +32,7 @@
 #include <pumex/Image.h>
 #include <pumex/utils/Log.h>
 #include <pumex/RenderWorkflow.h>
+#include <pumex/TimeStatistics.h>
 
 using namespace pumex;
 
@@ -43,6 +44,23 @@ SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkP
 Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
   : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st)
 {
+  timeStatistics = std::make_unique<TimeStatistics>(32);
+
+  timeStatistics->registerGroup(TSS_GROUP_BASIC,             "Basic surface operations");
+  timeStatistics->registerGroup(TSS_GROUP_EVENTS,            "Surface events");
+  timeStatistics->registerGroup(TSS_GROUP_SECONDARY_BUFFERS, "Secondary buffers");
+
+  timeStatistics->registerChannel(TSS_CHANNEL_BEGINFRAME,                   TSS_GROUP_BASIC,             "beginFrame",                   glm::vec4(0.4f, 0.4f, 0.4f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERSTART,      TSS_GROUP_EVENTS,            "eventSurfaceRenderStart",      glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATEWORKFLOW,             TSS_GROUP_BASIC,             "validateWorkflow",             glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYNODES,       TSS_GROUP_SECONDARY_BUFFERS, "validateSecondaryNodes",       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS, TSS_GROUP_SECONDARY_BUFFERS, "validateSecondaryDescriptors", glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS, TSS_GROUP_SECONDARY_BUFFERS, "buildSecondaryCommandBuffers", glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_DRAW,                         TSS_GROUP_BASIC,             "draw",                         glm::vec4(0.9f, 0.9f, 0.9f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_ENDFRAME,                     TSS_GROUP_BASIC,             "endFrame",                     glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERFINISH,     TSS_GROUP_EVENTS,            "eventSurfaceRenderFinish",     glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
+
+  timeStatistics->setFlags(TSS_STAT_BASIC | TSS_STAT_BUFFERS | TSS_STAT_EVENTS);
 }
 
 Surface::~Surface()
@@ -221,8 +239,8 @@ void Surface::createSwapChain()
   for (uint32_t i = 0; i < imageCount; i++)
     swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], swapChainDefinition.format, extent, 1, 1));
 
-  prepareCommandBuffer->invalidate(UINT32_MAX);
-  presentCommandBuffer->invalidate(UINT32_MAX);
+  prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
+  presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
 }
 
 bool Surface::checkWorkflow()
@@ -231,15 +249,36 @@ bool Surface::checkWorkflow()
   renderWorkflow->compile(renderWorkflowCompiler);
   if (workflowResults.get() != renderWorkflow->workflowResults.get())
   {
+    if (workflowResults != nullptr)
+    {
+      for (uint32_t i = 0; i < workflowResults->queueTraits.size(); ++i)
+      {
+        timeStatistics->unregisterChannels(TSS_GROUP_PRIMARY_BUFFERS + i);
+        timeStatistics->unregisterGroup(TSS_GROUP_PRIMARY_BUFFERS + i);
+      }
+    }
+
     workflowResults = renderWorkflow->workflowResults;
+
+    for (uint32_t i = 0; i < workflowResults->queueTraits.size(); ++i)
+    {
+      std::stringstream ostr;
+      ostr << " (" << i << ")";
+      timeStatistics->registerGroup(TSS_GROUP_PRIMARY_BUFFERS + i, "Primary nodes" + ostr.str());
+
+      timeStatistics->registerChannel(20 + 10 * i + 0, TSS_GROUP_PRIMARY_BUFFERS + i, "validatePrimaryNodes" + ostr.str(),       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 1, TSS_GROUP_PRIMARY_BUFFERS + i, "validatePrimaryDescriptors" + ostr.str(), glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 2, TSS_GROUP_PRIMARY_BUFFERS + i, "buildPrimaryCommandBuffer" + ostr.str(),  glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+    }
+
 
     // invalidate basic command buffers
     if (prepareCommandBuffer.get() != nullptr)
-      prepareCommandBuffer->invalidate(UINT32_MAX);
+      prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
     if(presentCommandBuffer.get() != nullptr)
-      presentCommandBuffer->invalidate(UINT32_MAX);
+      presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
     for (auto& pcb : primaryCommandBuffers)
-      pcb->invalidate(UINT32_MAX);
+      pcb->invalidate(std::numeric_limits<uint32_t>::max());
     return true;
   }
   return false;
@@ -575,6 +614,23 @@ std::shared_ptr<ImageView> Surface::getRegisteredImageView(const std::string nam
   if (it != end(workflowResults->registeredImageViews))
     return it->second;
   return nullptr;
+}
+
+void Surface::onEventSurfaceRenderStart() 
+{ 
+  if (eventSurfaceRenderStart != nullptr)
+    eventSurfaceRenderStart(shared_from_this()); 
+}
+void Surface::onEventSurfaceRenderFinish() 
+{ 
+  if (eventSurfaceRenderFinish != nullptr)
+    eventSurfaceRenderFinish(shared_from_this()); 
+}
+
+void Surface::onEventSurfacePrepareStatistics(TimeStatistics* viewerStatistics)
+{
+  if (eventSurfacePrepareStatistics != nullptr)
+    eventSurfacePrepareStatistics(this, viewerStatistics, timeStatistics.get());
 }
 
 std::shared_ptr<CommandPool> Surface::getPresentationCommandPool()

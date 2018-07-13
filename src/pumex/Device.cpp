@@ -70,7 +70,7 @@ void Device::realize()
     queueCount[i] = physicalDevice->queueFamilyProperties[i].queueCount;
 
   std::vector<uint32_t> chosenFamilies(requestedQueues.size());
-  std::fill(begin(chosenFamilies), end(chosenFamilies), UINT32_MAX);
+  std::fill(begin(chosenFamilies), end(chosenFamilies), std::numeric_limits<uint32_t>::max());
   
   // at first - assign queues that have only one queue family available
   for (uint32_t i = 0; i < requestedQueues.size(); i++)
@@ -84,7 +84,7 @@ void Device::realize()
   // assign other queues in no particular order ( first fit :) )
   for (uint32_t i = 0; i < requestedQueues.size(); i++)
   {
-    if (chosenFamilies[i] != UINT32_MAX)
+    if (chosenFamilies[i] != std::numeric_limits<uint32_t>::max())
       continue;
     bool found = false;
     for (uint32_t j = 0; j < matchingFamilies[i].size(); ++j)

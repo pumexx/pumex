@@ -57,5 +57,6 @@
 #include <pumex/MaterialSet.h>
 #include <pumex/DispatchNode.h>
 #include <pumex/Text.h>
+#include <pumex/StandardHandlers.h>
 #include <pumex/Camera.h>
 #include <pumex/Kinematic.h>

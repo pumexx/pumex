@@ -19,6 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
+
 #pragma once
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
@@ -76,15 +77,13 @@ public:
 };
 
 // Visitor that collects missing data for render contexts while building secondary command buffers
-const uint32_t CRCV_TARGETS = 2;
+const uint32_t CRCV_TARGETS = 1;
 
 class PUMEX_EXPORT CompleteRenderContextVisitor : public NodeVisitor
 {
 public:
   CompleteRenderContextVisitor(RenderContext& renderContext);
 
-  void apply(GraphicsPipeline& node) override;
-  void apply(ComputePipeline& node) override;
   void apply(AssetBufferNode& node) override;
 protected:
   RenderContext& renderContext;
@@ -101,11 +100,8 @@ public:
   void apply(GraphicsPipeline& node) override;
   void apply(ComputePipeline& node) override;
   void apply(AssetBufferNode& node) override;
-  void apply(AssetBufferDrawObject& node) override;
-  void apply(AssetBufferIndirectDrawObjects& node) override;
-  void apply(AssetNode& node) override;
   void apply(DispatchNode& node) override;
-  void apply(Text& node) override;
+  void apply(DrawNode& node) override;
 
   void applyDescriptorSets(Node& node);
 

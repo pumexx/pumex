@@ -150,7 +150,7 @@ VertexAccumulator::VertexAccumulator(const std::vector<VertexSemantic>& s)
 void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel, float val0)
 {
   uint32_t offset  = getOffset(semanticType, channel);
-  if (offset==UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset]   = val0;
 }
@@ -158,7 +158,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel,
 void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel, float val0, float val1)
 {
   uint32_t offset  = getOffset(semanticType, channel);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
   values[offset+1] = val1;
@@ -167,7 +167,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel,
 void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel, float val0, float val1, float val2)
 {
   uint32_t offset  = getOffset(semanticType, channel);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
   values[offset+1] = val1;
@@ -177,7 +177,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel,
 void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel, float val0, float val1, float val2, float val3)
 {
   uint32_t offset  = getOffset(semanticType,channel);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
   values[offset+1] = val1;
@@ -188,7 +188,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, uint32_t channel,
 void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0)
 {
   uint32_t offset  = getOffset(semanticType, 0);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
 }
@@ -196,7 +196,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0)
 void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0, float val1)
 {
   uint32_t offset  = getOffset(semanticType, 0);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
   values[offset+1] = val1;
@@ -205,7 +205,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0, float
 void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0, float val1, float val2)
 {
   uint32_t offset  = getOffset(semanticType, 0);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
   values[offset+1] = val1;
@@ -215,7 +215,7 @@ void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0, float
 void VertexAccumulator::set(VertexSemantic::Type semanticType, float val0, float val1, float val2, float val3)
 {
   uint32_t offset  = getOffset(semanticType, 0);
-  if (offset == UINT32_MAX)
+  if (offset == std::numeric_limits<uint32_t>::max())
     return;
   values[offset] = val0;
   values[offset+1] = val1;
@@ -395,7 +395,7 @@ void copyAndConvertVertices(std::vector<float>& targetBuffer, const std::vector<
   // setup remapping
   offset = 0;
 
-  std::fill(begin(sourceValuesIndex), end(sourceValuesIndex), UINT32_MAX);
+  std::fill(begin(sourceValuesIndex), end(sourceValuesIndex), std::numeric_limits<uint32_t>::max());
   uint32_t currentTargetColor    = 0;
   uint32_t currentTargetTexCoord = 0;
   for (const auto& t : targetSemantic)
@@ -440,7 +440,7 @@ void copyAndConvertVertices(std::vector<float>& targetBuffer, const std::vector<
     targetValues = defaultValues;
     for (uint32_t j = 0; j<sourceValuesIndex.size(); ++j)
     {
-      if (sourceValuesIndex[j] != UINT32_MAX)
+      if (sourceValuesIndex[j] != std::numeric_limits<uint32_t>::max())
         targetValues[j] = sourceBuffer[i + sourceValuesIndex[j]];
     }
     std::copy(begin(targetValues), end(targetValues), std::back_inserter(targetBuffer));
@@ -513,7 +513,7 @@ void mergeAsset(Asset& parentAsset, uint32_t parentBone, Asset& childAsset)
   {
     Skeleton::Bone bone  = childAsset.skeleton.bones[i];
     std::string boneName = childAsset.skeleton.boneNames[i];
-    if (bone.parentIndex == UINT32_MAX)
+    if (bone.parentIndex == std::numeric_limits<uint32_t>::max())
       bone.parentIndex = parentBone;
     else
       bone.parentIndex += parentBoneCount;
@@ -533,7 +533,7 @@ void mergeAsset(Asset& parentAsset, uint32_t parentBone, Asset& childAsset)
     git->materialIndex = git->materialIndex + parentMaterialCount;
 
     // find vertex weight and vertex index
-    uint32_t offset = 0, boneWeightOffset = UINT32_MAX, boneIndexOffset = UINT32_MAX, boneWeightSize = UINT32_MAX, boneIndexSize = UINT32_MAX;
+    uint32_t offset = 0, boneWeightOffset = std::numeric_limits<uint32_t>::max(), boneIndexOffset = std::numeric_limits<uint32_t>::max(), boneWeightSize = std::numeric_limits<uint32_t>::max(), boneIndexSize = std::numeric_limits<uint32_t>::max();
     for (VertexSemantic s : git->semantic)
     {
       if (s.type == VertexSemantic::BoneWeight)
@@ -548,7 +548,7 @@ void mergeAsset(Asset& parentAsset, uint32_t parentBone, Asset& childAsset)
       }
       offset += s.size;
     }
-    if (boneWeightOffset == UINT32_MAX || boneIndexOffset == UINT32_MAX)
+    if (boneWeightOffset == std::numeric_limits<uint32_t>::max() || boneIndexOffset == std::numeric_limits<uint32_t>::max())
     {
       LOG_WARNING << "Geometry semantic has no bone weight or no bone index" << std::endl;
       continue;
@@ -592,9 +592,9 @@ BoundingBox calculateBoundingBox(const Asset& asset, uint32_t renderMask)
 BoundingBox calculateBoundingBox(const Geometry& geometry, const std::vector<glm::mat4>& bones)
 {
   uint32_t vertexStride = calcVertexSize(geometry.semantic);
-  uint32_t positionOffset = UINT32_MAX;
-  uint32_t indexOffset    = UINT32_MAX;
-  uint32_t weightOffset   = UINT32_MAX;
+  uint32_t positionOffset = std::numeric_limits<uint32_t>::max();
+  uint32_t indexOffset    = std::numeric_limits<uint32_t>::max();
+  uint32_t weightOffset   = std::numeric_limits<uint32_t>::max();
   uint32_t indexSize = 0;
   uint32_t offset = 0;
   for (const auto& a : geometry.semantic)
@@ -612,7 +612,7 @@ BoundingBox calculateBoundingBox(const Geometry& geometry, const std::vector<glm
   }
 
   BoundingBox bbox;
-  if (positionOffset == UINT32_MAX || indexOffset == UINT32_MAX || weightOffset == UINT32_MAX)
+  if (positionOffset == std::numeric_limits<uint32_t>::max() || indexOffset == std::numeric_limits<uint32_t>::max() || weightOffset == std::numeric_limits<uint32_t>::max())
     return bbox;
 
   for (uint32_t i = 0; i < geometry.vertices.size(); i += vertexStride)

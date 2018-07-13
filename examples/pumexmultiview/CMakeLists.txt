@@ -14,7 +14,7 @@ target_include_directories( pumexmultiview PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexmultiview pumexmultiview-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexmultiview PROPERTIES RESOURCE "${PUMEXMULTIVIEW_OUTPUT_SHADERS}" )
 target_link_libraries( pumexmultiview pumexlib )
-set_executable_postfixes( pumexmultiview )
+set_target_postfixes( pumexmultiview )
 
 install( TARGETS pumexmultiview EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples

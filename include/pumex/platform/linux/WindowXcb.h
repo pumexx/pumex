@@ -21,7 +21,6 @@
 //
 
 #pragma once
-
 #include <unordered_map>
 #include <mutex>
 #include <pumex/Window.h>

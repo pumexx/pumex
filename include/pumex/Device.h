@@ -71,8 +71,8 @@ public:
   Queue& operator=(Queue&&)      = delete;
 
   QueueTraits traits;
-  uint32_t    familyIndex = UINT32_MAX;
-  uint32_t    index       = UINT32_MAX;
+  uint32_t    familyIndex = std::numeric_limits<uint32_t>::max();
+  uint32_t    index       = std::numeric_limits<uint32_t>::max();
   bool        available   = true;
   VkQueue     queue       = VK_NULL_HANDLE;
 };

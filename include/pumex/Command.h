@@ -183,7 +183,7 @@ public:
 
   void addCommandBuffer(CommandBuffer* commandBuffer);
   void removeCommandBuffer(CommandBuffer* commandBuffer);
-  void notifyCommandBuffers(uint32_t index = UINT32_MAX);
+  void notifyCommandBuffers(uint32_t index = std::numeric_limits<uint32_t>::max());
 
 protected:
   mutable std::mutex       commandMutex;

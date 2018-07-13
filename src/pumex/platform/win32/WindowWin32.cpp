@@ -21,7 +21,6 @@
 //
 
 #include <pumex/platform/win32/WindowWin32.h>
-
 #include <pumex/Viewer.h>
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>

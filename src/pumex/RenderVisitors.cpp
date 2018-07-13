@@ -19,14 +19,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
+
 #include <pumex/RenderVisitors.h>
 #include <pumex/Descriptor.h>
+#include <pumex/RenderPass.h>
 #include <pumex/Pipeline.h>
 #include <pumex/AssetBufferNode.h>
-#include <pumex/AssetNode.h>
 #include <pumex/DispatchNode.h>
-#include <pumex/RenderPass.h>
-#include <pumex/Text.h>
+#include <pumex/DrawNode.h>
 
 using namespace pumex;
 
@@ -92,43 +92,13 @@ CompleteRenderContextVisitor::CompleteRenderContextVisitor(RenderContext& rc)
     targetCompleted[i] = false;
 }
 
-void CompleteRenderContextVisitor::apply(GraphicsPipeline& node)
-{
-  if (!targetCompleted[0])
-  {
-    renderContext.currentPipelineLayout = node.pipelineLayout.get();
-    renderContext.setCurrentBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS);
-    targetCompleted[0] = true;
-  }
-  bool allTargetsCompleted = true;
-  for (uint32_t i = 0; i < CRCV_TARGETS; ++i)
-    allTargetsCompleted = allTargetsCompleted && targetCompleted[i];
-  if (!allTargetsCompleted)
-    traverse(node);
-}
-
-void CompleteRenderContextVisitor::apply(ComputePipeline& node)
-{
-  if (!targetCompleted[0])
-  {
-    renderContext.setCurrentPipelineLayout(node.pipelineLayout.get());
-    renderContext.setCurrentBindPoint(VK_PIPELINE_BIND_POINT_COMPUTE);
-    targetCompleted[0] = true;
-  }
-  bool allTargetsCompleted = true;
-  for (uint32_t i = 0; i < CRCV_TARGETS; ++i)
-    allTargetsCompleted = allTargetsCompleted && targetCompleted[i];
-  if (!allTargetsCompleted)
-    traverse(node);
-}
-
 void CompleteRenderContextVisitor::apply(AssetBufferNode& node)
 {
-  if (!targetCompleted[1])
+  if (!targetCompleted[0])
   {
     renderContext.setCurrentAssetBuffer(node.assetBuffer.get());
     renderContext.setCurrentRenderMask(node.renderMask);
-    targetCompleted[1] = true;
+    targetCompleted[0] = true;
   }
   bool allTargetsCompleted = true;
   for (uint32_t i = 0; i < CRCV_TARGETS; ++i)
@@ -205,46 +175,6 @@ void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
   renderContext.setCurrentRenderMask(previousRM);
 }
 
-void BuildCommandBufferVisitor::apply(AssetBufferDrawObject& node)
-{
-  if (buildingPrimary && node.hasSecondaryBuffer())
-  {
-    commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
-    return;
-  }
-  if (renderContext.currentAssetBuffer == nullptr)
-    return;
-  applyDescriptorSets(node);
-  renderContext.currentAssetBuffer->cmdDrawObject(renderContext, commandBuffer, renderContext.currentRenderMask, node.typeID, node.firstInstance, node.getDistanceToViewer());
-  traverse(node);
-}
-
-void BuildCommandBufferVisitor::apply(AssetBufferIndirectDrawObjects& node)
-{
-  if (buildingPrimary && node.hasSecondaryBuffer())
-  {
-    commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
-    return;
-  }
-  if (renderContext.currentAssetBuffer == nullptr)
-    return;
-  applyDescriptorSets(node);
-  renderContext.currentAssetBuffer->cmdDrawObjectsIndirect(renderContext, commandBuffer, node.getDrawCommands());
-  traverse(node);
-}
-
-void BuildCommandBufferVisitor::apply(AssetNode& node)
-{
-  if (buildingPrimary && node.hasSecondaryBuffer())
-  {
-    commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
-    return;
-  }
-  applyDescriptorSets(node);
-  node.cmdDraw(renderContext, commandBuffer);
-  traverse(node);
-}
-
 void BuildCommandBufferVisitor::apply(DispatchNode& node)
 {
   if (buildingPrimary && node.hasSecondaryBuffer())
@@ -257,7 +187,7 @@ void BuildCommandBufferVisitor::apply(DispatchNode& node)
   traverse(node);
 }
 
-void BuildCommandBufferVisitor::apply(Text& node)
+void BuildCommandBufferVisitor::apply(DrawNode& node)
 {
   if (buildingPrimary && node.hasSecondaryBuffer())
   {

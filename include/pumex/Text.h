@@ -30,8 +30,7 @@
 #include <glm/glm.hpp>
 #include <gli/texture2d.hpp>
 #include <pumex/Export.h>
-#include <pumex/Asset.h>
-#include <pumex/Node.h>
+#include <pumex/DrawNode.h>
 
 namespace pumex
 {
@@ -95,7 +94,7 @@ protected:
 };
 
 // class that stores texts that may be written on screen
-class PUMEX_EXPORT Text : public Node
+class PUMEX_EXPORT Text : public DrawNode
 {
 public:
   Text()                       = delete;
@@ -106,9 +105,8 @@ public:
   Text& operator=(Text&&)      = delete;
   virtual ~Text();
 
-  void accept(NodeVisitor& visitor) override;
   void validate(const RenderContext& renderContext) override;
-  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer);
+  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) override;
 
   void setText(Surface* surface, uint32_t index, const glm::vec2& position, const glm::vec4& color, const std::wstring& text);
   void removeText(Surface* surface, uint32_t index);

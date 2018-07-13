@@ -58,7 +58,7 @@ const uint32_t MAIN_RENDER_MASK = 1;
 struct ObjectData
 {
   ObjectData()
-    : animation{ 0 }, animationOffset{ 0.0f }, typeID{ 0 }, materialVariant{ 0 }, time2NextTurn { 0.0f }, ownerID{ UINT32_MAX }
+    : animation{ 0 }, animationOffset{ 0.0f }, typeID{ 0 }, materialVariant{ 0 }, time2NextTurn { 0.0f }, ownerID{ std::numeric_limits<uint32_t>::max() }
   {
   }
   pumex::Kinematic kinematic;       // not used by clothes
@@ -540,7 +540,7 @@ struct CrowdApplicationData
     //if (measureTime != updateData.measureTime)
     //{
     //  for (auto& cb : myCmdBuffer)
-    //    cb.second->setDirty(UINT32_MAX);
+    //    cb.second->setDirty(std::numeric_limits<uint32_t>::max());
     //  measureTime = updateData.measureTime;
     //}
 
@@ -731,7 +731,7 @@ struct CrowdApplicationData
             for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
             {
               auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-              boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
+              boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : std::numeric_limits<uint32_t>::max();
             }
             bmit = skelAnimBoneMapping.insert({ saKey, boneChannelMapping }).first;
           }
@@ -742,12 +742,12 @@ struct CrowdApplicationData
           const auto& boneChannelMapping = bmit->second;
           anim.calculateLocalTransforms(renderTime + animOffset[i], localTransforms.data(), numAnimChannels);
           uint32_t bcVal = boneChannelMapping[0];
-          glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+          glm::mat4 localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[0].localTransformation : localTransforms[bcVal];
           globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
           for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
           {
             bcVal = boneChannelMapping[boneIndex];
-            localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+            localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
             globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
           }
           for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
@@ -764,10 +764,6 @@ struct CrowdApplicationData
     }
     positionBuffer->invalidateData();
     instanceBuffer->invalidateData();
-
-//    std::wstringstream stream;
-//    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-//    textDefault->setText(viewer.lock()->getSurface(0), 0, glm::vec2(30, 28), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
   }
 
   void setSlaveViewMatrix(uint32_t index, const glm::mat4& matrix)
@@ -1035,63 +1031,9 @@ int main(int argc, char * argv[])
     instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSampler(0));
     assetBufferDrawIndirect->setDescriptorSet(0, instancedRenderDescriptorSet);
 
-    // build text render pipeline
-    auto fontDefault      = std::make_shared<pumex::Font>(viewer, "fonts/DejaVuSans.ttf", glm::uvec2(1024, 1024), 24, texturesAllocator);
-    auto fontSmall        = std::make_shared<pumex::Font>(viewer, "fonts/DejaVuSans.ttf", glm::uvec2(512, 512),   16, texturesAllocator);
-
-    auto textDefault      = std::make_shared<pumex::Text>(fontDefault, buffersAllocator);
-    auto textSmall        = std::make_shared<pumex::Text>(fontSmall, buffersAllocator);
-
-    // building text rendering pipeline layout
-    std::vector<pumex::DescriptorSetLayoutBinding> textLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    auto textDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(textLayoutBindings);
-    auto textPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
-    textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
-    auto textPipeline            = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, textPipelineLayout);
-    textPipeline->vertexInput    =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
-    };
-    textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    textPipeline->blendAttachments =
-    {
-      { VK_TRUE, VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD,
-      VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_OP_ADD }
-    };
-    textPipeline->depthTestEnable = VK_FALSE;
-    textPipeline->depthWriteEnable = VK_FALSE;
-    textPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.vert.spv"), "main" },
-      { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.geom.spv"), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/text_draw.frag.spv"), "main" }
-    };
-    renderingRoot->addChild(textPipeline);
-
-    textPipeline->addChild(textDefault);
-    textPipeline->addChild(textSmall);
-
-    auto fontImageView = std::make_shared<pumex::ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
-    auto fontSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
-
-    auto textCameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->textCameraBuffer);
-
-    auto textDescriptorSet = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
-    textDescriptorSet->setDescriptor(0, textCameraUbo);
-    textDescriptorSet->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(fontImageView, fontSampler));
-    textDefault->setDescriptorSet(0, textDescriptorSet);
-
-    auto smallFontImageView = std::make_shared<pumex::ImageView>(fontSmall->fontMemoryImage, fontSmall->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
-
-    auto textDescriptorSetSmall = std::make_shared<pumex::DescriptorSet>(textDescriptorSetLayout);
-    textDescriptorSetSmall->setDescriptor(0, textCameraUbo);
-    textDescriptorSetSmall->setDescriptor(1, std::make_shared<pumex::CombinedImageSampler>(smallFontImageView, fontSampler));
-    textSmall->setDescriptorSet(0, textDescriptorSetSmall);
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator);
+    tsHandler->setTextCameraBuffer(applicationData->textCameraBuffer);
+    renderingRoot->addChild(tsHandler->getRoot());
 
     if (render3windows)
     {
@@ -1136,7 +1078,10 @@ int main(int argc, char * argv[])
     // set render callbacks to application data
     viewer->setEventRenderStart(std::bind(&CrowdApplicationData::prepareBuffersForRendering, applicationData, std::placeholders::_1));
     for (auto& surf : surfaces)
+    {
       surf->setEventSurfaceRenderStart(std::bind(&CrowdApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
+      surf->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    }
 
     viewer->run();
   }

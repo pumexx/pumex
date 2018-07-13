@@ -24,9 +24,7 @@
 #include <pumex/NodeVisitor.h>
 #include <pumex/MemoryImage.h>
 #include <pumex/utils/Log.h>
-#include <pumex/utils/Shapes.h>
 #include <pumex/Surface.h>
-#include <pumex/Sampler.h>
 #include <pumex/MemoryBuffer.h>
 #include <pumex/Viewer.h>
 
@@ -137,7 +135,7 @@ size_t Font::getGlyphIndex(wchar_t charCode)
 }
 
 Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator)
-  : Node(), font{ f }
+  : DrawNode(), font{ f }
 {
   vertexBuffer = std::make_shared<Buffer<std::vector<SymbolData>>>(bufferAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerSurface, swForEachImage);
   textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
@@ -145,16 +143,6 @@ Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> buffe
 
 Text::~Text()
 {
-}
-
-void Text::accept(NodeVisitor& visitor)
-{
-  if (visitor.getMask() && mask)
-  {
-    visitor.push(this);
-    visitor.apply(*this);
-    visitor.pop();
-  }
 }
 
 void Text::validate(const RenderContext& renderContext)

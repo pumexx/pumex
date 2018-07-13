@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 
+#pragma once
 #include <pumex/Export.h>
 #include <pumex/Node.h>
 

@@ -104,7 +104,6 @@ VkDescriptorPool DescriptorPool::addDescriptorSets(const RenderContext& renderCo
   uint32_t maxSize, curSize;
   std::tie(descSetLayout, pool, maxSize, curSize) = it->second;
   CHECK_LOG_THROW(curSize + numDescriptorSets > maxSize, "DescriptorPool::addDescriptorSets() : too many descriptor sets allocated");
-  curSize += numDescriptorSets;
   return pool;
 }
 

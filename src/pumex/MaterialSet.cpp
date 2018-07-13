@@ -148,7 +148,7 @@ std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Ma
       {
         // according to semantics defined for this render mask - we have to add a texture to a target texture number s.index
         // but first - we must check if this texture has not been already added
-        uint32_t textureIndex = UINT32_MAX;
+        uint32_t textureIndex = std::numeric_limits<uint32_t>::max();
         for (unsigned int i = 0; i<textureNames[s.index].size(); ++i)
         {
           if (textureNames[s.index][i] == it->second)
@@ -157,7 +157,7 @@ std::map<TextureSemantic::Type, uint32_t> MaterialSet::registerTextures(const Ma
             break;
           }
         }
-        if (textureIndex == UINT32_MAX)
+        if (textureIndex == std::numeric_limits<uint32_t>::max())
         {
           textureIndex = textureNames[s.index].size();
           textureNames[s.index].push_back(it->second);

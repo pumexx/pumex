@@ -27,10 +27,11 @@
 namespace pumex
 {
 
+  
 struct PUMEX_EXPORT BoundingBox
 {
   BoundingBox()
-    : bbMin(FLT_MAX, FLT_MAX, FLT_MAX), bbMax(-FLT_MAX, -FLT_MAX, -FLT_MAX)
+    : bbMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()), bbMax(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest())
   {
   }
   BoundingBox(const glm::vec3& mn, const glm::vec3& mx)

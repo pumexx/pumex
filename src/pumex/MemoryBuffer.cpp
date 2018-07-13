@@ -78,7 +78,7 @@ VkBuffer MemoryBuffer::getHandleBuffer(const RenderContext& renderContext) const
   return pddit->second.data[renderContext.activeIndex % activeCount].buffer;
 }
 
-size_t MemoryBuffer::getDataSize(const RenderContext& renderContext) const
+size_t MemoryBuffer::getDataSizeRC(const RenderContext& renderContext) const
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perObjectData.find(getKeyID(renderContext, perObjectBehaviour));

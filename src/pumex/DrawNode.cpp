@@ -20,58 +20,19 @@
 // SOFTWARE.
 //
 
-#include <pumex/NodeVisitor.h>
-#include <pumex/Pipeline.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/DispatchNode.h>
 #include <pumex/DrawNode.h>
+#include <pumex/NodeVisitor.h>
 
 using namespace pumex;
 
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+void DrawNode::accept(NodeVisitor& visitor)
 {
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
 }
 
-void NodeVisitor::traverse(Node& node)
-{
-  if ( traversalMode == Parents) 
-    node.ascend(*this);
-  else if ( traversalMode != None) 
-    node.traverse(*this);
-}
 
-void NodeVisitor::apply(Node& node)
-{
-  traverse(node);
-}
-
-void NodeVisitor::apply(Group& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(ComputePipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferNode& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(DispatchNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(DrawNode& node)
-{
-  apply(static_cast<Node&>(node));
-}

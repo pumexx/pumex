@@ -55,7 +55,7 @@ public:
   // TODO - add some interface maybe ?
   struct Bone
   {
-    uint32_t   parentIndex    = UINT32_MAX;
+    uint32_t   parentIndex    = std::numeric_limits<uint32_t>::max();
     uint32_t   childrenOffset = 0;
     uint32_t   childrenSize   = 0;
     uint32_t   boneTag = 0; // boneTag = 1 .. there are animated bones down the hierarchy
@@ -272,7 +272,7 @@ uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_
     if (boneWeightOffset.size() > channel)
       return boneWeightOffset[channel];
   }
-  return UINT32_MAX;
+  return std::numeric_limits<uint32_t>::max();
 }
 
 VkDeviceSize Geometry::getVertexCount() const    { return vertices.size() / calcVertexSize(semantic); }

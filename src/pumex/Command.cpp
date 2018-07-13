@@ -31,8 +31,7 @@
 #include <pumex/MemoryObjectBarrier.h>
 #include <pumex/utils/Log.h>
 
-namespace pumex
-{
+using namespace pumex;
 
 CommandPool::CommandPool(uint32_t qfi)
   : queueFamilyIndex{qfi}
@@ -90,7 +89,7 @@ CommandBuffer::~CommandBuffer()
 
 void CommandBuffer::invalidate(uint32_t index) 
 { 
-  if (index == UINT32_MAX) 
+  if (index == std::numeric_limits<uint32_t>::max())
     std::fill(begin(valid), end(valid), false);
   else 
     valid[index % commandBuffer.size()] = false;
@@ -586,6 +585,4 @@ void CommandBufferSource::notifyCommandBuffers(uint32_t index)
   std::lock_guard<std::mutex> lock(commandMutex);
   for (auto cb : commandBuffers)
     cb->invalidate(index);
-}
-
 }

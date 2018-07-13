@@ -21,35 +21,48 @@
 //
 
 #pragma once
+#include <memory>
 #include <pumex/Export.h>
-#include <pumex/Asset.h>
-#include <pumex/DrawNode.h>
+#include <pumex/Node.h>
 
 namespace pumex
 {
 
-template <typename T> class Buffer;
+class Viewer;
 class DeviceMemoryAllocator;
+class PipelineCache;
+class Surface;
+class TimeStatistics;
+class Font;
+class Text;
+class DrawVerticesNode;
+class MemoryBuffer;
 
-// Simple Node class that stores and draws single asset
-
-class PUMEX_EXPORT AssetNode : public DrawNode
+class PUMEX_EXPORT TimeStatisticsHandler
 {
 public:
-  AssetNode(std::shared_ptr<Asset> asset, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, uint32_t renderMask, uint32_t vertexBinding);
+  TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator);
 
-  void validate(const RenderContext& renderContext) override;
+  void collectData(Surface* surface, TimeStatistics* viewerStatistics, TimeStatistics* surfaceStatistics);
 
-  void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) override;
+  void setTextCameraBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
 
-  uint32_t                                       renderMask;
-  uint32_t                                       vertexBinding;
+  inline std::shared_ptr<Group> getRoot() const;
 protected:
-  std::shared_ptr<std::vector<float>>            vertices;
-  std::shared_ptr<std::vector<uint32_t>>         indices;
-  std::shared_ptr<Buffer<std::vector<float>>>    vertexBuffer;
-  std::shared_ptr<Buffer<std::vector<uint32_t>>> indexBuffer;
-  bool                                           registered = false;
+  std::shared_ptr<Group>            statisticsRoot;
+  std::shared_ptr<GraphicsPipeline> textPipeline;
+  std::shared_ptr<GraphicsPipeline> drawPipeline;
+  std::shared_ptr<DrawVerticesNode> drawNode;
+  std::shared_ptr<Text>             textDefault;
+  std::shared_ptr<Text>             textSmall;
+  std::shared_ptr<Font>             fontDefault;
+  std::shared_ptr<Font>             fontSmall;
 };
+
+inline std::shared_ptr<Group> TimeStatisticsHandler::getRoot() const
+{
+  return statisticsRoot;
+}
+
 
 }

@@ -20,58 +20,25 @@
 // SOFTWARE.
 //
 
-#include <pumex/NodeVisitor.h>
-#include <pumex/Pipeline.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/DispatchNode.h>
-#include <pumex/DrawNode.h>
+#pragma once
+#include <pumex/Export.h>
+#include <pumex/Asset.h>
+#include <pumex/Node.h>
 
-using namespace pumex;
-
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+namespace pumex
 {
-}
 
-void NodeVisitor::traverse(Node& node)
-{
-  if ( traversalMode == Parents) 
-    node.ascend(*this);
-  else if ( traversalMode != None) 
-    node.traverse(*this);
-}
+template <typename T> class Buffer;
+class DeviceMemoryAllocator;
 
-void NodeVisitor::apply(Node& node)
-{
-  traverse(node);
-}
+// This Node class is predecessor to all classes that store vertices, indices and draw command
 
-void NodeVisitor::apply(Group& node)
+class PUMEX_EXPORT DrawNode : public Node
 {
-  apply(static_cast<Node&>(node));
-}
+public:
+  void accept(NodeVisitor& visitor) override;
 
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
+  virtual void cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer) = 0;
+};
 
-void NodeVisitor::apply(ComputePipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferNode& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(DispatchNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(DrawNode& node)
-{
-  apply(static_cast<Node&>(node));
 }

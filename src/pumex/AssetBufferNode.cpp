@@ -161,18 +161,15 @@ AssetBufferDrawObject::AssetBufferDrawObject(uint32_t tid, uint32_t fi)
 {
 }
 
-void AssetBufferDrawObject::accept(NodeVisitor& visitor)
-{
-  if (visitor.getMask() && mask)
-  {
-    visitor.push(this);
-    visitor.apply(*this);
-    visitor.pop();
-  }
-}
-
 void AssetBufferDrawObject::validate(const RenderContext& renderContext)
 {
+}
+
+void AssetBufferDrawObject::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer)
+{
+  if (renderContext.currentAssetBuffer == nullptr)
+    return;
+  renderContext.currentAssetBuffer->cmdDrawObject(renderContext, commandBuffer, renderContext.currentRenderMask, typeID, firstInstance, getDistanceToViewer());
 }
 
 float AssetBufferDrawObject::getDistanceToViewer() const
@@ -188,16 +185,6 @@ AssetBufferIndirectDrawObjects::AssetBufferIndirectDrawObjects(std::shared_ptr<A
 
 }
 
-void AssetBufferIndirectDrawObjects::accept(NodeVisitor& visitor)
-{
-  if (visitor.getMask() && mask)
-  {
-    visitor.push(this);
-    visitor.apply(*this);
-    visitor.pop();
-  }
-}
-
 void AssetBufferIndirectDrawObjects::validate(const RenderContext& renderContext)
 {
   if (!registered)
@@ -208,8 +195,9 @@ void AssetBufferIndirectDrawObjects::validate(const RenderContext& renderContext
   drawCommands->validate(renderContext);
 }
 
-std::shared_ptr<Buffer<std::vector<DrawIndexedIndirectCommand>>> AssetBufferIndirectDrawObjects::getDrawCommands()
+void AssetBufferIndirectDrawObjects::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer)
 {
-  return drawCommands;
+  if (renderContext.currentAssetBuffer == nullptr)
+    return;
+  renderContext.currentAssetBuffer->cmdDrawObjectsIndirect(renderContext, commandBuffer, drawCommands);
 }
-

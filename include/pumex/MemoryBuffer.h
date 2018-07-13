@@ -70,7 +70,7 @@ public:
   MemoryBuffer& operator=(MemoryBuffer&&)      = delete;
   virtual ~MemoryBuffer();
 
-  MemoryBuffer* asMemoryBuffer() override;
+  MemoryBuffer*                                 asMemoryBuffer() override;
 
   inline const PerObjectBehaviour&              getPerObjectBehaviour() const;
   inline const SwapChainImageBehaviour&         getSwapChainImageBehaviour() const;
@@ -78,7 +78,7 @@ public:
   inline VkBufferUsageFlags                     getBufferUsage() const;
 
   VkBuffer                                      getHandleBuffer(const RenderContext& renderContext) const;
-  size_t                                        getDataSize(const RenderContext& renderContext) const;
+  size_t                                        getDataSizeRC(const RenderContext& renderContext) const;
 
   void                                          validate(const RenderContext& renderContext);
 

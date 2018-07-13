@@ -90,6 +90,7 @@ struct VoxelizerApplicationData
   {
     // build uniform buffers for camera
     cameraBuffer         = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    textCameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     voxelizeCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     positionData         = std::make_shared<PositionData>();
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
@@ -258,8 +259,11 @@ struct VoxelizerApplicationData
     uint32_t renderWidth  = surface->swapChainSize.width;
     uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-
     cameraBuffer->setData(surface.get(), camera);
+
+    pumex::Camera textCamera;
+    textCamera.setProjectionMatrix(glm::ortho(0.0f, (float)renderWidth, 0.0f, (float)renderHeight), false);
+    textCameraBuffer->setData(surface.get(), textCamera);
 
     pumex::Camera voxelizeCamera;
     voxelizeCamera.setObserverPosition(realEye);
@@ -290,7 +294,7 @@ struct VoxelizerApplicationData
       for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
       {
         auto it = anim.invChannelNames.find(skel.boneNames[boneIndex]);
-        boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : UINT32_MAX;
+        boneChannelMapping[boneIndex] = (it != end(anim.invChannelNames)) ? it->second : std::numeric_limits<uint32_t>::max();
       }
 
       std::vector<glm::mat4> localTransforms(MAX_BONES);
@@ -298,12 +302,12 @@ struct VoxelizerApplicationData
 
       anim.calculateLocalTransforms(renderTime, localTransforms.data(), numAnimChannels);
       uint32_t bcVal = boneChannelMapping[0];
-      glm::mat4 localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[0].localTransformation : localTransforms[bcVal];
+      glm::mat4 localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[0].localTransformation : localTransforms[bcVal];
       globalTransforms[0] = skel.invGlobalTransform * localCurrentTransform;
       for (uint32_t boneIndex = 1; boneIndex < numSkelBones; ++boneIndex)
       {
         bcVal = boneChannelMapping[boneIndex];
-        localCurrentTransform = (bcVal == UINT32_MAX) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
+        localCurrentTransform = (bcVal == std::numeric_limits<uint32_t>::max()) ? skel.bones[boneIndex].localTransformation : localTransforms[bcVal];
         globalTransforms[boneIndex] = globalTransforms[skel.bones[boneIndex].parentIndex] * localCurrentTransform;
       }
       for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
@@ -327,6 +331,7 @@ struct VoxelizerApplicationData
   std::shared_ptr<pumex::Asset>                        asset;
 
   std::shared_ptr<pumex::Buffer<pumex::Camera>>        cameraBuffer;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>>        textCameraBuffer;
   std::shared_ptr<PositionData>                        positionData;
   std::shared_ptr<pumex::Buffer<PositionData>>         positionBuffer;
   std::shared_ptr<pumex::Buffer<pumex::Camera>>        voxelizeCameraBuffer;
@@ -420,6 +425,8 @@ int main( int argc, char * argv[] )
     auto verticesAllocator    = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate memory for 3D texture
     auto volumeAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, CLIPMAP_TEXTURE_COUNT * CLIPMAP_TEXTURE_SIZE * CLIPMAP_TEXTURE_SIZE * CLIPMAP_TEXTURE_SIZE * 4 * 2, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 8 MB memory for font textures
+    auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
 
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
@@ -578,6 +585,10 @@ int main( int argc, char * argv[] )
 
     renderGroup->addChild(assetNode);
 
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator);
+    tsHandler->setTextCameraBuffer(applicationData->textCameraBuffer);
+    renderRoot->addChild(tsHandler->getRoot());
+
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
     surface->setRenderWorkflow(workflow, workflowCompiler);
 
@@ -591,8 +602,8 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     viewer->setEventRenderStart(std::bind(&VoxelizerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1));
-
     surface->setEventSurfaceRenderStart(std::bind(&VoxelizerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
+    surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
     viewer->run();
   }

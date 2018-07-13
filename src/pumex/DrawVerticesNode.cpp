@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017-2018 PaweÅ‚ KsiÄ™Å¼opolski ( pumexx )
+// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -20,36 +20,44 @@
 // SOFTWARE.
 //
 
-#include <pumex/AssetNode.h>
-#include <pumex/MemoryBuffer.h>
+#include <pumex/DrawVerticesNode.h>
 #include <pumex/NodeVisitor.h>
-#include <algorithm>
-#include <iterator>
+#include <pumex/utils/Log.h>
+#include <pumex/Surface.h>
+#include <pumex/MemoryBuffer.h>
 
 using namespace pumex;
 
-AssetNode::AssetNode(std::shared_ptr<Asset> asset, std::shared_ptr<DeviceMemoryAllocator> ba, uint32_t rm, uint32_t vb)
-  : DrawNode(), renderMask{ rm }, vertexBinding{ vb }
+DrawVerticesNode::DrawVerticesNode(const std::vector<VertexSemantic>& vs, uint32_t vb, std::shared_ptr<DeviceMemoryAllocator> ba, PerObjectBehaviour pob, SwapChainImageBehaviour scib, bool sdpo)
+  : DrawNode(), vertexSemantic(vs), vertexBinding{ vb }
 {
-  vertices     = std::make_shared<std::vector<float>>();
-  indices      = std::make_shared<std::vector<uint32_t>>();
-
-  VkDeviceSize vertexCount = 0;
-  for (unsigned int i = 0; i < asset->geometries.size(); ++i)
-  {
-    if (asset->geometries[i].renderMask != renderMask)
-      continue;
-
-    copyAndConvertVertices(*vertices, asset->geometries[i].semantic, asset->geometries[i].vertices, asset->geometries[i].semantic);
-    std::transform(begin(asset->geometries[i].indices), end(asset->geometries[i].indices), std::back_inserter(*indices), [vertexCount](uint32_t value)->uint32_t { return value + vertexCount; });
-    vertexCount += asset->geometries[i].getVertexCount();
-  }
-
-  vertexBuffer = std::make_shared<Buffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swOnce);
-  indexBuffer  = std::make_shared<Buffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swOnce);
+  vertexBuffer = std::make_shared<Buffer<std::vector<float>>>(ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pob, scib, sdpo);
+  indexBuffer  = std::make_shared<Buffer<std::vector<uint32_t>>>(ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pob, scib, sdpo);
 }
 
-void AssetNode::validate(const RenderContext& renderContext)
+DrawVerticesNode::~DrawVerticesNode()
+{
+}
+
+void DrawVerticesNode::setVertexIndexData(Surface* surface, const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
+{
+  vertexBuffer->setData(surface, vertices);
+  indexBuffer->setData(surface, indices);
+}
+
+void DrawVerticesNode::setVertexIndexData(Device* device, const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
+{
+  vertexBuffer->setData(device, vertices);
+  indexBuffer->setData(device, indices);
+}
+
+void DrawVerticesNode::setVertexIndexData(const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
+{
+  vertexBuffer->setData(vertices);
+  indexBuffer->setData(indices);
+}
+
+void DrawVerticesNode::validate(const RenderContext& renderContext)
 {
   if (!registered)
   {
@@ -61,7 +69,7 @@ void AssetNode::validate(const RenderContext& renderContext)
   indexBuffer->validate(renderContext);
 }
 
-void AssetNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer)
+void DrawVerticesNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* commandBuffer)
 {
   std::lock_guard<std::mutex> lock(mutex);
   commandBuffer->addSource(this);
@@ -70,5 +78,6 @@ void AssetNode::cmdDraw(const RenderContext& renderContext, CommandBuffer* comma
   VkDeviceSize offsets = 0;
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), vertexBinding, 1, &vBuffer, &offsets);
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
-  commandBuffer->cmdDrawIndexed(indices->size(), 1, 0, 0, 0);
+  uint32_t drawSize = indexBuffer->getDataSizeRC(renderContext) / sizeof(uint32_t);
+  commandBuffer->cmdDrawIndexed(drawSize, 1, 0, 0, 0);
 }

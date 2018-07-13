@@ -42,6 +42,8 @@ set( PUMEXLIB_SHADER_NAMES
   shaders/text_draw.vert
   shaders/text_draw.geom
   shaders/text_draw.frag
+  shaders/stat_draw.vert
+  shaders/stat_draw.frag
 )
 process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXLIB_SHADER_NAMES PUMEXLIB_INPUT_SHADERS PUMEXLIB_OUTPUT_SHADERS )
 add_custom_target ( pumexlib-shaders DEPENDS ${PUMEXLIB_OUTPUT_SHADERS} SOURCES ${PUMEXLIB_INPUT_SHADERS} )
@@ -62,6 +64,8 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Device.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DeviceMemoryAllocator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DispatchNode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DrawNode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DrawVerticesNode.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Export.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/FrameBuffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/HPClock.h
@@ -87,11 +91,13 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Resource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/SampledImage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Sampler.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/StandardHandlers.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/StorageBuffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/StorageImage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Surface.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Text.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderGli.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TimeStatistics.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/UniformBuffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Viewer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Window.h
@@ -128,6 +134,8 @@ list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DeviceMemoryAllocator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DispatchNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DrawNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DrawVerticesNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/FrameBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Image.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/InputAttachment.cpp
@@ -150,11 +158,13 @@ list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Resource.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/SampledImage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Sampler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/StandardHandlers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/StorageBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/StorageImage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Surface.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Text.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderGli.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TimeStatistics.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/UniformBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Viewer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Window.cpp
@@ -203,7 +213,7 @@ add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
 set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
 set_target_properties( pumexlib PROPERTIES RESOURCE "${PUMEXLIB_OUTPUT_SHADERS}" )
 target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
-#set_executable_postfixes( pumexlib )
+set_target_postfixes( pumexlib )
 
 if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )

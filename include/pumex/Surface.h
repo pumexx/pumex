@@ -21,7 +21,6 @@
 //
 
 #pragma once
-
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,6 +44,27 @@ class MemoryObject;
 class ImageView;
 class Image;
 class Node;
+class TimeStatistics;
+
+const uint32_t TSS_STAT_BASIC   = 1;
+const uint32_t TSS_STAT_BUFFERS = 2;
+const uint32_t TSS_STAT_EVENTS  = 4;
+
+const uint32_t TSS_GROUP_BASIC             = 1;
+const uint32_t TSS_GROUP_EVENTS            = 2;
+const uint32_t TSS_GROUP_SECONDARY_BUFFERS = 3;
+const uint32_t TSS_GROUP_PRIMARY_BUFFERS   = 10;
+
+const uint32_t TSS_CHANNEL_BEGINFRAME                   = 1;
+const uint32_t TSS_CHANNEL_EVENTSURFACERENDERSTART      = 2;
+const uint32_t TSS_CHANNEL_VALIDATEWORKFLOW             = 3;
+const uint32_t TSS_CHANNEL_VALIDATESECONDARYNODES       = 4;
+const uint32_t TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS = 5;
+const uint32_t TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS = 6;
+const uint32_t TSS_CHANNEL_DRAW                         = 7;
+const uint32_t TSS_CHANNEL_ENDFRAME                     = 8;
+const uint32_t TSS_CHANNEL_EVENTSURFACERENDERFINISH     = 9;
+
   
 // struct representing information required to create a Vulkan surface
 struct PUMEX_EXPORT SurfaceTraits
@@ -99,9 +119,11 @@ public:
 
   inline void                   setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
   inline void                   setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);
+  inline void                   setEventSurfacePrepareStatistics(std::function<void(Surface*, TimeStatistics*, TimeStatistics*)> event);
 
-  inline void                   onEventSurfaceRenderStart();
-  inline void                   onEventSurfaceRenderFinish();
+  void                          onEventSurfaceRenderStart();
+  void                          onEventSurfaceRenderFinish();
+  void                          onEventSurfacePrepareStatistics(TimeStatistics* viewerStatistics);
 
   std::shared_ptr<CommandPool>  getPresentationCommandPool();
   std::shared_ptr<Queue>        getPresentationQueue();
@@ -130,6 +152,7 @@ public:
   std::vector<std::shared_ptr<Image>>           swapChainImages;
 
   ActionQueue                                   actions;
+  std::unique_ptr<TimeStatistics>               timeStatistics;
 
 protected:
   uint32_t                                      id                           = 0;
@@ -151,9 +174,9 @@ protected:
   std::vector<VkSemaphore>                      renderCompleteSemaphores;
   VkSemaphore                                   renderFinishedSemaphore      = VK_NULL_HANDLE;
 
-
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderFinish;
+  std::function<void(Surface*, TimeStatistics*, TimeStatistics*)> eventSurfacePrepareStatistics;
 
   void                                          createSwapChain();
   bool                                          checkWorkflow();
@@ -166,8 +189,8 @@ uint32_t                     Surface::getImageCount() const                     
 uint32_t                     Surface::getImageIndex() const                                                            { return swapChainImageIndex; }
 void                         Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
 void                         Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }
-void                         Surface::onEventSurfaceRenderStart()                                                      { if (eventSurfaceRenderStart != nullptr)  eventSurfaceRenderStart(shared_from_this()); }
-void                         Surface::onEventSurfaceRenderFinish()                                                     { if (eventSurfaceRenderFinish != nullptr)  eventSurfaceRenderFinish(shared_from_this()); }
+void                         Surface::setEventSurfacePrepareStatistics(std::function<void(Surface*, TimeStatistics*, TimeStatistics*)> event) { eventSurfacePrepareStatistics = event; }
+
 
 }
 

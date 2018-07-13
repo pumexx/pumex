@@ -19,6 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
+
 #include <pumex/InputAttachment.h>
 #include <pumex/Sampler.h>
 #include <pumex/MemoryImage.h>

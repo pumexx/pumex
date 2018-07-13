@@ -19,6 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
+
 #pragma once
 #include <pumex/Export.h>
 #include <pumex/Node.h>
@@ -29,11 +30,8 @@ namespace pumex
 class GraphicsPipeline;
 class ComputePipeline;
 class AssetBufferNode;
-class AssetBufferDrawObject;
-class AssetBufferIndirectDrawObjects;
-class AssetNode;
 class DispatchNode;
-class Text;
+class DrawNode;
 
 // Node visitor is a class allowing user to visit direct acyclic graphs
 class PUMEX_EXPORT NodeVisitor
@@ -56,11 +54,8 @@ public:
   virtual void apply(GraphicsPipeline& node);
   virtual void apply(ComputePipeline& node);
   virtual void apply(AssetBufferNode& node);
-  virtual void apply(AssetBufferDrawObject& node);
-  virtual void apply(AssetBufferIndirectDrawObjects& node);
-  virtual void apply(AssetNode& node);
   virtual void apply(DispatchNode& node);
-  virtual void apply(Text& node);
+  virtual void apply(DrawNode& node);
 
 protected:
   uint32_t           mask = 0xFFFFFFFF;

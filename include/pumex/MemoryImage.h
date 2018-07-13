@@ -71,23 +71,23 @@ public:
   MemoryImage& operator=(MemoryImage&&)      = delete;
   virtual ~MemoryImage();
 
-  MemoryImage*  asMemoryImage() override;
+  MemoryImage*                                  asMemoryImage() override;
 
-  void setImageTraits(const ImageTraits& traits);
-  void setImageTraits(Surface* surface, const ImageTraits& traits);
-  void setImageTraits(Device* device, const ImageTraits& traits);
+  void                                          setImageTraits(const ImageTraits& traits);
+  void                                          setImageTraits(Surface* surface, const ImageTraits& traits);
+  void                                          setImageTraits(Device* device, const ImageTraits& traits);
 
-  void invalidateImage();
-  void setImage(Surface* surface, std::shared_ptr<gli::texture> tex);
-  void setImage(Device* device, std::shared_ptr<gli::texture> tex);
-  void setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
+  void                                          invalidateImage();
+  void                                          setImage(Surface* surface, std::shared_ptr<gli::texture> tex);
+  void                                          setImage(Device* device, std::shared_ptr<gli::texture> tex);
+  void                                          setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> tex);
   // use outside created images ( method created to catch swapchain images )
-  void setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images);
-  void setImages(Device* device, std::vector<std::shared_ptr<Image>>& images);
+  void                                          setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images);
+  void                                          setImages(Device* device, std::vector<std::shared_ptr<Image>>& images);
 
-  void clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
-  void clearImage(Surface* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
-  void clearImage(Device* device, const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
+  void                                          clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
+  void                                          clearImage(Surface* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
+  void                                          clearImage(Device* device, const glm::vec4& clearValue, const ImageSubresourceRange& range = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
 
   Image*                                        getImage(const RenderContext& renderContext) const;
   inline const ImageTraits&                     getImageTraits() const;
