@@ -140,7 +140,7 @@ class PUMEX_EXPORT ShaderModule
 {
 public:
   ShaderModule()                               = delete;
-  explicit ShaderModule(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName );
+  explicit ShaderModule(std::shared_ptr<Viewer> viewer, const std::string& fileName );
   ShaderModule(const ShaderModule&)            = delete;
   ShaderModule& operator=(const ShaderModule&) = delete;
   ShaderModule(ShaderModule&&)                 = delete;
@@ -150,8 +150,8 @@ public:
   void           validate(const RenderContext& renderContext);
   VkShaderModule getHandle(VkDevice device) const;
 
-  filesystem::path fileName;
-  std::string      shaderContents;
+  std::string fileName;
+  std::string shaderContents;
 protected:
   struct PerDeviceData
   {

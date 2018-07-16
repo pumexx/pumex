@@ -25,6 +25,7 @@
 #include <memory>
 #include <list>
 #include <mutex>
+#include <algorithm>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/MemoryObject.h>

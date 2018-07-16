@@ -103,7 +103,7 @@ VkPipelineCache PipelineCache::getHandle(VkDevice device) const
   return pddit->second.pipelineCache;
 }
 
-ShaderModule::ShaderModule(std::shared_ptr<Viewer> viewer, const filesystem::path& f)
+ShaderModule::ShaderModule(std::shared_ptr<Viewer> viewer, const std::string& f)
 {
   fileName = viewer->getAbsoluteFilePath(f);
   CHECK_LOG_THROW(fileName.empty(), "Cannot find shader file : " << f);

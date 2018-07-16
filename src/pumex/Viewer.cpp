@@ -37,7 +37,6 @@
   #include <X11/Xlib.h>
   #include <unistd.h>
 #endif
-#include <sys/stat.h>
 
 using namespace pumex;
 
@@ -453,15 +452,16 @@ void Viewer::addDefaultDirectory(const filesystem::path & directory)
   defaultDirectories.push_back(canonicalPath);
 }
 
-filesystem::path Viewer::getAbsoluteFilePath(const filesystem::path& relativeFilePath) const
+std::string Viewer::getAbsoluteFilePath(const std::string& relativeFilePath) const
 {
+  filesystem::path relPath(relativeFilePath);
   for (auto directory : defaultDirectories)
   {
-    filesystem::path targetPath = directory / relativeFilePath;
+    filesystem::path targetPath = directory / relPath;
     if (filesystem::exists(targetPath))
-      return targetPath;
+      return targetPath.string();
   }
-  return filesystem::path();
+  return std::string();
 }
 
 bool Viewer::instanceExtensionImplemented(const char* extensionName) const

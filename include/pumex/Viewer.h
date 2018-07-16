@@ -29,12 +29,12 @@
 #include <thread>
 #include <condition_variable>
 #include <mutex>
-#include <experimental/filesystem>
 #include <vulkan/vulkan.h>
 #include <tbb/flow_graph.h>
 #include <pumex/Export.h>
 #include <pumex/HPClock.h>
 
+#include <experimental/filesystem>
 namespace filesystem = std::experimental::filesystem;
 
 namespace pumex
@@ -125,7 +125,7 @@ public:
   inline HPClock::duration   getRenderTimeDelta() const;     // get the difference between current render and last update
 
   void                       addDefaultDirectory( const filesystem::path & directory);
-  filesystem::path           getAbsoluteFilePath( const filesystem::path& relativeFilePath ) const;
+  std::string                getAbsoluteFilePath( const std::string& relativeFilePath ) const;
 
   bool                       instanceExtensionImplemented(const char* extensionName) const;
   bool                       instanceExtensionEnabled(const char* extensionName) const;

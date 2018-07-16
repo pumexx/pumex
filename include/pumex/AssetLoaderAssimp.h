@@ -36,7 +36,7 @@ class PUMEX_EXPORT AssetLoaderAssimp : public AssetLoader
 {
 public:
   explicit AssetLoaderAssimp();
-  std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) override;
+  std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) override;
 
   inline unsigned int getImportFlags() const;
   inline void setImportFlags(unsigned int flags);

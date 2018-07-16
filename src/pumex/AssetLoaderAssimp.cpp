@@ -77,11 +77,11 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
     mat.properties.insert({ std::string(key), glm::vec4(value, 0.0f, 0.0f, 0.0f) });
 }
 
-std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
+std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
   auto fullFileName = viewer->getAbsoluteFilePath(fileName);
   CHECK_LOG_THROW(fullFileName.empty(), "Cannot find model file " << fileName);
-  const aiScene* scene = Importer.ReadFile(fullFileName.string().c_str(), importFlags);
+  const aiScene* scene = Importer.ReadFile(fullFileName.c_str(), importFlags);
   CHECK_LOG_THROW(scene == nullptr, "Cannot load model file : " << fullFileName)
 
   //creating asset

@@ -22,12 +22,9 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
-#include <experimental/filesystem>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
 #include <pumex/DeviceMemoryAllocator.h>
-
-namespace filesystem = std::experimental::filesystem;
 
 namespace pumex
 {
@@ -107,7 +104,7 @@ PUMEX_EXPORT VkComponentMapping vulkanComponentMappingFromGliComponentMapping(co
 class PUMEX_EXPORT TextureLoader
 {
 public:
-  virtual std::shared_ptr<gli::texture> load(const filesystem::path& fileName) = 0;
+  virtual std::shared_ptr<gli::texture> load(const std::string& fileName) = 0;
 };
 
 }

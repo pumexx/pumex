@@ -26,14 +26,11 @@
 #include <string>
 #include <map>
 #include <unordered_map>
-#include <experimental/filesystem>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <pumex/Export.h>
 #include <pumex/BoundingBox.h>
-
-namespace filesystem = std::experimental::filesystem;
 
 namespace pumex
 {
@@ -233,14 +230,14 @@ public:
   std::vector<Geometry>  geometries;
   std::vector<Material>  materials;
   std::vector<Animation> animations;
-  filesystem::path       fileName;
+  std::string            fileName;
 };
 
 // this is temporary solution for asset loading
 class PUMEX_EXPORT AssetLoader
 {
 public:
-  virtual std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const filesystem::path& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
+  virtual std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
 };
 
 uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_t channel) const
