@@ -22,26 +22,32 @@
 
 #pragma once
 #include <memory>
+#include <vector>
 #include <pumex/Export.h>
 #include <pumex/Node.h>
 
 namespace pumex
 {
 
-class Viewer;
-class DeviceMemoryAllocator;
-class PipelineCache;
-class Surface;
-class TimeStatistics;
-class Font;
-class Text;
-class DrawVerticesNode;
-class MemoryBuffer;
+class  Viewer;
+class  DeviceMemoryAllocator;
+class  PipelineCache;
+class  Surface;
+class  TimeStatistics;
+class  Font;
+class  Text;
+class  DrawVerticesNode;
+class  MemoryBuffer;
+class  Camera;
+struct VertexSemantic;
+template <typename T> class Buffer;
+
+const uint32_t TSH_FRAMES_RENDERED = 5;
 
 class PUMEX_EXPORT TimeStatisticsHandler
 {
 public:
-  TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator);
+  TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<DeviceMemoryAllocator> texturesAllocator, VkSampleCountFlagBits rasterizationSamples = VK_SAMPLE_COUNT_1_BIT);
 
   void collectData(Surface* surface, TimeStatistics* viewerStatistics, TimeStatistics* surfaceStatistics);
 
@@ -49,10 +55,16 @@ public:
 
   inline std::shared_ptr<Group> getRoot() const;
 protected:
+  float                             windowTime;
+  std::vector<VertexSemantic>       drawSemantic;
+
   std::shared_ptr<Group>            statisticsRoot;
-  std::shared_ptr<GraphicsPipeline> textPipeline;
+
   std::shared_ptr<GraphicsPipeline> drawPipeline;
   std::shared_ptr<DrawVerticesNode> drawNode;
+  std::shared_ptr<pumex::Buffer<pumex::Camera>> drawCameraBuffer;
+
+  std::shared_ptr<GraphicsPipeline> textPipeline;
   std::shared_ptr<Text>             textDefault;
   std::shared_ptr<Text>             textSmall;
   std::shared_ptr<Font>             fontDefault;

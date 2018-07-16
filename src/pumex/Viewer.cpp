@@ -63,14 +63,14 @@ Viewer::Viewer(const ViewerTraits& vt)
   lastRenderDuration  = viewerStartTime - renderStartTime;
   lastUpdateDuration  = viewerStartTime - updateStartTimes[0];
   timeStatistics = std::make_unique<TimeStatistics>(32);
-  timeStatistics->registerGroup(TSV_GROUP_UPDATE, "Update operations");
-  timeStatistics->registerGroup(TSV_GROUP_RENDER, "Render operation");
-  timeStatistics->registerGroup(TSV_GROUP_RENDER_EVENTS, "Render events");
-  timeStatistics->registerChannel(TSV_CHANNEL_UPDATE,              TSV_GROUP_UPDATE,        "Full update",                glm::vec4(0.8f, 0.1f, 0.1f, 0.5f));
-  timeStatistics->registerChannel(TSV_CHANNEL_RENDER,              TSV_GROUP_RENDER,        "Full render",                glm::vec4(0.1f, 0.1f, 0.8f, 0.5f));
-  timeStatistics->registerChannel(TSV_CHANNEL_FRAME,               TSV_GROUP_RENDER,        "Frame time",                 glm::vec4(0.5f, 0.5f, 0.5f, 0.5f));
-  timeStatistics->registerChannel(TSV_CHANNEL_EVENT_RENDER_START,  TSV_GROUP_RENDER_EVENTS, "Viewer event render start",  glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
-  timeStatistics->registerChannel(TSV_CHANNEL_EVENT_RENDER_FINISH, TSV_GROUP_RENDER_EVENTS, "Viewer event render finish", glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
+  timeStatistics->registerGroup(TSV_GROUP_UPDATE, L"Update operations");
+  timeStatistics->registerGroup(TSV_GROUP_RENDER, L"Render operation");
+  timeStatistics->registerGroup(TSV_GROUP_RENDER_EVENTS, L"Render events");
+  timeStatistics->registerChannel(TSV_CHANNEL_UPDATE,              TSV_GROUP_UPDATE,        L"Full update",                glm::vec4(0.8f, 0.1f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSV_CHANNEL_RENDER,              TSV_GROUP_RENDER,        L"Full render",                glm::vec4(0.1f, 0.1f, 0.8f, 0.5f));
+  timeStatistics->registerChannel(TSV_CHANNEL_FRAME,               TSV_GROUP_RENDER,        L"Frame time",                 glm::vec4(0.5f, 0.5f, 0.5f, 0.5f));
+  timeStatistics->registerChannel(TSV_CHANNEL_EVENT_RENDER_START,  TSV_GROUP_RENDER_EVENTS, L"Viewer event render start",  glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSV_CHANNEL_EVENT_RENDER_FINISH, TSV_GROUP_RENDER_EVENTS, L"Viewer event render finish", glm::vec4(0.8f, 0.1f, 0.1f, 0.5f));
   timeStatistics->setFlags(TSV_STAT_UPDATE | TSV_STAT_RENDER | TSV_STAT_RENDER_EVENTS);
 
   // register basic directories - directories listed in PUMEX_DATA_DIR environment variable, separated by colon or semicolon
@@ -123,6 +123,7 @@ Viewer::Viewer(const ViewerTraits& vt)
     execDir.remove_filename();
   addDefaultDirectory(execDir);
   addDefaultDirectory(execDir / filesystem::path("data"));
+  addDefaultDirectory(execDir / filesystem::path("../"));
 #if defined(_WIN32)
   // for files INSTALLED on Windows 
   addDefaultDirectory(execDir / filesystem::path("../share/pumex"));
@@ -221,6 +222,9 @@ void Viewer::run()
         renderGraphValid = true;
       }
 
+      for (auto& it : surfaces)
+        it.second->onEventSurfacePrepareStatistics(timeStatistics.get());
+
       auto prevRenderStartTime = renderStartTime;
       {
         std::lock_guard<std::mutex> lck(updateMutex);
@@ -261,9 +265,6 @@ void Viewer::run()
         timeStatistics->setValues(TSV_CHANNEL_RENDER, inSeconds(renderStartTime - viewerStartTime), inSeconds(lastRenderDuration));
         timeStatistics->setValues(TSV_CHANNEL_FRAME, inSeconds(prevRenderStartTime - viewerStartTime), inSeconds(renderStartTime - prevRenderStartTime));
       }
-
-      for (auto& it : surfaces)
-        it.second->onEventSurfacePrepareStatistics(timeStatistics.get());
 
       if (!renderContinueRun || !updateContinueRun)
       {
@@ -402,12 +403,28 @@ std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std:
   return surface;
 }
 
+std::vector<uint32_t> Viewer::getDeviceIDs() const
+{
+  std::vector<uint32_t> result;
+  for (const auto& dev : devices)
+    result.push_back(dev.first);
+  return std::move(result);
+}
+
 Device*  Viewer::getDevice(uint32_t id)
 {
   auto it = devices.find(id);
   if (it == end(devices))
     return nullptr;
   return it->second.get();
+}
+
+std::vector<uint32_t> Viewer::getSurfaceIDs() const
+{
+  std::vector<uint32_t> result;
+  for (const auto& surf : surfaces)
+    result.push_back(surf.first);
+  return std::move(result);
 }
 
 Surface* Viewer::getSurface(uint32_t id)
@@ -487,7 +504,7 @@ void Viewer::cleanupDebugging()
 
 void Viewer::onEventRenderStart() 
 { 
-  pumex::HPClock::time_point tickStart;
+  HPClock::time_point tickStart;
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
     tickStart = HPClock::now();
 
@@ -502,7 +519,7 @@ void Viewer::onEventRenderStart()
 }
 void Viewer::onEventRenderFinish() 
 { 
-  pumex::HPClock::time_point tickStart;
+  HPClock::time_point tickStart;
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
     tickStart = HPClock::now();
 
@@ -540,7 +557,7 @@ void Viewer::buildRenderGraph()
     surfacePointers.emplace_back(surface);
     opSurfaceBeginFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
 
@@ -554,7 +571,7 @@ void Viewer::buildRenderGraph()
     });
     opSurfaceEventRenderStart.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_EVENTS))
         tickStart = HPClock::now();
 
@@ -568,7 +585,7 @@ void Viewer::buildRenderGraph()
     });
     opSurfaceValidateWorkflow.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
 
@@ -589,7 +606,7 @@ void Viewer::buildRenderGraph()
       {
         jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
         {
-          pumex::HPClock::time_point tickStart;
+          HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
             tickStart = HPClock::now();
 
@@ -611,7 +628,7 @@ void Viewer::buildRenderGraph()
       {
         jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
         {
-          pumex::HPClock::time_point tickStart;
+          HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
             tickStart = HPClock::now();
 
@@ -633,7 +650,7 @@ void Viewer::buildRenderGraph()
       {
         jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
         {
-          pumex::HPClock::time_point tickStart;
+          HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
             tickStart = HPClock::now();
 
@@ -649,7 +666,7 @@ void Viewer::buildRenderGraph()
     }
     opSurfaceValidateSecondaryNodes.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
         tickStart = HPClock::now();
 
@@ -667,7 +684,7 @@ void Viewer::buildRenderGraph()
     });
     opSurfaceValidateSecondaryDescriptors.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
         tickStart = HPClock::now();
 
@@ -681,7 +698,7 @@ void Viewer::buildRenderGraph()
     });
     opSurfaceSecondaryCommandBuffers.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
         tickStart = HPClock::now();
 
@@ -696,7 +713,7 @@ void Viewer::buildRenderGraph()
     });
     opSurfaceDrawFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
 
@@ -710,7 +727,7 @@ void Viewer::buildRenderGraph()
     });
     opSurfaceEndFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
     {
-      pumex::HPClock::time_point tickStart;
+      HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
 

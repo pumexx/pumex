@@ -302,20 +302,20 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
 
   VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    if (hasDynamicState(VK_DYNAMIC_STATE_VIEWPORT))
+    if (viewports.empty())
     {
       viewportState.pViewports                 = nullptr;
-      viewportState.viewportCount              = 1; // FIXME - really ?!?
+      viewportState.viewportCount              = 1;
     }
     else
     {
       viewportState.pViewports                 = viewports.data();
       viewportState.viewportCount              = viewports.size();
     }
-    if (hasDynamicState(VK_DYNAMIC_STATE_SCISSOR))
+    if (scissors.empty())
     {
       viewportState.pScissors                  = nullptr;
-      viewportState.scissorCount               = 1; // FIXME - really ?!?
+      viewportState.scissorCount               = 1;
     }
     else
     {
@@ -390,8 +390,10 @@ void GraphicsPipeline::validate(const RenderContext& renderContext)
     colorBlendState.pAttachments               = vkBlendAttachments.data();
 
   std::vector<VkDynamicState> allDynamicStates = dynamicStates;
-  allDynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
-  allDynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
+  if(viewports.empty())
+    allDynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+  if (scissors.empty())
+    allDynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
   VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType                         = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicState.pDynamicStates                = allDynamicStates.data();

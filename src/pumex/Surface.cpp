@@ -46,19 +46,19 @@ Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shar
 {
   timeStatistics = std::make_unique<TimeStatistics>(32);
 
-  timeStatistics->registerGroup(TSS_GROUP_BASIC,             "Basic surface operations");
-  timeStatistics->registerGroup(TSS_GROUP_EVENTS,            "Surface events");
-  timeStatistics->registerGroup(TSS_GROUP_SECONDARY_BUFFERS, "Secondary buffers");
+  timeStatistics->registerGroup(TSS_GROUP_BASIC,             L"Surface operations");
+  timeStatistics->registerGroup(TSS_GROUP_EVENTS,            L"Surface events");
+  timeStatistics->registerGroup(TSS_GROUP_SECONDARY_BUFFERS, L"Secondary buffers");
 
-  timeStatistics->registerChannel(TSS_CHANNEL_BEGINFRAME,                   TSS_GROUP_BASIC,             "beginFrame",                   glm::vec4(0.4f, 0.4f, 0.4f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERSTART,      TSS_GROUP_EVENTS,            "eventSurfaceRenderStart",      glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATEWORKFLOW,             TSS_GROUP_BASIC,             "validateWorkflow",             glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYNODES,       TSS_GROUP_SECONDARY_BUFFERS, "validateSecondaryNodes",       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS, TSS_GROUP_SECONDARY_BUFFERS, "validateSecondaryDescriptors", glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS, TSS_GROUP_SECONDARY_BUFFERS, "buildSecondaryCommandBuffers", glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_DRAW,                         TSS_GROUP_BASIC,             "draw",                         glm::vec4(0.9f, 0.9f, 0.9f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_ENDFRAME,                     TSS_GROUP_BASIC,             "endFrame",                     glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERFINISH,     TSS_GROUP_EVENTS,            "eventSurfaceRenderFinish",     glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_BEGINFRAME,                   TSS_GROUP_BASIC,             L"beginFrame",                   glm::vec4(0.4f, 0.4f, 0.4f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERSTART,      TSS_GROUP_EVENTS,            L"eventSurfaceRenderStart",      glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATEWORKFLOW,             TSS_GROUP_BASIC,             L"validateWorkflow",             glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYNODES,       TSS_GROUP_SECONDARY_BUFFERS, L"validateSecondaryNodes",       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS, TSS_GROUP_SECONDARY_BUFFERS, L"validateSecondaryDescriptors", glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS, TSS_GROUP_SECONDARY_BUFFERS, L"buildSecondaryCommandBuffers", glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_DRAW,                         TSS_GROUP_BASIC,             L"draw",                         glm::vec4(0.9f, 0.9f, 0.9f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_ENDFRAME,                     TSS_GROUP_BASIC,             L"endFrame",                     glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERFINISH,     TSS_GROUP_EVENTS,            L"eventSurfaceRenderFinish",     glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
 
   timeStatistics->setFlags(TSS_STAT_BASIC | TSS_STAT_BUFFERS | TSS_STAT_EVENTS);
 }
@@ -262,13 +262,13 @@ bool Surface::checkWorkflow()
 
     for (uint32_t i = 0; i < workflowResults->queueTraits.size(); ++i)
     {
-      std::stringstream ostr;
+      std::wstringstream ostr;
       ostr << " (" << i << ")";
-      timeStatistics->registerGroup(TSS_GROUP_PRIMARY_BUFFERS + i, "Primary nodes" + ostr.str());
+      timeStatistics->registerGroup(TSS_GROUP_PRIMARY_BUFFERS + i, L"Primary buffers" + ostr.str());
 
-      timeStatistics->registerChannel(20 + 10 * i + 0, TSS_GROUP_PRIMARY_BUFFERS + i, "validatePrimaryNodes" + ostr.str(),       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
-      timeStatistics->registerChannel(20 + 10 * i + 1, TSS_GROUP_PRIMARY_BUFFERS + i, "validatePrimaryDescriptors" + ostr.str(), glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
-      timeStatistics->registerChannel(20 + 10 * i + 2, TSS_GROUP_PRIMARY_BUFFERS + i, "buildPrimaryCommandBuffer" + ostr.str(),  glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 0, TSS_GROUP_PRIMARY_BUFFERS + i, L"validatePrimaryNodes" + ostr.str(),       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 1, TSS_GROUP_PRIMARY_BUFFERS + i, L"validatePrimaryDescriptors" + ostr.str(), glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 2, TSS_GROUP_PRIMARY_BUFFERS + i, L"buildPrimaryCommandBuffer" + ostr.str(),  glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
     }
 
 

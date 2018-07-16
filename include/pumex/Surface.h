@@ -52,7 +52,7 @@ const uint32_t TSS_STAT_EVENTS  = 4;
 
 const uint32_t TSS_GROUP_BASIC             = 1;
 const uint32_t TSS_GROUP_EVENTS            = 2;
-const uint32_t TSS_GROUP_SECONDARY_BUFFERS = 3;
+const uint32_t TSS_GROUP_SECONDARY_BUFFERS = 20;
 const uint32_t TSS_GROUP_PRIMARY_BUFFERS   = 10;
 
 const uint32_t TSS_CHANNEL_BEGINFRAME                   = 1;

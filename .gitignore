@@ -21,9 +21,11 @@ CMakeCache.txt
 *.spv
 
 # external dirs
-external/glm/
-external/gli/
+external/args/
 external/assimp/
+external/freetype/
+external/gli/
+external/glm/
 external/tbb/
 stamp/
 

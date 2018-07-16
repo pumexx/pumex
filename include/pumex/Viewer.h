@@ -96,7 +96,9 @@ public:
 
   std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<std::string>& requestedExtensions);
   std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
+  std::vector<uint32_t>      getDeviceIDs() const;
   Device*                    getDevice(uint32_t id);
+  std::vector<uint32_t>      getSurfaceIDs() const;
   Surface*                   getSurface(uint32_t id);
   inline uint32_t            getNumDevices() const;
   inline uint32_t            getNumSurfaces() const;
@@ -135,17 +137,17 @@ public:
   tbb::flow::continue_node< tbb::flow::continue_msg >    opEndUpdateGraph;
 
 protected:
-  void            setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
-  void            cleanupDebugging();
+  void                       setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
+  void                       cleanupDebugging();
 
-  inline uint32_t getNextRenderSlot() const;
-  inline uint32_t getNextUpdateSlot() const;
-  inline void     doNothing() const;
+  inline uint32_t            getNextRenderSlot() const;
+  inline uint32_t            getNextUpdateSlot() const;
+  inline void                doNothing() const;
 
-  void            onEventRenderStart();
-  void            onEventRenderFinish();
+  void                       onEventRenderStart();
+  void                       onEventRenderFinish();
 
-  void            buildRenderGraph();
+  void                       buildRenderGraph();
 
   std::vector<filesystem::path>                          defaultDirectories;
   std::vector<std::shared_ptr<PhysicalDevice>>           physicalDevices;

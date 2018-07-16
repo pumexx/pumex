@@ -26,7 +26,7 @@
 
 using namespace pumex;
 
-TimeStatisticsChannel::TimeStatisticsChannel(uint32_t valueCount, const std::string& chn, const glm::vec4& c)
+TimeStatisticsChannel::TimeStatisticsChannel(uint32_t valueCount, const std::wstring& chn, const glm::vec4& c)
   : sumValue{ 0.0 }, currentIndex{ 0 }, channelName{ chn }, color{ c }
 {
   CHECK_LOG_THROW(valueCount == 0, "Cannot make StatisticsChannel with value == 0");
@@ -80,7 +80,7 @@ TimeStatistics::TimeStatistics(uint32_t vc)
 {
 }
 
-void TimeStatistics::registerGroup(uint32_t groupID, const std::string& groupName)
+void TimeStatistics::registerGroup(uint32_t groupID, const std::wstring& groupName)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto git = groups.find(groupID);
@@ -96,7 +96,7 @@ void TimeStatistics::unregisterGroup(uint32_t groupID)
   groups.erase(git);
 }
 
-void TimeStatistics::registerChannel(uint32_t channelID, uint32_t groupID, const std::string& channelName, const glm::vec4& color)
+void TimeStatistics::registerChannel(uint32_t channelID, uint32_t groupID, const std::wstring& channelName, const glm::vec4& color)
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto it = channelIndices.find(channelID);

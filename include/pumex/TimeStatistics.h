@@ -37,13 +37,13 @@ class PUMEX_EXPORT TimeStatisticsChannel
 {
 public:
   TimeStatisticsChannel() = delete;
-  explicit TimeStatisticsChannel(uint32_t valueCount, const std::string& channelName, const glm::vec4& color);
+  explicit TimeStatisticsChannel(uint32_t valueCount, const std::wstring& channelName, const glm::vec4& color);
 
   void                             setValues(double valueBegin, double valueDuration);
   void                             getLastValues(double& outValueBegin, double& outValueDuration) const;
   void                             getLastValues(uint32_t count, std::vector<double>& outValueBegin, std::vector<double>& outValueDuration) const;
 
-  inline std::string               getChannelName() const;
+  inline std::wstring               getChannelName() const;
   inline glm::vec4                 getColor() const;
   inline double                    getAverageValue() const;
   inline double                    getMaxValue() const;
@@ -52,7 +52,7 @@ public:
   void                             resetMinMax();
 
 protected:
-  std::string                            channelName;
+  std::wstring                           channelName;
   glm::vec4                              color;
   std::vector<std::pair<double, double>> values;   // start time and duration
   double                                 sumValue; // sum of all durations
@@ -66,26 +66,26 @@ class PUMEX_EXPORT TimeStatistics
 public:
   TimeStatistics(uint32_t valueCount);
 
-  void                                          registerGroup(uint32_t groupID, const std::string& groupName);
-  void                                          unregisterGroup(uint32_t groupID);
+  void                                           registerGroup(uint32_t groupID, const std::wstring& groupName);
+  void                                           unregisterGroup(uint32_t groupID);
 
-  void                                          registerChannel(uint32_t channelID, uint32_t groupID, const std::string& channelName, const glm::vec4& color);
-  void                                          unregisterChannel(uint32_t channelID);
-  void                                          unregisterChannels(uint32_t groupID);
-  inline void                                   setFlags(uint32_t flags);
-  inline bool                                   hasFlags(uint32_t flag) const;
+  void                                           registerChannel(uint32_t channelID, uint32_t groupID, const std::wstring& channelName, const glm::vec4& color);
+  void                                           unregisterChannel(uint32_t channelID);
+  void                                           unregisterChannels(uint32_t groupID);
+  inline void                                    setFlags(uint32_t flags);
+  inline bool                                    hasFlags(uint32_t flag) const;
 
-  inline const std::map<uint32_t, std::string>& getGroups() const;
-  std::vector<uint32_t>                         getGroupChannelIDs(uint32_t groupID);
-  const TimeStatisticsChannel&                  getChannel(uint32_t channelID);
+  inline const std::map<uint32_t, std::wstring>& getGroups() const;
+  std::vector<uint32_t>                          getGroupChannelIDs(uint32_t groupID);
+  const TimeStatisticsChannel&                   getChannel(uint32_t channelID);
 
-  void                                         setValues(uint32_t channelID, double valueBegin, double valueDuration);
+  void                                          setValues(uint32_t channelID, double valueBegin, double valueDuration);
   void resetMinMaxValues();
 
 protected:
   mutable std::mutex                  mutex;
   uint32_t                            flags;
-  std::map<uint32_t, std::string>     groups;
+  std::map<uint32_t, std::wstring>    groups;
   std::map<uint32_t, uint32_t>        groupChannelIndices;
   std::map<uint32_t, uint32_t>        channelIndices;
   std::vector<TimeStatisticsChannel>  channels;
@@ -94,15 +94,15 @@ protected:
 
 };
 
-std::string                            TimeStatisticsChannel::getChannelName() const                         { return channelName;}
-glm::vec4                              TimeStatisticsChannel::getColor() const                               { return color; }
-double                                 TimeStatisticsChannel::getAverageValue() const                        { return sumValue / values.size(); }
-double                                 TimeStatisticsChannel::getMaxValue() const                            { return maxValue; }
-double                                 TimeStatisticsChannel::getMinValue() const                            { return minValue; }
-std::pair<double, double>              TimeStatisticsChannel::getValue(unsigned long long frameNumber) const { unsigned long long frame = frameNumber % values.size(); return values[frame]; }
+std::wstring                            TimeStatisticsChannel::getChannelName() const                         { return channelName;}
+glm::vec4                               TimeStatisticsChannel::getColor() const                               { return color; }
+double                                  TimeStatisticsChannel::getAverageValue() const                        { return sumValue / values.size(); }
+double                                  TimeStatisticsChannel::getMaxValue() const                            { return maxValue; }
+double                                  TimeStatisticsChannel::getMinValue() const                            { return minValue; }
+std::pair<double, double>               TimeStatisticsChannel::getValue(unsigned long long frameNumber) const { unsigned long long frame = frameNumber % values.size(); return values[frame]; }
 
-void                                   TimeStatistics::setFlags(uint32_t f)                                  { flags = f; }
-bool                                   TimeStatistics::hasFlags(uint32_t f) const                            { return (flags & f) == f; }
-const std::map<uint32_t, std::string>& TimeStatistics::getGroups() const                                     { return groups; }
+void                                    TimeStatistics::setFlags(uint32_t f)                                  { flags = f; }
+bool                                    TimeStatistics::hasFlags(uint32_t f) const                            { return (flags & f) == f; }
+const std::map<uint32_t, std::wstring>& TimeStatistics::getGroups() const                                     { return groups; }
 
 }

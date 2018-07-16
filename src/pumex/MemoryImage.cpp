@@ -439,6 +439,9 @@ void MemoryImage::validate(const RenderContext& renderContext)
   // methods working per device may add PerObjectData without defining surface handle - we have to fill that gap
   if (pddit->second.surface == VK_NULL_HANDLE)
     pddit->second.surface = renderContext.vkSurface;
+  // also methods working per surface may add PerObjectData before device realization ( so the device == VK_NULL_HANDLE )
+  if (pddit->second.device == VK_NULL_HANDLE)
+    pddit->second.device = renderContext.vkDevice;
 
   // images are created here, when MemoryImage uses sameTraitsPerObject - otherwise it's a reponsibility of the user to create them through setImageTraits() call
   if (pddit->second.data[activeIndex].image == nullptr && sameTraitsPerObject)

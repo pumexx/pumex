@@ -43,18 +43,21 @@ void DrawVerticesNode::setVertexIndexData(Surface* surface, const std::vector<fl
 {
   vertexBuffer->setData(surface, vertices);
   indexBuffer->setData(surface, indices);
+  invalidateNodeAndParents(surface);
 }
 
 void DrawVerticesNode::setVertexIndexData(Device* device, const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
 {
   vertexBuffer->setData(device, vertices);
   indexBuffer->setData(device, indices);
+  invalidateNodeAndParents();
 }
 
 void DrawVerticesNode::setVertexIndexData(const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
 {
   vertexBuffer->setData(vertices);
   indexBuffer->setData(indices);
+  invalidateNodeAndParents();
 }
 
 void DrawVerticesNode::validate(const RenderContext& renderContext)
