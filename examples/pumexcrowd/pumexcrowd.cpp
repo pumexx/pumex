@@ -703,7 +703,7 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
     auto sampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
-    textureRegistry->setTargetTexture(0, std::make_shared<pumex::MemoryImage>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
+    textureRegistry->setCombinedImageSampler(0, std::make_shared<pumex::MemoryImage>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
     std::vector<pumex::TextureSemantic>                    textureSemantic  = { { pumex::TextureSemantic::Diffuse, 0 } };
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet>                    materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
@@ -824,7 +824,7 @@ int main(int argc, char * argv[])
     instancedRenderDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
     instancedRenderDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
     instancedRenderDescriptorSet->setDescriptor(6, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
-    instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSampler(0));
+    instancedRenderDescriptorSet->setDescriptor(7, textureRegistry->getResource(0));
     assetBufferDrawIndirect->setDescriptorSet(0, instancedRenderDescriptorSet);
 
     std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer);

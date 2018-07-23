@@ -34,8 +34,8 @@
 // - second one renders lights using gbuffers as input
 // Each gbuffer has SAMPLE_COUNT samples and there is resolve operation defined at the end of second operation.
 
-const uint32_t              MAX_BONES = 511;
-const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_4_BIT;
+const uint32_t              MAX_BONES       = 511;
+const VkSampleCountFlagBits SAMPLE_COUNT    = VK_SAMPLE_COUNT_4_BIT;
 const uint32_t              MODEL_SPONZA_ID = 1;
 
 struct PositionData
@@ -309,10 +309,10 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 },{ pumex::TextureSemantic::LightMap, 2 },{ pumex::TextureSemantic::Normals, 3 } };
     std::shared_ptr<pumex::TextureRegistryArrayOfTextures> textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
-    textureRegistry->setTextureSampler(0, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
-    textureRegistry->setTextureSampler(1, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
-    textureRegistry->setTextureSampler(2, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
-    textureRegistry->setTextureSampler(3, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setSampledImage(0);
+    textureRegistry->setSampledImage(1);
+    textureRegistry->setSampledImage(2);
+    textureRegistry->setSampledImage(3);
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
@@ -337,11 +337,11 @@ int main( int argc, char * argv[] )
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
     PositionData modelData;
     std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
-    modelData.typeID = MODEL_SPONZA_ID;
+    modelData.typeID                  = MODEL_SPONZA_ID;
     (*applicationData->positionData)  = modelData;
 
-    auto cameraUbo             = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
-
+    auto cameraUbo  = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
+    auto sampler    = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
     /***********************************/
 
     if (!skipDepthPrepass)
@@ -352,12 +352,13 @@ int main( int argc, char * argv[] )
 
       std::vector<pumex::DescriptorSetLayoutBinding> buildzLayoutBindings =
       {
-        { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-        { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-        { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-        { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-        { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-        { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+        { 0, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 1, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 2, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 3, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 4, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
+        { 5, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+        { 6, 1,  VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
       };
       auto buildzDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(buildzLayoutBindings);
 
@@ -390,7 +391,8 @@ int main( int argc, char * argv[] )
       bzDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
       bzDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
       bzDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
-      bzDescriptorSet->setDescriptor(5, textureRegistry->getCombinedImageSamplers(0));
+      bzDescriptorSet->setDescriptor(5, textureRegistry->getResources(0));
+      bzDescriptorSet->setDescriptor(6, sampler);
       buildzPipeline->setDescriptorSet(0, bzDescriptorSet);
     }
 
@@ -402,15 +404,17 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::DescriptorSetLayoutBinding> gbufferLayoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 7, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 8, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 0, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 2, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 3, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 4, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 5, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 6, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 8, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 9, 1,  VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+
     };
     auto gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
 
@@ -455,10 +459,11 @@ int main( int argc, char * argv[] )
     descriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
     descriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
     descriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
-    descriptorSet->setDescriptor(5, textureRegistry->getCombinedImageSamplers(0));
-    descriptorSet->setDescriptor(6, textureRegistry->getCombinedImageSamplers(1));
-    descriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSamplers(2));
-    descriptorSet->setDescriptor(8, textureRegistry->getCombinedImageSamplers(3));
+    descriptorSet->setDescriptor(5, textureRegistry->getResources(0));
+    descriptorSet->setDescriptor(6, textureRegistry->getResources(1));
+    descriptorSet->setDescriptor(7, textureRegistry->getResources(2));
+    descriptorSet->setDescriptor(8, textureRegistry->getResources(3));
+    descriptorSet->setDescriptor(9, sampler);
     gbufferPipeline->setDescriptorSet(0, descriptorSet);
 
 /**********************/

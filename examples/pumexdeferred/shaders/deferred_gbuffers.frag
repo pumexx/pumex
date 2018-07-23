@@ -25,10 +25,12 @@ layout (std430,binding = 4) readonly buffer MaterialDataSbo
   MaterialData materialData[];
 };
 
-layout (binding = 5) uniform sampler2D diffuseSamplers[64];
-layout (binding = 6) uniform sampler2D roughnessSamplers[64];
-layout (binding = 7) uniform sampler2D metallicSamplers[64];
-layout (binding = 8) uniform sampler2D normalSamplers[64];
+layout (binding = 5) uniform texture2D diffuseSamplers[64];
+layout (binding = 6) uniform texture2D roughnessSamplers[64];
+layout (binding = 7) uniform texture2D metallicSamplers[64];
+layout (binding = 8) uniform texture2D normalSamplers[64];
+layout (binding = 9) uniform sampler samp;
+
 
 layout (location = 0) out vec4 outPosition;
 layout (location = 1) out vec3 outNormal;
@@ -37,7 +39,7 @@ layout (location = 3) out vec3 outRoughnessMetallic;
 
 void main() 
 {
-  vec4 color = texture( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], inUV );
+  vec4 color = texture( sampler2D( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], samp), inUV );
   if(color.a<0.5)
     discard;
   color.rgb = pow( color.rgb, vec3(2.2));
@@ -45,8 +47,8 @@ void main()
 
   outRoughnessMetallic = vec3
   (
-    texture( roughnessSamplers[ materialData[materialID].roughnessTextureIndex ], inUV ).r,
-    texture( metallicSamplers[ materialData[materialID].metallicTextureIndex ], inUV ).r,
+    texture( sampler2D( roughnessSamplers[ materialData[materialID].roughnessTextureIndex ], samp ), inUV ).r,
+    texture( sampler2D( metallicSamplers[ materialData[materialID].metallicTextureIndex ], samp ), inUV ).r,
     0.0
   );
 
@@ -54,7 +56,7 @@ void main()
   vec3 T    = normalize(inTangent);
   vec3 B    = -cross(N, T);
   mat3 TBN  = mat3(T, B, N);
-  outNormal = texture( normalSamplers[ materialData[materialID].normalTextureIndex ], inUV ).xyz;
+  outNormal = texture( sampler2D( normalSamplers[ materialData[materialID].normalTextureIndex ], samp ), inUV ).xyz;
   outNormal = outNormal * 2.0 - vec3(1.0);
   outNormal = TBN * normalize(outNormal);
 

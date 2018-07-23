@@ -386,10 +386,10 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Specular, 1 },{ pumex::TextureSemantic::LightMap, 2 },{ pumex::TextureSemantic::Normals, 3 } };
     std::shared_ptr<pumex::TextureRegistryArrayOfTextures> textureRegistry = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
-    textureRegistry->setTextureSampler(0, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
-    textureRegistry->setTextureSampler(1, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
-    textureRegistry->setTextureSampler(2, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
-    textureRegistry->setTextureSampler(3, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setCombinedImageSampler(0, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setCombinedImageSampler(1, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setCombinedImageSampler(2, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
+    textureRegistry->setCombinedImageSampler(3, std::make_shared<pumex::Sampler>(pumex::SamplerTraits()));
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
@@ -426,10 +426,10 @@ int main( int argc, char * argv[] )
     descriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
     descriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
     descriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
-    descriptorSet->setDescriptor(5, textureRegistry->getCombinedImageSamplers(0));
-    descriptorSet->setDescriptor(6, textureRegistry->getCombinedImageSamplers(1));
-    descriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSamplers(2));
-    descriptorSet->setDescriptor(8, textureRegistry->getCombinedImageSamplers(3));
+    descriptorSet->setDescriptor(5, textureRegistry->getResources(0));
+    descriptorSet->setDescriptor(6, textureRegistry->getResources(1));
+    descriptorSet->setDescriptor(7, textureRegistry->getResources(2));
+    descriptorSet->setDescriptor(8, textureRegistry->getResources(3));
     modelDraw->setDescriptorSet(0, descriptorSet);
 
 /**********************/

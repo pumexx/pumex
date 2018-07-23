@@ -22,11 +22,12 @@ layout (std430,binding = 4) readonly buffer MaterialDataSbo
   MaterialData materialData[];
 };
 
-layout (binding = 5) uniform sampler2D diffuseSamplers[64];
+layout (binding = 5) uniform texture2D diffuseSamplers[64];
+layout (binding = 6) uniform sampler samp;
 
 void main() 
 {
-  vec4 color = texture( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], inUV );
+  vec4 color = texture( sampler2D( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], samp ), inUV );
   if(color.a<0.5)
     discard;
 }

@@ -171,13 +171,15 @@ protected:
 class PUMEX_EXPORT TextureRegistryTextureArray : public TextureRegistryBase
 {
 public:
-  void                                          setTargetTexture(uint32_t slotIndex, std::shared_ptr<MemoryImage> texture, std::shared_ptr<Sampler> sampler);
-  std::shared_ptr<Resource>                     getCombinedImageSampler(uint32_t slotIndex);
+  void                                          setCombinedImageSampler(uint32_t slotIndex, std::shared_ptr<MemoryImage> memoryImage, std::shared_ptr<Sampler> sampler);
+  void                                          setSampledImage(uint32_t slotIndex, std::shared_ptr<MemoryImage> memoryImage);
+  void                                          setStorageImage(uint32_t slotIndex, std::shared_ptr<MemoryImage> memoryImage);
+  std::shared_ptr<Resource>                     getResource(uint32_t slotIndex);
 
   void                                          setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
 
-  std::map<uint32_t, std::shared_ptr<MemoryImage>>          memoryImages;
-  std::map<uint32_t, std::shared_ptr<CombinedImageSampler>> resources;
+  std::map<uint32_t, std::shared_ptr<MemoryImage>>  memoryImages;
+  std::map<uint32_t, std::shared_ptr<Resource>>     resources;
 };
 
 class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
@@ -185,14 +187,17 @@ class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
 public:
   TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc);
   
-  void                                                       setTextureSampler(uint32_t slotIndex, std::shared_ptr<Sampler> sampler);
-  std::vector<std::shared_ptr<Resource>>&                    getCombinedImageSamplers(uint32_t slotIndex);
+  void                                    setCombinedImageSampler(uint32_t slotIndex, std::shared_ptr<Sampler> sampler);
+  void                                    setSampledImage(uint32_t slotIndex);
+  void                                    setStorageImage(uint32_t slotIndex);
+  std::vector<std::shared_ptr<Resource>>& getResources(uint32_t slotIndex);
 
-  void                                                       setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
+  void                                    setTexture(uint32_t slotIndex, uint32_t layerIndex, std::shared_ptr<gli::texture> tex) override;
 
 protected:
   std::shared_ptr<DeviceMemoryAllocator>                         textureAllocator;
   std::map<uint32_t, std::vector<std::shared_ptr<MemoryImage>>>  memoryImages;
+  std::map<uint32_t, uint32_t>                                   textureTypes;
   std::map<uint32_t, std::shared_ptr<Sampler>>                   textureSamplers;
   std::map<uint32_t, std::vector<std::shared_ptr<Resource>>>     resources;
 };
