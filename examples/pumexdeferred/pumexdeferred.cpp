@@ -201,6 +201,7 @@ int main( int argc, char * argv[] )
   args::ArgumentParser parser("pumex example : deferred rendering with physically based rendering and antialiasing");
   args::HelpFlag       help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
+  args::Flag           skipDepthPrepass(parser, "nodp", "skip depth prepass", { 'n' });
   args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   try
   {
@@ -226,9 +227,13 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  LOG_INFO << "Deferred rendering with physically based rendering and antialiasing";
+  LOG_INFO << "Deferred rendering with physically based rendering and antialiasing : ";
   if (enableDebugging)
-    LOG_INFO << " : Vulkan debugging enabled";
+    LOG_INFO << "Vulkan debugging enabled, ";
+  if (!skipDepthPrepass)
+    LOG_INFO << "depth prepass present";
+  else
+    LOG_INFO << "depth prepass NOT present";
   LOG_INFO << std::endl;
 
   std::vector<std::string> instanceExtensions;
@@ -263,12 +268,21 @@ int main( int argc, char * argv[] )
       workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
       workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
+    if (!skipDepthPrepass)
+    {
+      workflow->addRenderOperation("buildz", pumex::RenderOperation::Graphics);
+        workflow->addAttachmentDepthOutput("buildz", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+    }
+
     workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics);
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      if (!skipDepthPrepass)
+        workflow->addAttachmentDepthInput("gbuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+      else
+        workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
     workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics);
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position",         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -286,54 +300,9 @@ int main( int argc, char * argv[] )
 
     std::shared_ptr<DeferredApplicationData> applicationData = std::make_shared<DeferredApplicationData>(buffersAllocator);
 
-    auto gbufferRoot = std::make_shared<pumex::Group>();
-    gbufferRoot->setName("gbufferRoot");
-    workflow->setRenderOperationNode("gbuffer", gbufferRoot);
-
     auto pipelineCache = std::make_shared<pumex::PipelineCache>();
 
-    std::vector<pumex::DescriptorSetLayoutBinding> gbufferLayoutBindings =
-    {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 7, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 8, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-    };
-    auto gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
-
-    // building gbufferPipeline layout
-    auto gbufferPipelineLayout = std::make_shared<pumex::PipelineLayout>();
-    gbufferPipelineLayout->descriptorSetLayouts.push_back(gbufferDescriptorSetLayout);
-
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::Tangent, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneIndex, 1 },{ pumex::VertexSemantic::BoneWeight, 1 } };
-
-    auto gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout);
-    gbufferPipeline->setName("gbufferPipeline");
-
-    gbufferPipeline->shaderStages =
-    {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/deferred_gbuffers.vert.spv"), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/deferred_gbuffers.frag.spv"), "main" }
-    };
-    gbufferPipeline->vertexInput =
-    {
-      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
-    };
-    gbufferPipeline->blendAttachments =
-    {
-      { VK_FALSE, 0xF },
-      { VK_FALSE, 0xF },
-      { VK_FALSE, 0xF },
-      { VK_FALSE, 0xF }
-    };
-    gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
-
-    gbufferRoot->addChild(gbufferPipeline);
 
     std::vector<pumex::AssetBufferVertexSemantics> assetSemantics = { { 1, requiredSemantic } };
     std::shared_ptr<pumex::AssetBuffer> assetBuffer = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
@@ -360,7 +329,6 @@ int main( int argc, char * argv[] )
 
     auto assetBufferNode = std::make_shared<pumex::AssetBufferNode>(assetBuffer, materialSet, 1, 0);
     assetBufferNode->setName("assetBufferNode");
-    gbufferPipeline->addChild(assetBufferNode);
 
     std::shared_ptr<pumex::AssetBufferDrawObject> modelDraw = std::make_shared<pumex::AssetBufferDrawObject>(MODEL_SPONZA_ID);
     modelDraw->setName("modelDraw");
@@ -374,6 +342,113 @@ int main( int argc, char * argv[] )
 
     auto cameraUbo             = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
 
+    /***********************************/
+
+    if (!skipDepthPrepass)
+    {
+      auto buildzRoot = std::make_shared<pumex::Group>();
+      buildzRoot->setName("buildzRoot");
+      workflow->setRenderOperationNode("buildz", buildzRoot);
+
+      std::vector<pumex::DescriptorSetLayoutBinding> buildzLayoutBindings =
+      {
+        { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+        { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
+        { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      };
+      auto buildzDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(buildzLayoutBindings);
+
+      // building gbufferPipeline layout
+      auto buildzPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+      buildzPipelineLayout->descriptorSetLayouts.push_back(buildzDescriptorSetLayout);
+
+      auto buildzPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, buildzPipelineLayout);
+      buildzPipeline->setName("buildzPipeline");
+
+      buildzPipeline->shaderStages =
+      {
+        { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/deferred_buildz.vert.spv"), "main" },
+        { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/deferred_buildz.frag.spv"), "main" }
+      };
+      buildzPipeline->vertexInput =
+      {
+        { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
+      };
+      buildzPipeline->rasterizationSamples = SAMPLE_COUNT;
+
+      buildzRoot->addChild(buildzPipeline);
+
+      // node will be added twice - first one - for building depth buffer, and second one for filling gbuffers
+      buildzPipeline->addChild(assetBufferNode);
+
+      std::shared_ptr<pumex::DescriptorSet> bzDescriptorSet = std::make_shared<pumex::DescriptorSet>(buildzDescriptorSetLayout);
+      bzDescriptorSet->setDescriptor(0, cameraUbo);
+      bzDescriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer));
+      bzDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
+      bzDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
+      bzDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
+      bzDescriptorSet->setDescriptor(5, textureRegistry->getCombinedImageSamplers(0));
+      buildzPipeline->setDescriptorSet(0, bzDescriptorSet);
+    }
+
+    /***********************************/
+
+    auto gbufferRoot = std::make_shared<pumex::Group>();
+    gbufferRoot->setName("gbufferRoot");
+    workflow->setRenderOperationNode("gbuffer", gbufferRoot);
+
+    std::vector<pumex::DescriptorSetLayoutBinding> gbufferLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 6, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 8, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+    };
+    auto gbufferDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(gbufferLayoutBindings);
+
+    // building gbufferPipeline layout
+    auto gbufferPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    gbufferPipelineLayout->descriptorSetLayouts.push_back(gbufferDescriptorSetLayout);
+
+    auto gbufferPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, gbufferPipelineLayout);
+    gbufferPipeline->setName("gbufferPipeline");
+
+    if (!skipDepthPrepass)
+    {
+      gbufferPipeline->depthWriteEnable = VK_FALSE;
+      gbufferPipeline->depthCompareOp = VK_COMPARE_OP_EQUAL;
+    }
+
+    gbufferPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/deferred_gbuffers.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/deferred_gbuffers.frag.spv"), "main" }
+    };
+    gbufferPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
+    };
+    gbufferPipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF },
+      { VK_FALSE, 0xF },
+      { VK_FALSE, 0xF },
+      { VK_FALSE, 0xF }
+    };
+    gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
+
+    gbufferRoot->addChild(gbufferPipeline);
+
+    gbufferPipeline->addChild(assetBufferNode);
+
     std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout);
     descriptorSet->setDescriptor(0, cameraUbo);
     descriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer));
@@ -384,7 +459,7 @@ int main( int argc, char * argv[] )
     descriptorSet->setDescriptor(6, textureRegistry->getCombinedImageSamplers(1));
     descriptorSet->setDescriptor(7, textureRegistry->getCombinedImageSamplers(2));
     descriptorSet->setDescriptor(8, textureRegistry->getCombinedImageSamplers(3));
-    modelDraw->setDescriptorSet(0, descriptorSet);
+    gbufferPipeline->setDescriptorSet(0, descriptorSet);
 
 /**********************/
 

@@ -205,18 +205,19 @@ enum ResourceTransitionType
   rttAttachmentOutput        = 2,
   rttAttachmentResolveOutput = 4,
   rttAttachmentDepthOutput   = 8,
-  rttBufferInput             = 16,
-  rttBufferOutput            = 32,
-  rttImageInput              = 64,
-  rttImageOutput             = 128
+  rttAttachmentDepthInput    = 16,
+  rttBufferInput             = 32,
+  rttBufferOutput            = 64,
+  rttImageInput              = 128,
+  rttImageOutput             = 256
 };
 
 typedef VkFlags ResourceTransitionTypeFlags;
 
-const ResourceTransitionTypeFlags rttAllAttachments       = rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput;
-const ResourceTransitionTypeFlags rttAllAttachmentInputs =  rttAttachmentInput;
+const ResourceTransitionTypeFlags rttAllAttachments       = rttAttachmentInput | rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthInput | rttAttachmentDepthOutput;
+const ResourceTransitionTypeFlags rttAllAttachmentInputs =  rttAttachmentInput | rttAttachmentDepthInput;
 const ResourceTransitionTypeFlags rttAllAttachmentOutputs = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput;
-const ResourceTransitionTypeFlags rttAllInputs            = rttAttachmentInput | rttBufferInput | rttImageInput;
+const ResourceTransitionTypeFlags rttAllInputs            = rttAttachmentInput | rttAttachmentDepthInput | rttBufferInput | rttImageInput;
 const ResourceTransitionTypeFlags rttAllOutputs           = rttAttachmentOutput | rttAttachmentResolveOutput | rttAttachmentDepthOutput | rttBufferOutput | rttImageOutput;
 const ResourceTransitionTypeFlags rttAllInputsOutputs     = rttAllInputs | rttAllOutputs;
 
@@ -308,6 +309,8 @@ public:
   void                                             addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
   void                                             addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
   void                                             addAttachmentResolveOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp);
+
+  void                                             addAttachmentDepthInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout);
   void                                             addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp);
 
   void                                             addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange = BufferSubresourceRange(0, VK_WHOLE_SIZE));
@@ -460,6 +463,7 @@ void getPipelineStageMasks(std::shared_ptr<ResourceTransition> generatingTransit
   switch (consumingTransition->transitionType)
   {
   case rttAttachmentInput:
+  case rttAttachmentDepthInput:
   case rttImageInput:
     switch (consumingTransition->layout)
     {
@@ -516,6 +520,7 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
   switch (consumingTransition->transitionType)
   {
   case rttAttachmentInput:
+  case rttAttachmentDepthInput:
   case rttImageInput:
     switch (consumingTransition->layout)
     {

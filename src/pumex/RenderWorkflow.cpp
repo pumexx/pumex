@@ -288,6 +288,24 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
   valid = false;
 }
 
+void RenderWorkflow::addAttachmentDepthInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout)
+{
+  auto operation = getRenderOperation(opName);
+  auto resType   = getResourceType(resourceType);
+  auto resIt     = resources.find(resourceName);
+  if (resIt == end(resources))
+    resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
+  else
+  {
+    CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
+    // resource may only have one transition with output type
+  }
+  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentDepthOutput() : resource is not an attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthInput, layout, loadOpLoad()));
+  valid = false;
+}
+
+
 void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
@@ -1028,7 +1046,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
   workflowResults->presentationQueueIndex = 0;
   for (int j = 0; j<workflowResults->commands.size(); ++j)
   {
-    // search for atSurface backwadrs - it's most probably created at the end of a sequence
+    // search for atSurface backwards - it's most probably created at the end of a sequence
     for (uint32_t i = 0; i<workflowResults->commands[j].size(); ++i)
     {
       if (workflowResults->commands[j][i]->commandType != RenderCommand::ctRenderSubPass)
@@ -1187,7 +1205,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       auto inputAttachments   = workflow.getOperationIO(subPass->operation->name, rttAttachmentInput);
       auto outputAttachments  = workflow.getOperationIO(subPass->operation->name, rttAttachmentOutput);
       auto resolveAttachments = workflow.getOperationIO(subPass->operation->name, rttAttachmentResolveOutput);
-      auto depthAttachments   = workflow.getOperationIO(subPass->operation->name, rttAttachmentDepthOutput);
+      auto depthAttachments   = workflow.getOperationIO(subPass->operation->name, rttAttachmentDepthInput | rttAttachmentDepthOutput);
 
       for (auto& inputAttachment : inputAttachments)
         ia.push_back({ definedImages.at(workflowResults->resourceAlias.at(inputAttachment->resource->name)), inputAttachment->layout });

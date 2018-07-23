@@ -215,13 +215,13 @@ public:
   // depth and stencil state
   VkBool32                                  depthTestEnable          = VK_TRUE;
   VkBool32                                  depthWriteEnable         = VK_TRUE;
-  VkCompareOp                               depthCompareOp           = VK_COMPARE_OP_LESS_OR_EQUAL;
+  VkCompareOp                               depthCompareOp           = VK_COMPARE_OP_LESS;
   VkBool32                                  depthBoundsTestEnable    = VK_FALSE;
   VkBool32                                  stencilTestEnable        = VK_FALSE;
   VkStencilOpState                          front;                   // defined in constructor
   VkStencilOpState                          back;                    // defined in constructor
   float                                     minDepthBounds           = 0.0f;
-  float                                     maxDepthBounds           = 0.0f;
+  float                                     maxDepthBounds           = 1.0f;
 
   // viewport and scissor
   std::vector<VkViewport>                   viewports;
