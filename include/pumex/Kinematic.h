@@ -62,4 +62,7 @@ PUMEX_EXPORT Kinematic interpolate(const Kinematic& object0, const Kinematic& ob
 
 PUMEX_EXPORT glm::mat4 extrapolate(const Kinematic& kinematic, float deltaTime);
 
+PUMEX_EXPORT void calculateVelocitiesFromPositionOrientation(Kinematic& current, const Kinematic& previous, float deltaTime);
+
+
 }

@@ -31,7 +31,7 @@ namespace pumex
 
 // In Vulkan Y coordinate is directed downwards the screen as oposed to OpenGL (upwards the screen)
 // To facilitate this we premultiply projection matrix by below defined correction matrix
-const glm::mat4 vulkanPerspectiveCorrectionMatrix(1, 0, 0, 0,   0, -1, 0, 0,   0, 0, 1.0, 0,   0, 0, 0.0, 1);
+const glm::mat4 vulkanPerspectiveCorrectionMatrix(1, 0, 0, 0,   0, -1, 0, 0,   0, 0, 1, 0,   0, 0, 0.0, 1);
 
 // class that represents camera object and may be transfered to GPU ( using Buffer<Camera> or Buffer<vector<Camera>> and UniformBuffer ) for use in shaders
 class PUMEX_EXPORT Camera

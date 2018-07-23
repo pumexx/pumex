@@ -22,9 +22,12 @@
 
 #pragma once
 #include <memory>
+#include <array>
 #include <vector>
 #include <pumex/Export.h>
 #include <pumex/Node.h>
+#include <pumex/InputEvent.h>
+#include <pumex/Kinematic.h>
 
 namespace pumex
 {
@@ -34,6 +37,8 @@ class  DeviceMemoryAllocator;
 class  PipelineCache;
 class  Surface;
 class  TimeStatistics;
+class  TimeStatisticsChannel;
+class  VertexAccumulator;
 class  Font;
 class  Text;
 class  DrawVerticesNode;
@@ -42,39 +47,75 @@ class  Camera;
 struct VertexSemantic;
 template <typename T> class Buffer;
 
-const uint32_t TSH_FRAMES_RENDERED = 5;
-
-class PUMEX_EXPORT TimeStatisticsHandler
+class PUMEX_EXPORT TimeStatisticsHandler : public InputEventHandler
 {
 public:
-  TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<DeviceMemoryAllocator> texturesAllocator, VkSampleCountFlagBits rasterizationSamples = VK_SAMPLE_COUNT_1_BIT);
+  TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<DeviceMemoryAllocator> texturesAllocator, std::shared_ptr<MemoryBuffer> textCameraBuffer, VkSampleCountFlagBits rasterizationSamples = VK_SAMPLE_COUNT_1_BIT);
 
+  bool handle(const InputEvent& iEvent, Viewer* viewer) override;
   void collectData(Surface* surface, TimeStatistics* viewerStatistics, TimeStatistics* surfaceStatistics);
-
-  void setTextCameraBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
 
   inline std::shared_ptr<Group> getRoot() const;
 protected:
-  float                             windowTime;
-  std::vector<VertexSemantic>       drawSemantic;
+  void addChannelData(float minVal, uint32_t vertexSize, float h0, float h1, VertexAccumulator& acc, const TimeStatisticsChannel& channel, std::vector<float>& vertices, std::vector<uint32_t>& indices);
 
-  std::shared_ptr<Group>            statisticsRoot;
+  std::vector<VertexSemantic>        drawSemantic;
 
-  std::shared_ptr<GraphicsPipeline> drawPipeline;
-  std::shared_ptr<DrawVerticesNode> drawNode;
+  std::shared_ptr<Group>             statisticsRoot;
+
+  std::shared_ptr<GraphicsPipeline>  drawPipeline;
+  std::shared_ptr<DrawVerticesNode>  drawNode;
   std::shared_ptr<pumex::Buffer<pumex::Camera>> drawCameraBuffer;
 
-  std::shared_ptr<GraphicsPipeline> textPipeline;
-  std::shared_ptr<Text>             textDefault;
-  std::shared_ptr<Text>             textSmall;
-  std::shared_ptr<Font>             fontDefault;
-  std::shared_ptr<Font>             fontSmall;
+  std::shared_ptr<GraphicsPipeline>  textPipeline;
+  std::shared_ptr<Text>              textDefault;
+  std::shared_ptr<Text>              textSmall;
+  std::shared_ptr<Font>              fontDefault;
+  std::shared_ptr<Font>              fontSmall;
+
+  uint32_t                           statisticsCollection       = 0;
+  float                              windowTime                 = 0.01f;
+  uint32_t                           framesCount                = 5;
+
+  std::vector<char>                  showfFPS;
+  std::vector<uint32_t>              viewerStatisticsToCollect;
+  std::vector<uint32_t>              surfaceStatisticsToCollect;
+  std::vector<std::vector<uint32_t>> viewerStatisticsGroups;
+  std::vector<std::vector<uint32_t>> surfaceStatisticsGroups;
 };
 
-inline std::shared_ptr<Group> TimeStatisticsHandler::getRoot() const
+class PUMEX_EXPORT BasicCameraHandler : public InputEventHandler
 {
-  return statisticsRoot;
-}
+public:
+  BasicCameraHandler();
 
+  bool handle(const InputEvent& iEvent, Viewer* viewer) override;
+  void update(Viewer* viewer);
+  glm::mat4 getViewMatrix(Surface* surface);
+  glm::vec4 getObserverPosition(Surface* surface);
+
+  std::array<Kinematic,3>  cameraCenter;
+  std::array<float, 3>     cameraDistance;
+  std::array<Kinematic, 3> cameraReal;
+//  glm::vec3 cameraPosition[3];
+//  glm::vec2 cameraGeographicCoordinates[3];
+//  float     cameraDistance[3];
+//  float     cameraTime[3];
+
+  glm::vec2 lastMousePos;
+  glm::vec2 currMousePos;
+  bool      leftMouseKeyPressed         = false;
+  bool      rightMouseKeyPressed        = false;
+
+  bool      moveForward                 = false;
+  bool      moveBackward                = false;
+  bool      moveLeft                    = false;
+  bool      moveRight                   = false;
+  bool      moveUp                      = false;
+  bool      moveDown                    = false;
+  bool      moveFast                    = false;
+};
+
+inline std::shared_ptr<Group> TimeStatisticsHandler::getRoot() const { return statisticsRoot; }
 
 }

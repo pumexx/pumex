@@ -26,6 +26,8 @@
 #include <pumex/utils/Log.h>
 #include <pumex/HPClock.h>
 #include <pumex/Viewer.h>
+#include <pumex/InputEvent.h>
+#include <pumex/StandardHandlers.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Device.h>
 #include <pumex/Window.h>
@@ -57,6 +59,5 @@
 #include <pumex/MaterialSet.h>
 #include <pumex/DispatchNode.h>
 #include <pumex/Text.h>
-#include <pumex/StandardHandlers.h>
 #include <pumex/Camera.h>
 #include <pumex/Kinematic.h>

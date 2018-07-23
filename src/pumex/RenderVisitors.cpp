@@ -183,6 +183,7 @@ void BuildCommandBufferVisitor::apply(DispatchNode& node)
     return;
   }
   applyDescriptorSets(node);
+  commandBuffer->addSource(&node);
   commandBuffer->cmdDispatch(node.getX(), node.getY(), node.getZ());
   traverse(node);
 }
@@ -195,6 +196,7 @@ void BuildCommandBufferVisitor::apply(DrawNode& node)
     return;
   }
   applyDescriptorSets(node);
+  commandBuffer->addSource(&node);
   node.cmdDraw(renderContext, commandBuffer);
   traverse(node);
 }

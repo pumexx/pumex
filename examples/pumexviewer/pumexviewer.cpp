@@ -46,38 +46,6 @@ struct PositionData
   glm::mat4 bones[MAX_BONES];
 };
 
-struct UpdateData
-{
-  UpdateData()
-  {
-  }
-  glm::vec3 cameraPosition;
-  glm::vec2 cameraGeographicCoordinates;
-  float     cameraDistance;
-
-  glm::vec2 lastMousePos;
-  bool      leftMouseKeyPressed;
-  bool      rightMouseKeyPressed;
-  bool      moveForward;
-  bool      moveBackward;
-  bool      moveLeft;
-  bool      moveRight;
-};
-
-struct RenderData
-{
-  RenderData()
-    : prevCameraDistance{ 1.0f }, cameraDistance{ 1.0f }
-  {
-  }
-  glm::vec3               prevCameraPosition;
-  glm::vec2               prevCameraGeographicCoordinates;
-  float                   prevCameraDistance;
-  glm::vec3               cameraPosition;
-  glm::vec2               cameraGeographicCoordinates;
-  float                   cameraDistance;
-};
-
 struct ViewerApplicationData
 {
   ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
@@ -87,162 +55,33 @@ struct ViewerApplicationData
     textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     positionData     = std::make_shared<PositionData>();
     positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
-
-    // reset camera position
-    updateData.cameraPosition              = glm::vec3(0.0f, 0.0f, 0.0f);
-    updateData.cameraGeographicCoordinates = glm::vec2(0.0f, 0.0f);
-    updateData.cameraDistance              = 1.0f;
-    updateData.leftMouseKeyPressed         = false;
-    updateData.rightMouseKeyPressed        = false;
-    updateData.moveForward                 = false;
-    updateData.moveBackward                = false;
-    updateData.moveLeft                    = false;
-    updateData.moveRight                   = false;
   }
 
-  void processInput(std::shared_ptr<pumex::Surface> surface)
+  void setCameraHandler(std::shared_ptr<pumex::BasicCameraHandler> bcamHandler)
   {
-    // use mouse and keyboard input to transform camera state
-    std::shared_ptr<pumex::Window> window = surface->window.lock();
-    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
-
-    std::vector<pumex::InputEvent> mouseEvents = window->getInputEvents();
-    glm::vec2 mouseMove = updateData.lastMousePos;
-    for (const auto& m : mouseEvents)
-    {
-      switch (m.type)
-      {
-      case pumex::InputEvent::MOUSE_KEY_PRESSED:
-        if (m.mouseButton == pumex::InputEvent::LEFT)
-          updateData.leftMouseKeyPressed = true;
-        if (m.mouseButton == pumex::InputEvent::RIGHT)
-          updateData.rightMouseKeyPressed = true;
-        mouseMove.x = m.x;
-        mouseMove.y = m.y;
-        updateData.lastMousePos = mouseMove;
-        break;
-      case pumex::InputEvent::MOUSE_KEY_RELEASED:
-        if (m.mouseButton == pumex::InputEvent::LEFT)
-          updateData.leftMouseKeyPressed = false;
-        if (m.mouseButton == pumex::InputEvent::RIGHT)
-          updateData.rightMouseKeyPressed = false;
-        break;
-      case pumex::InputEvent::MOUSE_MOVE:
-        if (updateData.leftMouseKeyPressed || updateData.rightMouseKeyPressed)
-        {
-          mouseMove.x = m.x;
-          mouseMove.y = m.y;
-        }
-        break;
-      case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
-        switch(m.key)
-        {
-        case pumex::InputEvent::W: updateData.moveForward  = true; break;
-        case pumex::InputEvent::S: updateData.moveBackward = true; break;
-        case pumex::InputEvent::A: updateData.moveLeft     = true; break;
-        case pumex::InputEvent::D: updateData.moveRight    = true; break;
-        default: break;
-        }
-        break;
-      case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
-        switch(m.key)
-        {
-        case pumex::InputEvent::W: updateData.moveForward  = false; break;
-        case pumex::InputEvent::S: updateData.moveBackward = false; break;
-        case pumex::InputEvent::A: updateData.moveLeft     = false; break;
-        case pumex::InputEvent::D: updateData.moveRight    = false; break;
-        default: break;
-        }
-        break;
-        default: 
-          break;
-      }
-    }
-
-    uint32_t updateIndex = viewer->getUpdateIndex();
-    RenderData& uData = renderData[updateIndex];
-    uData.prevCameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
-    uData.prevCameraDistance = updateData.cameraDistance;
-    uData.prevCameraPosition = updateData.cameraPosition;
-
-    if (updateData.leftMouseKeyPressed)
-    {
-      updateData.cameraGeographicCoordinates.x -= 100.0f*(mouseMove.x - updateData.lastMousePos.x);
-      updateData.cameraGeographicCoordinates.y += 100.0f*(mouseMove.y - updateData.lastMousePos.y);
-      while (updateData.cameraGeographicCoordinates.x < -180.0f)
-        updateData.cameraGeographicCoordinates.x += 360.0f;
-      while (updateData.cameraGeographicCoordinates.x>180.0f)
-        updateData.cameraGeographicCoordinates.x -= 360.0f;
-      updateData.cameraGeographicCoordinates.y = glm::clamp(updateData.cameraGeographicCoordinates.y, -90.0f, 90.0f);
-      updateData.lastMousePos = mouseMove;
-    }
-    if (updateData.rightMouseKeyPressed)
-    {
-      updateData.cameraDistance += 10.0f*(updateData.lastMousePos.y - mouseMove.y);
-      if (updateData.cameraDistance<0.1f)
-        updateData.cameraDistance = 0.1f;
-      updateData.lastMousePos = mouseMove;
-    }
-
-    glm::vec3 forward = glm::vec3(cos(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), sin(updateData.cameraGeographicCoordinates.x * 3.1415f / 180.0f), 0) * 0.2f;
-    glm::vec3 right = glm::vec3(cos((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), sin((updateData.cameraGeographicCoordinates.x + 90.0f) * 3.1415f / 180.0f), 0) * 0.2f;
-    if (updateData.moveForward)
-      updateData.cameraPosition -= forward;
-    if (updateData.moveBackward)
-      updateData.cameraPosition += forward;
-    if (updateData.moveLeft)
-      updateData.cameraPosition -= right;
-    if (updateData.moveRight)
-      updateData.cameraPosition += right;
-
-    uData.cameraGeographicCoordinates = updateData.cameraGeographicCoordinates;
-    uData.cameraDistance = updateData.cameraDistance;
-    uData.cameraPosition = updateData.cameraPosition;
+    camHandler = bcamHandler;
   }
 
-  void update(double timeSinceStart, double updateStep)
+  void update(std::shared_ptr<pumex::Viewer> viewer)
   {
+    camHandler->update(viewer.get());
   }
 
   void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
   {
     // prepare camera state for rendering
-    std::shared_ptr<pumex::Viewer> viewer = surface->viewer.lock();
-    uint32_t renderIndex = viewer->getRenderIndex();
-    const RenderData& rData = renderData[renderIndex];
-
-    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
-
-    glm::vec3 relCam
-    (
-      rData.cameraDistance * cos(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      rData.cameraDistance * sin(rData.cameraGeographicCoordinates.y * 3.1415f / 180.0f)
-    );
-    glm::vec3 prevRelCam
-    (
-      rData.prevCameraDistance * cos(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.x * 3.1415f / 180.0f) * cos(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f),
-      rData.prevCameraDistance * sin(rData.prevCameraGeographicCoordinates.y * 3.1415f / 180.0f)
-    );
-    glm::vec3 eye = relCam + rData.cameraPosition;
-    glm::vec3 prevEye = prevRelCam + rData.prevCameraPosition;
-
-    glm::vec3 realEye = eye + deltaTime * (eye - prevEye);
-    glm::vec3 realCenter = rData.cameraPosition + deltaTime * (rData.cameraPosition - rData.prevCameraPosition);
-
-    glm::mat4 viewMatrix = glm::lookAt(realEye, realCenter, glm::vec3(0, 0, 1));
+    auto viewer           = surface->viewer.lock();
+    float deltaTime       = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime      = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
+    uint32_t renderWidth  = surface->swapChainSize.width;
+    uint32_t renderHeight = surface->swapChainSize.height;
+    glm::mat4 viewMatrix  = camHandler->getViewMatrix(surface.get());
 
     pumex::Camera camera;
     camera.setViewMatrix(viewMatrix);
-    camera.setObserverPosition(realEye);
+    camera.setObserverPosition(camHandler->getObserverPosition(surface.get()));
     camera.setTimeSinceStart(renderTime);
-
-    uint32_t renderWidth  = surface->swapChainSize.width;
-    uint32_t renderHeight = surface->swapChainSize.height;
     camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), (float)renderWidth / (float)renderHeight, 0.1f, 100000.0f));
-
     cameraBuffer->setData(surface.get(), camera);
 
     pumex::Camera textCamera;
@@ -250,23 +89,18 @@ struct ViewerApplicationData
     textCameraBuffer->setData(surface.get(), textCamera);
   }
 
-  void prepareModelForRendering(std::shared_ptr<pumex::Viewer> viewer, std::shared_ptr<pumex::Asset> asset)
+  void prepareModelForRendering(pumex::Viewer* viewer, std::shared_ptr<pumex::Asset> asset)
   {
     // animate asset if it has animation
     if (asset->animations.empty())
       return;
 
-    uint32_t renderIndex = viewer->getRenderIndex();
-    const RenderData& rData = renderData[renderIndex];
-
-    float deltaTime = pumex::inSeconds(viewer->getRenderTimeDelta());
-    float renderTime = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
-
-    pumex::Animation& anim = asset->animations[0];
-    pumex::Skeleton& skel = asset->skeleton;
-
+    float deltaTime          = pumex::inSeconds(viewer->getRenderTimeDelta());
+    float renderTime         = pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()) + deltaTime;
+    pumex::Animation& anim   = asset->animations[0];
+    pumex::Skeleton& skel    = asset->skeleton;
     uint32_t numAnimChannels = anim.channels.size();
-    uint32_t numSkelBones = skel.bones.size();
+    uint32_t numSkelBones    = skel.bones.size();
 
     std::vector<uint32_t> boneChannelMapping(numSkelBones);
     for (uint32_t boneIndex = 0; boneIndex < numSkelBones; ++boneIndex)
@@ -294,13 +128,11 @@ struct ViewerApplicationData
     positionBuffer->invalidateData();
   }
 
-  UpdateData                                    updateData;
-  std::array<RenderData, 3>                     renderData;
-
   std::shared_ptr<pumex::Buffer<pumex::Camera>> cameraBuffer;
   std::shared_ptr<pumex::Buffer<pumex::Camera>> textCameraBuffer;
   std::shared_ptr<PositionData>                 positionData;
   std::shared_ptr<pumex::Buffer<PositionData>>  positionBuffer;
+  std::shared_ptr<pumex::BasicCameraHandler>    camHandler;
 };
 
 int main( int argc, char * argv[] )
@@ -523,10 +355,14 @@ int main( int argc, char * argv[] )
     wireframePipeline->setDescriptorSet(0, wireframeDescriptorSet);
 
     // lets add object that calculates time statistics and is able to render it
-    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator);
-    tsHandler->setTextCameraBuffer(applicationData->textCameraBuffer);
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer);
+    viewer->addInputEventHandler(tsHandler);
     renderRoot->addChild(tsHandler->getRoot());
 
+    // camera handler processes input events at the beggining of the update phase
+    std::shared_ptr<pumex::BasicCameraHandler> bcamHandler = std::make_shared<pumex::BasicCameraHandler>();
+    viewer->addInputEventHandler(bcamHandler);
+    applicationData->setCameraHandler(bcamHandler);
 
     // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
@@ -535,8 +371,7 @@ int main( int argc, char * argv[] )
     // We must connect update graph that works independently from render graph
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
-      applicationData->processInput(surface);
-      applicationData->update(pumex::inSeconds(viewer->getUpdateTime() - viewer->getApplicationStartTime()), pumex::inSeconds(viewer->getUpdateDuration()));
+      applicationData->update(viewer);
     });
     tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);

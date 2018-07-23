@@ -158,6 +158,7 @@ void Text::validate(const RenderContext& renderContext)
   if (sit == end(symbolData))
     sit = symbolData.insert({ renderContext.vkSurface, std::make_shared<std::vector<SymbolData>>() }).first;
 
+  uint32_t oldDataSize = sit->second->size();
   sit->second->resize(0);
   for (const auto& t : texts)
   {
@@ -170,6 +171,8 @@ void Text::validate(const RenderContext& renderContext)
     font->addSymbolData(startPosition, color, text, *(sit->second));
     vertexBuffer->setData(renderContext.surface, sit->second);
   }
+  if (sit->second->size() != oldDataSize)
+    notifyCommandBuffers();
   vertexBuffer->validate(renderContext);
 }
 

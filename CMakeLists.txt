@@ -71,6 +71,7 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/HPClock.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Image.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/InputAttachment.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/InputEvent.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Kinematic.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MaterialSet.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/MemoryBuffer.h
@@ -138,6 +139,7 @@ list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DrawVerticesNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/FrameBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Image.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/InputEvent.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/InputAttachment.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Kinematic.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/MaterialSet.cpp

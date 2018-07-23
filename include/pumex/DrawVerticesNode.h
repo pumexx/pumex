@@ -56,6 +56,7 @@ public:
 protected:
   std::shared_ptr<Buffer<std::vector<float>>>      vertexBuffer;
   std::shared_ptr<Buffer<std::vector<uint32_t>>>   indexBuffer;
+  std::unordered_map<uint32_t, uint32_t>           indexCount;
   uint32_t                                         vertexBinding;
   bool                                             registered = false;
 };

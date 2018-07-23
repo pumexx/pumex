@@ -29,6 +29,7 @@
 #include <pumex/Surface.h>
 #include <pumex/RenderWorkflow.h>
 #include <pumex/TimeStatistics.h>
+#include <pumex/InputEvent.h>
 #include <pumex/Version.h>
 #if defined(_WIN32)
   #include <pumex/platform/win32/WindowWin32.h>
@@ -57,14 +58,13 @@ Viewer::Viewer(const ViewerTraits& vt)
 {
   viewerStartTime     = HPClock::now();
   for(uint32_t i=0; i<3;++i)
-    updateStartTimes[i] = viewerStartTime;
+    updateTimes[i] = viewerStartTime;
   renderStartTime     = viewerStartTime;
-  lastRenderDuration  = viewerStartTime - renderStartTime;
-  lastUpdateDuration  = viewerStartTime - updateStartTimes[0];
   timeStatistics = std::make_unique<TimeStatistics>(32);
   timeStatistics->registerGroup(TSV_GROUP_UPDATE, L"Update operations");
   timeStatistics->registerGroup(TSV_GROUP_RENDER, L"Render operation");
   timeStatistics->registerGroup(TSV_GROUP_RENDER_EVENTS, L"Render events");
+  timeStatistics->registerChannel(TSV_CHANNEL_INPUTEVENTS,         TSV_GROUP_UPDATE,        L"Input events",               glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
   timeStatistics->registerChannel(TSV_CHANNEL_UPDATE,              TSV_GROUP_UPDATE,        L"Full update",                glm::vec4(0.8f, 0.1f, 0.1f, 0.5f));
   timeStatistics->registerChannel(TSV_CHANNEL_RENDER,              TSV_GROUP_RENDER,        L"Full render",                glm::vec4(0.1f, 0.1f, 0.8f, 0.5f));
   timeStatistics->registerChannel(TSV_CHANNEL_FRAME,               TSV_GROUP_RENDER,        L"Frame time",                 glm::vec4(0.5f, 0.5f, 0.5f, 0.5f));
@@ -234,11 +234,11 @@ void Viewer::run()
       //switch (renderIndex)
       //{
       //case 0:
-      //  LOG_INFO << "R:+  " << inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //  LOG_INFO << "R:+   " << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //case 1:
-      //  LOG_INFO << "R: + " << inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //  LOG_INFO << "R: +  " << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //case 2:
-      //  LOG_INFO << "R:  +" << inSeconds(getRenderTimeDelta()) << std::endl; break;
+      //  LOG_INFO << "R:  + " << inSeconds(getRenderTimeDelta()) << std::endl; break;
       //}
       try
       {
@@ -257,11 +257,10 @@ void Viewer::run()
         updateConditionVariable.notify_one();
       }
 
-      auto renderEndTime = HPClock::now();
-      lastRenderDuration = renderEndTime - renderStartTime;
       if (timeStatistics->hasFlags(TSV_STAT_RENDER))
       {
-        timeStatistics->setValues(TSV_CHANNEL_RENDER, inSeconds(renderStartTime - viewerStartTime), inSeconds(lastRenderDuration));
+        auto renderEndTime = HPClock::now();
+        timeStatistics->setValues(TSV_CHANNEL_RENDER, inSeconds(renderStartTime - viewerStartTime), inSeconds(renderEndTime - renderStartTime));
         timeStatistics->setValues(TSV_CHANNEL_FRAME, inSeconds(prevRenderStartTime - viewerStartTime), inSeconds(renderStartTime - prevRenderStartTime));
       }
 
@@ -278,12 +277,13 @@ void Viewer::run()
   {
     {
       std::unique_lock<std::mutex> lck(updateMutex);
-      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateStartTimes[updateIndex] || !renderContinueRun; });
+      updateConditionVariable.wait(lck, [&] { return renderStartTime > updateTimes[updateIndex] || !renderContinueRun; });
       if (!renderContinueRun)
         break;
-      auto prevUpdateIndex = updateIndex;
-      updateIndex = getNextUpdateSlot();
-      updateStartTimes[updateIndex] = updateStartTimes[prevUpdateIndex] + HPClock::duration(std::chrono::seconds(1)) / viewerTraits.updatesPerSecond;
+      prevUpdateIndex          = updateIndex;
+      updateIndex              = getNextUpdateSlot();
+      updateInProgress         = true;
+      updateTimes[updateIndex] = updateTimes[prevUpdateIndex] + getUpdateDuration();
     }
     //switch (updateIndex)
     //{
@@ -294,8 +294,6 @@ void Viewer::run()
     //case 2:
     //  LOG_INFO << "U:  *" << std::endl; break;
     //}
-    auto realUpdateStartTime = HPClock::now();
-
 #if defined(_WIN32)
     updateContinueRun = WindowWin32::checkWindowMessages();
 #elif defined (__linux__)
@@ -306,19 +304,38 @@ void Viewer::run()
     {
       try
       {
+        HPClock::time_point tickStart;
+        if (timeStatistics->hasFlags(TSV_STAT_UPDATE))
+          tickStart = HPClock::now();
+
+        handleInputEvents();
+
+        if (timeStatistics->hasFlags(TSV_STAT_UPDATE))
+        {
+          auto tickEnd = HPClock::now();
+          timeStatistics->setValues(TSV_CHANNEL_INPUTEVENTS, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
+        }
+
+        if (timeStatistics->hasFlags(TSV_STAT_UPDATE))
+          tickStart = HPClock::now();
+
         opStartUpdateGraph.try_put(tbb::flow::continue_msg());
         updateGraph.wait_for_all();
+
+        if (timeStatistics->hasFlags(TSV_STAT_UPDATE))
+        {
+          auto tickEnd = HPClock::now();
+          timeStatistics->setValues(TSV_CHANNEL_UPDATE, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
+        }
+        updateInProgress = false;
       }
       catch (...)
       {
-        exceptionCaught = std::current_exception();
+        exceptionCaught   = std::current_exception();
+        updateInProgress   = false;
         updateContinueRun = false;
       }
     }
-    auto realUpdateEndTime = HPClock::now();
-    lastUpdateDuration = realUpdateEndTime - realUpdateStartTime;
-    if (timeStatistics->hasFlags(TSV_STAT_UPDATE))
-      timeStatistics->setValues(TSV_CHANNEL_UPDATE, inSeconds(realUpdateStartTime - viewerStartTime), inSeconds(lastUpdateDuration));
     if (!renderContinueRun || !updateContinueRun)
       break;
   }
@@ -329,6 +346,7 @@ void Viewer::run()
 
 void Viewer::cleanup()
 {
+  inputEventHandlers.clear();
   eventRenderStart  = nullptr;
   eventRenderFinish = nullptr;
   updateGraph.reset();
@@ -434,6 +452,17 @@ Surface* Viewer::getSurface(uint32_t id)
   return it->second.get();
 }
 
+void Viewer::addInputEventHandler(std::shared_ptr<InputEventHandler> eventHandler)
+{
+  inputEventHandlers.erase(std::remove_if(begin(inputEventHandlers), end(inputEventHandlers), [&](std::shared_ptr<InputEventHandler> ie) { return ie.get() == eventHandler.get();  }), end(inputEventHandlers));
+  inputEventHandlers.push_back(eventHandler);
+}
+
+void Viewer::removeInputEventHandler(std::shared_ptr<InputEventHandler> eventHandler)
+{
+  inputEventHandlers.erase(std::remove_if(begin(inputEventHandlers), end(inputEventHandlers), [&](std::shared_ptr<InputEventHandler> ie) { return ie.get() == eventHandler.get();  }), end(inputEventHandlers));
+}
+
 void Viewer::addDefaultDirectory(const filesystem::path & directory) 
 {
   std::error_code ec;
@@ -509,7 +538,7 @@ void Viewer::onEventRenderStart()
     tickStart = HPClock::now();
 
   if (eventRenderStart != nullptr)  
-    eventRenderStart(shared_from_this()); 
+    eventRenderStart(this); 
 
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
   {
@@ -524,11 +553,33 @@ void Viewer::onEventRenderFinish()
     tickStart = HPClock::now();
 
   if (eventRenderFinish != nullptr)  
-    eventRenderFinish(shared_from_this()); 
+    eventRenderFinish(this); 
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
   {
     auto tickEnd = HPClock::now();
     timeStatistics->setValues(TSV_CHANNEL_EVENT_RENDER_FINISH, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
+  }
+}
+
+void Viewer::handleInputEvents()
+{
+  // collect inputEvents from all windows
+  std::vector<InputEvent> inputEvents;
+  for (auto& window : windows)
+  {
+    std::vector<InputEvent> windowInputEvents = window->getInputEvents();
+    inputEvents.insert(end(inputEvents), begin(windowInputEvents), end(windowInputEvents));
+  }
+  // sort input events by event time
+  std::sort(begin(inputEvents), end(inputEvents), [](const InputEvent& lhs, const InputEvent& rhs) { return lhs.time < rhs.time; });
+  // handle inputEvents using inputEventHandlers
+  for (const auto& inputEvent : inputEvents)
+  {
+    for (auto& inputEventHandler : inputEventHandlers)
+    {
+      if (inputEventHandler->handle(inputEvent, this))
+        break;
+    }
   }
 }
 

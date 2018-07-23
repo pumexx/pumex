@@ -38,10 +38,18 @@ Kinematic interpolate(const Kinematic& object0, const Kinematic& object1, float 
 
 glm::mat4 extrapolate(const Kinematic& kinematic, float deltaTime)
 {
-  glm::vec3 position = kinematic.position + kinematic.velocity * deltaTime;
-  glm::quat rotation(0.0f, kinematic.angularVelocity * deltaTime);
-  glm::quat orientation = kinematic.orientation + rotation * kinematic.orientation * 0.5f;
+  glm::vec3 position    = kinematic.position + kinematic.velocity * deltaTime;
+  glm::quat angularVelocityQ(0.0f, kinematic.angularVelocity);
+  glm::quat orientation = kinematic.orientation + angularVelocityQ * kinematic.orientation * 0.5f * deltaTime;
   return glm::translate(glm::mat4(), position) * glm::mat4_cast(orientation);
 }
+
+void calculateVelocitiesFromPositionOrientation(Kinematic& current, const Kinematic& previous, float deltaTime)
+{
+  current.velocity = (current.position - previous.position) / deltaTime;
+  auto angularVelocityQ = 2.0f * (current.orientation + (-previous.orientation)) * glm::conjugate(previous.orientation) / deltaTime;
+  current.angularVelocity = glm::vec3(angularVelocityQ.x, angularVelocityQ.y, angularVelocityQ.z);
+}
+
 
 }

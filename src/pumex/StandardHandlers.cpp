@@ -23,6 +23,7 @@
 #include <pumex/StandardHandlers.h>
 #include <iomanip>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/projection.hpp>
 #include <pumex/Viewer.h>
 #include <pumex/Surface.h>
 #include <pumex/Descriptor.h>
@@ -40,10 +41,14 @@
 
 using namespace pumex;
 
-TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<DeviceMemoryAllocator> texturesAllocator, VkSampleCountFlagBits rasterizationSamples )
-  : windowTime{0.01f}
-
+TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std::shared_ptr<PipelineCache> pipelineCache, std::shared_ptr<DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<DeviceMemoryAllocator> texturesAllocator, std::shared_ptr<MemoryBuffer> textCameraBuffer, VkSampleCountFlagBits rasterizationSamples )
 {
+  showfFPS                   = { false, true, true };
+  viewerStatisticsToCollect  = { 0,  TSV_STAT_RENDER, TSV_STAT_UPDATE | TSV_STAT_RENDER | TSV_STAT_RENDER_EVENTS };
+  surfaceStatisticsToCollect = { 0,  0,              TSS_STAT_BASIC | TSS_STAT_BUFFERS | TSS_STAT_EVENTS };
+  viewerStatisticsGroups     = { {}, {}, { TSV_GROUP_UPDATE, TSV_GROUP_RENDER, TSV_GROUP_RENDER_EVENTS} };
+  surfaceStatisticsGroups    = { {}, {}, { TSS_GROUP_BASIC, TSS_GROUP_EVENTS, TSS_GROUP_SECONDARY_BUFFERS, TSS_GROUP_PRIMARY_BUFFERS, TSS_GROUP_PRIMARY_BUFFERS+1, TSS_GROUP_PRIMARY_BUFFERS+2, TSS_GROUP_PRIMARY_BUFFERS+3 } };
+  
   // creating root node for statistics rendering
   statisticsRoot = std::make_shared<Group>();
   statisticsRoot->setName("statisticsRoot");
@@ -137,8 +142,10 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
   // preparing two fonts and text nodes
   textPipeline->addChild(textDefault);
 
-  auto fontDefaultImageView = std::make_shared<ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
+  auto textCameraUbo            = std::make_shared<UniformBuffer>(textCameraBuffer);
+  auto fontDefaultImageView     = std::make_shared<ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
   auto textDefaultDescriptorSet = std::make_shared<DescriptorSet>(textDescriptorSetLayout);
+  textDefaultDescriptorSet->setDescriptor(0, textCameraUbo);
   textDefaultDescriptorSet->setDescriptor(1, std::make_shared<CombinedImageSampler>(fontDefaultImageView, fontSampler));
   textDefault->setDescriptorSet(0, textDefaultDescriptorSet);
 
@@ -149,21 +156,15 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
 
   auto fontSmallImageView = std::make_shared<ImageView>(fontSmall->fontMemoryImage, fontSmall->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
   auto textSmallDescriptorSet = std::make_shared<DescriptorSet>(textDescriptorSetLayout);
-  textSmallDescriptorSet->setDescriptor(1, std::make_shared<CombinedImageSampler>(fontSmallImageView, fontSampler));
+  textSmallDescriptorSet->setDescriptor(0, textCameraUbo);
+    textSmallDescriptorSet->setDescriptor(1, std::make_shared<CombinedImageSampler>(fontSmallImageView, fontSampler));
   textSmall->setDescriptorSet(0, textSmallDescriptorSet);
 }
 
-void TimeStatisticsHandler::setTextCameraBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer)
-{
-  auto textCameraUbo = std::make_shared<UniformBuffer>(memoryBuffer);
-  textDefault->getDescriptorSet(0)->setDescriptor(0, textCameraUbo);
-  textSmall->getDescriptorSet(0)->setDescriptor(0, textCameraUbo);
-}
-
-void addChannelData(float minVal, uint32_t vertexSize, float h0, float h1, VertexAccumulator& acc, const TimeStatisticsChannel& channel, std::vector<float>& vertices, std::vector<uint32_t>& indices)
+void TimeStatisticsHandler::addChannelData(float minVal, uint32_t vertexSize, float h0, float h1, VertexAccumulator& acc, const TimeStatisticsChannel& channel, std::vector<float>& vertices, std::vector<uint32_t>& indices)
 {
   std::vector<double> start, duration;
-  channel.getLastValues(TSH_FRAMES_RENDERED, start, duration);
+  channel.getLastValues(framesCount, start, duration);
 
   glm::vec4 color = channel.getColor();
   acc.set(VertexSemantic::Color, color.r, color.g, color.b, color.a);
@@ -197,21 +198,66 @@ void addChannelData(float minVal, uint32_t vertexSize, float h0, float h1, Verte
   }
 }
 
+bool TimeStatisticsHandler::handle(const InputEvent& iEvent, Viewer* viewer)
+{
+  bool handled = false;
+  switch (iEvent.type)
+  {
+  case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
+    switch (iEvent.key)
+    {
+    case pumex::InputEvent::F4:
+      statisticsCollection = ( statisticsCollection + 1 ) % 3;
+      handled = true;
+      break;
+    case pumex::InputEvent::F5:
+      windowTime *= 2.0f;
+      handled = true;
+      break;
+    case pumex::InputEvent::F6:
+      windowTime /= 2.0f;
+      handled = true;
+      break;
+    case pumex::InputEvent::F7:
+      if(framesCount>1)
+        framesCount--;
+      handled = true;
+      break;
+    case pumex::InputEvent::F8:
+      if (framesCount<31)
+        framesCount++;
+      handled = true;
+      break;
+    default: break;
+    }
+    break;
+  }
+  return handled;
+}
+
 void TimeStatisticsHandler::collectData(Surface* surface, TimeStatistics* viewerStatistics, TimeStatistics* surfaceStatistics)
 {
   const uint32_t TSH_FPS_ID = 1;
-  const auto& fpsChannel = viewerStatistics->getChannel(TSV_CHANNEL_FRAME);
+  if (showfFPS[statisticsCollection])
+  {
+    const auto& fpsChannel = viewerStatistics->getChannel(TSV_CHANNEL_FRAME);
 
-  auto averageFrameTime = fpsChannel.getAverageValue();
-  double fpsValue = 1.0 / averageFrameTime;
-  std::wstringstream stream;
-  stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
-  textDefault->setText(surface, TSH_FPS_ID, glm::vec2(40, 40), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
-
+    auto averageFrameTime = fpsChannel.getAverageValue();
+    double fpsValue = 1.0 / averageFrameTime;
+    std::wstringstream stream;
+    stream << "FPS : " << std::fixed << std::setprecision(1) << fpsValue;
+    textDefault->setText(surface, TSH_FPS_ID, glm::vec2(40, 40), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), stream.str());
+  }
+  else
+  {
+    // FIXME - I will have to work this out
+    textDefault->clearTexts();
+    textSmall->clearTexts();
+  }
   std::vector<double> renderBegin, renderDuration;
   const auto& renderChannel = viewerStatistics->getChannel(TSV_CHANNEL_RENDER);
-  renderChannel.getLastValues(TSH_FRAMES_RENDERED, renderBegin, renderDuration);
-  float minTime = renderBegin[0];// *std::min_element(begin(fpsBegin), end(fpsBegin));
+  renderChannel.getLastValues(framesCount, renderBegin, renderDuration);
+  float minTime = renderBegin[0];
 
   // We want to have 0.0 time render at 130 pixels and windowTime render at renderWidth pixels
   float renderWidth  = surface->swapChainSize.width;
@@ -232,22 +278,27 @@ void TimeStatisticsHandler::collectData(Surface* surface, TimeStatistics* viewer
   float dHeight = 40.0f;
   for (const auto& group : viewerStatistics->getGroups())
   {
+    if (std::find(begin(viewerStatisticsGroups[statisticsCollection]), end(viewerStatisticsGroups[statisticsCollection]), group.first) == end(viewerStatisticsGroups[statisticsCollection]))
+      continue;
     textSmall->setText(surface, 100 + group.first, glm::vec2(5, channelHeight -0.2*dHeight), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), group.second);
     auto channelIDs = viewerStatistics->getGroupChannelIDs(group.first);
     for (auto channelID : channelIDs)
     {
-      if (channelID != TSV_CHANNEL_FRAME)
-      {
-        const auto& channel = viewerStatistics->getChannel(channelID);
-        addChannelData(minTime, vertexSize, channelHeight, channelHeight - 0.8f*dHeight, acc, channel, vertices, indices);
-      }
+      if (channelID == TSV_CHANNEL_FRAME)
+        continue;
+      const auto& channel = viewerStatistics->getChannel(channelID);
+      addChannelData(minTime, vertexSize, channelHeight, channelHeight - 0.8f*dHeight, acc, channel, vertices, indices);
     }
     channelHeight += dHeight;
   }
   viewerStatistics->resetMinMaxValues();
+  viewerStatistics->setFlags(viewerStatisticsToCollect[statisticsCollection]);
+
 
   for (const auto& group : surfaceStatistics->getGroups())
   { 
+    if (std::find(begin(surfaceStatisticsGroups[statisticsCollection]), end(surfaceStatisticsGroups[statisticsCollection]), group.first) == end(surfaceStatisticsGroups[statisticsCollection]))
+      continue;
     textSmall->setText(surface, 200 + group.first, glm::vec2(5, channelHeight -0.2*dHeight), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f), group.second);
     auto channelIDs = surfaceStatistics->getGroupChannelIDs(group.first);
     for (auto channelID : channelIDs)
@@ -259,4 +310,161 @@ void TimeStatisticsHandler::collectData(Surface* surface, TimeStatistics* viewer
   }
   drawNode->setVertexIndexData(surface, vertices, indices);
   surfaceStatistics->resetMinMaxValues();
+  surfaceStatistics->setFlags(surfaceStatisticsToCollect[statisticsCollection]);
+}
+
+BasicCameraHandler::BasicCameraHandler()
+{
+  for(uint32_t i = 0; i < 3; ++i)
+  {
+    cameraCenter[i].position    = glm::vec3(0.0f, 0.0f, 1.0f);
+    cameraCenter[i].orientation = glm::quat(glm::vec3(glm::half_pi<float>(), 0.0f, glm::half_pi<float>()));
+    cameraDistance[i]           = 5.0f;
+
+    glm::vec3 forwardVec(0.0f,0.0f, cameraDistance[i]);
+    cameraReal[i].position      = cameraCenter[i].position + cameraCenter[i].orientation * forwardVec;
+    cameraReal[i].orientation   = cameraCenter[i].orientation;
+  }
+}
+
+bool BasicCameraHandler::handle(const InputEvent& iEvent, Viewer* viewer)
+{
+  bool handled = false;
+  currMousePos = lastMousePos;
+
+  switch (iEvent.type)
+  {
+  case pumex::InputEvent::MOUSE_KEY_PRESSED:
+    if (iEvent.mouseButton == pumex::InputEvent::LEFT)
+      leftMouseKeyPressed = true;
+    else if (iEvent.mouseButton == pumex::InputEvent::RIGHT)
+      rightMouseKeyPressed = true;
+    else break;
+    handled        = true;
+    currMousePos.x = iEvent.x;
+    currMousePos.y = iEvent.y;
+    lastMousePos   = currMousePos;
+    break;
+  case pumex::InputEvent::MOUSE_KEY_RELEASED:
+    if (iEvent.mouseButton == pumex::InputEvent::LEFT)
+      leftMouseKeyPressed = false;
+    else if (iEvent.mouseButton == pumex::InputEvent::RIGHT)
+      rightMouseKeyPressed = false;
+    else break;
+    handled = true;
+    break;
+  case pumex::InputEvent::MOUSE_MOVE:
+    if (leftMouseKeyPressed || rightMouseKeyPressed)
+    {
+      currMousePos.x = iEvent.x;
+      currMousePos.y = iEvent.y;
+      handled        = true;
+    }
+    break;
+  case pumex::InputEvent::KEYBOARD_KEY_PRESSED:
+    switch (iEvent.key)
+    {
+    case pumex::InputEvent::W:     moveForward  = true; handled = true; break;
+    case pumex::InputEvent::S:     moveBackward = true; handled = true; break;
+    case pumex::InputEvent::A:     moveLeft     = true; handled = true; break;
+    case pumex::InputEvent::D:     moveRight    = true; handled = true; break;
+    case pumex::InputEvent::Q:     moveUp       = true; handled = true; break;
+    case pumex::InputEvent::Z:     moveDown     = true; handled = true; break;
+    case pumex::InputEvent::SHIFT: moveFast     = true; handled = true; break;
+    default: break;
+    }
+    break;
+  case pumex::InputEvent::KEYBOARD_KEY_RELEASED:
+    switch (iEvent.key)
+    {
+    case pumex::InputEvent::W:     moveForward  = false; handled = true; break;
+    case pumex::InputEvent::S:     moveBackward = false; handled = true; break;
+    case pumex::InputEvent::A:     moveLeft     = false; handled = true; break;
+    case pumex::InputEvent::D:     moveRight    = false; handled = true; break;
+    case pumex::InputEvent::Q:     moveUp       = false; handled = true; break;
+    case pumex::InputEvent::Z:     moveDown     = false; handled = true; break;
+    case pumex::InputEvent::SHIFT: moveFast     = false; handled = true; break;
+    default: break;
+    }
+    break;
+  default:
+    break;
+  }
+  if (!handled)
+    return false;
+  return true;
+}
+
+void BasicCameraHandler::update(Viewer* viewer)
+{
+  uint32_t updateIndex     = viewer->getUpdateIndex();
+  uint32_t prevUpdateIndex = viewer->getPreviousUpdateIndex();
+
+  cameraCenter[updateIndex]   = cameraCenter[prevUpdateIndex];
+  cameraDistance[updateIndex] = cameraDistance[prevUpdateIndex];
+  float deltaTime             = inSeconds(viewer->getUpdateDuration());
+
+  if (leftMouseKeyPressed)
+  {
+    glm::quat qx = glm::angleAxis(5.0f * (lastMousePos.y - currMousePos.y), glm::vec3(1.0, 0.0, 0.0));
+    glm::quat qz = glm::angleAxis(5.0f * (lastMousePos.x - currMousePos.x), glm::vec3(0.0, 0.0, 1.0));
+    cameraCenter[updateIndex].orientation = glm::normalize( qz * cameraCenter[updateIndex].orientation * qx );
+    lastMousePos = currMousePos;
+  }
+
+  if (rightMouseKeyPressed)
+  {
+    cameraDistance[updateIndex] += 10.0f*(lastMousePos.y - currMousePos.y);
+    if (cameraDistance[updateIndex] < 0.1f)
+      cameraDistance[updateIndex] = 0.1f;
+    lastMousePos = currMousePos;
+  }
+
+  float camStep = 8.0f * deltaTime;
+  if (moveFast)
+    camStep = 24.0f * deltaTime;
+
+  glm::vec3 camForward    = cameraCenter[updateIndex].orientation * glm::vec3(0.0f, 0.0f, 1.0f);
+  glm::vec3 groundForward = glm::normalize(camForward - glm::proj(camForward, glm::vec3(0.0f, 0.0f, 1.0f)));
+  glm::vec3 camRight      = cameraCenter[updateIndex].orientation * glm::vec3(1.0f, 0.0f, 0.0f);
+  glm::vec3 groundRight   = glm::normalize(camRight - glm::proj(camRight, glm::vec3(0.0f, 0.0f, 1.0f)));
+  glm::vec3 groundUp      = glm::vec3(0.0f, 0.0f, 1.0f);
+
+  if (moveForward)
+    cameraCenter[updateIndex].position -= groundForward * camStep;
+  if (moveBackward)
+    cameraCenter[updateIndex].position += groundForward * camStep;
+  if (moveLeft)
+    cameraCenter[updateIndex].position -= groundRight * camStep;
+  if (moveRight)
+    cameraCenter[updateIndex].position += groundRight * camStep;
+  if (moveUp)
+    cameraCenter[updateIndex].position += groundUp * camStep;
+  if (moveDown)
+    cameraCenter[updateIndex].position -= groundUp * camStep;
+
+  calculateVelocitiesFromPositionOrientation(cameraCenter[updateIndex], cameraCenter[prevUpdateIndex], deltaTime);
+
+  glm::vec3 distance3(0.0f, 0.0f, cameraDistance[updateIndex]);
+  cameraReal[updateIndex].position    = cameraCenter[updateIndex].position + cameraCenter[updateIndex].orientation * distance3;
+  cameraReal[updateIndex].orientation = cameraCenter[updateIndex].orientation;
+
+  calculateVelocitiesFromPositionOrientation(cameraReal[updateIndex], cameraReal[prevUpdateIndex], deltaTime);
+}
+
+glm::mat4 BasicCameraHandler::getViewMatrix(Surface* surface)
+{
+  Viewer* viewer       = surface->viewer.lock().get();
+  uint32_t renderIndex = viewer->getRenderIndex();
+  float deltaTime      = inSeconds( viewer->getRenderTimeDelta() );
+  return glm::inverse(extrapolate(cameraReal[renderIndex], deltaTime));
+}
+
+glm::vec4 BasicCameraHandler::getObserverPosition(Surface* surface)
+{
+  Viewer* viewer = surface->viewer.lock().get();
+  uint32_t renderIndex = viewer->getRenderIndex();
+  float deltaTime = inSeconds(viewer->getRenderTimeDelta());
+  glm::vec3 position = cameraReal[renderIndex].position + cameraReal[renderIndex].velocity * deltaTime;
+  return glm::vec4(position.x, position.y, position.z, 1.0f);
 }

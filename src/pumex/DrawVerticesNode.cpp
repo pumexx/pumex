@@ -41,22 +41,36 @@ DrawVerticesNode::~DrawVerticesNode()
 
 void DrawVerticesNode::setVertexIndexData(Surface* surface, const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   vertexBuffer->setData(surface, vertices);
   indexBuffer->setData(surface, indices);
+  auto it = indexCount.find(surface->getID());
+  if (it == end(indexCount) || it->second != indices.size())
+    notifyCommandBuffers();
+  indexCount[surface->getID()] = indices.size();
   invalidateNodeAndParents(surface);
 }
 
 void DrawVerticesNode::setVertexIndexData(Device* device, const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   vertexBuffer->setData(device, vertices);
   indexBuffer->setData(device, indices);
+  auto it = indexCount.find(device->getID());
+  if (it == end(indexCount) || it->second != indices.size())
+    notifyCommandBuffers();
+  indexCount[device->getID()] = indices.size();
   invalidateNodeAndParents();
 }
 
 void DrawVerticesNode::setVertexIndexData(const std::vector<float>& vertices, const std::vector<uint32_t>& indices)
 {
+  std::lock_guard<std::mutex> lock(mutex);
+  bool notifyCB = (indexBuffer->getData() == nullptr || indexBuffer->getData()->size() != indices.size());
   vertexBuffer->setData(vertices);
   indexBuffer->setData(indices);
+  if(notifyCB)
+    notifyCommandBuffers();
   invalidateNodeAndParents();
 }
 
@@ -81,6 +95,18 @@ void DrawVerticesNode::cmdDraw(const RenderContext& renderContext, CommandBuffer
   VkDeviceSize offsets = 0;
   vkCmdBindVertexBuffers(commandBuffer->getHandle(), vertexBinding, 1, &vBuffer, &offsets);
   vkCmdBindIndexBuffer(commandBuffer->getHandle(), iBuffer, 0, VK_INDEX_TYPE_UINT32);
-  uint32_t drawSize = indexBuffer->getDataSizeRC(renderContext) / sizeof(uint32_t);
-  commandBuffer->cmdDrawIndexed(drawSize, 1, 0, 0, 0);
+  uint32_t currentIndexCount = 0;
+  if (vertexBuffer->getPerObjectBehaviour() == pbPerSurface)
+  {
+    auto it = indexCount.find(renderContext.surface->getID());
+    if (it != end(indexCount))
+      currentIndexCount = it->second;
+  }
+  else
+  {
+    auto it = indexCount.find(renderContext.device->getID());
+    if (it != end(indexCount))
+      currentIndexCount = it->second;
+  }
+  commandBuffer->cmdDrawIndexed(currentIndexCount, 1, 0, 0, 0);
 }

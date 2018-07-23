@@ -47,7 +47,9 @@ struct WindowTraits;
 class  Window;
 struct SurfaceTraits;
 class  Surface;
-class TimeStatistics;
+class  TimeStatistics;
+struct InputEvent;
+class  InputEventHandler;
 
 const uint32_t TSV_STAT_UPDATE                = 1;
 const uint32_t TSV_STAT_RENDER                = 2;
@@ -57,11 +59,12 @@ const uint32_t TSV_GROUP_UPDATE                = 1;
 const uint32_t TSV_GROUP_RENDER                = 2;
 const uint32_t TSV_GROUP_RENDER_EVENTS         = 3;
 
-const uint32_t TSV_CHANNEL_UPDATE              = 1;
-const uint32_t TSV_CHANNEL_RENDER              = 2;
-const uint32_t TSV_CHANNEL_FRAME               = 3;
-const uint32_t TSV_CHANNEL_EVENT_RENDER_START  = 4;
-const uint32_t TSV_CHANNEL_EVENT_RENDER_FINISH = 5;
+const uint32_t TSV_CHANNEL_INPUTEVENTS         = 1;
+const uint32_t TSV_CHANNEL_UPDATE              = 2;
+const uint32_t TSV_CHANNEL_RENDER              = 3;
+const uint32_t TSV_CHANNEL_FRAME               = 4;
+const uint32_t TSV_CHANNEL_EVENT_RENDER_START  = 5;
+const uint32_t TSV_CHANNEL_EVENT_RENDER_FINISH = 6;
 
 
 // struct storing all info required to create or describe the viewer
@@ -103,8 +106,11 @@ public:
   inline uint32_t            getNumDevices() const;
   inline uint32_t            getNumSurfaces() const;
 
-  inline void                setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event);
-  inline void                setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event);
+  inline void                setEventRenderStart(std::function<void(Viewer*)> event);
+  inline void                setEventRenderFinish(std::function<void(Viewer*)> event);
+
+  void                       addInputEventHandler(std::shared_ptr<InputEventHandler> eventHandler);
+  void                       removeInputEventHandler(std::shared_ptr<InputEventHandler> eventHandler);
 
   void                       run();
   void                       cleanup();
@@ -116,6 +122,7 @@ public:
   inline VkInstance          getInstance() const;
 
   inline uint32_t            getUpdateIndex() const;
+  inline uint32_t            getPreviousUpdateIndex() const;
   inline uint32_t            getRenderIndex() const;
   inline unsigned long long  getFrameNumber() const;
 
@@ -146,6 +153,7 @@ protected:
 
   void                       onEventRenderStart();
   void                       onEventRenderFinish();
+  void                       handleInputEvents();
 
   void                       buildRenderGraph();
 
@@ -154,8 +162,9 @@ protected:
   std::unordered_map<uint32_t, std::shared_ptr<Device>>  devices;
   std::unordered_map<uint32_t, std::shared_ptr<Surface>> surfaces;
   std::vector<std::shared_ptr<Window>>                   windows;
-  std::function<void(std::shared_ptr<Viewer>)>           eventRenderStart;
-  std::function<void(std::shared_ptr<Viewer>)>           eventRenderFinish;
+  std::function<void(Viewer*)>                           eventRenderStart;
+  std::function<void(Viewer*)>                           eventRenderFinish;
+  std::vector<std::shared_ptr<InputEventHandler>>        inputEventHandlers;
   bool                                                   realized                      = false;
   bool                                                   viewerTerminate               = false;
   VkInstance                                             instance                      = VK_NULL_HANDLE;
@@ -169,13 +178,13 @@ protected:
   unsigned long long                                     frameNumber                   = 0;
   HPClock::time_point                                    viewerStartTime;
   HPClock::time_point                                    renderStartTime;
-  HPClock::time_point                                    updateStartTimes[3];
-  HPClock::duration                                      lastRenderDuration;
-  HPClock::duration                                      lastUpdateDuration;
+  HPClock::time_point                                    updateTimes[3];
   std::unique_ptr<TimeStatistics>                        timeStatistics;
 
   uint32_t                                               renderIndex                   = 0;
   uint32_t                                               updateIndex                   = 1;
+  uint32_t                                               prevUpdateIndex               = 0; // accessible only during update. DO NOT USE IN RENDER.
+  bool                                                   updateInProgress              = false;
 
   mutable std::mutex                                     updateMutex;
   std::condition_variable                                updateConditionVariable;
@@ -201,39 +210,40 @@ uint32_t            Viewer::getNumSurfaces() const          { return surfaces.si
 VkInstance          Viewer::getInstance() const             { return instance; }
 bool                Viewer::terminating() const             { return viewerTerminate; }
 uint32_t            Viewer::getUpdateIndex() const          { return updateIndex; }
+uint32_t            Viewer::getPreviousUpdateIndex() const  { return prevUpdateIndex; }
 uint32_t            Viewer::getRenderIndex() const          { return renderIndex; }
 unsigned long long  Viewer::getFrameNumber() const          { return frameNumber; }
 HPClock::time_point Viewer::getApplicationStartTime() const { return viewerStartTime; }
 HPClock::duration   Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
-HPClock::time_point Viewer::getUpdateTime() const           { return updateStartTimes[updateIndex]; }
-HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateStartTimes[renderIndex]; }
+HPClock::time_point Viewer::getUpdateTime() const           { return updateTimes[updateIndex]; }
+HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStartTime - updateTimes[renderIndex]; }
 void                Viewer::doNothing() const               {}
-void                Viewer::setEventRenderStart(std::function<void(std::shared_ptr<Viewer>)> event)  { eventRenderStart = event; }
-void                Viewer::setEventRenderFinish(std::function<void(std::shared_ptr<Viewer>)> event) { eventRenderFinish = event; }
+void                Viewer::setEventRenderStart(std::function<void(Viewer*)> event)  { eventRenderStart = event; }
+void                Viewer::setEventRenderFinish(std::function<void(Viewer*)> event) { eventRenderFinish = event; }
 
 uint32_t   Viewer::getNextUpdateSlot() const
 {
   // pick up the frame not used currently by render nor update
-  uint32_t slot;
   for (uint32_t i = 0; i < 3; ++i)
   {
     if (i != renderIndex && i != updateIndex)
-      slot = i;
+      return i;
   }
-  return slot;
+  CHECK_LOG_THROW(true, "Not possible");
+  return 0;
 }
 uint32_t   Viewer::getNextRenderSlot() const
 {
   // pick up the newest frame not used currently by update
   auto value = viewerStartTime;
-  auto slot = 0;
+  auto slot  = 0;
   for (uint32_t i = 0; i < 3; ++i)
   {
-    if (i == updateIndex)
+    if (updateInProgress && i == updateIndex)
       continue;
-    if (updateStartTimes[i] > value)
+    if (updateTimes[i] > value)
     {
-      value = updateStartTimes[i];
+      value = updateTimes[i];
       slot = i;
     }
   }
