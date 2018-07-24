@@ -254,15 +254,13 @@ class PUMEX_EXPORT RenderWorkflowResults
 {
 public:
   RenderWorkflowResults();
-  RenderWorkflowResults(const std::vector<QueueTraits>& queueTraits, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& commands, const std::map<std::string, std::string>& resourceAlias, const std::map<std::string, std::tuple<VkImageLayout, AttachmentType, VkImageAspectFlags>>& initialImageLayouts, std::shared_ptr<RenderPass> outputRenderPass, uint32_t presentationQueueIndex,
-    const std::map<std::string, std::shared_ptr<MemoryObject>>& associatedMemoryObjects, const std::map<std::string, std::shared_ptr<MemoryImage>>& attachmentImages, const std::map<std::string, std::shared_ptr<ImageView>>& attachmentImageViews, const std::vector<std::shared_ptr<FrameBuffer>>& frameBuffers);
 
   std::vector<QueueTraits>                                                           queueTraits;
   std::vector<std::vector<std::shared_ptr<RenderCommand>>>                           commands;
   std::map<std::string, std::string>                                                 resourceAlias;
   std::shared_ptr<RenderPass>                                                        outputRenderPass;
   uint32_t                                                                           presentationQueueIndex = 0;
-  std::map<std::string, std::shared_ptr<MemoryObject>>                               registeredMemoryObjects;
+  std::map<std::string, std::shared_ptr<MemoryBuffer>>                               registeredMemoryBuffers;
   std::map<std::string, std::shared_ptr<MemoryImage>>                                registeredMemoryImages;
   std::map<std::string, std::shared_ptr<ImageView>>                                  registeredImageViews;
   std::map<std::string, std::tuple<VkImageLayout,AttachmentType,VkImageAspectFlags>> initialImageLayouts;
@@ -322,9 +320,10 @@ public:
   std::vector<std::string>                         getResourceNames() const;
   std::shared_ptr<WorkflowResource>                getResource(const std::string& resourceName) const;
 
-  void                                             associateMemoryObject(const std::string& name, std::shared_ptr<MemoryObject> memoryObject);
+  void                                             associateMemoryObject(const std::string& name, std::shared_ptr<MemoryObject> memoryObject, VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_2D);
   std::shared_ptr<MemoryObject>                    getAssociatedMemoryObject(const std::string& name) const;
   inline const std::map<std::string, std::shared_ptr<MemoryObject>>& getAssociatedMemoryObjects() const;
+  inline const std::map<std::string, std::shared_ptr<ImageView>>&    getAssociatedImageViews() const;
 
   std::vector<std::shared_ptr<ResourceTransition>> getOperationIO(const std::string& opName, ResourceTransitionTypeFlags transitionTypes) const;
   std::vector<std::shared_ptr<ResourceTransition>> getResourceIO(const std::string& resourceName, ResourceTransitionTypeFlags transitionTypes) const;
@@ -347,6 +346,7 @@ protected:
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
   std::map<std::string, std::shared_ptr<MemoryObject>>                         associatedMemoryObjects;
+  std::map<std::string, std::shared_ptr<ImageView>>                            associatedMemoryImageViews;
   std::vector<std::shared_ptr<ResourceTransition>>                             transitions;
   std::vector<QueueTraits>                                                     queueTraits;
   bool                                                                         valid                = false;
@@ -545,5 +545,7 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
 }
 
 const std::map<std::string, std::shared_ptr<MemoryObject>>& RenderWorkflow::getAssociatedMemoryObjects() const { return associatedMemoryObjects;  }
+const std::map<std::string, std::shared_ptr<ImageView>>&    RenderWorkflow::getAssociatedImageViews() const    { return associatedMemoryImageViews; }
+
 	
 }

@@ -598,16 +598,25 @@ void Surface::setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::s
   renderWorkflowCompiler = compiler;
 }
 
-std::shared_ptr<MemoryObject> Surface::getRegisteredMemoryObject(const std::string name)
+std::shared_ptr<MemoryBuffer> Surface::getRegisteredMemoryBuffer(const std::string& name)
 {
   CHECK_LOG_THROW(workflowResults == nullptr, "workflow not compiled");
-  auto it = workflowResults->registeredMemoryObjects.find(name);
-  if (it != end(workflowResults->registeredMemoryObjects))
+  auto it = workflowResults->registeredMemoryBuffers.find(name);
+  if (it != end(workflowResults->registeredMemoryBuffers))
     return it->second;
   return nullptr;
 }
 
-std::shared_ptr<ImageView> Surface::getRegisteredImageView(const std::string name)
+std::shared_ptr<MemoryImage> Surface::getRegisteredMemoryImage(const std::string& name)
+{
+  CHECK_LOG_THROW(workflowResults == nullptr, "workflow not compiled");
+  auto it = workflowResults->registeredMemoryImages.find(name);
+  if (it != end(workflowResults->registeredMemoryImages))
+    return it->second;
+  return nullptr;
+}
+
+std::shared_ptr<ImageView> Surface::getRegisteredImageView(const std::string& name)
 {
   CHECK_LOG_THROW(workflowResults == nullptr, "workflow not compiled");
   auto it = workflowResults->registeredImageViews.find(name);

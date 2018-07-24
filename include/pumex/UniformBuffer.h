@@ -36,6 +36,7 @@ class PUMEX_EXPORT UniformBuffer : public Resource
 public:
   UniformBuffer()                                = delete;
   UniformBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
+  UniformBuffer(const std::string& resourceName);
   UniformBuffer(const UniformBuffer&)            = delete;
   UniformBuffer& operator=(const UniformBuffer&) = delete;
   UniformBuffer(UniformBuffer&&)                 = delete;
@@ -48,7 +49,8 @@ public:
 
   std::shared_ptr<MemoryBuffer> memoryBuffer;
 protected:
-  bool                       registered = false;
+  std::string                   resourceName;
+  bool                          registered = false;
 };
 
 }

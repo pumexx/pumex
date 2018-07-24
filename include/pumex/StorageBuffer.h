@@ -36,6 +36,7 @@ class PUMEX_EXPORT StorageBuffer : public Resource
 public:
   StorageBuffer()                                = delete;
   StorageBuffer(std::shared_ptr<MemoryBuffer> memoryBuffer);
+  StorageBuffer(const std::string& resourceName);
   StorageBuffer(const StorageBuffer&)            = delete;
   StorageBuffer& operator=(const StorageBuffer&) = delete;
   StorageBuffer(StorageBuffer&&)                 = delete;
@@ -48,7 +49,8 @@ public:
 
   std::shared_ptr<MemoryBuffer> memoryBuffer;
 protected:
-  bool                       registered = false;
+  std::string                   resourceName;
+  bool                          registered = false;
 };
 
 }

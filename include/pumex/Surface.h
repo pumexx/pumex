@@ -40,7 +40,8 @@ class RenderWorkflowResults;
 class CommandPool;
 class CommandBuffer;
 class FrameBuffer;
-class MemoryObject;
+class MemoryBuffer;
+class MemoryImage;
 class ImageView;
 class Image;
 class Node;
@@ -114,8 +115,9 @@ public:
   inline void                   setID(uint32_t newID);
   inline uint32_t               getID() const;
 
-  std::shared_ptr<MemoryObject> getRegisteredMemoryObject(const std::string name);
-  std::shared_ptr<ImageView>    getRegisteredImageView(const std::string name);
+  std::shared_ptr<MemoryBuffer> getRegisteredMemoryBuffer(const std::string& name);
+  std::shared_ptr<MemoryImage>  getRegisteredMemoryImage(const std::string& name);
+  std::shared_ptr<ImageView>    getRegisteredImageView(const std::string& name);
 
   inline void                   setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
   inline void                   setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);

@@ -21,6 +21,9 @@
 //
 
 #include <pumex/StorageBuffer.h>
+#include <pumex/RenderContext.h>
+#include <pumex/RenderWorkflow.h>
+#include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
@@ -29,6 +32,12 @@ StorageBuffer::StorageBuffer(std::shared_ptr<MemoryBuffer> mb)
   : Resource{ mb->getPerObjectBehaviour(), mb->getSwapChainImageBehaviour() }, memoryBuffer{ mb }
 {
   CHECK_LOG_THROW((mb->getBufferUsage() & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) == 0, "StorageBuffer resource connected to a memory buffer that does not have VK_BUFFER_USAGE_STORAGE_BUFFER_BIT");
+}
+
+StorageBuffer::StorageBuffer(const std::string& rn)
+  : Resource{ pbPerSurface, swForEachImage }, memoryBuffer{}, resourceName{ rn }
+{
+  CHECK_LOG_THROW(resourceName.empty(), "StorageBuffer : resourceName is not defined");
 }
 
 StorageBuffer::~StorageBuffer()
@@ -42,6 +51,13 @@ std::pair<bool, VkDescriptorType> StorageBuffer::getDefaultDescriptorType()
 
 void StorageBuffer::validate(const RenderContext& renderContext)
 {
+  std::lock_guard<std::mutex> lock(mutex);
+  if (!resourceName.empty())
+  {
+    auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
+    memoryBuffer       = renderContext.surface->getRegisteredMemoryBuffer(resourceAlias);
+    registered         = false;
+  }
   if (!registered)
   {
     memoryBuffer->addResource(shared_from_this());

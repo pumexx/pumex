@@ -127,20 +127,6 @@ RenderWorkflowResults::RenderWorkflowResults()
 {
 }
 
-RenderWorkflowResults::RenderWorkflowResults(const std::vector<QueueTraits>& qt, const std::vector<std::vector<std::shared_ptr<RenderCommand>>>& com, const std::map<std::string, std::string>& ra, const std::map<std::string, std::tuple<VkImageLayout, AttachmentType, VkImageAspectFlags>>& iil, std::shared_ptr<RenderPass> orp, uint32_t idx,
-  const std::map<std::string, std::shared_ptr<MemoryObject>>& associatedMemoryObjects, const std::map<std::string, std::shared_ptr<MemoryImage>>& attachmentImages, const std::map<std::string, std::shared_ptr<ImageView>>& attachmentImageViews, const std::vector<std::shared_ptr<FrameBuffer>>& fbs)
-  : queueTraits{ qt }, commands{ com }, resourceAlias{ ra }, initialImageLayouts{ iil }, outputRenderPass{ orp }, presentationQueueIndex{ idx }, frameBuffers{ fbs }
-{
-  // register images used by all framebuffers
-  for (const auto& m : attachmentImages)
-    registeredMemoryObjects.insert({ m.first, m.second });
-  // register image views used by all framebuffers
-  registeredImageViews = attachmentImageViews;
-  // register objects manually added by user
-  for (const auto& m : associatedMemoryObjects)
-    registeredMemoryObjects.insert({ m.first, m.second });
-}
-
 QueueTraits RenderWorkflowResults::getPresentationQueue() const
 {
   return queueTraits[presentationQueueIndex];
@@ -305,7 +291,6 @@ void RenderWorkflow::addAttachmentDepthInput(const std::string& opName, const st
   valid = false;
 }
 
-
 void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
@@ -400,7 +385,7 @@ std::vector<std::string> RenderWorkflow::getResourceNames() const
   return results;
 }
 
-void RenderWorkflow::associateMemoryObject(const std::string& name, std::shared_ptr<MemoryObject> memoryObject)
+void RenderWorkflow::associateMemoryObject(const std::string& name, std::shared_ptr<MemoryObject> memoryObject, VkImageViewType imageViewType)
 {
   auto resIt = resources.find(name);
   CHECK_LOG_THROW(resIt == end(resources), "RenderWorkflow : cannot associate memory object to nonexisting resource");
@@ -408,15 +393,23 @@ void RenderWorkflow::associateMemoryObject(const std::string& name, std::shared_
   switch (memoryObject->getType())
   {
   case MemoryObject::moBuffer:
+  {
     CHECK_LOG_THROW(resIt->second->resourceType->metaType != RenderWorkflowResourceType::Buffer, "RenderWorkflow : cannot associate memory buffer and resource " << resIt->second->name);
+    associatedMemoryObjects.insert({ name, memoryObject });
     break;
+  }
   case MemoryObject::moImage:
+  {
     CHECK_LOG_THROW(resIt->second->resourceType->metaType != RenderWorkflowResourceType::Image, "RenderWorkflow : cannot associate memory image and resource " << resIt->second->name);
+    associatedMemoryObjects.insert({ name, memoryObject });
+    auto memoryImage = std::dynamic_pointer_cast<MemoryImage>(memoryObject);
+    auto imageView = std::make_shared<ImageView>(memoryImage, memoryImage->getFullImageRange(), imageViewType);
+    associatedMemoryImageViews.insert({ name, imageView });
     break;
+  }
   default:
     break;
   }
-  associatedMemoryObjects.insert({ name, memoryObject });
   valid = false;
 }
 
@@ -702,6 +695,26 @@ std::shared_ptr<RenderWorkflowResults> SingleQueueWorkflowCompiler::compile(Rend
   // Build framebuffer for each render pass
   // TODO : specification is not clear what compatible render passes are. Neither are debug layers. One day I will decrease the number of frame buffers
   buildFrameBuffersAndRenderPasses(workflow, partialOrdering, resourceMap, operationMap, allLayouts, workflowResults);// resourceAlias, renderPasses, attachmentImages, attachmentImageViews, imageInitialLayouts, frameBuffers);
+
+  // copy RenderWorkflow associated resources to RenderWorkflowResults registered resources
+  for (auto& mit : workflow.getAssociatedMemoryObjects())
+  {
+    workflowResults->resourceAlias.insert({ mit.first, mit.first });
+    switch (mit.second->getType())
+    {
+    case MemoryObject::moBuffer:
+      workflowResults->registeredMemoryBuffers.insert({ mit.first, std::dynamic_pointer_cast<MemoryBuffer>(mit.second) });
+      break;
+    case MemoryObject::moImage:
+      workflowResults->registeredMemoryImages.insert({ mit.first, std::dynamic_pointer_cast<MemoryImage>(mit.second) });
+      break;
+    default:
+      break;
+    }
+  }
+  // also copy image views
+  for (const auto& iv : workflow.getAssociatedImageViews())
+    workflowResults->registeredImageViews.insert({ iv.first, iv.second });
 
   // create pipeline barriers
   createPipelineBarriers(workflow, commands, workflowResults);
