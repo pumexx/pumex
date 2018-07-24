@@ -547,6 +547,35 @@ void Viewer::cleanupDebugging()
   }
 }
 
+uint32_t   Viewer::getNextUpdateSlot() const
+{
+  // pick up the frame not used currently by render nor update
+  for (uint32_t i = 0; i < 3; ++i)
+  {
+    if (i != renderIndex && i != updateIndex)
+      return i;
+  }
+  CHECK_LOG_THROW(true, "Not possible");
+  return 0;
+}
+uint32_t   Viewer::getNextRenderSlot() const
+{
+  // pick up the newest frame not used currently by update
+  auto value = viewerStartTime;
+  auto slot  = 0;
+  for (uint32_t i = 0; i < 3; ++i)
+  {
+    if (updateInProgress && i == updateIndex)
+      continue;
+    if (updateTimes[i] > value)
+    {
+      value = updateTimes[i];
+      slot = i;
+    }
+  }
+  return slot;
+}
+
 void Viewer::onEventRenderStart() 
 { 
   HPClock::time_point tickStart;
