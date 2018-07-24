@@ -178,6 +178,7 @@ Viewer::Viewer(const ViewerTraits& vt)
 
   VK_CHECK_LOG_THROW(vkCreateInstance(&instanceCreateInfo, nullptr, &instance), "Cannot create instance");
 
+  loadExtensionFunctions();
   if (viewerTraits.useDebugLayers())
     setupDebugging(viewerTraits.debugReportFlags, viewerTraits.debugReportCallback);
 
@@ -509,24 +510,39 @@ bool Viewer::instanceExtensionEnabled(const char* extensionName) const
   return false;
 }
 
+void Viewer::loadExtensionFunctions()
+{
+  // initialize extensions
+  if (viewerTraits.useDebugLayers())
+  {
+    pfn_vkCreateDebugReportCallback  = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT> (vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT"));
+    pfn_vkDestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT"));
+    pfn_vkDebugReportMessage         = reinterpret_cast<PFN_vkDebugReportMessageEXT>        (vkGetInstanceProcAddr(instance, "vkDebugReportMessageEXT"));
+  }
+  for (const auto& extension : viewerTraits.requestedInstanceExtensions)
+  {
+    if (!std::strcmp(extension.c_str(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+    {
+      pfn_vkGetPhysicalDeviceProperties2 = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2"));
+      pfn_vkGetPhysicalDeviceFeatures2   = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>  (vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2"));
+    }
+  }
+}
+
 void Viewer::setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack)
 {
-  pfnCreateDebugReportCallback  = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT"));
-  pfnDestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT"));
-  pfnDebugReportMessage         = reinterpret_cast<PFN_vkDebugReportMessageEXT>(vkGetInstanceProcAddr(instance, "vkDebugReportMessageEXT"));
-
   VkDebugReportCallbackCreateInfoEXT dbgCreateInfo{};
     dbgCreateInfo.sType       = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
     dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
     dbgCreateInfo.flags       = flags;
-  VK_CHECK_LOG_THROW( pfnCreateDebugReportCallback(instance, &dbgCreateInfo, nullptr, (callBack != nullptr) ? &callBack : &msgCallback), "Cannot create debug report callback");
+  VK_CHECK_LOG_THROW(pfn_vkCreateDebugReportCallback(instance, &dbgCreateInfo, nullptr, (callBack != nullptr) ? &callBack : &msgCallback), "Cannot create debug report callback");
 }
 
 void Viewer::cleanupDebugging()
 {
   if (msgCallback != VK_NULL_HANDLE)
   {
-    pfnDestroyDebugReportCallback(instance, msgCallback, nullptr);
+    pfn_vkDestroyDebugReportCallback(instance, msgCallback, nullptr);
     msgCallback = VK_NULL_HANDLE;
   }
 }

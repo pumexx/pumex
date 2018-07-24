@@ -42,7 +42,7 @@ PhysicalDevice::PhysicalDevice(VkPhysicalDevice device, Viewer* viewer)
     properties2.pNext = &multiViewProperties;
     multiViewProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES;
 
-    vkGetPhysicalDeviceProperties2(physicalDevice, &properties2);
+    viewer->pfn_vkGetPhysicalDeviceProperties2(physicalDevice, &properties2);
     properties = properties2.properties;
 
     // get the physical device features
@@ -52,7 +52,7 @@ PhysicalDevice::PhysicalDevice(VkPhysicalDevice device, Viewer* viewer)
     features2.pNext         = &multiViewFeatures;
     multiViewFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES;
 
-    vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
+    viewer->pfn_vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
     features = features2.features;
   }
   else

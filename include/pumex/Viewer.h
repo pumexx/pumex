@@ -143,7 +143,18 @@ public:
   tbb::flow::continue_node< tbb::flow::continue_msg >    opStartUpdateGraph;
   tbb::flow::continue_node< tbb::flow::continue_msg >    opEndUpdateGraph;
 
+  // Functions declared by instance extensions
+  // extension : VK_KHR_get_physical_device_properties2
+  PFN_vkGetPhysicalDeviceProperties2                     pfn_vkGetPhysicalDeviceProperties2 = nullptr;
+  PFN_vkGetPhysicalDeviceFeatures2                       pfn_vkGetPhysicalDeviceFeatures2   = nullptr;
+
+  // extension : VK_EXT_debug_report ( initialized by setting requestedDebugLayers in viewerTraits )
+  PFN_vkCreateDebugReportCallbackEXT                     pfn_vkCreateDebugReportCallback      = nullptr;
+  PFN_vkDestroyDebugReportCallbackEXT                    pfn_vkDestroyDebugReportCallback     = nullptr;
+  PFN_vkDebugReportMessageEXT                            pfn_vkDebugReportMessage             = nullptr;
+
 protected:
+  void                       loadExtensionFunctions();
   void                       setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
   void                       cleanupDebugging();
 
@@ -165,33 +176,30 @@ protected:
   std::function<void(Viewer*)>                           eventRenderStart;
   std::function<void(Viewer*)>                           eventRenderFinish;
   std::vector<std::shared_ptr<InputEventHandler>>        inputEventHandlers;
-  bool                                                   realized                      = false;
-  bool                                                   viewerTerminate               = false;
-  VkInstance                                             instance                      = VK_NULL_HANDLE;
+  bool                                                   realized                           = false;
+  bool                                                   viewerTerminate                    = false;
+  VkInstance                                             instance                           = VK_NULL_HANDLE;
 
   std::vector<const char*>                               enabledInstanceExtensions;
   std::vector<VkExtensionProperties>                     extensionProperties;
   std::vector<const char*>                               enabledDebugLayers;
 
-  uint32_t                                               nextSurfaceID                 = 0;
-  uint32_t                                               nextDeviceID                  = 0;
-  unsigned long long                                     frameNumber                   = 0;
+  uint32_t                                               nextSurfaceID                      = 0;
+  uint32_t                                               nextDeviceID                       = 0;
+  unsigned long long                                     frameNumber                        = 0;
   HPClock::time_point                                    viewerStartTime;
   HPClock::time_point                                    renderStartTime;
   HPClock::time_point                                    updateTimes[3];
   std::unique_ptr<TimeStatistics>                        timeStatistics;
 
-  uint32_t                                               renderIndex                   = 0;
-  uint32_t                                               updateIndex                   = 1;
-  uint32_t                                               prevUpdateIndex               = 0; // accessible only during update. DO NOT USE IN RENDER.
-  bool                                                   updateInProgress              = false;
+  uint32_t                                               renderIndex                        = 0;
+  uint32_t                                               updateIndex                        = 1;
+  uint32_t                                               prevUpdateIndex                    = 0; // accessible only during update. DO NOT USE IN RENDER.
+  bool                                                   updateInProgress                   = false;
 
   mutable std::mutex                                     updateMutex;
   std::condition_variable                                updateConditionVariable;
 
-  PFN_vkCreateDebugReportCallbackEXT                     pfnCreateDebugReportCallback  = nullptr;
-  PFN_vkDestroyDebugReportCallbackEXT                    pfnDestroyDebugReportCallback = nullptr;
-  PFN_vkDebugReportMessageEXT                            pfnDebugReportMessage         = nullptr;
   VkDebugReportCallbackEXT                               msgCallback;
 
   tbb::flow::graph                                       renderGraph;
@@ -199,7 +207,7 @@ protected:
   std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>> opSurfaceBeginFrame, opSurfaceEventRenderStart, opSurfaceValidateWorkflow, opSurfaceValidateSecondaryNodes, opSurfaceBarrier0, opSurfaceValidateSecondaryDescriptors, opSurfaceSecondaryCommandBuffers, opSurfaceDrawFrame, opSurfaceEndFrame;
   std::map<Surface*, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>> opSurfaceValidatePrimaryNodes, opSurfaceValidatePrimaryDescriptors, opSurfacePrimaryBuffers;
 
-  bool                                                   renderGraphValid = false;
+  bool                                                   renderGraphValid                   = false;
 };
 
 bool                ViewerTraits::useDebugLayers() const    { return !requestedDebugLayers.empty(); }

@@ -1511,7 +1511,6 @@ int main(int argc, char * argv[])
         { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
       };
       auto dynamicFilterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(dynamicFilterLayoutBindings);
-
       auto dynamicFilterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
       dynamicFilterPipelineLayout->descriptorSetLayouts.push_back(dynamicFilterDescriptorSetLayout);
 

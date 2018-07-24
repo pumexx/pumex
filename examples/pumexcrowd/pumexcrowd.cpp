@@ -731,10 +731,10 @@ int main(int argc, char * argv[])
 
     // building compute pipeline layout
     auto filterDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(filterLayoutBindings);
-    auto filterPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    auto filterPipelineLayout      = std::make_shared<pumex::PipelineLayout>();
     filterPipelineLayout->descriptorSetLayouts.push_back(filterDescriptorSetLayout);
-    auto filterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
-    filterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/crowd_filter_instances.comp.spv"), "main" };
+    auto filterPipeline            = std::make_shared<pumex::ComputePipeline>(pipelineCache, filterPipelineLayout);
+    filterPipeline->shaderStage    = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/crowd_filter_instances.comp.spv"), "main" };
     computeRoot->addChild(filterPipeline);
 
     auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), localBuffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);

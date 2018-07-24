@@ -108,7 +108,7 @@ VkDescriptorPool DescriptorPool::addDescriptorSets(const RenderContext& renderCo
 }
 
 DescriptorSetLayout::DescriptorSetLayout(const std::vector<DescriptorSetLayoutBinding>& b)
-  : bindings(b), preferredPoolSize{ 8 }
+  : bindings(b), preferredPoolSize{ 9 }
 {
   hashValue = computeHash(bindings);
 }
@@ -309,7 +309,7 @@ void DescriptorSet::validate( const RenderContext& renderContext )
       descriptorSetAinfo.descriptorPool     = pddit->second.data[activeIndex].pool;
       descriptorSetAinfo.descriptorSetCount = 1;
       descriptorSetAinfo.pSetLayouts        = &layoutHandle;
-    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.data[activeIndex].descriptorSet), "Cannot allocate descriptor sets");
+      VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.data[activeIndex].descriptorSet), "Cannot allocate descriptor sets");
   }
 
   std::map<uint32_t, std::vector<DescriptorValue>> values;

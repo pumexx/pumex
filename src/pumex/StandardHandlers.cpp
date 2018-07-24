@@ -61,6 +61,8 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
     { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
   };
   auto drawDescriptorSetLayout = std::make_shared<DescriptorSetLayout>(drawLayoutBindings);
+  drawDescriptorSetLayout->setPreferredPoolSize(18);
+
   // building pipeline layout
   auto drawPipelineLayout = std::make_shared<PipelineLayout>();
   drawPipelineLayout->descriptorSetLayouts.push_back(drawDescriptorSetLayout);
@@ -110,6 +112,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
     { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
   };
   auto textDescriptorSetLayout = std::make_shared<DescriptorSetLayout>(textLayoutBindings);
+  textDescriptorSetLayout->setPreferredPoolSize(18);
   // building pipeline layout
   auto textPipelineLayout = std::make_shared<PipelineLayout>();
   textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
