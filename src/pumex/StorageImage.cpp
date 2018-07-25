@@ -72,7 +72,7 @@ void StorageImage::validate(const RenderContext& renderContext)
 DescriptorValue StorageImage::getDescriptorValue(const RenderContext& renderContext)
 {
   if (imageView != nullptr)
-    return DescriptorValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    return DescriptorValue(VK_NULL_HANDLE, imageView->getImageView(renderContext), VK_IMAGE_LAYOUT_GENERAL);
   // FIXME : CHECK_LOG_THROW ?
   return DescriptorValue(VK_NULL_HANDLE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }

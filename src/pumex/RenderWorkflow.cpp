@@ -1131,7 +1131,10 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       }
     }
 
-    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferDefinitions, renderPass, workflowResults->registeredMemoryImages, workflowResults->registeredImageViews);
+    AttachmentSize frameBufferSize;
+    if (!renderPass->subPasses.empty())
+      frameBufferSize = renderPass->subPasses[0].lock()->operation->attachmentSize;
+    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, frameBufferDefinitions, renderPass, workflowResults->registeredMemoryImages, workflowResults->registeredImageViews);
     workflowResults->frameBuffers.push_back(frameBuffer);
 
     // build attachments, clear values and image layouts

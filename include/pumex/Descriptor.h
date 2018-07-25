@@ -59,27 +59,39 @@ class DescriptorSetLayout;
 class PUMEX_EXPORT DescriptorPool
 {
 public:
-  explicit DescriptorPool(uint32_t defaultPoolSize = 8);
+  explicit DescriptorPool();
   DescriptorPool(const DescriptorPool&)            = delete;
   DescriptorPool& operator=(const DescriptorPool&) = delete;
   DescriptorPool(DescriptorPool&&)                 = delete;
   DescriptorPool& operator=(DescriptorPool&&)      = delete;
   virtual ~DescriptorPool();
 
-  void             registerPool(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout);
-  VkDescriptorPool addDescriptorSets(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout, uint32_t numDescriptorSets);
+  uint32_t        registerDescriptorSet(std::shared_ptr<DescriptorSetLayout> layout);
+  VkDescriptorSet allocate(const RenderContext& renderContext, uint32_t index);
+  void            deallocate(uint32_t deviceID, uint32_t index, VkDescriptorSet descriptorSet);
 
 protected:
+  struct SinglePoolDefinition
+  {
+    SinglePoolDefinition(std::shared_ptr<DescriptorSetLayout> l)
+      : layout{ l }, registeredDescriptorSets{ 1 }, maxSets{ 0 }
+    {
+    }
+    std::shared_ptr<DescriptorSetLayout> layout;
+    uint32_t                             registeredDescriptorSets;
+    uint32_t                             maxSets;
+  };
+
   struct DescriptorPoolInternal
   {
-    std::map<DescriptorSetLayout*, std::tuple<std::weak_ptr<DescriptorSetLayout>, VkDescriptorPool, uint32_t, uint32_t>> descriptorPools;
+    std::vector<VkDescriptorPool> descriptorPools;
+    std::vector<uint32_t>         allocatedDescriptors;
   };
   typedef PerObjectData<DescriptorPoolInternal, uint32_t> DescriptorPoolData;
 
   mutable std::mutex                                        mutex;
   std::unordered_map<uint32_t, DescriptorPoolData>          perObjectData;
-  uint32_t                                                  defaultPoolSize;
-
+  std::vector<SinglePoolDefinition>                         poolDefinitions;
 };
 
 class PUMEX_EXPORT DescriptorSetLayout : public std::enable_shared_from_this<DescriptorSetLayout>
@@ -92,14 +104,10 @@ public:
   virtual ~DescriptorSetLayout();
 
   void                                                  validate(const RenderContext& renderContext);
-  VkDescriptorPool                                      addDescriptorSets(const RenderContext& renderContext, uint32_t numDescriptorSets);
-
   VkDescriptorSetLayout                                 getHandle(const RenderContext& renderContext) const;
   VkDescriptorType                                      getDescriptorType(uint32_t binding) const;
   uint32_t                                              getDescriptorBindingCount(uint32_t binding) const;
   std::vector<VkDescriptorPoolSize>                     getDescriptorPoolSize(uint32_t poolSize) const;
-  inline void                                           setPreferredPoolSize(uint32_t preferedPoolSize);
-  inline uint32_t                                       getPreferredPoolSize() const;
   inline std::size_t                                    getHashValue() const;
   inline const std::vector<DescriptorSetLayoutBinding>& getBindings() const;
 
@@ -113,7 +121,6 @@ protected:
   mutable std::mutex                                    mutex;
   std::unordered_map<uint32_t, DescriptorSetLayoutData> perObjectData;
   std::vector<DescriptorSetLayoutBinding>               bindings;
-  uint32_t                                              preferredPoolSize;
   std::size_t                                           hashValue;
   bool                                                  registered = false;
 };
@@ -147,7 +154,7 @@ class PUMEX_EXPORT DescriptorSet : public CommandBufferSource
 {
 public:
   DescriptorSet()                                = delete;
-  explicit DescriptorSet(std::shared_ptr<DescriptorSetLayout> layout);
+  explicit DescriptorSet(std::shared_ptr<DescriptorPool> pool, std::shared_ptr<DescriptorSetLayout> layout);
   DescriptorSet(const DescriptorSet&)            = delete;
   DescriptorSet& operator=(const DescriptorSet&) = delete;
   DescriptorSet(DescriptorSet&&)                 = delete;
@@ -174,17 +181,18 @@ protected:
   struct DescriptorSetInternal
   {
     DescriptorSetInternal()
-      : descriptorSet{ VK_NULL_HANDLE }, pool{ VK_NULL_HANDLE }
+      : descriptorSet{ VK_NULL_HANDLE }
     {
     }
     VkDescriptorSet  descriptorSet;
-    VkDescriptorPool pool;
   };
   typedef PerObjectData<DescriptorSetInternal, uint32_t> DescriptorSetData;
 
   mutable std::mutex                                        mutex;
-  std::unordered_map<uint32_t, DescriptorSetData>           perObjectData;
   std::shared_ptr<DescriptorSetLayout>                      layout;
+  std::shared_ptr<DescriptorPool>                           pool;
+  uint32_t                                                  poolIndex;
+  std::unordered_map<uint32_t, DescriptorSetData>           perObjectData;
   std::unordered_map<uint32_t, std::shared_ptr<Descriptor>> descriptors; // descriptor set indirectly owns buffers, images and whatnot
   std::vector<std::weak_ptr<Node>>                          nodeOwners;
   uint32_t                                                  activeCount = 1;
@@ -192,7 +200,5 @@ protected:
 
 std::size_t DescriptorSetLayout::getHashValue() const                                   { return hashValue; }
 const std::vector<DescriptorSetLayoutBinding>& DescriptorSetLayout::getBindings() const { return bindings; }
-void DescriptorSetLayout::setPreferredPoolSize(uint32_t pps)                            { preferredPoolSize = pps;  }
-uint32_t DescriptorSetLayout::getPreferredPoolSize() const                              { return preferredPoolSize; }
 
 }

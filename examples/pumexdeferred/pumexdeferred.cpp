@@ -297,6 +297,8 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 80 MB memory for textures
     std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // create common descriptor pool
+    std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
     std::shared_ptr<DeferredApplicationData> applicationData = std::make_shared<DeferredApplicationData>(buffersAllocator);
 
@@ -385,7 +387,7 @@ int main( int argc, char * argv[] )
       // node will be added twice - first one - for building depth buffer, and second one for filling gbuffers
       buildzPipeline->addChild(assetBufferNode);
 
-      std::shared_ptr<pumex::DescriptorSet> bzDescriptorSet = std::make_shared<pumex::DescriptorSet>(buildzDescriptorSetLayout);
+      std::shared_ptr<pumex::DescriptorSet> bzDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, buildzDescriptorSetLayout);
       bzDescriptorSet->setDescriptor(0, cameraUbo);
       bzDescriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer));
       bzDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
@@ -453,7 +455,7 @@ int main( int argc, char * argv[] )
 
     gbufferPipeline->addChild(assetBufferNode);
 
-    std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(gbufferDescriptorSetLayout);
+    std::shared_ptr<pumex::DescriptorSet> descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, gbufferDescriptorSetLayout);
     descriptorSet->setDescriptor(0, cameraUbo);
     descriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer));
     descriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
@@ -517,7 +519,7 @@ int main( int argc, char * argv[] )
 
     auto iaSampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
 
-    auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(compositeDescriptorSetLayout);
+    auto compositeDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, compositeDescriptorSetLayout);
     compositeDescriptorSet->setDescriptor(0, cameraUbo);
     compositeDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(applicationData->lightsBuffer));
     compositeDescriptorSet->setDescriptor(2, std::make_shared<pumex::InputAttachment>("position", iaSampler));

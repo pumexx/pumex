@@ -53,6 +53,8 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
   statisticsRoot = std::make_shared<Group>();
   statisticsRoot->setName("statisticsRoot");
 
+  std::shared_ptr<DescriptorPool> descriptorPool = std::make_shared<DescriptorPool>();
+
   drawSemantic = { { VertexSemantic::Position, 3 }, { VertexSemantic::Color, 4 } };
 
   // preparing pipeline for statistics rendering : draw pipeline
@@ -61,7 +63,6 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
     { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT }
   };
   auto drawDescriptorSetLayout = std::make_shared<DescriptorSetLayout>(drawLayoutBindings);
-  drawDescriptorSetLayout->setPreferredPoolSize(18);
 
   // building pipeline layout
   auto drawPipelineLayout = std::make_shared<PipelineLayout>();
@@ -96,7 +97,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
 
   drawCameraBuffer       = std::make_shared<Buffer<Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pbPerSurface, swOnce, true);
   auto drawCameraUbo     = std::make_shared<UniformBuffer>(drawCameraBuffer);
-  auto drawDescriptorSet = std::make_shared<DescriptorSet>(drawDescriptorSetLayout);
+  auto drawDescriptorSet = std::make_shared<DescriptorSet>(descriptorPool, drawDescriptorSetLayout);
   drawDescriptorSet->setDescriptor(0, drawCameraUbo);
   drawNode->setDescriptorSet(0, drawDescriptorSet);
 
@@ -112,7 +113,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
     { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
   };
   auto textDescriptorSetLayout = std::make_shared<DescriptorSetLayout>(textLayoutBindings);
-  textDescriptorSetLayout->setPreferredPoolSize(18);
+
   // building pipeline layout
   auto textPipelineLayout = std::make_shared<PipelineLayout>();
   textPipelineLayout->descriptorSetLayouts.push_back(textDescriptorSetLayout);
@@ -147,7 +148,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
 
   auto textCameraUbo            = std::make_shared<UniformBuffer>(textCameraBuffer);
   auto fontDefaultImageView     = std::make_shared<ImageView>(fontDefault->fontMemoryImage, fontDefault->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
-  auto textDefaultDescriptorSet = std::make_shared<DescriptorSet>(textDescriptorSetLayout);
+  auto textDefaultDescriptorSet = std::make_shared<DescriptorSet>(descriptorPool, textDescriptorSetLayout);
   textDefaultDescriptorSet->setDescriptor(0, textCameraUbo);
   textDefaultDescriptorSet->setDescriptor(1, std::make_shared<CombinedImageSampler>(fontDefaultImageView, fontSampler));
   textDefault->setDescriptorSet(0, textDefaultDescriptorSet);
@@ -158,7 +159,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
   textPipeline->addChild(textSmall);
 
   auto fontSmallImageView = std::make_shared<ImageView>(fontSmall->fontMemoryImage, fontSmall->fontMemoryImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D);
-  auto textSmallDescriptorSet = std::make_shared<DescriptorSet>(textDescriptorSetLayout);
+  auto textSmallDescriptorSet = std::make_shared<DescriptorSet>(descriptorPool, textDescriptorSetLayout);
   textSmallDescriptorSet->setDescriptor(0, textCameraUbo);
     textSmallDescriptorSet->setDescriptor(1, std::make_shared<CombinedImageSampler>(fontSmallImageView, fontSampler));
   textSmall->setDescriptorSet(0, textSmallDescriptorSet);

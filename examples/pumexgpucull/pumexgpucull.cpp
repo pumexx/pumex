@@ -326,7 +326,7 @@ public:
 };
 
 template<typename T>
-std::shared_ptr<pumex::Node> createInstanceGraph( std::shared_ptr<InstanceCell<T>> cell, const pumex::BoundingBox& objectsBBox, std::shared_ptr<pumex::DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<pumex::DescriptorSetLayout> filterDescriptorSetLayout)
+std::shared_ptr<pumex::Node> createInstanceGraph( std::shared_ptr<InstanceCell<T>> cell, const pumex::BoundingBox& objectsBBox, std::shared_ptr<pumex::DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<pumex::DescriptorPool> descriptorPool, std::shared_ptr<pumex::DescriptorSetLayout> filterDescriptorSetLayout)
 {
   bool needGroup = !(cell->cells.empty());
   bool needInstances = !(cell->instances.empty());
@@ -343,7 +343,7 @@ std::shared_ptr<pumex::Node> createInstanceGraph( std::shared_ptr<InstanceCell<T
     *xin = cell->instances;
     auto storageBuffer = std::make_shared<pumex::Buffer<std::vector<T>>>(xin, bufferAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
-    auto staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout);
+    auto staticFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, filterDescriptorSetLayout);
     staticFilterDescriptorSet->setDescriptor(0, std::make_shared<pumex::StorageBuffer>(storageBuffer));
     dNode->setDescriptorSet(1, staticFilterDescriptorSet);
   }
@@ -352,7 +352,7 @@ std::shared_ptr<pumex::Node> createInstanceGraph( std::shared_ptr<InstanceCell<T
   {
     group = std::make_shared<pumex::Group>();
     for (auto itr = begin(cell->cells); itr != end(cell->cells); ++itr)
-      group->addChild(createInstanceGraph(*itr, objectsBBox, bufferAllocator, filterDescriptorSetLayout));
+      group->addChild(createInstanceGraph(*itr, objectsBBox, bufferAllocator, descriptorPool, filterDescriptorSetLayout));
     if (dNode != nullptr) 
       group->addChild(dNode);
   }
@@ -361,13 +361,13 @@ std::shared_ptr<pumex::Node> createInstanceGraph( std::shared_ptr<InstanceCell<T
 }
 
 template <typename T>
-std::shared_ptr<pumex::Node> createInstanceTree(const std::vector<T>& instances, const pumex::BoundingBox& objectsBBox, unsigned int maxNumInstancesPerCell, std::shared_ptr<pumex::DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<pumex::DescriptorSetLayout> filterDescriptorSetLayout )
+std::shared_ptr<pumex::Node> createInstanceTree(const std::vector<T>& instances, const pumex::BoundingBox& objectsBBox, unsigned int maxNumInstancesPerCell, std::shared_ptr<pumex::DeviceMemoryAllocator> bufferAllocator, std::shared_ptr<pumex::DescriptorPool> descriptorPool, std::shared_ptr<pumex::DescriptorSetLayout> filterDescriptorSetLayout )
 {
   auto rootCell = std::make_shared<InstanceCell<T>>();
   rootCell->instances = instances;
   rootCell->divide( maxNumInstancesPerCell );
     
-  return createInstanceGraph( rootCell, objectsBBox, bufferAllocator, filterDescriptorSetLayout);
+  return createInstanceGraph( rootCell, objectsBBox, bufferAllocator, descriptorPool, filterDescriptorSetLayout);
 }
 
 // we are trying to count how many objects of each type there is in an instance tree
@@ -931,7 +931,7 @@ struct GpuCullApplicationData
     staticMaterialSet->endRegisterMaterials();
   }
 
-  std::shared_ptr<pumex::Node> setupStaticInstances(float staticAreaSize, float densityModifier, uint32_t instancesPerCell, std::shared_ptr<pumex::AssetBufferFilterNode> staticAssetBufferFilterNode, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DescriptorSetLayout> staticFilterDescriptorSetLayout1)
+  std::shared_ptr<pumex::Node> setupStaticInstances(float staticAreaSize, float densityModifier, uint32_t instancesPerCell, std::shared_ptr<pumex::AssetBufferFilterNode> staticAssetBufferFilterNode, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DescriptorPool> descriptorPool, std::shared_ptr<pumex::DescriptorSetLayout> staticFilterDescriptorSetLayout1)
   {
     std::map<uint32_t,float> objectDensity =
     { 
@@ -979,7 +979,7 @@ struct GpuCullApplicationData
         allObjectsBBox        += pos;
       }
     }
-    std::shared_ptr<pumex::Node> instanceTree = createInstanceTree(staticInstanceData, allObjectsBBox, instancesPerCell, buffersAllocator, staticFilterDescriptorSetLayout1);
+    std::shared_ptr<pumex::Node> instanceTree = createInstanceTree(staticInstanceData, allObjectsBBox, instancesPerCell, buffersAllocator, descriptorPool, staticFilterDescriptorSetLayout1);
 
     uint32_t maxType = *std::max_element(begin(_staticTypeIDs), end(_staticTypeIDs));
     TypeCountVisitor tcv(maxType + 1, 1, 0);
@@ -1276,6 +1276,7 @@ int main(int argc, char * argv[])
   float densityModifier      = args::get(densityModifierArg) / 100.0f;  // density of objects is multiplied by this parameter
   float triangleModifier     = args::get(triangleModifierArg) / 100.0f; // the number of triangles on geometries is multiplied by this parameter
   uint32_t instancesPerCell  = args::get(instancesPerCellArg);
+  instancesPerCell = 3000000;
 
   LOG_INFO << "Object culling on GPU";
   if (enableDebugging)
@@ -1332,6 +1333,8 @@ int main(int argc, char * argv[])
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 4 MB memory for font textures
     std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 4 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // create common descriptor pool
+    std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f } };
 
@@ -1399,7 +1402,6 @@ int main(int argc, char * argv[])
       };
       auto staticFilterDescriptorSetLayout0 = std::make_shared<pumex::DescriptorSetLayout>(staticFilterLayoutBindings0);
       auto staticFilterDescriptorSetLayout1 = std::make_shared<pumex::DescriptorSetLayout>(staticFilterLayoutBindings1);
-      staticFilterDescriptorSetLayout1->setPreferredPoolSize(256);
 
       auto staticFilterPipelineLayout  = std::make_shared<pumex::PipelineLayout>();
       staticFilterPipelineLayout->descriptorSetLayouts.push_back(staticFilterDescriptorSetLayout0);
@@ -1419,8 +1421,6 @@ int main(int argc, char * argv[])
       staticFilterPipeline->setName("staticFilterPipeline");
       staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_static_filter_instances.comp.spv"), "main" };
       staticFilterRoot->addChild(staticFilterPipeline);
-      staticFilterPipeline->useSecondaryBuffer();
-
 
       auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce);
       auto staticCounterSbo    = std::make_shared<pumex::StorageBuffer>(staticCounterBuffer);
@@ -1437,11 +1437,12 @@ int main(int argc, char * argv[])
       staticAssetBufferFilterNode->setName("staticAssetBufferFilterNode");
       staticFilterPipeline->addChild(staticAssetBufferFilterNode);
 
-      std::shared_ptr<pumex::Node> instanceTree = applicationData->setupStaticInstances(staticAreaSize, densityModifier, instancesPerCell, staticAssetBufferFilterNode, buffersAllocator, staticFilterDescriptorSetLayout1);
+      std::shared_ptr<pumex::DescriptorPool> staticDescriptorPool = std::make_shared<pumex::DescriptorPool>();
+      std::shared_ptr<pumex::Node> instanceTree = applicationData->setupStaticInstances(staticAreaSize, densityModifier, instancesPerCell, staticAssetBufferFilterNode, buffersAllocator, staticDescriptorPool, staticFilterDescriptorSetLayout1);
       applicationData->setupStaticBuffers(staticCounterBuffer, staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
       staticAssetBufferFilterNode->addChild(instanceTree);
 
-      auto staticFilterDescriptorSet0 = std::make_shared<pumex::DescriptorSet>(staticFilterDescriptorSetLayout0);
+      auto staticFilterDescriptorSet0 = std::make_shared<pumex::DescriptorSet>(descriptorPool, staticFilterDescriptorSetLayout0);
       staticFilterDescriptorSet0->setDescriptor(0, cameraUbo);
       staticFilterDescriptorSet0->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(staticAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
       staticFilterDescriptorSet0->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(staticAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
@@ -1489,7 +1490,7 @@ int main(int argc, char * argv[])
       staticAssetBufferDrawIndirect->setName("staticAssetBufferDrawIndirect");
       staticAssetBufferNode->addChild(staticAssetBufferDrawIndirect);
 
-      auto staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(staticRenderDescriptorSetLayout);
+      auto staticRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, staticRenderDescriptorSetLayout);
       staticRenderDescriptorSet->setDescriptor(0, cameraUbo);
       staticRenderDescriptorSet->setDescriptor(1, staticResultsIndexSbo);
       staticRenderDescriptorSet->setDescriptor(2, staticResultsSbo);
@@ -1544,7 +1545,7 @@ int main(int argc, char * argv[])
       dynamicAssetBufferFilterNode->addChild(dynamicDispatchNode);
       dynamicAssetBufferFilterNode->setEventResizeOutputs(std::bind(resizeDynamicOutputBuffers, dynamicResultsBuffer, dynamicDispatchNode, std::placeholders::_1, std::placeholders::_2));
 
-      auto dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(dynamicFilterDescriptorSetLayout);
+      auto dynamicFilterDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, dynamicFilterDescriptorSetLayout);
       dynamicFilterDescriptorSet->setDescriptor(0, cameraUbo);
       dynamicFilterDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(dynamicAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
       dynamicFilterDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(dynamicAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
@@ -1590,7 +1591,7 @@ int main(int argc, char * argv[])
       dynamicAssetBufferDrawIndirect->setName("dynamicAssetBufferDrawIndirect");
       dynamicAssetBufferNode->addChild(dynamicAssetBufferDrawIndirect);
 
-      auto dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(dynamicRenderDescriptorSetLayout);
+      auto dynamicRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, dynamicRenderDescriptorSetLayout);
       dynamicRenderDescriptorSet->setDescriptor(0, cameraUbo);
       dynamicRenderDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(applicationData->dynamicInstanceBuffer));
       dynamicRenderDescriptorSet->setDescriptor(2, dynamicResultsSbo);

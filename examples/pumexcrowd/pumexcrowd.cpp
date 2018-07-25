@@ -692,6 +692,8 @@ int main(int argc, char * argv[])
     auto verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 80 MB memory for 24 compressed textures and for font textures
     auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // create common descriptor pool
+    std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
     std::shared_ptr<CrowdApplicationData> applicationData = std::make_shared<CrowdApplicationData>(buffersAllocator);
 
@@ -758,7 +760,7 @@ int main(int argc, char * argv[])
     auto positionSbo = std::make_shared<pumex::StorageBuffer>(applicationData->positionBuffer);
     auto instanceSbo = std::make_shared<pumex::StorageBuffer>(applicationData->instanceBuffer);
   
-    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(filterDescriptorSetLayout);
+    auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, filterDescriptorSetLayout);
     filterDescriptorSet->setDescriptor(0, cameraUbo);
     filterDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
     filterDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
@@ -816,7 +818,7 @@ int main(int argc, char * argv[])
     assetBufferDrawIndirect->setName("assetBufferDrawIndirect");
     assetBufferNode->addChild(assetBufferDrawIndirect);
 
-    auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(instancedRenderDescriptorSetLayout);
+    auto instancedRenderDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, instancedRenderDescriptorSetLayout);
     instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
     instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
     instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);

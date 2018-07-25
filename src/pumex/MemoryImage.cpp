@@ -144,8 +144,8 @@ struct SetImageOperation : public MemoryImage::Operation
       // Copy mip levels from staging buffer
       commandBuffer->cmdCopyBufferToImage(stagingBuffer->buffer, *(internals.image), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions);
     
-//      // Change texture image layout to shader read after all mip levels have been copied
-//      commandBuffer->setImageLayout( *(internals.image), aspectMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+      // Change texture image layout to shader read after all mip levels have been copied
+      commandBuffer->setImageLayout( *(internals.image), aspectMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
       stagingBuffers.push_back(stagingBuffer);
     }
@@ -218,6 +218,7 @@ struct ClearImageOperation : public MemoryImage::Operation
       commandBuffer->cmdClearColorImage(*internals.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, clearValue, subResources);
     else
       commandBuffer->cmdClearDepthStencilImage(*internals.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, clearValue, subResources);
+    commandBuffer->setImageLayout(*(internals.image), imageRange.aspectMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
     return true;
   }
   VkClearValue clearValue;

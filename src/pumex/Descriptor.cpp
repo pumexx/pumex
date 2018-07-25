@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
+#include <pumex/Viewer.h>
 #include <pumex/Node.h>
 #include <pumex/RenderContext.h>
 #include <pumex/utils/HashCombine.h>
@@ -51,8 +52,7 @@ std::size_t computeHash(const std::vector<DescriptorSetLayoutBinding> layoutBind
 }
 }
 
-DescriptorPool::DescriptorPool(uint32_t dps)
-  : defaultPoolSize(dps)
+DescriptorPool::DescriptorPool()
 {
 }
 
@@ -60,55 +60,80 @@ DescriptorPool::~DescriptorPool()
 {
   for (auto& pddit : perObjectData)
     for(uint32_t i=0; i<pddit.second.data.size(); ++i)
-      for( auto it : pddit.second.data[i].descriptorPools)
-        vkDestroyDescriptorPool(pddit.second.device, std::get<1>(it.second), nullptr);
+      for( auto& descriptorPool : pddit.second.data[i].descriptorPools)
+        vkDestroyDescriptorPool(pddit.second.device, descriptorPool, nullptr);
 }
 
-void DescriptorPool::registerPool(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto keyValue = getKeyID(renderContext, pbPerDevice);
-  auto pddit = perObjectData.find(keyValue);
-  if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, DescriptorPoolData(renderContext, swOnce) }).first;
+  uint32_t DescriptorPool::registerDescriptorSet(std::shared_ptr<DescriptorSetLayout> layout)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    // find pool that uses the same layout and has not been validated yet
+    auto hashVal = layout->getHashValue();
+    auto it = std::find_if(begin(poolDefinitions), end(poolDefinitions), [&](const SinglePoolDefinition& pd) { return (pd.maxSets == 0) && (pd.layout->getHashValue() == hashVal); });
+    uint32_t index;
+    if (it == end(poolDefinitions))
+    {
+      index = poolDefinitions.size();
+      poolDefinitions.push_back(SinglePoolDefinition(layout));
+    }
+    else
+    {
+      index = std::distance(begin(poolDefinitions), it);
+      it->registeredDescriptorSets++;
+    }
+    return index;
+  }
 
-  auto it = pddit->second.data[0].descriptorPools.find(descriptorSetLayout.get());
-  CHECK_LOG_THROW(it != end(pddit->second.data[0].descriptorPools), "DescriptorPool::registerPool() : second attempt to register DescriptorSetLayout");
+  VkDescriptorSet DescriptorPool::allocate(const RenderContext& renderContext, uint32_t index)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto keyValue = getKeyID(renderContext, pbPerDevice);
+    auto pddit    = perObjectData.find(keyValue);
+    if (pddit == end(perObjectData))
+      pddit = perObjectData.insert({ keyValue, DescriptorPoolData(renderContext, swOnce) }).first;
 
-  std::vector<VkDescriptorPoolSize> poolSizes = descriptorSetLayout->getDescriptorPoolSize(descriptorSetLayout->getPreferredPoolSize());
-  VkDescriptorPoolCreateInfo descriptorPoolCI{};
-    descriptorPoolCI.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptorPoolCI.poolSizeCount = poolSizes.size();
-    descriptorPoolCI.pPoolSizes    = poolSizes.data();
-    descriptorPoolCI.maxSets       = descriptorSetLayout->getPreferredPoolSize();
-    descriptorPoolCI.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // we will free our descriptor sets manually
-  VkDescriptorPool dPool;
-  VK_CHECK_LOG_THROW(vkCreateDescriptorPool(pddit->second.device, &descriptorPoolCI, nullptr, &dPool), "Cannot create descriptor pool");
-  pddit->second.data[0].descriptorPools.insert({ descriptorSetLayout.get(), std::make_tuple(descriptorSetLayout, dPool, descriptorSetLayout->getPreferredPoolSize(), 0) });
-}
+    if (poolDefinitions[index].maxSets == 0)
+    {
+      uint32_t poolSize = poolDefinitions[index].registeredDescriptorSets * renderContext.imageCount * renderContext.surface->viewer.lock()->getNumSurfaces();
+      std::vector<VkDescriptorPoolSize> poolSizes = poolDefinitions[index].layout->getDescriptorPoolSize(poolSize);
+      VkDescriptorPoolCreateInfo descriptorPoolCI{};
+        descriptorPoolCI.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptorPoolCI.poolSizeCount = poolSizes.size();
+        descriptorPoolCI.pPoolSizes    = poolSizes.data();
+        descriptorPoolCI.maxSets       = poolSize;
+        descriptorPoolCI.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // we will free our descriptor sets manually
+        pddit->second.data[0].descriptorPools.resize(poolDefinitions.size(), VK_NULL_HANDLE);
+        pddit->second.data[0].allocatedDescriptors.resize(poolDefinitions.size(), 0);
+        VK_CHECK_LOG_THROW(vkCreateDescriptorPool(pddit->second.device, &descriptorPoolCI, nullptr, &pddit->second.data[0].descriptorPools[index]), "Cannot create descriptor pool");
+        poolDefinitions[index].maxSets = poolSize;
+    }
+    CHECK_LOG_THROW(pddit->second.data[0].allocatedDescriptors[index] >= poolDefinitions[index].maxSets, "Cannot allocate another descriptor set. Descriptor pool is full");
 
-VkDescriptorPool DescriptorPool::addDescriptorSets(const RenderContext& renderContext, std::shared_ptr<DescriptorSetLayout> descriptorSetLayout, uint32_t numDescriptorSets)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  auto keyValue = getKeyID(renderContext, pbPerDevice);
-  auto pddit = perObjectData.find(keyValue);
-  if (pddit == end(perObjectData))
-    pddit = perObjectData.insert({ keyValue, DescriptorPoolData(renderContext, swOnce) }).first;
+    VkDescriptorSetLayout layoutHandle = poolDefinitions[index].layout->getHandle(renderContext);
+    VkDescriptorSetAllocateInfo descriptorSetAinfo{};
+      descriptorSetAinfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+      descriptorSetAinfo.descriptorPool     = pddit->second.data[0].descriptorPools[index];
+      descriptorSetAinfo.descriptorSetCount = 1;
+      descriptorSetAinfo.pSetLayouts        = &layoutHandle;
+    VkDescriptorSet descriptorSet;
+    VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &descriptorSet), "Cannot allocate descriptor set");
+    pddit->second.data[0].allocatedDescriptors[index]++;
+    return descriptorSet;
+  }
 
-  auto it = pddit->second.data[0].descriptorPools.find(descriptorSetLayout.get());
-  CHECK_LOG_THROW(it == end(pddit->second.data[0].descriptorPools), "DescriptorPool::addDescriptorSets() : DescriptorSetLayout was not registered previously");
-
-  // check if descriptor pool size was not excedeed
-  std::weak_ptr<DescriptorSetLayout> descSetLayout;
-  VkDescriptorPool pool;
-  uint32_t maxSize, curSize;
-  std::tie(descSetLayout, pool, maxSize, curSize) = it->second;
-  CHECK_LOG_THROW(curSize + numDescriptorSets > maxSize, "DescriptorPool::addDescriptorSets() : too many descriptor sets allocated");
-  return pool;
-}
+  void DescriptorPool::deallocate(uint32_t deviceID, uint32_t index, VkDescriptorSet descriptorSet)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto pddit    = perObjectData.find(deviceID);
+    if (pddit == end(perObjectData))
+      return;
+    CHECK_LOG_THROW(poolDefinitions[index].maxSets == 0, "Cannot deallocate descriptor set - descriptor pool was not created before");
+    vkFreeDescriptorSets(pddit->second.device, pddit->second.data[0].descriptorPools[index], 1, &descriptorSet);
+    pddit->second.data[0].allocatedDescriptors[index]--;
+  }
 
 DescriptorSetLayout::DescriptorSetLayout(const std::vector<DescriptorSetLayoutBinding>& b)
-  : bindings(b), preferredPoolSize{ 9 }
+  : bindings(b)
 {
   hashValue = computeHash(bindings);
 }
@@ -131,9 +156,6 @@ void DescriptorSetLayout::validate(const RenderContext& renderContext)
   if (pddit->second.valid[0])
     return;
 
-  // if descriptor set layout was not created, then pool for this descriptor set layout is empty/too small.
-  renderContext.descriptorPool->registerPool(renderContext, shared_from_this());
-
   std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
   for ( const auto& b : bindings )
   {
@@ -151,11 +173,6 @@ void DescriptorSetLayout::validate(const RenderContext& renderContext)
     descriptorSetLayoutCI.bindingCount = setLayoutBindings.size();
   VK_CHECK_LOG_THROW(vkCreateDescriptorSetLayout(pddit->second.device, &descriptorSetLayoutCI, nullptr, &pddit->second.data[0].descriptorSetLayout), "Cannot create descriptor set layout");
   pddit->second.valid[0] = true;
-}
-
-VkDescriptorPool DescriptorSetLayout::addDescriptorSets(const RenderContext& renderContext, uint32_t numDescriptorSets)
-{
-  return renderContext.descriptorPool->addDescriptorSets(renderContext, shared_from_this(), numDescriptorSets);
 }
 
 VkDescriptorSetLayout DescriptorSetLayout::getHandle(const RenderContext& renderContext) const
@@ -254,9 +271,10 @@ void Descriptor::getDescriptorValues(const RenderContext& renderContext, std::ve
   }
 }
 
-DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorSetLayout> l)
-  : layout{ l }
+DescriptorSet::DescriptorSet(std::shared_ptr<DescriptorPool> p, std::shared_ptr<DescriptorSetLayout> l)
+  : pool{ p }, layout{ l }
 {
+  poolIndex = pool->registerDescriptorSet(layout);
 }
 
 DescriptorSet::~DescriptorSet()
@@ -268,10 +286,7 @@ DescriptorSet::~DescriptorSet()
 
   for (auto& pdd : perObjectData)
     for (uint32_t i = 0; i < pdd.second.data.size(); ++i)
-    {
-      vkFreeDescriptorSets(pdd.second.device, pdd.second.data[i].pool, 1, &pdd.second.data[i].descriptorSet);
-      // FIXME - desc sets are not released from DescriptoPool
-    }
+      pool->deallocate(pdd.second.commonData, poolIndex, pdd.second.data[i].descriptorSet);
 }
 
 void DescriptorSet::validate( const RenderContext& renderContext )
@@ -301,15 +316,8 @@ void DescriptorSet::validate( const RenderContext& renderContext )
 
   if (pddit->second.data[activeIndex].descriptorSet == VK_NULL_HANDLE)
   {
-    pddit->second.data[activeIndex].pool = layout->addDescriptorSets(renderContext, 1);
-    VkDescriptorSetLayout layoutHandle   = layout->getHandle(renderContext);
-
-    VkDescriptorSetAllocateInfo descriptorSetAinfo{};
-      descriptorSetAinfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-      descriptorSetAinfo.descriptorPool     = pddit->second.data[activeIndex].pool;
-      descriptorSetAinfo.descriptorSetCount = 1;
-      descriptorSetAinfo.pSetLayouts        = &layoutHandle;
-      VK_CHECK_LOG_THROW(vkAllocateDescriptorSets(pddit->second.device, &descriptorSetAinfo, &pddit->second.data[activeIndex].descriptorSet), "Cannot allocate descriptor sets");
+    pddit->second.data[activeIndex].descriptorSet = pool->allocate(renderContext, poolIndex);
+    pddit->second.commonData                      = renderContext.device->getID();
   }
 
   std::map<uint32_t, std::vector<DescriptorValue>> values;

@@ -3,8 +3,6 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-const uint CLIPMAP_TEXTURE_COUNT = 4; // should be the same as in voxelizer.cpp
-
 layout (triangles) in;
 layout (triangle_strip, max_vertices = 3) out;
 
@@ -12,7 +10,7 @@ layout (location = 0) in vec3 inNormal[];
 layout (location = 1) in vec3 inColor[];
 layout (location = 2) in vec2 inUV[];
 
-layout(binding = 2, RGBA8) uniform image3D voxelTexture[CLIPMAP_TEXTURE_COUNT];
+layout(binding = 2, RGBA8) uniform image3D voxelTexture;
 
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outColor;
@@ -28,7 +26,7 @@ void main()
   vec3 tn            = abs( tNorm );
 
   // calculate pixel size
-  vec3 imSize         = imageSize(voxelTexture[0]);
+  vec3 imSize         = imageSize(voxelTexture);
   vec3 pixelSize      = 1.0 / imSize;
   float pixelDiagonal = 1.732050808 * pixelSize.x;
 

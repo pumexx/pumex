@@ -227,6 +227,8 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 8 MB memory for font textures
     auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // create common descriptor pool
+    std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
 
     // render workflow will use one queue with below defined traits
@@ -344,12 +346,12 @@ int main( int argc, char * argv[] )
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 
-    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
+    auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, descriptorSetLayout);
       descriptorSet->setDescriptor(0, cameraUbo);
       descriptorSet->setDescriptor(1, positionUbo);
     pipeline->setDescriptorSet(0, descriptorSet);
 
-    auto wireframeDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorSetLayout);
+    auto wireframeDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, descriptorSetLayout);
       wireframeDescriptorSet->setDescriptor(0, cameraUbo);
       wireframeDescriptorSet->setDescriptor(1, positionUbo);
     wireframePipeline->setDescriptorSet(0, wireframeDescriptorSet);

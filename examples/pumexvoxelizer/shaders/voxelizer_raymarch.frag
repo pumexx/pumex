@@ -4,7 +4,7 @@
 #extension GL_ARB_shading_language_420pack : enable
 
 #define MAX_BONES 511
-const uint CLIPMAP_TEXTURE_COUNT = 4; // should be the same as in voxelizer.cpp
+
 const vec3 normalDirections[3][2] = { vec3[2](vec3(-1,0,0), vec3(1,0,0)),   
                                       vec3[2](vec3(0,-1,0), vec3(0,1,0)),   
                                       vec3[2](vec3(0,0,-1), vec3(0,0,1)) };
@@ -30,7 +30,7 @@ layout (binding = 1) uniform PositionSbo
   mat4  bones[MAX_BONES];
 } object;
 
-layout(binding = 2, RGBA8) uniform image3D voxelTexture[CLIPMAP_TEXTURE_COUNT];
+layout(binding = 2, RGBA8) uniform image3D voxelTexture;
 
 layout (location = 0) out vec4 outFragColor;
 
@@ -53,7 +53,7 @@ void main()
   float tmax     = min(tmax1.x, min(tmax1.y,tmax1.z));
   vec3 rayStart  = volumeNearPlane + tmin * rayDir;
 
-  vec3 voxelTextureSize = imageSize(voxelTexture[0]);
+  vec3 voxelTextureSize = imageSize(voxelTexture);
   vec3 rayDirInTex      = rayDir * voxelTextureSize;
   vec3 invRayDirInTex   = 1.0 / rayDirInTex;
 
@@ -67,7 +67,7 @@ void main()
   while( t < tmax-tmin )
   {
     vec3 texCoordInTex = voxelTextureSize * (rayStart + t * rayDir);
-    vec4 color         = imageLoad(voxelTexture[0], ivec3(texCoordInTex));
+    vec4 color         = imageLoad(voxelTexture, ivec3(texCoordInTex));
 
     if(color.a>0.0)
     {

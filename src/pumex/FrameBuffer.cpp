@@ -43,30 +43,13 @@ FrameBufferImageDefinition::FrameBufferImageDefinition(AttachmentType at, VkForm
 {
 }
 
-FrameBuffer::FrameBuffer(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::shared_ptr<DeviceMemoryAllocator> allocator)
-  : imageDefinitions(fbid), renderPass{ rp }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const AttachmentSize& fbs, const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::map<std::string, std::shared_ptr<MemoryImage>> mi, std::map<std::string, std::shared_ptr<ImageView>> iv)
+  : frameBufferSize{fbs}, imageDefinitions(fbid), renderPass{ rp }, activeCount{ 1 }
 {
   for (uint32_t i = 0; i < imageDefinitions.size(); i++)
   {
     FrameBufferImageDefinition& definition = imageDefinitions[i];
-    VkExtent3D imSize{ 1,1,1 };
-    uint32_t layerCount = static_cast<uint32_t>(definition.attachmentSize.imageSize.z);
-    ImageTraits imageTraits(definition.usage, definition.format, imSize, 1, layerCount, definition.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-    SwapChainImageBehaviour scib = (definition.attachmentType == atSurface) ? swForEachImage : swOnce;
-    auto memoryImage = std::make_shared<MemoryImage>(imageTraits, allocator, definition.aspectMask, pbPerSurface, scib, false, false);
-    memoryImages.push_back(memoryImage);
-    ImageSubresourceRange range(definition.aspectMask, 0, 1, 0, layerCount);
-    VkImageViewType imageViewType = (layerCount > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
-    imageViews.push_back(std::make_shared<ImageView>(memoryImage, range, imageViewType));
-  }
-}
-
-FrameBuffer::FrameBuffer(const std::vector<FrameBufferImageDefinition>& fbid, std::shared_ptr<RenderPass> rp, std::map<std::string, std::shared_ptr<MemoryImage>> mi, std::map<std::string, std::shared_ptr<ImageView>> iv)
-  : imageDefinitions(fbid), renderPass{ rp }, activeCount{ 1 }
-{
-  for (uint32_t i = 0; i < imageDefinitions.size(); i++)
-  {
-    FrameBufferImageDefinition& definition = imageDefinitions[i];
+    CHECK_LOG_THROW(frameBufferSize != definition.attachmentSize, "FrameBuffer::FrameBuffer() : image definition size is different from framebuffer size");
     auto mit = mi.find(definition.name);
     CHECK_LOG_THROW(mit == end(mi), "FrameBuffer::FrameBuffer() : not all memory images have been supplied");
     memoryImages.push_back(mit->second);
@@ -117,33 +100,29 @@ void FrameBuffer::validate(const RenderContext& renderContext)
     iViews[i] = imageViews[i]->getImageView(renderContext);
   // find framebuffer size from first image definition
 
-  uint32_t frameBufferWidth  = 1;
-  uint32_t frameBufferHeight = 1;
-  if (imageDefinitions.size() > 0)
+  uint32_t frameBufferWidth, frameBufferHeight;
+  switch (frameBufferSize.attachmentSize)
   {
-    auto& definition = imageDefinitions[0];
-    switch (definition.attachmentSize.attachmentSize)
-    {
-    case AttachmentSize::SurfaceDependent:
-    {
-      frameBufferWidth  = renderContext.surface->swapChainSize.width  * definition.attachmentSize.imageSize.x;
-      frameBufferHeight = renderContext.surface->swapChainSize.height * definition.attachmentSize.imageSize.y;
-      break;
-    }
-    case AttachmentSize::Absolute:
-    {
-      frameBufferWidth  = definition.attachmentSize.imageSize.x;
-      frameBufferHeight = definition.attachmentSize.imageSize.y;
-      break;
-    }
-    default:
-    {
-      frameBufferWidth  = 1;
-      frameBufferHeight = 1;
-      break;
-    }
-    }
+  case AttachmentSize::SurfaceDependent:
+  {
+    frameBufferWidth  = renderContext.surface->swapChainSize.width  * frameBufferSize.imageSize.x;
+    frameBufferHeight = renderContext.surface->swapChainSize.height * frameBufferSize.imageSize.y;
+    break;
   }
+  case AttachmentSize::Absolute:
+  {
+    frameBufferWidth  = frameBufferSize.imageSize.x;
+    frameBufferHeight = frameBufferSize.imageSize.y;
+    break;
+  }
+  default:
+  {
+    frameBufferWidth  = 1;
+    frameBufferHeight = 1;
+    break;
+  }
+  }
+
   // define frame buffers
   VkFramebufferCreateInfo frameBufferCreateInfo{};
     frameBufferCreateInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
