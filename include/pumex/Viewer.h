@@ -158,8 +158,8 @@ protected:
   void                       setupDebugging(VkDebugReportFlagsEXT flags, VkDebugReportCallbackEXT callBack);
   void                       cleanupDebugging();
 
-  inline uint32_t            getNextRenderSlot() const;
-  inline uint32_t            getNextUpdateSlot() const;
+  uint32_t                   getNextRenderSlot() const;
+  uint32_t                   getNextUpdateSlot() const;
   inline void                doNothing() const;
 
   void                       onEventRenderStart();
@@ -228,35 +228,6 @@ HPClock::duration   Viewer::getRenderTimeDelta() const      { return renderStart
 void                Viewer::doNothing() const               {}
 void                Viewer::setEventRenderStart(std::function<void(Viewer*)> event)  { eventRenderStart = event; }
 void                Viewer::setEventRenderFinish(std::function<void(Viewer*)> event) { eventRenderFinish = event; }
-
-uint32_t   Viewer::getNextUpdateSlot() const
-{
-  // pick up the frame not used currently by render nor update
-  for (uint32_t i = 0; i < 3; ++i)
-  {
-    if (i != renderIndex && i != updateIndex)
-      return i;
-  }
-  CHECK_LOG_THROW(true, "Not possible");
-  return 0;
-}
-uint32_t   Viewer::getNextRenderSlot() const
-{
-  // pick up the newest frame not used currently by update
-  auto value = viewerStartTime;
-  auto slot  = 0;
-  for (uint32_t i = 0; i < 3; ++i)
-  {
-    if (updateInProgress && i == updateIndex)
-      continue;
-    if (updateTimes[i] > value)
-    {
-      value = updateTimes[i];
-      slot = i;
-    }
-  }
-  return slot;
-}
 
 PUMEX_EXPORT VkBool32 messageCallback( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
 
