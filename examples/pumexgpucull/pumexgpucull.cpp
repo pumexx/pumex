@@ -1276,7 +1276,6 @@ int main(int argc, char * argv[])
   float densityModifier      = args::get(densityModifierArg) / 100.0f;  // density of objects is multiplied by this parameter
   float triangleModifier     = args::get(triangleModifierArg) / 100.0f; // the number of triangles on geometries is multiplied by this parameter
   uint32_t instancesPerCell  = args::get(instancesPerCellArg);
-  instancesPerCell = 3000000;
 
   LOG_INFO << "Object culling on GPU";
   if (enableDebugging)
@@ -1350,15 +1349,23 @@ int main(int argc, char * argv[])
     if (showStaticRendering)
     {
       workflow->addRenderOperation("static_filter", pumex::RenderOperation::Compute);
+      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_counter", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_index",   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
       workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_results", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferInput("rendering", "compute_results", "static_indirect_results", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_draw",    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_counter", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_index",   VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_results", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_draw",    VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
     }
 
     if (showDynamicRendering)
     {
       workflow->addRenderOperation("dynamic_filter", pumex::RenderOperation::Compute);
       workflow->addBufferOutput("dynamic_filter", "compute_results", "dynamic_indirect_results", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferInput("rendering", "compute_results", "dynamic_indirect_results", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      workflow->addBufferOutput("dynamic_filter", "compute_results", "dynamic_indirect_draw",    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      workflow->addBufferInput( "rendering",      "compute_results", "dynamic_indirect_results", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      workflow->addBufferInput( "rendering",      "compute_results", "dynamic_indirect_draw",    VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
     }
 
     std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(buffersAllocator);
@@ -1422,11 +1429,13 @@ int main(int argc, char * argv[])
       staticFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_static_filter_instances.comp.spv"), "main" };
       staticFilterRoot->addChild(staticFilterPipeline);
 
-      auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce);
+      auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto staticCounterSbo    = std::make_shared<pumex::StorageBuffer>(staticCounterBuffer);
+      workflow->associateMemoryObject("static_indirect_counter", staticCounterBuffer);
 
       auto staticResultsIndexBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>(std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto staticResultsIndexSbo = std::make_shared<pumex::StorageBuffer>(staticResultsIndexBuffer);
+      workflow->associateMemoryObject("static_indirect_index", staticResultsIndexBuffer);
 
       auto staticResultsBuffer = std::make_shared<pumex::Buffer<std::vector<StaticInstanceData>>>(std::make_shared<std::vector<StaticInstanceData>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto staticResultsSbo = std::make_shared<pumex::StorageBuffer>(staticResultsBuffer);
@@ -1435,6 +1444,8 @@ int main(int argc, char * argv[])
       auto staticAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(staticAssetBuffer, buffersAllocator);
       staticAssetBufferFilterNode->setEventResizeOutputs(std::bind(resizeStaticOutputBuffers, staticResultsBuffer, staticResultsIndexBuffer, std::placeholders::_1, std::placeholders::_2));
       staticAssetBufferFilterNode->setName("staticAssetBufferFilterNode");
+      workflow->associateMemoryObject("static_indirect_draw", staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+      
       staticFilterPipeline->addChild(staticAssetBufferFilterNode);
 
       std::shared_ptr<pumex::DescriptorPool> staticDescriptorPool = std::make_shared<pumex::DescriptorPool>();
@@ -1537,6 +1548,7 @@ int main(int argc, char * argv[])
       auto dynamicAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(dynamicAssetBuffer, buffersAllocator);
       dynamicAssetBufferFilterNode->setName("dynamicAssetBufferFilterNode");
       dynamicFilterPipeline->addChild(dynamicAssetBufferFilterNode);
+      workflow->associateMemoryObject("dynamic_indirect_draw", dynamicAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
 
       uint32_t instanceCount = applicationData->setupDynamicInstances(dynamicAreaSize, densityModifier, dynamicAssetBufferFilterNode);
 
