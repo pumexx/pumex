@@ -410,7 +410,7 @@ void Surface::validateWorkflow()
       VK_QUEUE_FAMILY_IGNORED, 
       VK_QUEUE_FAMILY_IGNORED, 
       swapChainImages[swapChainImageIndex]->getHandleImage(), 
-      { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }, 
+      { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS },
       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     );

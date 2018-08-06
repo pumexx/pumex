@@ -94,26 +94,29 @@ public:
   glm::mat4 getViewMatrix(Surface* surface);
   glm::vec4 getObserverPosition(Surface* surface);
 
+  void setCameraVelocity(float slow, float fast);
+
+protected:
+
   std::array<Kinematic,3>  cameraCenter;
   std::array<float, 3>     cameraDistance;
   std::array<Kinematic, 3> cameraReal;
-//  glm::vec3 cameraPosition[3];
-//  glm::vec2 cameraGeographicCoordinates[3];
-//  float     cameraDistance[3];
-//  float     cameraTime[3];
 
   glm::vec2 lastMousePos;
   glm::vec2 currMousePos;
-  bool      leftMouseKeyPressed         = false;
-  bool      rightMouseKeyPressed        = false;
+  bool      leftMouseKeyPressed  = false;
+  bool      rightMouseKeyPressed = false;
 
-  bool      moveForward                 = false;
-  bool      moveBackward                = false;
-  bool      moveLeft                    = false;
-  bool      moveRight                   = false;
-  bool      moveUp                      = false;
-  bool      moveDown                    = false;
-  bool      moveFast                    = false;
+  bool      moveForward          = false;
+  bool      moveBackward         = false;
+  bool      moveLeft             = false;
+  bool      moveRight            = false;
+  bool      moveUp               = false;
+  bool      moveDown             = false;
+  bool      moveFast             = false;
+
+  float     velocitySlow         = 8.0f;
+  float     velocityFast         = 24.0f;
 };
 
 inline std::shared_ptr<Group> TimeStatisticsHandler::getRoot() const { return statisticsRoot; }

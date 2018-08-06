@@ -410,23 +410,23 @@ void BasicCameraHandler::update(Viewer* viewer)
 
   if (leftMouseKeyPressed)
   {
-    glm::quat qx = glm::angleAxis(5.0f * (lastMousePos.y - currMousePos.y), glm::vec3(1.0, 0.0, 0.0));
-    glm::quat qz = glm::angleAxis(5.0f * (lastMousePos.x - currMousePos.x), glm::vec3(0.0, 0.0, 1.0));
+    glm::quat qx = glm::angleAxis(3.0f * (lastMousePos.y - currMousePos.y), glm::vec3(1.0, 0.0, 0.0));
+    glm::quat qz = glm::angleAxis(3.0f * (lastMousePos.x - currMousePos.x), glm::vec3(0.0, 0.0, 1.0));
     cameraCenter[updateIndex].orientation = glm::normalize( qz * cameraCenter[updateIndex].orientation * qx );
     lastMousePos = currMousePos;
   }
 
   if (rightMouseKeyPressed)
   {
-    cameraDistance[updateIndex] += 10.0f*(lastMousePos.y - currMousePos.y);
+    cameraDistance[updateIndex] += 5.0f*(lastMousePos.y - currMousePos.y);
     if (cameraDistance[updateIndex] < 0.1f)
       cameraDistance[updateIndex] = 0.1f;
     lastMousePos = currMousePos;
   }
 
-  float camStep = 8.0f * deltaTime;
+  float camStep = velocitySlow * deltaTime;
   if (moveFast)
-    camStep = 24.0f * deltaTime;
+    camStep = velocityFast * deltaTime;
 
   glm::vec3 camForward    = cameraCenter[updateIndex].orientation * glm::vec3(0.0f, 0.0f, 1.0f);
   glm::vec3 groundForward = glm::normalize(camForward - glm::proj(camForward, glm::vec3(0.0f, 0.0f, 1.0f)));
@@ -471,4 +471,10 @@ glm::vec4 BasicCameraHandler::getObserverPosition(Surface* surface)
   float deltaTime = inSeconds(viewer->getRenderTimeDelta());
   glm::vec3 position = cameraReal[renderIndex].position + cameraReal[renderIndex].velocity * deltaTime;
   return glm::vec4(position.x, position.y, position.z, 1.0f);
+}
+
+void BasicCameraHandler::setCameraVelocity(float slow, float fast)
+{
+  velocitySlow = slow;
+  velocityFast = fast;
 }

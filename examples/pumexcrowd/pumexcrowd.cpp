@@ -588,12 +588,22 @@ struct CrowdApplicationData
 int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
-  args::ArgumentParser parser("pumex example : multithreaded crowd rendering on more than one window");
-  args::HelpFlag       help(parser, "help", "display this help menu", {'h', "help"});
-  args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", {'d'});
-  args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", {'f'});
-  args::Flag           renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
-  args::Flag           render3windows(parser, "three_windows", "render in three windows", {'t'});
+
+  std::unordered_map<std::string, VkPresentModeKHR> availablePresentationModes
+  {
+    { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
+    { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
+    { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
+    { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
+  };
+  args::ArgumentParser                         parser("pumex example : multithreaded crowd rendering on more than one window");
+  args::HelpFlag                               help(parser, "help", "display this help menu", {'h', "help"});
+  args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", {'d'});
+  args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", {'f'});
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, availablePresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
+  args::Flag                                   renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
+  args::Flag                                   render3windows(parser, "three_windows", "render in three windows", {'t'});
   try
   {
     parser.ParseCLI(argc, argv);
@@ -618,6 +628,9 @@ int main(int argc, char * argv[])
     FLUSH_LOG;
     return 1;
   }
+  VkPresentModeKHR presentMode = args::get(presentationMode);
+  uint32_t updateFrequency     = std::max(1U, args::get(updatesPerSecond));
+
   LOG_INFO << "Crowd rendering";
   if (enableDebugging)
     LOG_INFO << " : Vulkan debugging enabled";
@@ -627,7 +640,7 @@ int main(int argc, char * argv[])
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", instanceExtensions, requestDebugLayers, 100 };
+  pumex::ViewerTraits viewerTraits{ "Crowd rendering application", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -659,7 +672,7 @@ int main(int argc, char * argv[])
     for (const auto& wt : windowTraits)
       windows.push_back(pumex::Window::createWindow(wt));
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
     for (auto& win : windows)
       surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
@@ -675,12 +688,12 @@ int main(int argc, char * argv[])
       workflow->addResourceType("compute_results", false, pumex::RenderWorkflowResourceType::Buffer);
 
     workflow->addRenderOperation("crowd_compute", pumex::RenderOperation::Compute);
-      workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
-      workflow->addBufferOutput( "crowd_compute", "compute_results", "offset_values",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
+      workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_results", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
+      workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_draw",     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
 
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_commands", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
-      workflow->addBufferInput          ( "rendering", "compute_results", "offset_values",     VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
+      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_results", VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
+      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_draw",     VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples",   "depth",             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput     ( "rendering", "surface",         "color",             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
@@ -741,11 +754,12 @@ int main(int argc, char * argv[])
 
     auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), localBuffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
     auto resultsSbo = std::make_shared<pumex::StorageBuffer>(resultsBuffer);
-    workflow->associateMemoryObject("indirect_commands", resultsBuffer);
+    workflow->associateMemoryObject("indirect_results", resultsBuffer);
 
     auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, localBuffersAllocator);
     assetBufferFilterNode->setName("staticAssetBufferFilterNode");
     filterPipeline->addChild(assetBufferFilterNode);
+    workflow->associateMemoryObject("indirect_draw", assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
 
     applicationData->setupInstances(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, assetBufferFilterNode);
 

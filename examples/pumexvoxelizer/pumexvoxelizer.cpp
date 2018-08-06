@@ -183,12 +183,22 @@ struct VoxelizerApplicationData
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
-  args::ArgumentParser         parser("pumex example : model voxelization and rendering");
-  args::HelpFlag               help(parser, "help", "display this help menu", { 'h', "help" });
-  args::Flag                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
-  args::Flag                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
-  args::ValueFlag<std::string> modelNameArg(parser, "model", "3D model filename", { 'm' });
-  args::ValueFlag<std::string> animationNameArg(parser, "animation", "3D model with animation", { 'a' });
+
+  std::unordered_map<std::string, VkPresentModeKHR> availablePresentationModes
+  {
+    { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
+    { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
+    { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
+    { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
+  };
+  args::ArgumentParser                         parser("pumex example : model voxelization and rendering");
+  args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
+  args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
+  args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, availablePresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
+  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename" );
+  args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
   try
   {
     parser.ParseCLI(argc, argv);
@@ -219,16 +229,18 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  std::string modelFileName = args::get(modelNameArg);
+  VkPresentModeKHR presentMode  = args::get(presentationMode);
+  uint32_t updateFrequency      = std::max(1U, args::get(updatesPerSecond));
+  std::string modelFileName     = args::get(modelNameArg);
   std::string animationFileName = args::get(animationNameArg);
-  std::string windowName = "Pumex voxelizer : ";
+  std::string windowName        = "Pumex voxelizer : ";
   windowName += modelFileName;
 
   std::vector<std::string> instanceExtensions;
   std::vector<std::string> requestDebugLayers;
   if(enableDebugging)
     requestDebugLayers.push_back( "VK_LAYER_LUNARG_standard_validation" );
-  pumex::ViewerTraits viewerTraits{ "pumex voxelizer", instanceExtensions, requestDebugLayers, 100 };
+  pumex::ViewerTraits viewerTraits{ "pumex voxelizer", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -252,7 +264,7 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
 
     // allocate 16 MB for frame buffer

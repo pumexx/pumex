@@ -29,13 +29,12 @@
 #include <args.hxx>
 
 // This example shows how to setup basic deferred renderer with antialiasing.
-// Render workflow defines two render operations : 
-// - first one fills gbuffers with data
-// - second one renders lights using gbuffers as input
-// Each gbuffer has SAMPLE_COUNT samples and there is resolve operation defined at the end of second operation.
+// Render workflow defines three render operations : 
+// - first one fills zbuffer
+// - second one fills gbuffers with data
+// - third one renders lights using gbuffers as input
 
 const uint32_t              MAX_BONES       = 511;
-const VkSampleCountFlagBits SAMPLE_COUNT    = VK_SAMPLE_COUNT_4_BIT;
 const uint32_t              MODEL_SPONZA_ID = 1;
 
 struct PositionData
@@ -198,11 +197,29 @@ int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
 
-  args::ArgumentParser parser("pumex example : deferred rendering with physically based rendering and antialiasing");
-  args::HelpFlag       help(parser, "help", "display this help menu", { 'h', "help" });
-  args::Flag           enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
-  args::Flag           skipDepthPrepass(parser, "nodp", "skip depth prepass", { 'n' });
-  args::Flag           useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  std::unordered_map<std::string, VkPresentModeKHR> availablePresentationModes
+  {
+    { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
+    { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
+    { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
+    { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
+  };
+  std::unordered_map<std::string, VkSampleCountFlagBits> availableSamplesPerPixel
+  {
+    {  "1", VK_SAMPLE_COUNT_1_BIT },
+    {  "2", VK_SAMPLE_COUNT_2_BIT },
+    {  "4", VK_SAMPLE_COUNT_4_BIT },
+    {  "8", VK_SAMPLE_COUNT_8_BIT }
+  };
+
+  args::ArgumentParser                              parser("pumex example : deferred rendering with physically based rendering and antialiasing");
+  args::HelpFlag                                    help(parser, "help", "display this help menu", { 'h', "help" });
+  args::Flag                                        enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
+  args::Flag                                        useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  args::MapFlag<std::string, VkPresentModeKHR>      presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, availablePresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::ValueFlag<uint32_t>                         updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
+  args::Flag                                        skipDepthPrepass(parser, "nodp", "skip depth prepass", { 'n' });
+  args::MapFlag<std::string, VkSampleCountFlagBits> samplesPerPixel(parser, "samples", "samples per pixel (1,2,4,8)", { 's' }, availableSamplesPerPixel, VK_SAMPLE_COUNT_4_BIT);
   try
   {
     parser.ParseCLI(argc, argv);
@@ -227,20 +244,32 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
+  VkPresentModeKHR presentMode      = args::get(presentationMode);
+  uint32_t updateFrequency          = std::max(1U, args::get(updatesPerSecond));
+  VkSampleCountFlagBits sampleCount = args::get(samplesPerPixel);
+
   LOG_INFO << "Deferred rendering with physically based rendering and antialiasing : ";
   if (enableDebugging)
     LOG_INFO << "Vulkan debugging enabled, ";
   if (!skipDepthPrepass)
-    LOG_INFO << "depth prepass present";
+    LOG_INFO << "depth prepass present, ";
   else
-    LOG_INFO << "depth prepass NOT present";
+    LOG_INFO << "depth prepass NOT present, ";
+  switch (sampleCount)
+  {
+  case VK_SAMPLE_COUNT_1_BIT: LOG_INFO << "1 sample per pixel"; break;
+  case VK_SAMPLE_COUNT_2_BIT: LOG_INFO << "2 samples per pixel"; break;
+  case VK_SAMPLE_COUNT_4_BIT: LOG_INFO << "4 samples per pixel"; break;
+  case VK_SAMPLE_COUNT_8_BIT: LOG_INFO << "8 samples per pixel"; break;
+  default: LOG_INFO << "unknown number of samples per pixel"; break;
+  }
   LOG_INFO << std::endl;
 
   std::vector<std::string> instanceExtensions;
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  pumex::ViewerTraits viewerTraits{ "Deferred PBR", instanceExtensions, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "Deferred PBR", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -254,7 +283,7 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing" };
     std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 512 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -262,27 +291,27 @@ int main( int argc, char * argv[] )
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          SAMPLE_COUNT,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, sampleCount,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      sampleCount,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          sampleCount,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      sampleCount,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
       workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
     if (!skipDepthPrepass)
     {
-      workflow->addRenderOperation("buildz", pumex::RenderOperation::Graphics);
-        workflow->addAttachmentDepthOutput("buildz", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addRenderOperation("zPrepass", pumex::RenderOperation::Graphics);
+        workflow->addAttachmentDepthOutput("zPrepass", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
     }
 
-    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+    workflow->addRenderOperation("gBuffer", pumex::RenderOperation::Graphics);
+      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       if (!skipDepthPrepass)
-        workflow->addAttachmentDepthInput("gbuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+        workflow->addAttachmentDepthInput("gBuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
       else
-        workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+        workflow->addAttachmentDepthOutput("gBuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
     workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics);
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position",         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -350,7 +379,7 @@ int main( int argc, char * argv[] )
     {
       auto buildzRoot = std::make_shared<pumex::Group>();
       buildzRoot->setName("buildzRoot");
-      workflow->setRenderOperationNode("buildz", buildzRoot);
+      workflow->setRenderOperationNode("zPrepass", buildzRoot);
 
       std::vector<pumex::DescriptorSetLayoutBinding> buildzLayoutBindings =
       {
@@ -380,7 +409,7 @@ int main( int argc, char * argv[] )
       {
         { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
       };
-      buildzPipeline->rasterizationSamples = SAMPLE_COUNT;
+      buildzPipeline->rasterizationSamples = sampleCount;
 
       buildzRoot->addChild(buildzPipeline);
 
@@ -402,7 +431,7 @@ int main( int argc, char * argv[] )
 
     auto gbufferRoot = std::make_shared<pumex::Group>();
     gbufferRoot->setName("gbufferRoot");
-    workflow->setRenderOperationNode("gbuffer", gbufferRoot);
+    workflow->setRenderOperationNode("gBuffer", gbufferRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> gbufferLayoutBindings =
     {
@@ -449,7 +478,7 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF },
       { VK_FALSE, 0xF }
     };
-    gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
+    gbufferPipeline->rasterizationSamples = sampleCount;
 
     gbufferRoot->addChild(gbufferPipeline);
 
@@ -509,7 +538,7 @@ int main( int argc, char * argv[] )
     {
       { VK_FALSE, 0xF }
     };
-    compositePipeline->rasterizationSamples = SAMPLE_COUNT;
+    compositePipeline->rasterizationSamples = sampleCount;
 
     lightingRoot->addChild(compositePipeline);
 
@@ -528,11 +557,12 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
-    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer, SAMPLE_COUNT);
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer, sampleCount);
     viewer->addInputEventHandler(tsHandler);
     lightingRoot->addChild(tsHandler->getRoot());
 
     std::shared_ptr<pumex::BasicCameraHandler> bcamHandler = std::make_shared<pumex::BasicCameraHandler>();
+    bcamHandler->setCameraVelocity(4.0f, 12.0f);
     viewer->addInputEventHandler(bcamHandler);
     applicationData->setCameraHandler(bcamHandler);
 

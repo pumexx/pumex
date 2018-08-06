@@ -1229,20 +1229,30 @@ struct GpuCullApplicationData
 int main(int argc, char * argv[])
 {
   SET_LOG_INFO;
-  args::ArgumentParser      parser("pumex example : instanced rendering for static and dynamic objects");
-  args::HelpFlag            help(parser, "help", "display this help menu", { 'h', "help" });
-  args::Flag                enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
-  args::Flag                useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
-  args::Flag                renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
-  args::Flag                render3windows(parser, "three_windows", "render in three windows", { 't' });
-  args::Flag                skipStaticRendering(parser, "skip-static", "skip rendering of static objects", { "skip-static" });
-  args::Flag                skipDynamicRendering(parser, "skip-dynamic", "skip rendering of dynamic objects", { "skip-dynamic" });
-  args::ValueFlag<float>    staticAreaSizeArg(parser, "static-area-size", "size of the area for static rendering", { "static-area-size" }, 2000.0f);
-  args::ValueFlag<float>    dynamicAreaSizeArg(parser, "dynamic-area-size", "size of the area for dynamic rendering", { "dynamic-area-size" }, 1000.0f);
-  args::ValueFlag<float>    lodModifierArg(parser, "lod-modifier", "LOD range [%]", { "lod-modifier" }, 100.0f);
-  args::ValueFlag<float>    densityModifierArg(parser, "density-modifier", "instance density [%]", { "density-modifier" }, 100.0f);
-  args::ValueFlag<float>    triangleModifierArg(parser, "triangle-modifier", "instance triangle quantity [%]", { "triangle-modifier" }, 100.0f);
-  args::ValueFlag<uint32_t> instancesPerCellArg(parser, "instances-per-cell", "how many static instances per cell", { "instances-per-cell" }, 4096);
+
+  std::unordered_map<std::string, VkPresentModeKHR> availablePresentationModes
+  {
+    { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
+    { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
+    { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
+    { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
+  };
+  args::ArgumentParser                         parser("pumex example : instanced rendering for static and dynamic objects");
+  args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
+  args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
+  args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, availablePresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
+  args::Flag                                   renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
+  args::Flag                                   render3windows(parser, "three_windows", "render in three windows", { 't' });
+  args::Flag                                   skipStaticRendering(parser, "skip-static", "skip rendering of static objects", { "skip-static" });
+  args::Flag                                   skipDynamicRendering(parser, "skip-dynamic", "skip rendering of dynamic objects", { "skip-dynamic" });
+  args::ValueFlag<float>                       staticAreaSizeArg(parser, "static-area-size", "size of the area for static rendering", { "static-area-size" }, 2000.0f);
+  args::ValueFlag<float>                       dynamicAreaSizeArg(parser, "dynamic-area-size", "size of the area for dynamic rendering", { "dynamic-area-size" }, 1000.0f);
+  args::ValueFlag<float>                       lodModifierArg(parser, "lod-modifier", "LOD range [%]", { "lod-modifier" }, 100.0f);
+  args::ValueFlag<float>                       densityModifierArg(parser, "density-modifier", "instance density [%]", { "density-modifier" }, 100.0f);
+  args::ValueFlag<float>                       triangleModifierArg(parser, "triangle-modifier", "instance triangle quantity [%]", { "triangle-modifier" }, 100.0f);
+  args::ValueFlag<uint32_t>                    instancesPerCellArg(parser, "instances-per-cell", "how many static instances per cell", { "instances-per-cell" }, 4096);
   try
   {
     parser.ParseCLI(argc, argv);
@@ -1267,15 +1277,16 @@ int main(int argc, char * argv[])
     FLUSH_LOG;
     return 1;
   }
-
-  bool  showStaticRendering  = !skipStaticRendering;
-  bool  showDynamicRendering = !skipDynamicRendering;
-  float staticAreaSize       = args::get(staticAreaSizeArg);
-  float dynamicAreaSize      = args::get(dynamicAreaSizeArg);
-  float lodModifier          = args::get(lodModifierArg) / 100.0f;      // lod distances are multiplied by this parameter
-  float densityModifier      = args::get(densityModifierArg) / 100.0f;  // density of objects is multiplied by this parameter
-  float triangleModifier     = args::get(triangleModifierArg) / 100.0f; // the number of triangles on geometries is multiplied by this parameter
-  uint32_t instancesPerCell  = args::get(instancesPerCellArg);
+  VkPresentModeKHR presentMode = args::get(presentationMode);
+  uint32_t updateFrequency     = std::max(1U, args::get(updatesPerSecond));
+  bool  showStaticRendering    = !skipStaticRendering;
+  bool  showDynamicRendering   = !skipDynamicRendering;
+  float staticAreaSize         = args::get(staticAreaSizeArg);
+  float dynamicAreaSize        = args::get(dynamicAreaSizeArg);
+  float lodModifier            = args::get(lodModifierArg) / 100.0f;      // lod distances are multiplied by this parameter
+  float densityModifier        = args::get(densityModifierArg) / 100.0f;  // density of objects is multiplied by this parameter
+  float triangleModifier       = args::get(triangleModifierArg) / 100.0f; // the number of triangles on geometries is multiplied by this parameter
+  uint32_t instancesPerCell    = args::get(instancesPerCellArg);
 
   LOG_INFO << "Object culling on GPU";
   if (enableDebugging)
@@ -1287,7 +1298,7 @@ int main(int argc, char * argv[])
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", instanceExtensions, requestDebugLayers, 60 };
+  pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -1319,7 +1330,7 @@ int main(int argc, char * argv[])
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, VK_PRESENT_MODE_MAILBOX_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
     for (auto& win : windows)
       surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
@@ -1618,6 +1629,7 @@ int main(int argc, char * argv[])
     renderingRoot->addChild(tsHandler->getRoot());
 
     std::shared_ptr<pumex::BasicCameraHandler> bcamHandler = std::make_shared<pumex::BasicCameraHandler>();
+    bcamHandler->setCameraVelocity(12.0f, 36.0f);
     viewer->addInputEventHandler(bcamHandler);
     applicationData->setCameraHandler(bcamHandler);
 
