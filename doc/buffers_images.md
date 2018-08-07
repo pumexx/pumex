@@ -70,20 +70,20 @@ Conclusion : **WHEN YOU KNOW THAT YOUR BUFFER WILL NOT CHANGE SIZE DURING ITS LI
 *setData()* and *setBufferSize()* methods declared in pumex::Buffer class have a group of limitations listed below :
 
 - **void setData(const T& dt)** - sets data for all surfaces/devices. May be called only when buffer was created with **second** constructor
-- **void setData(Surface* surface, std::shared_ptr<T> data)** - sets data for specific surface. May only be called when 
+- **void setData(Surface\* surface, std::shared_ptr<T> data)** - sets data for specific surface. May only be called when 
   - buffer was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerSurface
   - useSetDataMethods is equal to true
-- **void setData(Surface* surface, const T& data)** - same as previous one
-- **void setData(Device* device, std::shared_ptr<T> data)** - sets data for specific device. May only be called when
+- **void setData(Surface\* surface, const T& data)** - same as previous one
+- **void setData(Device\* device, std::shared_ptr<T> data)** - sets data for specific device. May only be called when
   - buffer was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerDevice
   - useSetDataMethods is equal to true
-- **void setData(Device* device, const T& data)** - same as previous one
+- **void setData(Device\* device, const T& data)** - same as previous one
 - **std::shared_ptr<T> getData()** - may be called only when object was created using **second** constructor
 - **void invalidateData()** -  may be called only when object was created using **second** constructor. After modyfying data pointed by buffer this method should be called to inform buffer that data needs validation.
-- **void setBufferSize(Surface* surface, size_t bufferSize)** - sets buffer size for specific surface. May be called only when object was created using **first** constructor. This method works when perObjectBehaviour is pumex::pbPerSurface
-- **void setBufferSize(Device* device, size_t bufferSize)** - sets data for specific device. May be called only when object was created using **first** constructor. This method works when perObjectBehaviour is pumex::pbPerDevice
+- **void setBufferSize(Surface\* surface, size_t bufferSize)** - sets buffer size for specific surface. May be called only when object was created using **first** constructor. This method works when perObjectBehaviour is pumex::pbPerSurface
+- **void setBufferSize(Device\* device, size_t bufferSize)** - sets data for specific device. May be called only when object was created using **first** constructor. This method works when perObjectBehaviour is pumex::pbPerDevice
 
 When user calls *setData()*, or *setBufferSize()* methods - the actual operations that update the buffers on GPU side are not called immediately, but are postponed to node validation phase ( for vertex and index buffers ) or to descriptor validation phase - for uniform buffers, storage buffers, etc ( see: [Main render loop](render_loop.md) ).
 
@@ -117,7 +117,7 @@ Constructor parameters :
   - number of array layers
   - number of samples per texel
   - initial image layout ( *VkImageLayout* )
-  - image type ( VkImageType )
+  - image type ( *VkImageType* )
   - and others...
 - allocator - allocates GPU/CPU memory that Vulkan will use. 
 - aspectMask - image aspect mask ( *VkImageAspectFlags*  )
@@ -132,33 +132,33 @@ Remarks concerning  **pumex::swOnce** and **pumex::swForEachImage** meant for bu
 *setImageTraits()*, *setImage()* and *clearImage()* methods have following limitations :
 
 - **void setImageTraits(const ImageTraits& traits)** - sets image traits for all surfaces/devices. May be called only when image was created by **second** constructor.
-- **void setImageTraits(Surface* surface, const ImageTraits& traits)** - sets image traits for specific surface. May only be called when:
+- **void setImageTraits(Surface\* surface, const ImageTraits& traits)** - sets image traits for specific surface. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerSurface
-- **void setImageTraits(Device* device, const ImageTraits& traits)** - sets image traits for specific device. May only be called when:
+- **void setImageTraits(Device\* device, const ImageTraits& traits)** - sets image traits for specific device. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerDevice
-- **void setImage(Surface* surface, std::shared_ptr<gli::texture> tex)** - sets image data for specific surface. May only be called when:
+- **void setImage(Surface\* surface, std::shared_ptr<gli::texture> tex)** - sets image data for specific surface. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerSurface
   - useSetImageMethods is equal to true
-- **void setImage(Device* device, std::shared_ptr<gli::texture> tex)** - sets image data for specific device. May only be called when:
+- **void setImage(Device\* device, std::shared_ptr<gli::texture> tex)** - sets image data for specific device. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerDevice
   - useSetImageMethods is equal to true
-- **void setImages(Surface* surface, std::vector<std::shared_ptr<Image>>& images)** - sets images created outside MemoryImage as internal. This method is used to register swapchain images, as a objects belonging to MemoryImage. May only be called when:
+- **void setImages(Surface\* surface, std::vector<std::shared_ptr<Image>>& images)** - sets images created outside MemoryImage as internal. This method is used to register swapchain images, as a objects belonging to MemoryImage. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerSurface
   - sameTraitsPerObject is equal to false
-- **void setImages(Device* device, std::vector<std::shared_ptr<Image>>& images)** - sets images created outside MemoryImage as internal. This method is used to register swapchain images, as a objects belonging to MemoryImage. May only be called when:
+- **void setImages(Device\* device, std::vector<std::shared_ptr<Image>>& images)** - sets images created outside MemoryImage as internal. This method is used to register swapchain images, as a objects belonging to MemoryImage. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerDevice
   - sameTraitsPerObject is equal to false
 - **void clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on for all surfaces/devices 
-- **void clearImage(Surface* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on a specific surface. May only be called when:
+- **void clearImage(Surface\* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on a specific surface. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerSurface
-- **void clearImage(Device* device, const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on a specific surface. May only be called when:
+- **void clearImage(Device\* device, const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on a specific surface. May only be called when:
   - image was created by **first** constructor 
   - perObjectBehaviour is equal to pumex::pbPerDevice
 

@@ -8,7 +8,7 @@ Resulting application structure is presented on the diagram below :
 
 
 
-![tutorial structure](images\TutorialArchitecture.png)
+![tutorial structure](images/TutorialArchitecture.png)
 
 
 
@@ -26,11 +26,11 @@ We start by parsing the command line. This piece of code will be skipped for cla
 ```
 Parameters will be provided in a following variables : 
 
-- -d -  enableDebugging ( bool )
-- -f -  useFullScreen ( bool )
-- -p - presentMode ( VkPresentModeKHR )
-- -u - updateFrequency ( uint32_t )
-- -m - modelFileName ( std::string )
+- -d -  enableDebugging ( *bool* )
+- -f -  useFullScreen ( *bool* )
+- -p - presentMode ( *VkPresentModeKHR* )
+- -u - updateFrequency ( *uint32_t* )
+- -m - modelFileName ( *std::string* )
 
 First object that we must create is **pumex::Viewer** responsible for creation of Vulkan *VkInstance* and for collecting information about physical devices ( GPUs ). All data required to create **pumex::Viewer** is provided in **pumex::ViewerTraits** structure. Our example does not need to use any Vulkan instance extensions, so we leave that variable empty. **pumex::ViewerTraits** structure also defines update frequency ( how many times per second will be update called ) - we have that value from command line parameters:
 

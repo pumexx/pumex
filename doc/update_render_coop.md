@@ -5,11 +5,14 @@
 Construction of render stage and update stage is inspired by following set of articles :
 
 http://blog.slapware.eu/game-engine/programming/multithreaded-renderloop-part1/
+
 http://blog.slapware.eu/game-engine/programming/multithreaded-renderloop-part2/
+
 http://blog.slapware.eu/game-engine/programming/multithreaded-renderloop-part3/
+
 http://blog.slapware.eu/game-engine/programming/multithreaded-renderloop-part4/
 
-Render stage and update stage work in parallel. Render stage tries to work as fast as possible ( when **immediate** and **multibox** presentation modes are used ), or according to vertical synchronization of  screens ( when **fifo**, or **fifo_relaxed** presentation modes are used). 
+Render stage and update stage work in parallel. Render stage tries to work as fast as possible ( when **immediate** and **multibox** presentation modes are used ), or according to vertical synchronization of monitors ( when **fifo**, or **fifo_relaxed** presentation modes are used). 
 
 In contrast - update stage has constant time rate and is called only when render stage overtakes it on time scale. 
 
@@ -47,9 +50,9 @@ Rules for proper use of indices :
 
 Besides indices **pumex::Viewer** class gives us few functions describing time :
 
-- Viewer::getUpdateDuration() - returns 1/updateFrequency .
-- Viewer::getUpdateTime() - returns current time of update. Used only in update stage.
-- Viewer::getRenderTimeDelta() - returns difference between current time point and time point of update used to render data. This difference may be less than 0. Should be used only in render stage.
+- **Viewer::getUpdateDuration()** - returns 1/updateFrequency .
+- **Viewer::getUpdateTime()** - returns current time of update. Should be used only in update stage.
+- **Viewer::getRenderTimeDelta()** - returns difference between current time point and time point of update used to render data. This difference may be less than 0. Should be used only in render stage.
 
 ## Example : calculating camera movement
 
