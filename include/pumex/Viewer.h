@@ -33,6 +33,7 @@
 #include <tbb/flow_graph.h>
 #include <pumex/Export.h>
 #include <pumex/HPClock.h>
+#include <functional>
 
 #include <experimental/filesystem>
 namespace filesystem = std::experimental::filesystem;
