@@ -12,7 +12,7 @@ layout (location = 5) flat in vec3 inMaxAABB;
 
 layout(binding = 2, RGBA8) uniform image3D voxelTexture;
 
-void main() 
+void main()
 {
   if( any( lessThan(inPosition,inMinAABB) ) || any(lessThan(inMaxAABB,inPosition) ) )
     discard;

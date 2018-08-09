@@ -1,4 +1,4 @@
-set( PUMEXVOXELIZER_SHADER_NAMES 
+set( PUMEXVOXELIZER_SHADER_NAMES
   shaders/voxelizer_basic.frag
   shaders/voxelizer_basic.vert
   shaders/voxelizer_raymarch.frag

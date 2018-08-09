@@ -24,7 +24,7 @@
 #include <functional>
 
 // hash_combine and hash_value have been adopted from chapter 7.9.2 found in "The C++ Standard Library: A Tutorial and Reference (2nd Edition)" by Nicolai M. Josuttis
-namespace std 
+namespace std
 {
   template <> struct hash<VkDescriptorType>
   {
@@ -33,7 +33,7 @@ namespace std
       return hash<int>()(x);
     }
   };
-}  
+}
 
 namespace pumex
 {

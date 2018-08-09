@@ -28,7 +28,7 @@ layout (location = 5) flat in uint materialID;
 
 layout (location = 0) out vec4 outFragColor;
 
-void main() 
+void main()
 {
   vec4 color = texture(samplerColorMap, vec3(inUV,float(materialData[materialID].diffuseTextureIndex)));
   if(color.a<0.5)

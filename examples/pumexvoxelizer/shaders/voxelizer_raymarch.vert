@@ -34,7 +34,7 @@ layout (location = 2) flat out vec3 outVolumeEyePosition;    // eye position in 
 layout (location = 3) flat out vec3 outVolumeNearPlaneStart; // near plane start in volume coordinates
 layout (location = 4) flat out vec3 outVolumeNearPlaneNormal;// near plane normal in volume coordinates
 
-void main() 
+void main()
 {
   // Mesh that is used in this shader is a box with dimensions (0,0,0)..(1,1,1) and its faces are looking inside. It does not use any bones
   mat4 modelMatrix           = object.position;

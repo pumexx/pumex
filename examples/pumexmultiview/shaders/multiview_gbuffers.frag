@@ -35,7 +35,7 @@ layout (location = 1) out vec3 outNormal;
 layout (location = 2) out vec4 outAlbedo;
 layout (location = 3) out vec3 outRoughnessMetallic;
 
-void main() 
+void main()
 {
   vec4 color = texture( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], inUV );
   if(color.a<0.5)

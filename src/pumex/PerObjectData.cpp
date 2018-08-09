@@ -24,7 +24,7 @@
 #include <pumex/Device.h>
 #include <pumex/Surface.h>
 
-namespace pumex 
+namespace pumex
 {
 uint32_t getKeyID(const RenderContext& renderContext, const PerObjectBehaviour& pob)
 {

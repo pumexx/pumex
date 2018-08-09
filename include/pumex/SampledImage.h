@@ -52,5 +52,5 @@ protected:
   std::string                resourceName;
   bool                       registered = false;
 };
-	
+
 }

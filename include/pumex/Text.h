@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <ft2build.h>
-#include FT_FREETYPE_H  
+#include FT_FREETYPE_H
 #include <glm/glm.hpp>
 #include <gli/texture2d.hpp>
 #include <pumex/Export.h>
@@ -48,14 +48,14 @@ struct PUMEX_EXPORT GlyphData
   {}
   glm::vec4 texCoords; // left, top, left + width, top + rows - all divided by texture dimensions
   glm::vec4 bearing;   // bearingX, bearingY, bearingX + width, bearingY + height
-  float     advance;   
+  float     advance;
 };
 
 struct PUMEX_EXPORT SymbolData
 {
   SymbolData() = default;
   SymbolData( const glm::vec4& p, const glm::vec4& t, const glm::vec4& c)
-    : position{ p }, texCoords{ t }, color{ c } 
+    : position{ p }, texCoords{ t }, color{ c }
   {}
   glm::vec4 position;  // left, top, right, bottom
   glm::vec4 texCoords; // left, top, left + width, top + rows - all divided by texture dimensions

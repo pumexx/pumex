@@ -66,7 +66,7 @@ const uint32_t TSS_CHANNEL_DRAW                         = 7;
 const uint32_t TSS_CHANNEL_ENDFRAME                     = 8;
 const uint32_t TSS_CHANNEL_EVENTSURFACERENDERFINISH     = 9;
 
-  
+
 // struct representing information required to create a Vulkan surface
 struct PUMEX_EXPORT SurfaceTraits
 {

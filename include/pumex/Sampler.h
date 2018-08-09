@@ -34,15 +34,15 @@ namespace pumex
 
 class RenderContext;
 
-// struct describing VkSampler / combined sampler 
+// struct describing VkSampler / combined sampler
 struct PUMEX_EXPORT SamplerTraits
 {
   explicit SamplerTraits(bool linearTiling = false, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, VkSamplerMipmapMode mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
     VkSamplerAddressMode addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-    float mipLodBias = 0.0f, VkBool32 anisotropyEnable = VK_TRUE, float maxAnisotropy = 8, VkBool32 compareEnable = false, VkCompareOp compareOp = VK_COMPARE_OP_NEVER, 
+    float mipLodBias = 0.0f, VkBool32 anisotropyEnable = VK_TRUE, float maxAnisotropy = 8, VkBool32 compareEnable = false, VkCompareOp compareOp = VK_COMPARE_OP_NEVER,
     float minLod = 0.0f, float maxLod = 1.0f, VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VkBool32 unnormalizedCoordinates = false);
 
-  bool                    linearTiling            = false; 
+  bool                    linearTiling            = false;
   VkFilter                magFilter               = VK_FILTER_LINEAR;
   VkFilter                minFilter               = VK_FILTER_LINEAR;
   VkSamplerMipmapMode     mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;

@@ -45,7 +45,7 @@ WindowWin32::WindowWin32(const WindowTraits& windowTraits)
 {
   if(win32Keycodes.empty())
     fillWin32Keycodes();
-  
+
   // register window class
   WNDCLASSEX wc;
     wc.cbSize        = sizeof(WNDCLASSEX);
@@ -283,7 +283,7 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
         height = newHeight;
       }
       else if ( sizeMaximized && wParam == SIZE_RESTORED)
-      { 
+      {
         sizeMaximized = false;
         surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh, newWidth, newHeight));
         width  = newWidth;
@@ -369,13 +369,13 @@ void WindowWin32::fillWin32Keycodes()
   win32Keycodes.insert({ VK_SHIFT, InputEvent::SHIFT });
 
   WPARAM i=0;
-  
+
   // keys F1-F10
   typedef EnumIterator<InputEvent::Key, InputEvent::Key::F1, InputEvent::Key::F10> FunKeyIterator;
   i= VK_F1;
   for(InputEvent::Key f : FunKeyIterator())
     win32Keycodes.insert({i++, f});
-  
+
   // numbers
   typedef EnumIterator<InputEvent::Key, InputEvent::Key::N0, InputEvent::Key::N9> NumKeyIterator;
   i=0x30;

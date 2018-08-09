@@ -53,7 +53,7 @@ layout (std430,binding = 3) readonly buffer MaterialVariantsSbo
 layout (location = 0) out vec2 outUV;
 layout (location = 1) flat out uint materialID;
 
-void main() 
+void main()
 {
   mat4 boneTransform = object.bones[int(inBoneIndex)] * inBoneWeight;
   mat4 modelMatrix   = object.position * boneTransform;

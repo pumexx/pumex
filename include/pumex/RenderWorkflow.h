@@ -199,9 +199,9 @@ public:
   bool                          enabled; // not implemented
 };
 
-enum ResourceTransitionType 
+enum ResourceTransitionType
 {
-  rttAttachmentInput         = 1, 
+  rttAttachmentInput         = 1,
   rttAttachmentOutput        = 2,
   rttAttachmentResolveOutput = 4,
   rttAttachmentDepthOutput   = 8,
@@ -313,7 +313,7 @@ public:
 
   void                                             addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange = BufferSubresourceRange(0, VK_WHOLE_SIZE));
   void                                             addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange = BufferSubresourceRange(0, VK_WHOLE_SIZE));
-  
+
   void                                             addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const ImageSubresourceRange& imageSubresourceRange = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
   void                                             addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp, const ImageSubresourceRange& imageSubresourceRange = ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS));
 
@@ -556,5 +556,5 @@ void getAccessMasks(std::shared_ptr<ResourceTransition> generatingTransition, st
 const std::map<std::string, std::shared_ptr<MemoryObject>>& RenderWorkflow::getAssociatedMemoryObjects() const { return associatedMemoryObjects;  }
 const std::map<std::string, std::shared_ptr<ImageView>>&    RenderWorkflow::getAssociatedImageViews() const    { return associatedMemoryImageViews; }
 
-	
+
 }

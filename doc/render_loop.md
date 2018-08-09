@@ -7,13 +7,13 @@ opRenderGraphStart.try_put(tbb::flow::continue_msg());
 renderGraph.wait_for_all();
 ```
 
-The graph itself is constructed in **Viewer::buildRenderGraph()** method and it is dependent on how the **device layer** looks, especially: how many surfaces are there and how many VkQueues are used in each render workflow associated with each surface ( remark: at the moment there may be only one queue. Implementation of multiple queues will be made later - see Future Plans in README.md ). 
+The graph itself is constructed in **Viewer::buildRenderGraph()** method and it is dependent on how the **device layer** looks, especially: how many surfaces are there and how many VkQueues are used in each render workflow associated with each surface ( remark: at the moment there may be only one queue. Implementation of multiple queues will be made later - see Future Plans in README.md ).
 
 Schema of tasks run during single frame rendering is presented below :
 
 ![render loop](images/RenderLoop.png)
 
-Tasks drawn in yellow color are executed once for each frame. 
+Tasks drawn in yellow color are executed once for each frame.
 
 Tasks drawn in light blue color are duplicated for each surface declared in device layer.
 
@@ -25,7 +25,7 @@ There are few methods in which user is able to modify data for rendering. User m
   - adding new render operations
   - rewiring operation inputs and outputs
 
-- modify scenegraph by 
+- modify scenegraph by
   - adding new nodes
   - removing nodes
   - modyfying existing node attributtes ( e.g. changing graphics pipeline parameters )
@@ -52,7 +52,7 @@ Modifications made by user may have two possible consequences :
   - modifications of descriptors
   - buffer or image resize ( buffer or image must be recreated. New buffer or image is not declared in existing command buffer )
 
-Sending new data to GPU is called **validation**. 
+Sending new data to GPU is called **validation**.
 
 
 

@@ -12,11 +12,11 @@ http://blog.slapware.eu/game-engine/programming/multithreaded-renderloop-part3/
 
 http://blog.slapware.eu/game-engine/programming/multithreaded-renderloop-part4/
 
-Render stage and update stage work in parallel. Render stage tries to work as fast as possible ( when **immediate** and **multibox** presentation modes are used ), or according to vertical synchronization of monitors ( when **fifo**, or **fifo_relaxed** presentation modes are used). 
+Render stage and update stage work in parallel. Render stage tries to work as fast as possible ( when **immediate** and **multibox** presentation modes are used ), or according to vertical synchronization of monitors ( when **fifo**, or **fifo_relaxed** presentation modes are used).
 
-In contrast - update stage has constant time rate and is called only when render stage overtakes it on time scale. 
+In contrast - update stage has constant time rate and is called only when render stage overtakes it on time scale.
 
-When user sets the update frequency to high values ( e.g. 150 updates per second ) and render stage works using **fifo** presentation mode with 60 Hz vertical sync then for each rendered frame we have 2-3 updates executed. 
+When user sets the update frequency to high values ( e.g. 150 updates per second ) and render stage works using **fifo** presentation mode with 60 Hz vertical sync then for each rendered frame we have 2-3 updates executed.
 
 When user sets update frequency to low values ( e.g. 10 updates per second ), then one update happens typically every 6th rendered frame. The second case shows that, if we want to have smooth rendering, then we have to interpolate/extrapolate data produced by update state. What tools does Pumex library give use to achieve this ?
 
@@ -32,7 +32,7 @@ Similarly - Pumex library does not give you much, when we ask about cooperation 
 
 These three indices have following properties :
 
-- all indices may only have values: 0, 1, or 2 
+- all indices may only have values: 0, 1, or 2
 
 - when Pumex picks new render index, it must assure that this index:
   - is not equal to update index used currently by update stage
@@ -66,7 +66,7 @@ std::array<Kinematic,3>  cameraCenter;
 
 **pumex::Kinematic** structure stores information about object position, orientation, linear velocity and angular velocity. Information about velocities will help us extrapolate camera position in render stage.
 
-As we know from tutorial - during update stage method **pumex::BasicCameraHandler::update(Viewer*)** is called. Let's see how it looks. 
+As we know from tutorial - during update stage method **pumex::BasicCameraHandler::update(Viewer*)** is called. Let's see how it looks.
 
 First - we acquire updateIndex, previous update index and copy previous data to new one. We also set deltaTime variable to 1/updateFrequency using **Viewer::getUpdateDuration()** method :
 
@@ -87,11 +87,11 @@ Using mouse input we calculate new camera orientation :
   if (leftMouseKeyPressed)
   {
     glm::quat qx = glm::angleAxis(5.0f * (lastMousePos.y - currMousePos.y), glm::vec3(1.0, 0.0, 0.0));
-    
+
     glm::quat qz = glm::angleAxis(5.0f * (lastMousePos.x - currMousePos.x), glm::vec3(0.0, 0.0, 1.0));
-    
+
     cameraCenter[updateIndex].orientation = glm::normalize( qz * cameraCenter[updateIndex].orientation * qx );
-    
+
     lastMousePos = currMousePos;
   }
 ```
@@ -105,10 +105,10 @@ And using keyboard input we calculate new position :
 
   glm::vec3 camForward    = cameraCenter[updateIndex].orientation * glm::vec3(0.0f, 0.0f, 1.0f);
   glm::vec3 groundForward = glm::normalize(camForward - glm::proj(camForward, glm::vec3(0.0f, 0.0f, 1.0f)));
-  
+
   glm::vec3 camRight      = cameraCenter[updateIndex].orientation * glm::vec3(1.0f, 0.0f, 0.0f);
   glm::vec3 groundRight   = glm::normalize(camRight - glm::proj(camRight, glm::vec3(0.0f, 0.0f, 1.0f)));
-  
+
   glm::vec3 groundUp      = glm::vec3(0.0f, 0.0f, 1.0f);
 
   if (moveForward)
@@ -131,7 +131,7 @@ OK, so we now have old camera parameters in *cameraCenter[prevUpdateIndex]* and 
 
 ```
   calculateVelocitiesFromPositionOrientation(cameraCenter[updateIndex], cameraCenter[prevUpdateIndex], deltaTime);
-  
+
 }
 ```
 

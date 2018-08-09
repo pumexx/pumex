@@ -5,8 +5,8 @@
 
 #define MAX_BONES 511
 
-const vec3 normalDirections[3][2] = { vec3[2](vec3(-1,0,0), vec3(1,0,0)),   
-                                      vec3[2](vec3(0,-1,0), vec3(0,1,0)),   
+const vec3 normalDirections[3][2] = { vec3[2](vec3(-1,0,0), vec3(1,0,0)),
+                                      vec3[2](vec3(0,-1,0), vec3(0,1,0)),
                                       vec3[2](vec3(0,0,-1), vec3(0,0,1)) };
 
 layout (location = 0) in vec3 inVolumeRayEnd;                // ray end in volume coordinates
@@ -34,7 +34,7 @@ layout(binding = 2, RGBA8) uniform image3D voxelTexture;
 
 layout (location = 0) out vec4 outFragColor;
 
-void main() 
+void main()
 {
   // calculate ray parameters : direction and starting position
   vec3 rayDir    = normalize(inVolumeRayEnd - inVolumeEyePosition);
@@ -82,7 +82,7 @@ void main()
       vec3 ambient  = vec3(0.1,0.1,0.1);
       vec3 diffuse  = max(dot(N, L), 0.0) * vec3(0.9,0.9,0.9);
       outFragColor  = vec4(ambient + diffuse * color.rgb, 1.0);
-	  
+
       vec4 eyePos   = camera.projectionMatrix * camera.viewMatrix * object.position * vec4(rayStart + t*rayDir, 1);
       gl_FragDepth  = eyePos.z/eyePos.w;
       return;

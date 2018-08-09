@@ -571,7 +571,7 @@ std::vector<glm::mat4> calculateResetPosition(const Asset& asset)
   globalTransforms[0] = asset.skeleton.invGlobalTransform * asset.skeleton.bones[0].localTransformation;
   for (uint32_t boneIndex = 1; boneIndex < asset.skeleton.bones.size(); ++boneIndex)
     globalTransforms[boneIndex] = globalTransforms[asset.skeleton.bones[boneIndex].parentIndex] * asset.skeleton.bones[boneIndex].localTransformation;
-  
+
   std::vector<glm::mat4> resetTransforms(asset.skeleton.bones.size());
   for (uint32_t boneIndex = 0; boneIndex < asset.skeleton.bones.size(); ++boneIndex)
     resetTransforms[boneIndex] = globalTransforms[boneIndex] * asset.skeleton.bones[boneIndex].offsetMatrix;

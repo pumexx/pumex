@@ -33,7 +33,7 @@ ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, u
 }
 
 ImageTraits::ImageTraits(const ImageTraits& traits)
-  : usage{ traits.usage }, format{ traits.format }, extent(traits.extent), mipLevels{ traits.mipLevels }, arrayLayers{ traits.arrayLayers }, samples{ traits.samples }, 
+  : usage{ traits.usage }, format{ traits.format }, extent(traits.extent), mipLevels{ traits.mipLevels }, arrayLayers{ traits.arrayLayers }, samples{ traits.samples },
   linearTiling{ traits.linearTiling }, initialLayout{ traits.initialLayout }, imageCreate{ traits.imageCreate }, imageType{ traits.imageType }, sharingMode{ traits.sharingMode }
 {
 }

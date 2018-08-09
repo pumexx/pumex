@@ -10,7 +10,7 @@ layout (binding = 1) uniform sampler2D fontTexture;
 
 layout (location = 0) out vec4 outFragColor;
 
-void main() 
+void main()
 {
   float alpha  = texture( fontTexture, inUV ).r;
   outFragColor = vec4( inColor.xyz, alpha );

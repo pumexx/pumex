@@ -48,7 +48,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
   surfaceStatisticsToCollect = { 0,  0,              TSS_STAT_BASIC | TSS_STAT_BUFFERS | TSS_STAT_EVENTS };
   viewerStatisticsGroups     = { {}, {}, { TSV_GROUP_UPDATE, TSV_GROUP_RENDER, TSV_GROUP_RENDER_EVENTS} };
   surfaceStatisticsGroups    = { {}, {}, { TSS_GROUP_BASIC, TSS_GROUP_EVENTS, TSS_GROUP_SECONDARY_BUFFERS, TSS_GROUP_PRIMARY_BUFFERS, TSS_GROUP_PRIMARY_BUFFERS+1, TSS_GROUP_PRIMARY_BUFFERS+2, TSS_GROUP_PRIMARY_BUFFERS+3 } };
-  
+
   // creating root node for statistics rendering
   statisticsRoot = std::make_shared<Group>();
   statisticsRoot->setName("statisticsRoot");
@@ -300,7 +300,7 @@ void TimeStatisticsHandler::collectData(Surface* surface, TimeStatistics* viewer
 
 
   for (const auto& group : surfaceStatistics->getGroups())
-  { 
+  {
     if (std::find(begin(surfaceStatisticsGroups[statisticsCollection]), end(surfaceStatisticsGroups[statisticsCollection]), group.first) == end(surfaceStatisticsGroups[statisticsCollection]))
       continue;
     textSmall->setText(surface, 200 + group.first, glm::vec2(5, channelHeight -0.2*dHeight), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f), group.second);

@@ -41,7 +41,7 @@ class Device;
 class Viewer;
 
 // Class representing a tree of bones to animate the asset
-// Two rules are mandatory: 
+// Two rules are mandatory:
 // - parents in bone vector must be defined before their children
 // - there must be at least one bone in each asset ( the root )
 class PUMEX_EXPORT Skeleton
@@ -65,7 +65,7 @@ public:
   std::string                        name;
   std::vector<std::string>           boneNames;
   std::map<std::string, std::size_t> invBoneNames;
-  
+
   void refreshChildren();
 };
 

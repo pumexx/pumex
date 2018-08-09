@@ -77,7 +77,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-void main() 
+void main()
 {
   vec3 worldPosition = subpassLoad(inPosition,gl_SampleID).xyz;
   vec3 worldNormal   = subpassLoad(inNormal,gl_SampleID).xyz;
@@ -103,24 +103,24 @@ void main()
     vec3 radiance       = lights[i].color.xyz * attenuation;
 
     // Cook-Torrance BRDF
-    float NDF = distributionGGX(worldNormal, halfDir, roughness);   
-    float G   = geometrySmith(worldNormal, viewDir, lightDir, roughness);      
+    float NDF = distributionGGX(worldNormal, halfDir, roughness);
+    float G   = geometrySmith(worldNormal, viewDir, lightDir, roughness);
     vec3  F   = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
-           
-    vec3 nominator    = NDF * G * F; 
+
+    vec3 nominator    = NDF * G * F;
     float denominator = 4 * max(dot(worldNormal, viewDir), 0.0) * max(dot(worldNormal, lightDir), 0.0) + 0.001;
     vec3 specular     = nominator / denominator;
-        
+
     // kS is equal to Fresnel
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
-    kD      *= 1.0 - metallic;	  
+    kD      *= 1.0 - metallic;
 
     // scale light by NdotL
-    float NdotL = max(dot(worldNormal, lightDir), 0.0);        
+    float NdotL = max(dot(worldNormal, lightDir), 0.0);
     // add to outgoing radiance Lo
     finalColor += (kD * albedo / PI + specular) * radiance * NdotL;
-  }   
+  }
 
   // Reinhard tone mapping
   finalColor = finalColor / (finalColor + vec3(1.0));

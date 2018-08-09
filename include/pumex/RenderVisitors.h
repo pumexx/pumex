@@ -28,7 +28,7 @@
 
 namespace pumex
 {
-	
+
 class CommandBuffer;
 
 // NodeVisitor subclass that provides RenderContext for different shenanigans

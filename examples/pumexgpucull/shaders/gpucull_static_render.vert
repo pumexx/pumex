@@ -67,7 +67,7 @@ layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
 layout (location = 5) flat out uint materialID;
 
-void main() 
+void main()
 {
   uint instanceIndex = instanceIndices[gl_InstanceIndex];
   mat4 modelMatrix   = instances[instanceIndex].position;
@@ -81,7 +81,7 @@ void main()
   outNormal          = mat3(inverse(transpose(modelMatrix))) * inNormal;
   outColor           = vec3(1.0,1.0,1.0) * instances[instanceIndex].params[0] ;
   outUV              = inUV.xy;
-	
+
   vec4 pos           = camera.viewMatrix * modelPosition;
   outLightVec        = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
   outViewVec         = -pos.xyz;

@@ -55,5 +55,5 @@ protected:
   bool                       registered        = false;
   bool                       samplerRegistered = false;
 };
-	
+
 }

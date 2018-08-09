@@ -42,8 +42,8 @@
 // This example also shows, how to animate assets and how to render different assets ( people, clothes ) using the same animated skeleton.
 //
 // Rendering consists of following parts :
-// 1. Positions and parameters of all objects are sent to compute shader. Compute shader ( a filter ) culls invisible objects using 
-//    camera parameters, object position and object bounding box. For visible objects the appropriate level of detail is chosen. 
+// 1. Positions and parameters of all objects are sent to compute shader. Compute shader ( a filter ) culls invisible objects using
+//    camera parameters, object position and object bounding box. For visible objects the appropriate level of detail is chosen.
 //    Results are stored in a buffer.
 // 2. Above mentioned buffer is used during rendering to choose appropriate object parameters ( position, bone matrices, object specific parameters, material ids, etc )
 
@@ -116,7 +116,7 @@ struct MaterialData
   uint32_t  std430pad0;
   uint32_t  std430pad1;
 
-  // two functions that define material parameters according to data from an asset's material 
+  // two functions that define material parameters according to data from an asset's material
   void registerProperties(const pumex::Material& material)
   {
     ambient   = material.getProperty("$clr.ambient", glm::vec4(0, 0, 0, 0));
@@ -773,7 +773,7 @@ int main(int argc, char * argv[])
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionSbo = std::make_shared<pumex::StorageBuffer>(applicationData->positionBuffer);
     auto instanceSbo = std::make_shared<pumex::StorageBuffer>(applicationData->instanceBuffer);
-  
+
     auto filterDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, filterDescriptorSetLayout);
     filterDescriptorSet->setDescriptor(0, cameraUbo);
     filterDescriptorSet->setDescriptor(1, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getTypeBuffer(MAIN_RENDER_MASK)));
@@ -873,7 +873,7 @@ int main(int argc, char * argv[])
       surf->setRenderWorkflow(workflow, workflowCompiler);
 
     // Making the update graph
-    // The update in this example is "almost" singlethreaded. 
+    // The update in this example is "almost" singlethreaded.
     // In more complicated scenarios update should be also divided into advanced update graph.
     // Consider make_edge() in update graph :
     // viewer->startUpdateGraph should point to all root nodes.
