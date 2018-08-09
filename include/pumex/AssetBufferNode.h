@@ -21,6 +21,7 @@
 //
 
 #pragma once
+#include <functional>
 #include <pumex/AssetBuffer.h>
 #include <pumex/Export.h>
 #include <pumex/Node.h>
