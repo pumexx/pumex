@@ -14,11 +14,11 @@ Geometry is a collection of vertices and indices. Primitive topology ( defined b
 Every vertex in a geometry has the same vertex semantic, that describes how a collection of float values form a single vertex. Example vertex semantic, that defines a vertex, looks like this :
 
 ```
-std::vector<pumex::VertexSemantic> requiredSemantic = 
-{ 
+std::vector<pumex::VertexSemantic> requiredSemantic =
+{
   { pumex::VertexSemantic::Position, 3 },
   { pumex::VertexSemantic::Normal, 3 },
-  { pumex::VertexSemantic::TexCoord, 2 } 
+  { pumex::VertexSemantic::TexCoord, 2 }
 };
 ```
 
@@ -42,13 +42,13 @@ Skeleton is a tree of bones. Each bone has name and transformation in a form of 
 
 Each vertex must have at most 4 bones to which it is associated using special elements from vertex semantic : BoneWeight and BoneIndex.
 
-BoneIndex determines a bone in a skeleton to which the vertex is associated. BoneWeight defines how strong is that association. Sum of BoneWeight coefficients must be equal to one. 
+BoneIndex determines a bone in a skeleton to which the vertex is associated. BoneWeight defines how strong is that association. Sum of BoneWeight coefficients must be equal to one.
 
-Asset's minimal skeleton consists of one bone with identity matrix. If there are no bone weights and bone indices defined in a vertex - it is assumed that each vertex points to a bone index 0, with weight = 1. 
+Asset's minimal skeleton consists of one bone with identity matrix. If there are no bone weights and bone indices defined in a vertex - it is assumed that each vertex points to a bone index 0, with weight = 1.
 
 
 
-Animation is a collection of animation channels. Each animation channel corresponds to a single bone in a skeleton and determines position and rotation of that bone in time. A set of channels determines animation of the whole asset. 
+Animation is a collection of animation channels. Each animation channel corresponds to a single bone in a skeleton and determines position and rotation of that bone in time. A set of channels determines animation of the whole asset.
 
 
 
@@ -56,13 +56,13 @@ Animation is a collection of animation channels. Each animation channel correspo
 
 Assets may be loaded from file using **pumex::AssetLoader** descendant. Currently only one such class is defined : **pumex::AssetLoaderAssimp** .
 
-To load an asset use following **pumex::AssetLoaderAssimp** method: 
+To load an asset use following **pumex::AssetLoaderAssimp** method:
 
 ```
 std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>())
 ```
 
-You may also change import flags defined for the loader using **pumex::AssetLoaderAssimp** method: 
+You may also change import flags defined for the loader using **pumex::AssetLoaderAssimp** method:
 
 ```
   inline void setImportFlags(unsigned int flags);
@@ -86,7 +86,7 @@ For example :
 pumex::Geometry cylinder;
   cylinder.name          = "cylinder";
   cylinder.semantic      = { { pumex::VertexSemantic::Position, 3 }, { pumex::VertexSemantic::Normal, 3 }, { pumex::VertexSemantic::TexCoord, 2 } };
-  
+
 pumex::addCylinder(cylinder, glm::vec3(0.0, 0.0, 0.0), 1.0, 2.0, 20, true, true, true);
 
 auto asset = createSimpleAsset(cylinder, "cylinderAsset")

@@ -119,12 +119,12 @@ size_t Font::getGlyphIndex(wchar_t charCode)
       (float)(lastRegisteredPosition.x + fontFace->glyph->bitmap.width) / (float)textureSize.x,
       (float)(lastRegisteredPosition.y + fontFace->glyph->bitmap.rows) / (float)textureSize.y
     ),
-    glm::vec4( 
-      fontFace->glyph->bitmap_left, 
+    glm::vec4(
+      fontFace->glyph->bitmap_left,
       -1.0*fontFace->glyph->bitmap_top,
       fontFace->glyph->bitmap_left + fontFace->glyph->bitmap.width,
       -1.0*fontFace->glyph->bitmap_top + fontFace->glyph->bitmap.rows
-    ), 
+    ),
     fontFace->glyph->advance.x / 64.0f
   ) );
 

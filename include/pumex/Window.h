@@ -61,38 +61,38 @@ struct PUMEX_EXPORT WindowTraits
 // TODO : this definitely should be moved out of here...
 
 template < typename C, C beginVal, C endVal>
-class EnumIterator 
+class EnumIterator
 {
   typedef typename std::underlying_type<C>::type val_t;
   int val;
 public:
-  EnumIterator(const C & f) : val(static_cast<val_t>(f)) 
+  EnumIterator(const C & f) : val(static_cast<val_t>(f))
   {
   }
-  EnumIterator() : val(static_cast<val_t>(beginVal)) 
+  EnumIterator() : val(static_cast<val_t>(beginVal))
   {
   }
-  EnumIterator operator++() 
+  EnumIterator operator++()
   {
     ++val;
     return *this;
   }
-  C operator*() 
-  { 
-    return static_cast<C>(val); 
+  C operator*()
+  {
+    return static_cast<C>(val);
   }
   EnumIterator begin() //default ctor is good
-  { 
-    return *this; 
-  } 
-  EnumIterator end() 
+  {
+    return *this;
+  }
+  EnumIterator end()
   {
       static const EnumIterator endIter=++EnumIterator(endVal); // cache it
       return endIter;
   }
-  bool operator!=(const EnumIterator& i) 
-  { 
-    return val != i.val; 
+  bool operator!=(const EnumIterator& i)
+  {
+    return val != i.val;
   }
 };
 

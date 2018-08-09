@@ -15,7 +15,7 @@ const float b = 0.0f;
 const float c = 0.0f;
 const float d = 1 - (a + b + c);
 
-void main() 
+void main()
 {
   vec2 p1    = 2.0 * inUV.xy - vec2(1.0);
   float len0 = length(p1);

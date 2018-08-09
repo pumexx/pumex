@@ -30,7 +30,7 @@ namespace pumex
 
 class Surface;
 class CommandPool;
-class Device;	
+class Device;
 class DescriptorPool;
 class FrameBuffer;
 class RenderPass;

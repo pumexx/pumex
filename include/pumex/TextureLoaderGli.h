@@ -25,7 +25,7 @@
 
 namespace pumex
 {
-	
+
 // texture loader that is able to load DDS and KTX textures using GLI library
 class PUMEX_EXPORT TextureLoaderGli : public TextureLoader
 {

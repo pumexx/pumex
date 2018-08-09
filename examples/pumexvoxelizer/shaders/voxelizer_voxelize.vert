@@ -15,7 +15,7 @@ layout (binding = 0) uniform CameraUbo
 {
   mat4 viewMatrix;        // during voxelization this matrix is set to identity
   mat4 viewMatrixInverse; // during voxelization this matrix is set to identity
-  mat4 projectionMatrix;  // this matrix is set to orthogonal matrix 
+  mat4 projectionMatrix;  // this matrix is set to orthogonal matrix
   vec4 observerPosition;
   vec4 params;
 } camera;
@@ -30,12 +30,12 @@ layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outColor;
 layout (location = 2) out vec2 outUV;
 
-void main() 
+void main()
 {
   mat4 boneTransform = object.bones[int(inBoneIndex[0])] * inBoneWeight[0];
   boneTransform     += object.bones[int(inBoneIndex[1])] * inBoneWeight[1];
   boneTransform     += object.bones[int(inBoneIndex[2])] * inBoneWeight[2];
-  boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];	
+  boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];
   mat4 modelMatrix  = object.position * boneTransform;
 
   outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;

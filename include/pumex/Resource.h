@@ -60,7 +60,7 @@ public:
   void                                     removeDescriptor(std::shared_ptr<Descriptor> descriptor);
   // invalidateDescriptors() is called to inform the scenegraph that validate() needs to be called
   virtual void                             invalidateDescriptors();
-  // notifyDescriptors() is called from within validate() when some serious change in resource occured 
+  // notifyDescriptors() is called from within validate() when some serious change in resource occured
   // ( getDescriptorValue() will return new values, so vkUpdateDescriptorSets must be called by DescriptorSet ).
   virtual void                             notifyDescriptors(const RenderContext& renderContext);
 

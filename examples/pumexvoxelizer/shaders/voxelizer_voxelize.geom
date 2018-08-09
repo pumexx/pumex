@@ -38,7 +38,7 @@ void main()
   for(uint i=0; i<3; ++i)
   {
     vertPosition[i] = gl_in[i].gl_Position;
-    edges[i]        = normalize( gl_in[(i+1)%3].gl_Position.xyz / gl_in[(i+1)%3].gl_Position.w - gl_in[i].gl_Position.xyz / gl_in[i].gl_Position.w ); 
+    edges[i]        = normalize( gl_in[(i+1)%3].gl_Position.xyz / gl_in[(i+1)%3].gl_Position.w - gl_in[i].gl_Position.xyz / gl_in[i].gl_Position.w );
     edgeNormals[i]  = normalize( cross(edges[i],tNorm) );
     minAABB         = min( minAABB, vertPosition[i].xyz );
     maxAABB         = max( maxAABB, vertPosition[i].xyz );

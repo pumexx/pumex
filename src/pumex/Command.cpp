@@ -87,11 +87,11 @@ CommandBuffer::~CommandBuffer()
   vkFreeCommandBuffers(device, commandPool.lock()->getHandle(device), commandBuffer.size(), commandBuffer.data());
 }
 
-void CommandBuffer::invalidate(uint32_t index) 
-{ 
+void CommandBuffer::invalidate(uint32_t index)
+{
   if (index == std::numeric_limits<uint32_t>::max())
     std::fill(begin(valid), end(valid), false);
-  else 
+  else
     valid[index % commandBuffer.size()] = false;
 }
 
@@ -390,7 +390,7 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     srcStageFlags = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     break;
   case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-    // Image is a transfer source 
+    // Image is a transfer source
     // Make sure any reads from the image have been finished
     srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
     srcStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -471,7 +471,7 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
     dstAccessMask = 0;
     dstStageFlags = 0;
     break;
-    
+
   }
 
   VkDependencyFlags dependencyFlags = 0;

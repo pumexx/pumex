@@ -291,7 +291,7 @@ std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, c
             {
               switch (semantic.type)
               {
-              case VertexSemantic::Position: // always 3 
+              case VertexSemantic::Position: // always 3
                 acc.set(VertexSemantic::Position, mesh->mVertices[j].x, mesh->mVertices[j].y, mesh->mVertices[j].z);
                 break;
               case VertexSemantic::Normal: // always 3

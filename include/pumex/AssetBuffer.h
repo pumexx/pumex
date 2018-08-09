@@ -40,24 +40,24 @@ class CommandBuffer;
 // Each asset may have different set of render aspects ( normal rendering with tangents, transluency, lights, etc ) defined by render mask.
 // Each render aspect may use different shaders with different vertex semantic in its geometries.
 // Render masks ( each with its own render semantics ) are registered in AssetBuffer constructor
-// 
+//
 // Asset's render masks are defined per single geometry. It's in user's responsibility to mark each geometry
 // by its specific render mask ( using geometry name, associated materials, textures and whatever the user finds appropriate ).
-// 
+//
 // To register single object you must define an object type by calling registerType() method
 // Then for that type you register Assets as different LODs. Each asset has skeletons, animations, geometries, materials, textures etc.
 // Materials and textures are treated in different class called MaterialSet.
 // Animations are stored and used by CPU.
 //
 // To bind AssetBuffer resources to vulkan you may use cmdBindVertexIndexBuffer().
-// Each render aspect ( identified by render mask ) has its own vertex and index buffers, so the user is able to use different shaders to 
+// Each render aspect ( identified by render mask ) has its own vertex and index buffers, so the user is able to use different shaders to
 // draw to different subpasses.
 //
 // After vertex/index binding the user is ready to draw objects.
 // To draw a single object it is enough to use cmdDrawObject() method, but AssetBuffer was created with
 // MASSIVE INSTANCED RENDERING in mind - check crowd and pumexgpucull examples on how to achieve this.
 //
-// Every object type in AssetBuffer : 
+// Every object type in AssetBuffer :
 //  - is recognized by its ID number.
 //  - has predefined bounding box ( user is responsible for handing this information over to AssetBuffer )
 //  - may have one or more levels of detail ( LODs )

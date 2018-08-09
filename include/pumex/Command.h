@@ -74,7 +74,7 @@ struct PipelineBarrier;
 
 class CommandBufferSource;
 
-// Class representing Vulkan command buffer. Most of the vkCmd* commands will be defined here. 
+// Class representing Vulkan command buffer. Most of the vkCmd* commands will be defined here.
 class PUMEX_EXPORT CommandBuffer
 {
 public:

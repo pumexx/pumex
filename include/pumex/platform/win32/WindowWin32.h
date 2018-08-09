@@ -29,7 +29,7 @@
 
 namespace pumex
 {
-  
+
 // Class implementing a pumex::Window for MS Windows system
 class PUMEX_EXPORT WindowWin32 : public Window, public std::enable_shared_from_this<WindowWin32>
 {
@@ -46,15 +46,15 @@ public:
   static WindowWin32*      getWindow(HWND hwnd);
 
   std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
-  
+
   static bool              checkWindowMessages();
 
   LRESULT                  handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam);
 
   void                     normalizeMouseCoordinates( float& x, float& y);
-  
+
   InputEvent::Key          win32KeyCodeToPumex(WPARAM keycode) const;
-  
+
 protected:
   static void fillWin32Keycodes();
 

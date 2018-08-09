@@ -47,38 +47,38 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
     connection = xcb_connect(NULL, &screenNum);
     int errorNum = xcb_connection_has_error(connection);
     CHECK_LOG_THROW(errorNum>0, "Cannot create XCB connection. Error number " << errorNum);
-    
+
     connectionSetup = xcb_get_setup(connection);
   }
   xcb_screen_iterator_t iter  = xcb_setup_roots_iterator(connectionSetup);
   for (int s = screenNum; s > 0; s--)
-    xcb_screen_next(&iter);  
+    xcb_screen_next(&iter);
   screen = iter.data;
-  
+
   window = xcb_generate_id(connection);
   uint32_t eventMask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
   uint32_t valueList[] = { screen->black_pixel, XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE };
-  
+
   switch(windowTraits.type)
   {
   case WindowTraits::WINDOW:
-    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, windowTraits.x, windowTraits.y, windowTraits.w, windowTraits.h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, windowTraits.x, windowTraits.y, windowTraits.w, windowTraits.h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);
     break;
   case WindowTraits::FULLSCREEN:
-    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);
     break;
   case WindowTraits::HALFSCREEN_LEFT:
-    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels / 2, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, screen->width_in_pixels / 2, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);
     break;
   case WindowTraits::HALFSCREEN_RIGHT:
-    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, screen->width_in_pixels / 2, 0, screen->width_in_pixels/ 2, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);  
+    xcb_create_window( connection, XCB_COPY_FROM_PARENT, window, screen->root, screen->width_in_pixels / 2, 0, screen->width_in_pixels/ 2, screen->height_in_pixels, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, eventMask, valueList);
     break;
   }
   // Window managers on Linux like to place your windows in random positions. Using window class you can create a rule ( in a window manager ) that says that you want to place your window in exact position
-  xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 23, PUMEX_WINDOW_CLASS_ON_LINUX);  
+  xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 23, PUMEX_WINDOW_CLASS_ON_LINUX);
   // set window name
-  xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, windowTraits.windowName.size(),   windowTraits.windowName.c_str());  
-  
+  xcb_change_property( connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, windowTraits.windowName.size(),   windowTraits.windowName.c_str());
+
   xcb_intern_atom_cookie_t wmDeleteCookie    = xcb_intern_atom(connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
   xcb_intern_atom_cookie_t wmProtocolsCookie = xcb_intern_atom(connection, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
   xcb_intern_atom_reply_t* wmDeleteReply     = xcb_intern_atom_reply(connection, wmDeleteCookie, NULL);
@@ -86,9 +86,9 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   wmDeleteWin = wmDeleteReply->atom;
   wmProtocols = wmProtocolsReply->atom;
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, wmProtocolsReply->atom, 4, 32, 1, &wmDeleteReply->atom);
-  
+
   registerWindow(window, this);
-  
+
   switch(windowTraits.type)
   {
   case WindowTraits::WINDOW:
@@ -97,7 +97,7 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   {
     xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
     xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);
-    
+
     xcb_intern_atom_cookie_t cookieFs  = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN");
     xcb_intern_atom_reply_t* atomFs = xcb_intern_atom_reply(connection, cookieFs, NULL);
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, atomWms->atom, XCB_ATOM_ATOM, 32, 1, &(atomFs->atom));
@@ -110,24 +110,24 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
   {
     xcb_intern_atom_cookie_t cookieWms = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
     xcb_intern_atom_reply_t* atomWms   = xcb_intern_atom_reply(connection, cookieWms, NULL);
-    
+
     xcb_intern_atom_cookie_t cookieMV  = xcb_intern_atom(connection, false, strlen("_NET_WM_STATE_MAXIMIZED_VERT"), "_NET_WM_STATE_MAXIMIZED_VERT");
     xcb_intern_atom_reply_t* atomMV    = xcb_intern_atom_reply(connection, cookieMV, NULL);
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, atomWms->atom, XCB_ATOM_ATOM, 32, 1, &(atomMV->atom));
 
     // FIXME : I haven't found any reliable method to turn window decorations off :(
-    
+
     free(atomMV);
     free(atomWms);
     break;
   }
   }
-  
-  // collect window size  
+
+  // collect window size
   xcb_get_geometry_cookie_t cookie;
   xcb_get_geometry_reply_t *reply;
   cookie = xcb_get_geometry(connection, window);
-  if ((reply = xcb_get_geometry_reply(connection, cookie, NULL))) 
+  if ((reply = xcb_get_geometry_reply(connection, cookie, NULL)))
   {
     width  = newWidth  = reply->width;
     height = newHeight = reply->height;
@@ -138,9 +138,9 @@ WindowXcb::WindowXcb(const WindowTraits& windowTraits)
     height = newHeight = windowTraits.h;
   }
   free(reply);
-  
-  xcb_map_window(connection, window); 
-  xcb_flush(connection);   
+
+  xcb_map_window(connection, window);
+  xcb_flush(connection);
 }
 
 WindowXcb::~WindowXcb()
@@ -169,7 +169,7 @@ std::shared_ptr<Surface> WindowXcb::createSurface(std::shared_ptr<Viewer> v, std
 
   viewer = v;
   surface = result;
-  swapChainResizable = true; 
+  swapChainResizable = true;
   return result;
 }
 
@@ -318,7 +318,7 @@ bool WindowXcb::checkWindowMessages()
     // if last resize was called less than 1 second ago, then wait a little more
     if( inSeconds( timeNow - win.second->lastResizeTimePoint ) < 1.0 )
       continue;
-    
+
     win.second->resizeCalled        = false;
     if( win.second->width == win.second->newWidth && win.second->height == win.second->newHeight  )
       continue;
@@ -328,9 +328,9 @@ bool WindowXcb::checkWindowMessages()
     win.second->width               = win.second->newWidth;
     win.second->height              = win.second->newHeight;
   }
-  
+
   return true;
-  
+
 }
 
 void WindowXcb::normalizeMouseCoordinates(float& x, float& y) const
@@ -345,7 +345,7 @@ InputEvent::Key WindowXcb::xcbKeyCodeToPumex(xcb_keycode_t keycode) const
   auto it = xcbKeycodes.find(keycode);
   if(it != end(xcbKeycodes) )
     return it->second;
-// Line below is handy for recognizing new keycodes.  
+// Line below is handy for recognizing new keycodes.
 //  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
   return InputEvent::KEY_UNDEFINED;
 }
@@ -357,15 +357,15 @@ void WindowXcb::fillXcbKeycodes()
   xcbKeycodes.insert({0x41, InputEvent::SPACE});
   xcbKeycodes.insert({0x17, InputEvent::TAB});
   xcbKeycodes.insert({0x32, InputEvent::SHIFT});
-  
+
   uint32_t i=0;
-  
+
   // keys F1-F10
   typedef EnumIterator<InputEvent::Key, InputEvent::Key::F1, InputEvent::Key::F10> FunKeyIterator;
   i=0x43;
   for(InputEvent::Key f : FunKeyIterator())
     xcbKeycodes.insert({i++, f});
-  
+
   // numbers
   typedef EnumIterator<InputEvent::Key, InputEvent::Key::N1, InputEvent::Key::N9> NumKeyIterator;
   i=0xa;

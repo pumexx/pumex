@@ -25,7 +25,7 @@ layout (location = 5) flat in uint materialID;
 
 layout (location = 0) out vec4 outFragColor;
 
-void main() 
+void main()
 {
   vec4 color = vec4(inColor,1);
 

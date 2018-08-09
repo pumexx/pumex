@@ -95,7 +95,7 @@ PhysicalDevice::PhysicalDevice(VkPhysicalDevice device, Viewer* viewer)
 
 PhysicalDevice::~PhysicalDevice()
 {
-	
+
 }
 
 std::vector<uint32_t> PhysicalDevice::matchingFamilyIndices(const QueueTraits& queueTraits)

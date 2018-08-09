@@ -29,7 +29,7 @@
 #include <args.hxx>
 
 // This example shows how to setup basic deferred renderer with antialiasing.
-// Render workflow defines three render operations : 
+// Render workflow defines three render operations :
 // - first one fills zbuffer
 // - second one fills gbuffers with data
 // - third one renders lights using gbuffers as input
@@ -53,7 +53,7 @@ struct PositionData
 };
 
 // MaterialData stores information about texture indices. This structure is produced by MaterialSet and therefore it must implement registerProperties() and registerTextures() methods.
-// This structure will be used through a storage buffer in shaders 
+// This structure will be used through a storage buffer in shaders
 struct MaterialData
 {
   uint32_t  diffuseTextureIndex   = 0;
@@ -61,7 +61,7 @@ struct MaterialData
   uint32_t  metallicTextureIndex  = 0;
   uint32_t  normalTextureIndex    = 0;
 
-  // two functions that define material parameters according to data from an asset's material 
+  // two functions that define material parameters according to data from an asset's material
   void registerProperties(const pumex::Material& material)
   {
   }

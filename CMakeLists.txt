@@ -38,7 +38,7 @@ configure_file (
 include( pumex_macros )
 include( pumex_externals )
 
-set( PUMEXLIB_SHADER_NAMES 
+set( PUMEXLIB_SHADER_NAMES
   shaders/text_draw.vert
   shaders/text_draw.geom
   shaders/text_draw.frag
@@ -50,7 +50,7 @@ add_custom_target ( pumexlib-shaders DEPENDS ${PUMEXLIB_OUTPUT_SHADERS} SOURCES 
 add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set( PUMEXLIB_HEADERS )
-list( APPEND PUMEXLIB_HEADERS 
+list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Asset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBuffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBufferNode.h
@@ -81,7 +81,7 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Node.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/NodeVisitor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/PerObjectData.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/PhysicalDevice.h 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/PhysicalDevice.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Pipeline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Pumex.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Query.h
@@ -106,22 +106,22 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Buffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/HashCombine.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Log.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Shapes.h  
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Shapes.h
   ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h
 )
 if(WIN32)
-  list( APPEND PUMEXLIB_HEADERS 
+  list( APPEND PUMEXLIB_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/HPClockWin32.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/WindowWin32.h
   )
 elseif(UNIX AND NOT APPLE)
-  list( APPEND PUMEXLIB_HEADERS 
+  list( APPEND PUMEXLIB_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/linux/WindowXcb.h
   )
 endif()
 
 set( PUMEXLIB_SOURCES )
-list( APPEND PUMEXLIB_SOURCES 
+list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Asset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBufferNode.cpp
@@ -186,23 +186,23 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 add_library( pumexlib SHARED "" )
-target_sources( pumexlib 
-  PUBLIC 
-    $<BUILD_INTERFACE:${PUMEXLIB_HEADERS}> 
-  PRIVATE 
-    ${PUMEXLIB_SOURCES} 
+target_sources( pumexlib
+  PUBLIC
+    $<BUILD_INTERFACE:${PUMEXLIB_HEADERS}>
+  PRIVATE
+    ${PUMEXLIB_SOURCES}
 )
-target_include_directories( pumexlib 
-  PUBLIC 
-    $<BUILD_INTERFACE:${PUMEXLIB_PUBLIC_INCLUDES}> 
+target_include_directories( pumexlib
+  PUBLIC
+    $<BUILD_INTERFACE:${PUMEXLIB_PUBLIC_INCLUDES}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
-  PRIVATE 
-    $<BUILD_INTERFACE:${PUMEXLIB_PRIVATE_INCLUDES}> 
+  PRIVATE
+    $<BUILD_INTERFACE:${PUMEXLIB_PRIVATE_INCLUDES}>
 )
-target_compile_definitions( pumexlib 
-  PUBLIC 
-    NOMINMAX GLM_ENABLE_EXPERIMENTAL GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE 
+target_compile_definitions( pumexlib
+  PUBLIC
+    NOMINMAX GLM_ENABLE_EXPERIMENTAL GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE
   PRIVATE
     PUMEX_EXPORTS
 )
@@ -240,7 +240,7 @@ install( EXPORT PumexTargets
   NAMESPACE pumex::
   DESTINATION lib/cmake/pumex
   COMPONENT cmake_files
-)  
+)
 
 include( CMakePackageConfigHelpers )
 write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake
@@ -267,37 +267,37 @@ cpack_add_install_type( Developer DISPLAY_NAME "Development files WITHOUT exampl
 cpack_add_component_group( DevGroup DISPLAY_NAME "Development files" DESCRIPTION "All files required to develop your applications using Pumex library" )
 cpack_add_component_group( ExampleApps DISPLAY_NAME "Example applications" DESCRIPTION "Example applications show Pumex library in action" )
 
-cpack_add_component( dependencies 
-  DISPLAY_NAME "3rd party libraries" 
-  DESCRIPTION "Libraries that must be installed in order to run Pumex library" 
-  GROUP DevGroup 
+cpack_add_component( dependencies
+  DISPLAY_NAME "3rd party libraries"
+  DESCRIPTION "Libraries that must be installed in order to run Pumex library"
+  GROUP DevGroup
   INSTALL_TYPES Developer Full
-)  
+)
 cpack_add_component( libraries
-  DISPLAY_NAME "Library files" 
-  DESCRIPTION "Dynamic libraries used to build applications with Pumex library. Libraries are also used by example applications" 
-  GROUP DevGroup 
+  DISPLAY_NAME "Library files"
+  DESCRIPTION "Dynamic libraries used to build applications with Pumex library. Libraries are also used by example applications"
+  GROUP DevGroup
   INSTALL_TYPES Developer Full
   DEPENDS dependencies
-)  
+)
 cpack_add_component( headers
-  DISPLAY_NAME "Header files" 
-  DESCRIPTION "Header files required to write and build applications with Pumex library" 
-  GROUP DevGroup 
+  DISPLAY_NAME "Header files"
+  DESCRIPTION "Header files required to write and build applications with Pumex library"
+  GROUP DevGroup
   INSTALL_TYPES Developer Full
   DEPENDS libraries
-)  
+)
 cpack_add_component( cmake_files
-  DISPLAY_NAME "CMake configuration files" 
-  DESCRIPTION "Files that help find Pumex library and use it in your application" 
-  GROUP DevGroup 
+  DISPLAY_NAME "CMake configuration files"
+  DESCRIPTION "Files that help find Pumex library and use it in your application"
+  GROUP DevGroup
   INSTALL_TYPES Developer Full
   DEPENDS libraries
-)  
+)
 cpack_add_component( examples
-  DISPLAY_NAME "Example applications" 
-  DESCRIPTION "Example applications show Pumex library in action" 
-  GROUP ExampleApps 
+  DISPLAY_NAME "Example applications"
+  DESCRIPTION "Example applications show Pumex library in action"
+  GROUP ExampleApps
   INSTALL_TYPES Full
   DEPENDS libraries
-)  
+)

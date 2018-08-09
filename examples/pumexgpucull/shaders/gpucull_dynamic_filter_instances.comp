@@ -109,11 +109,11 @@ bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )
   return (outOfBound[0] < 8 ) && ( outOfBound[1] < 8 ) && ( outOfBound[2] < 8 ) && ( outOfBound[3] < 8 ) && ( outOfBound[4] < 8 ) && ( outOfBound[5] < 8 );
 }
 
-void main() 
+void main()
 {
   uint instanceIndex = gl_GlobalInvocationID.x;
-  if (instanceIndex >= instances.length()) 
-    return;	
+  if (instanceIndex >= instances.length())
+    return;
   uint typeIndex     = instances[instanceIndex].id.y;
   mat4 modelMatrix   = instances[instanceIndex].position;
   mat4 mvpMatrix     = camera.projectionMatrix * camera.viewMatrix * modelMatrix;

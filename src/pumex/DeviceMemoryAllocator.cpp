@@ -88,7 +88,7 @@ void DeviceMemoryAllocator::deallocate(VkDevice device, const DeviceMemoryBlock&
   allocationStrategy->deallocate(pddit->second.freeBlocks, block);
 }
 
-void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offset, const void* data, VkDeviceSize size, VkMemoryMapFlags flags) 
+void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offset, const void* data, VkDeviceSize size, VkMemoryMapFlags flags)
 {
   if (size == 0)
     return;
@@ -150,7 +150,7 @@ void FirstFitAllocationStrategy::deallocate(std::list<FreeBlock>& freeBlocks, co
   auto it = begin(freeBlocks);
   for (; it != end(freeBlocks); ++it)
   {
-    // check if a new block lies before an existing block 
+    // check if a new block lies before an existing block
     if (it->offset >= fBlock.offset + fBlock.size)
     {
       // check if a new block may be added in front of an existing block
@@ -178,7 +178,7 @@ void FirstFitAllocationStrategy::deallocate(std::list<FreeBlock>& freeBlocks, co
     freeBlocks.push_back(fBlock);
     return;
   }
-  // check if it may be coalesced to the next block 
+  // check if it may be coalesced to the next block
   auto nit = it;
   ++nit;
   if (nit != end(freeBlocks) && ((it->offset + it->size) == nit->offset))

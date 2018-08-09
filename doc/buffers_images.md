@@ -49,7 +49,7 @@ Buffer::Buffer(std::shared_ptr<T> data, std::shared_ptr<DeviceMemoryAllocator> a
 
 Constructor parameters :
 
-- allocator - allocates GPU/CPU memory that Vulkan will use. 
+- allocator - allocates GPU/CPU memory that Vulkan will use.
 - bufferUsage - every created buffer must declare its usage ( will it be used as vertex buffer, index buffer, uniform buffer, etc)
 - perObjectBehaviour - buffer may allocate its copies **on each used device** ( pumex::pbPerDevice ) or **on each used surface** ( pumex::pbPerSurface ).
 - swapChainImageBehaviour - on each device/surface buffer will have only one copy ( pumex::swOnce ), or it will have as many copies as there is swapchain images ( pumex::swForEachImage )
@@ -65,18 +65,18 @@ For memory buffers the answer is simple: when buffer was removed and created aga
 If you have buffer created with **pumex::swOnce** flag - it means that all three primary command buffers use the same buffer and at least one of them is currently executed on GPU ( command buffer is in pending state ). You cannot remove a memory buffer which is used by command buffer in pending state.
 
 Conclusion : **WHEN YOU KNOW THAT YOUR BUFFER WILL NOT CHANGE SIZE DURING ITS LIFETIME - USE pumex::swOnce FLAG DURING CREATION. **
-**OTHERWISE ALWAYS USE pumex::swForEachImage FLAG** . 
+**OTHERWISE ALWAYS USE pumex::swForEachImage FLAG** .
 
 *setData()* and *setBufferSize()* methods declared in pumex::Buffer class have a group of limitations listed below :
 
 - **void setData(const T& dt)** - sets data for all surfaces/devices. May be called only when buffer was created with **second** constructor
-- **void setData(Surface\* surface, std::shared_ptr<T> data)** - sets data for specific surface. May only be called when 
-  - buffer was created by **first** constructor 
+- **void setData(Surface\* surface, std::shared_ptr<T> data)** - sets data for specific surface. May only be called when
+  - buffer was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerSurface
   - useSetDataMethods is equal to true
 - **void setData(Surface\* surface, const T& data)** - same as previous one
 - **void setData(Device\* device, std::shared_ptr<T> data)** - sets data for specific device. May only be called when
-  - buffer was created by **first** constructor 
+  - buffer was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerDevice
   - useSetDataMethods is equal to true
 - **void setData(Device\* device, const T& data)** - same as previous one
@@ -119,7 +119,7 @@ Constructor parameters :
   - initial image layout ( *VkImageLayout* )
   - image type ( *VkImageType* )
   - and others...
-- allocator - allocates GPU/CPU memory that Vulkan will use. 
+- allocator - allocates GPU/CPU memory that Vulkan will use.
 - aspectMask - image aspect mask ( *VkImageAspectFlags*  )
 - perObjectBehaviour - image may allocate its copies **on each used device** ( pumex::pbPerDevice ) or **on each used surface** ( pumex::pbPerSurface ).
 - swapChainImageBehaviour - on each device/surface image will have only one copy ( pumex::swOnce ), or it will have as many copies as there is swapchain images ( pumex::swForEachImage )
@@ -133,40 +133,40 @@ Remarks concerning  **pumex::swOnce** and **pumex::swForEachImage** meant for bu
 
 - **void setImageTraits(const ImageTraits& traits)** - sets image traits for all surfaces/devices. May be called only when image was created by **second** constructor.
 - **void setImageTraits(Surface\* surface, const ImageTraits& traits)** - sets image traits for specific surface. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerSurface
 - **void setImageTraits(Device\* device, const ImageTraits& traits)** - sets image traits for specific device. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerDevice
 - **void setImage(Surface\* surface, std::shared_ptr<gli::texture> tex)** - sets image data for specific surface. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerSurface
   - useSetImageMethods is equal to true
 - **void setImage(Device\* device, std::shared_ptr<gli::texture> tex)** - sets image data for specific device. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerDevice
   - useSetImageMethods is equal to true
 - **void setImages(Surface\* surface, std::vector<std::shared_ptr<Image>>& images)** - sets images created outside MemoryImage as internal. This method is used to register swapchain images, as a objects belonging to MemoryImage. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerSurface
   - sameTraitsPerObject is equal to false
 - **void setImages(Device\* device, std::vector<std::shared_ptr<Image>>& images)** - sets images created outside MemoryImage as internal. This method is used to register swapchain images, as a objects belonging to MemoryImage. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerDevice
   - sameTraitsPerObject is equal to false
-- **void clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on for all surfaces/devices 
+- **void clearImages(const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on for all surfaces/devices
 - **void clearImage(Surface\* surface, const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on a specific surface. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerSurface
 - **void clearImage(Device\* device, const glm::vec4& clearValue, const ImageSubresourceRange& range)** - clears image with provided value on a specific surface. May only be called when:
-  - image was created by **first** constructor 
+  - image was created by **first** constructor
   - perObjectBehaviour is equal to pumex::pbPerDevice
 
 
 
 ## Descriptor resources
 
-Buffers and images are not used directly in Pumex ( except for vertex and index buffers ), but through descriptors. Descriptor requires **pumex::Resource** class descendant to know how to interpret data in buffer or image. 
+Buffers and images are not used directly in Pumex ( except for vertex and index buffers ), but through descriptors. Descriptor requires **pumex::Resource** class descendant to know how to interpret data in buffer or image.
 
 Currently Pumex library has following **pumex::Resource** descendants for buffers :
 

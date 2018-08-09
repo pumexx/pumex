@@ -111,7 +111,7 @@ ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std:
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkPipelineStageFlags ps, VkAccessFlags af, const BufferSubresourceRange& bsr)
   : operation{ op }, resource{ res }, transitionType{ tt }, layout{ VK_IMAGE_LAYOUT_UNDEFINED }, load{}, resolveResource{}, imageSubresourceRange{}, pipelineStage{ ps }, accessFlags{ af }, bufferSubresourceRange{ bsr }
 {
-  
+
 }
 
 ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld, const ImageSubresourceRange& isr)
@@ -792,7 +792,7 @@ void SingleQueueWorkflowCompiler::calculatePartialOrdering(const RenderWorkflow&
     {
       // if operation has no inputs, or all inputs are on existingResources then operation may be added to partial ordering
       auto inTransitions = workflow.getOperationIO(operation->name, rttAllInputs);
-      uint32_t notExistingInputs = std::count_if(begin(inTransitions), end(inTransitions), 
+      uint32_t notExistingInputs = std::count_if(begin(inTransitions), end(inTransitions),
         [&existingResources](std::shared_ptr<ResourceTransition> transition) { return existingResources.find(transition->resource) == end(existingResources); });
       if (notExistingInputs == 0)
       {
@@ -991,7 +991,7 @@ void SingleQueueWorkflowCompiler::findAliasedResources(const RenderWorkflow& wor
     auto longestPath = recursiveLongestPath(resourcePairs);
 
     std::vector<std::pair<std::string, std::string>> rp;
-    std::copy_if(begin(resourcePairs), end(resourcePairs), std::back_inserter(rp), 
+    std::copy_if(begin(resourcePairs), end(resourcePairs), std::back_inserter(rp),
       [&longestPath](const std::pair<std::string, std::string>& thisPair) { return std::find(begin(longestPath), end(longestPath), thisPair.first) == end(longestPath) && std::find(begin(longestPath), end(longestPath), thisPair.second) == end(longestPath); });
     resourcePairs = rp;
 
@@ -1012,7 +1012,7 @@ void SingleQueueWorkflowCompiler::createCommandSequence(const std::vector<std::s
 
   int                                      lastTag = -1;
   std::shared_ptr<RenderPass>              lastRenderPass;
-  
+
   for( auto& operation : operationSequence )
   {
     int tag = costCalculator.attachmentTag.at(operation->name);
@@ -1264,7 +1264,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       // - it is persistent
       // - it is swapchain image
       // - it was used before
-      // - it is used later in a subpass or outside 
+      // - it is used later in a subpass or outside
       for (const auto& resName : workflow.getResourceNames())
       {
         // FIXME
@@ -1350,7 +1350,7 @@ void SingleQueueWorkflowCompiler::createPipelineBarriers(const RenderWorkflow& w
     // sort consuming transitions according to operation index, operations from current queue will be first in sorted vector
     auto consumingTransitions = workflow.getResourceIO(resourceName, rttAllInputs);
     // place transitions that are in the same queue first
-    auto pos = std::partition(begin(consumingTransitions), end(consumingTransitions), [&queueNumber, &generatingQueueNumber](std::shared_ptr<ResourceTransition> lhs) 
+    auto pos = std::partition(begin(consumingTransitions), end(consumingTransitions), [&queueNumber, &generatingQueueNumber](std::shared_ptr<ResourceTransition> lhs)
     {
       return queueNumber[lhs->operation->name] == generatingQueueNumber;
     });
@@ -1400,7 +1400,7 @@ void SingleQueueWorkflowCompiler::createSubpassDependency(std::shared_ptr<Resour
     }
     dstSubpassIndex = consumingSubpass->subpassIndex;
 
-    auto dep = std::find_if(begin(consumingSubpass->renderPass->dependencies), end(consumingSubpass->renderPass->dependencies), 
+    auto dep = std::find_if(begin(consumingSubpass->renderPass->dependencies), end(consumingSubpass->renderPass->dependencies),
       [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
     if (dep == end(consumingSubpass->renderPass->dependencies))
       dep = consumingSubpass->renderPass->dependencies.insert(end(consumingSubpass->renderPass->dependencies), SubpassDependencyDefinition(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));

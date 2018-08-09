@@ -233,7 +233,7 @@ void Node::useSecondaryBuffer()
 }
 
 std::shared_ptr<CommandBuffer> Node::getSecondaryBuffer(const RenderContext& renderContext)
-{ 
+{
   std::lock_guard<std::mutex> lock(mutex);
   if (activeCount < renderContext.imageCount)
   {

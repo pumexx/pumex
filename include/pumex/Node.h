@@ -31,7 +31,7 @@
 
 namespace pumex
 {
-	
+
 class Group;
 class NodeVisitor;
 class DescriptorSet;

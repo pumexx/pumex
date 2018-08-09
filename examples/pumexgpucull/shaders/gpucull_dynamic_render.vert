@@ -70,20 +70,20 @@ layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
 layout (location = 5) flat out uint materialID;
 
-void main() 
+void main()
 {
   uint instanceIndex = resultValues[gl_InstanceIndex];
   mat4 boneTransform = instances[instanceIndex].bones[int(inBoneIndex[0])] * inBoneWeight[0];
   boneTransform     += instances[instanceIndex].bones[int(inBoneIndex[1])] * inBoneWeight[1];
   boneTransform     += instances[instanceIndex].bones[int(inBoneIndex[2])] * inBoneWeight[2];
-  boneTransform     += instances[instanceIndex].bones[int(inBoneIndex[3])] * inBoneWeight[3];	
+  boneTransform     += instances[instanceIndex].bones[int(inBoneIndex[3])] * inBoneWeight[3];
   mat4 modelMatrix   = instances[instanceIndex].position * boneTransform;
 
   gl_Position = camera.projectionMatrix * camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
   outNormal   = mat3(inverse(transpose(modelMatrix))) * inNormal;
   outColor    = vec3(1.0,1.0,1.0) * instances[instanceIndex].params[0] ;
   outUV       = inUV.xy;
-	
+
   vec4 pos    = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
   outLightVec = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
   outViewVec  = -pos.xyz;

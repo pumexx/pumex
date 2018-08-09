@@ -35,9 +35,9 @@ NodeVisitor::NodeVisitor(TraversalMode tm)
 
 void NodeVisitor::traverse(Node& node)
 {
-  if ( traversalMode == Parents) 
+  if ( traversalMode == Parents)
     node.ascend(*this);
-  else if ( traversalMode != None) 
+  else if ( traversalMode != None)
     node.traverse(*this);
 }
 

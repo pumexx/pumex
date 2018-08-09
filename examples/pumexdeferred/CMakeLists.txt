@@ -1,4 +1,4 @@
-set( PUMEXDEFERRED_SHADER_NAMES 
+set( PUMEXDEFERRED_SHADER_NAMES
   shaders/deferred_buildz.frag
   shaders/deferred_buildz.vert
   shaders/deferred_composite.frag

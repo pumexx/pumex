@@ -120,11 +120,11 @@ bool boundingBoxInViewFrustum( in mat4 matrix, in vec4 bbMin, in vec4 bbMax )
   return (outOfBound[0] < 8 ) && ( outOfBound[1] < 8 ) && ( outOfBound[2] < 8 ) && ( outOfBound[3] < 8 ) && ( outOfBound[4] < 8 ) && ( outOfBound[5] < 8 );
 }
 
-void main() 
+void main()
 {
   uint instanceIndex = gl_GlobalInvocationID.x;
-  if (instanceIndex >= instances.length()) 
-    return;	
+  if (instanceIndex >= instances.length())
+    return;
   uint positionIndex = instances[instanceIndex].positionIndex;
   uint typeIndex     = instances[instanceIndex].typeID;
   mat4 modelMatrix   = positions[positionIndex].position;
@@ -132,7 +132,7 @@ void main()
   if( boundingBoxInViewFrustum( mvpMatrix, assetTypes[typeIndex].bbMin, assetTypes[typeIndex].bbMax ) )
   {
     // Old method of LOD selecting - it works for normal cameras, but shadow cameras should have observerPosition defined by main camera,
-    // so that LODs depend on user defined position, not on position of light in shadow camera : 
+    // so that LODs depend on user defined position, not on position of light in shadow camera :
     // float distanceToObject = distance(camera.viewMatrixInverse[3].xyz / camera.viewMatrixInverse[3].w, modelMatrix[3].xyz / modelMatrix[3].w );
     float distanceToObject = distance(camera.observerPosition.xyz / camera.observerPosition.w, modelMatrix[3].xyz / modelMatrix[3].w );
 

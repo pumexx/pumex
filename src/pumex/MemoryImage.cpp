@@ -132,7 +132,7 @@ struct SetImageOperation : public MemoryImage::Operation
             bufferCopyRegion.imageExtent.depth               = static_cast<uint32_t>(mipMapExtents.z);
             bufferCopyRegion.bufferOffset                    = offset;
           bufferCopyRegions.push_back(bufferCopyRegion);
-    
+
           // Increase offset into staging buffer for next level / face
           offset += texture->size(level);
         }
@@ -140,10 +140,10 @@ struct SetImageOperation : public MemoryImage::Operation
       // Image barrier for optimal image (target)
       // Optimal image will be used as destination for the copy
       commandBuffer->setImageLayout( *(internals.image), aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    
+
       // Copy mip levels from staging buffer
       commandBuffer->cmdCopyBufferToImage(stagingBuffer->buffer, *(internals.image), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions);
-    
+
       // Change texture image layout to shader read after all mip levels have been copied
       commandBuffer->setImageLayout( *(internals.image), aspectMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
@@ -169,7 +169,7 @@ struct SetImageOperation : public MemoryImage::Operation
         }
       }
       internals.image->unmapMemory();
-    
+
       // Setup image memory barrier
       commandBuffer->setImageLayout(*(internals.image), aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     }
@@ -678,7 +678,7 @@ void ImageView::validate(const RenderContext& renderContext)
     imageViewCI.components       = vulkanComponentMappingFromGliComponentMapping(swizzles);
     imageViewCI.subresourceRange = subresourceRange.getSubresource();
   VK_CHECK_LOG_THROW(vkCreateImageView(pddit->second.device, &imageViewCI, nullptr, &pddit->second.data[activeIndex].imageView), "failed vkCreateImageView");
-  
+
   notifyResources(renderContext);
   pddit->second.valid[activeIndex] = true;
 }

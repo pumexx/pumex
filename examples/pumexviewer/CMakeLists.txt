@@ -1,4 +1,4 @@
-set( PUMEXVIEWER_SHADER_NAMES 
+set( PUMEXVIEWER_SHADER_NAMES
   shaders/viewer_basic.vert
   shaders/viewer_basic.frag
 )

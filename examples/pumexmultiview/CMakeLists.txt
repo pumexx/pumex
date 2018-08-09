@@ -1,4 +1,4 @@
-set( PUMEXMULTIVIEW_SHADER_NAMES 
+set( PUMEXMULTIVIEW_SHADER_NAMES
   shaders/multiview_composite.frag
   shaders/multiview_composite.vert
   shaders/multiview_display.frag

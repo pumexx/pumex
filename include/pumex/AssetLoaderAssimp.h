@@ -21,9 +21,9 @@
 //
 
 #pragma once
-#include <assimp/Importer.hpp> 
+#include <assimp/Importer.hpp>
 #include <memory>
-#include <assimp/scene.h>     
+#include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <pumex/Export.h>
 #include <pumex/Asset.h>

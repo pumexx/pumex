@@ -27,7 +27,7 @@
 namespace pumex
 {
 
-  
+
 struct PUMEX_EXPORT BoundingBox
 {
   BoundingBox()

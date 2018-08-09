@@ -58,5 +58,5 @@ private:
   std::vector<std::function<void(void)>> actions;
   mutable std::mutex mutex;
 };
-	
+
 }
