@@ -463,4 +463,3 @@ void Group::checkChildrenForSecondaryBuffers()
 void Group::validate(const RenderContext& renderContext)
 {
 }
-

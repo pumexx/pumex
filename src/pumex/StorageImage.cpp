@@ -76,4 +76,3 @@ DescriptorValue StorageImage::getDescriptorValue(const RenderContext& renderCont
   // FIXME : CHECK_LOG_THROW ?
   return DescriptorValue(VK_NULL_HANDLE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED);
 }
-

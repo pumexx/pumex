@@ -211,6 +211,3 @@ void Text::clearTexts()
   texts.clear();
   invalidateNodeAndParents();
 }
-
-
-
