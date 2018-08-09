@@ -49,7 +49,7 @@ ViewerTraits::ViewerTraits(const std::string& aName, const std::vector<std::stri
 const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const ViewerTraits& vt)
-  : viewerTraits{ vt }, 
+  : viewerTraits{ vt },
   opStartUpdateGraph            { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   opEndUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
   opRenderGraphStart            { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
@@ -124,19 +124,19 @@ Viewer::Viewer(const ViewerTraits& vt)
   addDefaultDirectory(execDir / filesystem::path("data"));
   addDefaultDirectory(execDir / filesystem::path("../"));
 #if defined(_WIN32)
-  // for files INSTALLED on Windows 
+  // for files INSTALLED on Windows
   addDefaultDirectory(execDir / filesystem::path("../share/pumex"));
 #else
   // for files INSTALLED on Linux
   addDefaultDirectory(filesystem::path("/usr/share/pumex"));
   addDefaultDirectory(filesystem::path("/usr/local/share/pumex"));
-#endif  
+#endif
 
 ////// list all existing default directories
 //  LOG_INFO << "Default directories :" << std::endl;
 //  for(auto& d : defaultDirectories)
 //    LOG_INFO << d << std::endl;
-  
+
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
 #if defined(_WIN32)
@@ -464,7 +464,7 @@ void Viewer::removeInputEventHandler(std::shared_ptr<InputEventHandler> eventHan
   inputEventHandlers.erase(std::remove_if(begin(inputEventHandlers), end(inputEventHandlers), [&](std::shared_ptr<InputEventHandler> ie) { return ie.get() == eventHandler.get();  }), end(inputEventHandlers));
 }
 
-void Viewer::addDefaultDirectory(const filesystem::path & directory) 
+void Viewer::addDefaultDirectory(const filesystem::path & directory)
 {
   std::error_code ec;
   filesystem::path canonicalPath = filesystem::canonical(directory, ec);
@@ -576,14 +576,14 @@ uint32_t   Viewer::getNextRenderSlot() const
   return slot;
 }
 
-void Viewer::onEventRenderStart() 
-{ 
+void Viewer::onEventRenderStart()
+{
   HPClock::time_point tickStart;
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
     tickStart = HPClock::now();
 
-  if (eventRenderStart != nullptr)  
-    eventRenderStart(this); 
+  if (eventRenderStart != nullptr)
+    eventRenderStart(this);
 
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
   {
@@ -591,14 +591,14 @@ void Viewer::onEventRenderStart()
     timeStatistics->setValues(TSV_CHANNEL_EVENT_RENDER_START, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
   }
 }
-void Viewer::onEventRenderFinish() 
-{ 
+void Viewer::onEventRenderFinish()
+{
   HPClock::time_point tickStart;
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
     tickStart = HPClock::now();
 
-  if (eventRenderFinish != nullptr)  
-    eventRenderFinish(this); 
+  if (eventRenderFinish != nullptr)
+    eventRenderFinish(this);
   if (timeStatistics->hasFlags(TSV_STAT_RENDER_EVENTS))
   {
     auto tickEnd = HPClock::now();
@@ -636,10 +636,10 @@ void Viewer::buildRenderGraph()
   opSurfaceEventRenderStart.clear();
   opSurfaceValidateWorkflow.clear();
   opSurfaceValidateSecondaryNodes.clear();
-  opSurfaceBarrier0.clear(); 
-  opSurfaceValidateSecondaryDescriptors.clear(); 
-  opSurfaceSecondaryCommandBuffers.clear(); 
-  opSurfaceDrawFrame.clear(); 
+  opSurfaceBarrier0.clear();
+  opSurfaceValidateSecondaryDescriptors.clear();
+  opSurfaceSecondaryCommandBuffers.clear();
+  opSurfaceDrawFrame.clear();
   opSurfaceEndFrame.clear();
 
   opSurfaceValidatePrimaryNodes.clear();
@@ -853,7 +853,7 @@ void Viewer::buildRenderGraph()
   {
     tbb::flow::make_edge(opRenderGraphStart, opSurfaceBeginFrame[i]);
     tbb::flow::make_edge(opRenderGraphStart, opSurfaceEventRenderStart[i]);
-    
+
     tbb::flow::make_edge(opSurfaceBeginFrame[i], opSurfaceValidateWorkflow[i]);
     tbb::flow::make_edge(opSurfaceEventRenderStart[i], opSurfaceValidateWorkflow[i]);
     tbb::flow::make_edge(opRenderGraphEventRenderStart, opSurfaceValidateWorkflow[i]);

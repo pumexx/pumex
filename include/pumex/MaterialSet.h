@@ -186,7 +186,7 @@ class PUMEX_EXPORT TextureRegistryArrayOfTextures : public TextureRegistryBase
 {
 public:
   TextureRegistryArrayOfTextures(std::shared_ptr<DeviceMemoryAllocator> allocator, std::shared_ptr<DeviceMemoryAllocator> textureAlloc);
-  
+
   void                                    setCombinedImageSampler(uint32_t slotIndex, std::shared_ptr<Sampler> sampler);
   void                                    setSampledImage(uint32_t slotIndex);
   void                                    setStorageImage(uint32_t slotIndex);

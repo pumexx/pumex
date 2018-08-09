@@ -43,8 +43,8 @@ void Camera::setProjectionMatrix(const glm::mat4& matrix, bool usePerspectiveCor
     projectionMatrix = matrix;
 }
 
-glm::mat4 Camera::getProjectionMatrix(bool usePerspectiveCorrection) const 
-{ 
+glm::mat4 Camera::getProjectionMatrix(bool usePerspectiveCorrection) const
+{
   if(usePerspectiveCorrection)
     return projectionMatrix * vulkanPerspectiveCorrectionMatrix;
   else

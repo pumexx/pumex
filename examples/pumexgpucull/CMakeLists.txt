@@ -1,4 +1,4 @@
-set( PUMEXGPUCULL_SHADER_NAMES 
+set( PUMEXGPUCULL_SHADER_NAMES
   shaders/gpucull_dynamic_filter_instances.comp
   shaders/gpucull_dynamic_render.frag
   shaders/gpucull_dynamic_render.vert

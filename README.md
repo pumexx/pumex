@@ -26,15 +26,15 @@ You can follow library development [on Twitter](https://twitter.com/pumex_lib) .
 
 Every Pumex application consists of three distinct layers of objects :
 
-- first layer is responsible for creation and configuration of Vulkan instance, logical devices, surfaces and windows. Let's call it a **device layer**. Below you may see an example of such layer. 
+- first layer is responsible for creation and configuration of Vulkan instance, logical devices, surfaces and windows. Let's call it a **device layer**. Below you may see an example of such layer.
 
-  
+
 
 ![viewer/device/surface layer](doc/images/DeviceLayer.png)
 
-​	
+​
 
-- second layer is called a **render workflow**  ( also known in literature as frame graph, or render graph ). Each Vulkan surface rendered by the application may use its own render workflow, but typically the workflow is shared between surfaces ( see: image above ). 
+- second layer is called a **render workflow**  ( also known in literature as frame graph, or render graph ). Each Vulkan surface rendered by the application may use its own render workflow, but typically the workflow is shared between surfaces ( see: image above ).
 
   Render workflow defines render operations and inputs/outputs between them. During application run  abstract workflow is compiled into a set of Vulkan objects required to render a scene: graphics passes and subpasses ( with its attachments and dependencies ), compute passes, images, buffers, attachments and pipeline barriers.  These objects are then used to build a primary command buffer.
 
@@ -110,15 +110,15 @@ While each example is running , you are able to use following inputs :
 
 - **F7**, **F8** - show less / more frames in "CPU stats" mode
 
-  
+
 
 ### pumexcrowd
 
 Application that renders a crowd of 500 animated people on one or more windows.
 
-Application presents : 
+Application presents :
 
-- how to utilize **compute operation** in a render worklow. 
+- how to utilize **compute operation** in a render worklow.
 - how to use output storage buffer from compute operation as input indirect buffer in a following render operation
 
 - how to use instanced rendering nodes like **pumex::AssetBufferFilterNode** and **pumex::AssetBuffer**
@@ -148,9 +148,9 @@ Below is additional image showing pumexcrowd example working in VR mode ( 2 wind
 
 ### pumexgpucull
 
- Application that renders simple not textured static objects ( trees, buildings ) and dynamic objects ( cars, airplanes, blimps ) on one or more windows. 
+ Application that renders simple not textured static objects ( trees, buildings ) and dynamic objects ( cars, airplanes, blimps ) on one or more windows.
 
-This application serves as performance test, because all main parameters may be modified ( LOD ranges, number of objects, triangle count on each mesh ). All meshes are generated procedurally. Each LOD for each mesh has different color, so you may see, when switches betwen LODs occur. 
+This application serves as performance test, because all main parameters may be modified ( LOD ranges, number of objects, triangle count on each mesh ). All meshes are generated procedurally. Each LOD for each mesh has different color, so you may see, when switches betwen LODs occur.
 
 In OpeneSceneGraph library there is almost the same application called osggpucull, so you may compare performance of Vulkan API and OpenGL API.
 
@@ -173,18 +173,18 @@ Command line parameters enable us to use one of predefined window configurations
   --triangle-modifier=[triangle-modifier]
                                     instance triangle quantity [%]
   --instances-per-cell=[instances-per-cell]
-                                    how many static instances per cell                           
+                                    how many static instances per cell
 ```
 
 ### pumexdeferred
 
-Application that makes deferred rendering with multisampling in one window. The number of samples per pixel may be configured from command line ( see parameters below ). Available values of samples per pixel include : 1, 2, 4, 8. 
+Application that makes deferred rendering with multisampling in one window. The number of samples per pixel may be configured from command line ( see parameters below ). Available values of samples per pixel include : 1, 2, 4, 8.
 
 By default application uses depth prepass rendering, but you are able to switch it off using command line parameters ( see below ).
 
 Application presents how to use attachment produced by one render operation as input attachment in following render operation.
 
-Famous Sponza Palace model is used as a render scene. 
+Famous Sponza Palace model is used as a render scene.
 
 Shaders used in that example realize **physically based rendering** inspired by [learnopengl.com](https://learnopengl.com/#!PBR/Theory)
 
@@ -336,11 +336,11 @@ Steps required to build and install library :
 
 1. download Pumex Library from [here](https://github.com/pumexx/pumex)
 
-2. create solution files for gcc using **CMake**, choose "Release" configuration type for maximum performance 
+2. create solution files for gcc using **CMake**, choose "Release" configuration type for maximum performance
 
 3. perform **make -j4**
 
-4. *( optional step )* perform **sudo make install** if necessary. 
+4. *( optional step )* perform **sudo make install** if necessary.
    Pumex library instals itself in /usr/local/* directories. On some Linux distributions ( Ubuntu for example ) /usr/local/lib directory is not added to LD_LIBRARY_PATH environment variable. In that case you will see a following error while trying to run one of the example programs :
 
    ```
@@ -393,8 +393,8 @@ On Windows all dependencies are downloaded and built on first Pumex library buil
 - architecture of a render workflow still needs some improvements
 - scene graphs should only render what is visible ( that's why pumexgpucull example is slower than osggpucull example now ). Should it be mandatory or optional ?
 - more texture loaders ( at the moment only dds and ktx texture files are available )
-- asynchronous loading of models and textures 
-- new examples presenting things like : 
+- asynchronous loading of models and textures
+- new examples presenting things like :
   - different types of shadows
   - order independent transparency ( compute shaders using render pass attachments as input storage images )
   - physics engine integration

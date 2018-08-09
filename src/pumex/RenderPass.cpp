@@ -314,7 +314,7 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
       viewport  = makeViewport(0, 0, 1, 1, 0.0f, 1.0f);
       break;
     }
-    
+
     commandVisitor.commandBuffer->cmdBeginRenderPass( commandVisitor.renderContext, this, rectangle, renderPass->clearValues, subpassContents );
     commandVisitor.commandBuffer->cmdSetViewport(0, { viewport });
     commandVisitor.commandBuffer->cmdSetScissor(0, { rectangle });
@@ -358,7 +358,7 @@ ComputePass::ComputePass()
 
 void ComputePass::validate(const RenderContext& renderContext)
 {
-} 
+}
 
 void ComputePass::applyRenderContextVisitor(RenderContextVisitor& visitor)
 {

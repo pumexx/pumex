@@ -203,7 +203,7 @@ int main( int argc, char * argv[] )
     pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, updateFrequency };
     viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
-    // Viewer object is created 
+    // Viewer object is created
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
     // vertex semantic defines how a single vertex in an asset will look like
@@ -267,7 +267,7 @@ int main( int argc, char * argv[] )
     // In case of compute operations the scene graph must have :
     // - at least one compute pipeline
     // - at least one node calling vkCmdDispatch
-    // 
+    //
     // Here is the simple definition of graphics pipeline infrastructure : descriptor set layout, pipeline layout, pipeline cache, shaders and graphics pipeline itself :
     // Shaders will use two uniform buffers ( both in vertex shader )
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =

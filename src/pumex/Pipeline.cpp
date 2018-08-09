@@ -53,7 +53,7 @@ void PipelineLayout::validate(const RenderContext& renderContext)
     pipelineLayoutCI.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     std::vector<VkDescriptorSetLayout> descriptors;
     for (auto& dsl : descriptorSetLayouts)
-    { 
+    {
       dsl->validate(renderContext);
       descriptors.push_back(dsl->getHandle(renderContext));
     }

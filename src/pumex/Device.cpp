@@ -71,7 +71,7 @@ void Device::realize()
 
   std::vector<uint32_t> chosenFamilies(requestedQueues.size());
   std::fill(begin(chosenFamilies), end(chosenFamilies), std::numeric_limits<uint32_t>::max());
-  
+
   // at first - assign queues that have only one queue family available
   for (uint32_t i = 0; i < requestedQueues.size(); i++)
   {

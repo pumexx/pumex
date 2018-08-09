@@ -29,7 +29,7 @@
 
 // Set of functions and classes implementing possibility to log any information to output files ( only std::cout is used for now )
 
-// TODO for current version : 
+// TODO for current version :
 // - does not add additional elements to stream ( timestamp, severity, etc )
 // - is not multithreaded
 // - cannot send results to streams other than std::cout
@@ -60,7 +60,7 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
     stream << "[ " << __FILE__<<" : " << __LINE__ << " : " << vulkanErrorString(res) << " ] : "<< loginfo; \
     throw std::runtime_error(stream.str()); \
   } \
-} 
+}
 
 #define CHECK_LOG_THROW( expression, loginfo ) \
 { \
@@ -70,7 +70,7 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
     stream << "[ " << __FILE__ << " : " << __LINE__ << " ] : " << loginfo; \
     throw std::runtime_error(stream.str()); \
   } \
-} 
+}
 
 #define CHECK_LOG_RETURN_VOID( expression, loginfo ) \
 { \
@@ -79,7 +79,7 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
 	  LOG_ERROR << "[ " << __FILE__<<" : " << __LINE__ << " ] : "<< loginfo << std::endl; \
 		return; \
    	} \
-} 
+}
 
 #define CHECK_LOG_RETURN_VALUE( expression, value, loginfo ) \
 { \
@@ -88,7 +88,7 @@ PUMEX_EXPORT std::string vulkanErrorString(VkResult errorCode);
 	  LOG_ERROR << "[ " << __FILE__<<" : " << __LINE__ << " ] : "<< loginfo << std::endl; \
 		return (value); \
    	} \
-} 
+}
 
 extern PUMEX_EXPORT bool isLogEnabled(float severity);
 extern PUMEX_EXPORT std::ostream& doLog(float severity);

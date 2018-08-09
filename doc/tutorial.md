@@ -2,7 +2,7 @@
 
 In this document we will walk through creation of simple application similar to *pumexviewer* example.
 
-The goal of our tutorial application is to load a 3D model provided in a command line and render it without textures. Application creates only one logical device, one surface and one window for rendering. 
+The goal of our tutorial application is to load a 3D model provided in a command line and render it without textures. Application creates only one logical device, one surface and one window for rendering.
 
 Resulting application structure is presented on the diagram below :
 
@@ -21,10 +21,10 @@ We start by parsing the command line. This piece of code will be skipped for cla
   -d                                enable Vulkan debugging
   -f                                create fullscreen window
   -p [presentation_mode]            presentation mode
-  -u [update_frequency]             number of update calls per second  
+  -u [update_frequency]             number of update calls per second
   -m [model]                        3D model filename
 ```
-Parameters will be provided in a following variables : 
+Parameters will be provided in a following variables :
 
 - -d -  enableDebugging ( *bool* )
 - -f -  useFullScreen ( *bool* )
@@ -68,7 +68,7 @@ std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits
 
 We can see that our window will be created on screen number 0, with specified position, size and name. If user requested fullscreen window in command line then the window will be fullscreen ( without OS specific window decorations ).
 
-Next step is a surface creation ( **pumex::Surface** corresponding to *VkSurface* ). To create a surface - **pumex::SurfaceTraits** structure must be provided. **pumex::SurfaceTraits** must define following elements : 
+Next step is a surface creation ( **pumex::Surface** corresponding to *VkSurface* ). To create a surface - **pumex::SurfaceTraits** structure must be provided. **pumex::SurfaceTraits** must define following elements :
 
 - imageCount - quantity of images that swapchain must provide
 - color space of these images
@@ -91,7 +91,7 @@ Render workflow must have a VkQueue to work on. Currently using only one queue i
 
 ```C++
 auto frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    
+
 std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
 std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", frameBufferAllocator, queueTraits);
@@ -105,9 +105,9 @@ workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SA
 workflow->addResourceType("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 ```
 
-Our render operation is a graphics operation that uses outputs with above defined types. For each output we must also define : 
+Our render operation is a graphics operation that uses outputs with above defined types. For each output we must also define :
 
-- image layout in which the image will be during operation 
+- image layout in which the image will be during operation
 - what should be done to output image before operation starts ( load data, clear data to specified value, don't care about incoming data ). In our case we will clear the depth buffer to 1.0f and a swapchain image will be cleared with gray color ( [0.3, 0.3, 0.3, 1.0 ]).
 
 ```C++
@@ -118,7 +118,7 @@ workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IM
 workflow->addAttachmentOutput( "rendering", "surface", "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 ```
 
-Render workflow is ready. Let's connect it to a surface. 
+Render workflow is ready. Let's connect it to a surface.
 
 ```C++
 auto workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
@@ -126,7 +126,7 @@ auto workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
 surface->setRenderWorkflow(workflow, workflowCompiler);
 ```
 
-Workflow compiler is an object that processes abstract render workflow into appropriate Vulkan objects. 
+Workflow compiler is an object that processes abstract render workflow into appropriate Vulkan objects.
 
 We must now build a scene graph that will be connected to the one and only render operation that we declared. To do this - we create a **pumex::Group** node that will serve as a root node of our scene graph:
 
@@ -135,7 +135,7 @@ auto renderRoot = std::make_shared<pumex::Group>();
 workflow->setRenderOperationNode("rendering", renderRoot);
 ```
 
-Scene graph must deliver three things required to render anything : 
+Scene graph must deliver three things required to render anything :
 
 - graphics pipeline
 - node that stores vertex and index data
@@ -223,7 +223,7 @@ auto assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1,
 pipeline->addChild(assetNode);
 ```
 
-The last part of a scene graph is a descriptor set. Its layout is defined already, but buffers connected to it are not. These buffers contain some dynamic data, like object position and camera parameters ( view matrix, projection matrix, etc. ). 
+The last part of a scene graph is a descriptor set. Its layout is defined already, but buffers connected to it are not. These buffers contain some dynamic data, like object position and camera parameters ( view matrix, projection matrix, etc. ).
 
 We will move these buffers to external class that will be responsible for dynamic aspects of our application ( e.g. camera movement, animation of a model ). Let's call that class **TutorialApplicationData**. Definition of this class will be described later, for now we will just create it and use it. Buffers are created inside that class and they need to use GPU memory, so we will add another pumex::DeviceMemoryAllocator to cover these needs - 1 MB of host visible memory will be more than enough. This memory is host visible, because we will be updating these buffers every frame:
 
@@ -248,7 +248,7 @@ auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->camer
 auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 ```
 
-Now we create a descriptor set with a specified layout and connect it to assetNode. 
+Now we create a descriptor set with a specified layout and connect it to assetNode.
 
 Similarly to buffers and memory allocators the descriptor set must have a descriptor pool from which it allocates its internal memory:
 
@@ -263,7 +263,7 @@ descriptorSet->setDescriptor(1, positionUbo);
 assetNode->setDescriptorSet(0, descriptorSet);
 ```
 
-Application structure as defined on a diagram placed at the begining of the tutorial is ready to work. There are only few important things left. 
+Application structure as defined on a diagram placed at the begining of the tutorial is ready to work. There are only few important things left.
 
 We will start from viewer and surface render events. Pumex library defines following set of render events ( not to be mistaken with input events - these happen in update stage, not render stage ) :
 
@@ -287,7 +287,7 @@ Methods *prepareModelForRendering()* and *prepareCameraForRendering()* will be d
 
 After setting up events in render stage, we have to implement the update stage.
 
-Both render stage and update stage use Intel TBB flow graph internally to do their job. Flow graph consist of tasks that may be run in parallel. 
+Both render stage and update stage use Intel TBB flow graph internally to do their job. Flow graph consist of tasks that may be run in parallel.
 
 Render flow graph is built automatically in **pumex::Viewer** class based on current device layer outlook.
 
@@ -297,7 +297,7 @@ In our example the whole update flow graph will include only one task: a call to
 
 ```C++
 tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg) { applicationData->update(viewer); });
- 
+
 tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
 tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 ```
@@ -378,7 +378,7 @@ Let's go back to our TutorialApplicationData class. Here we have constructor tha
 TutorialApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
 {
   cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
-    
+
   positionData     = std::make_shared<PositionData>();
   positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 }
@@ -409,7 +409,7 @@ For memory buffers the answer is simple: when buffer was removed and created aga
 If you have buffer created with **pumex::swOnce** flag - it means that all three primary command buffers use the same buffer and at least one of them is currently executed on GPU ( command buffer is in pending state ). You cannot remove a memory buffer which is used by command buffer in pending state.
 
 Conclusion : **WHEN YOU KNOW THAT YOUR BUFFER WILL NOT CHANGE SIZE DURING ITS LIFETIME - USE pumex::swOnce FLAG DURING CREATION. **
-**OTHERWISE ALWAYS USE pumex::swForEachImage FLAG** . 
+**OTHERWISE ALWAYS USE pumex::swForEachImage FLAG** .
 
 When you use **pumex::swForEachImage** flag - there will be as many copies of the buffer as there is swapchain images ( times copies resulting from **pumex::pbPerDevice** / **pumex::pbPerSurface** ). And you are able to freely manipulate the size of the underlying buffer.
 
@@ -438,7 +438,7 @@ void prepareCameraForRendering(std::shared_ptr<pumex::Surface> surface)
 
 **pumex::Camera** object has its properties set. and then it's sent to GPU buffer copy for this specific surface using method **pumex::Buffer::setData(Surface*, data)** .
 
-Below is the definition of *prepareModelForRendering()* method. 
+Below is the definition of *prepareModelForRendering()* method.
 
 ```C++
 void prepareModelForRendering(pumex::Viewer* viewer, std::shared_ptr<pumex::Asset> asset)
@@ -493,13 +493,13 @@ void update(std::shared_ptr<pumex::Viewer> viewer)
 }; // end of TutorialApplicationData
 ```
 
-At the beginning of update stage Viewer collects all input events ( mouse and keyboard ) from every window it manages. Then it sends these input events to input handlers. **pumex::BasicCameraHandler** gets these events and accumulates them. Then on each frame **pumex::BasicCameraHandler::update()** is called and if there were some new input events - new camera position is calculated. 
+At the beginning of update stage Viewer collects all input events ( mouse and keyboard ) from every window it manages. Then it sends these input events to input handlers. **pumex::BasicCameraHandler** gets these events and accumulates them. Then on each frame **pumex::BasicCameraHandler::update()** is called and if there were some new input events - new camera position is calculated.
 
 **One important notice**: update stage calculates not only new position and orientation of a camera, but also its linear and angular velocity. Thanks to this during render stage we are able to extrapolate new camera position having temporal difference between update stage and render stage ( there exists special **pumex::Kinematic** structure that stores object position, rotation **and** velocites: linear and angular ).
 
 ## Vertex and fragment shader
 
-At the end of a tutorial we will show vertex and fragment shaders rendering the model. 
+At the end of a tutorial we will show vertex and fragment shaders rendering the model.
 
 Firstly our vertex shader must declare version and used extensions :
 
@@ -546,7 +546,7 @@ layout (set = 0, binding = 1) uniform PositionUbo
 } object;
 ```
 
-You may compare above defined GLSL structures with their C++ counterparts. 
+You may compare above defined GLSL structures with their C++ counterparts.
 
 pumex::Camera class corresponding to CameraUbo uniform buffer looks like this :
 
@@ -594,12 +594,12 @@ layout (location = 4) out vec3 outLightVec;
 Vertex shader main() function implements skeletal animation with directional lighting always parallel to camera viewing axis :
 
 ```GLSL
-void main() 
+void main()
 {
   mat4 boneTransform = object.bones[int(inBoneIndex[0])] * inBoneWeight[0];
   boneTransform     += object.bones[int(inBoneIndex[1])] * inBoneWeight[1];
   boneTransform     += object.bones[int(inBoneIndex[2])] * inBoneWeight[2];
-  boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];	
+  boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];
   mat4 modelMatrix  = object.position * boneTransform;
 
   outNormal        = mat3(inverse(transpose(modelMatrix))) * inNormal;
@@ -613,7 +613,7 @@ void main()
 }
 ```
 
-Input variables of a fragment shader must correspond to output variables of vertex shader. 
+Input variables of a fragment shader must correspond to output variables of vertex shader.
 
 ```GLSL
 #version 450
@@ -637,7 +637,7 @@ layout (location = 0) out vec4 outFragColor;
 Fragment shader main() function implements simple Phong shading :
 
 ```GLSL
-void main() 
+void main()
 {
   vec4 color = vec4(inColor,1);
 

@@ -37,16 +37,16 @@
 // ( the number of draw calls is equal to number of rendered object types ).
 //
 // Rendering consists of following parts :
-// 1. Positions and parameters of all objects are sent to compute shader. Compute shader ( a filter ) culls invisible objects using 
-//    camera parameters, object position and object bounding box. For visible objects the appropriate level of detail is chosen. 
+// 1. Positions and parameters of all objects are sent to compute shader. Compute shader ( a filter ) culls invisible objects using
+//    camera parameters, object position and object bounding box. For visible objects the appropriate level of detail is chosen.
 //    Results are stored in a buffer.
 // 2. Above mentioned buffer is used during rendering to choose appropriate object parameters ( position, bone matrices, object specific parameters, material ids, etc )
-// 
+//
 // Demo presents possibility to render both static and dynamic objects :
 // - static objects consist mainly of trees, so animation of waving in the wind was added ( amplitude of waving was set to 0 for buildings :) ).
-// - in this example all static objects are sent at once ( that's why compute shader takes so much time - compare it to 500 people rendered in crowd example ). 
+// - in this example all static objects are sent at once ( that's why compute shader takes so much time - compare it to 500 people rendered in crowd example ).
 //   At the moment Pumex sends whole trees to rendering while it should send only visible parts of it.
-// - dynamic objects present the possibility to animate parts of an object ( wheels, propellers ) 
+// - dynamic objects present the possibility to animate parts of an object ( wheels, propellers )
 // - static and dynamic object use different set of rendering parameters : compare StaticInstanceData and DynamicInstanceData structures
 //
 // pumexgpucull example is a copy of similar program that I created for OpenSceneGraph engine few years ago ( osggpucull example )
@@ -183,19 +183,19 @@ public:
   typedef std::vector< std::shared_ptr<InstanceCell<T> > > InstanceCellList;
 
   InstanceCell()
-    : parent(nullptr) 
+    : parent(nullptr)
   {
   }
-    
+
   InstanceCell(const pumex::BoundingBox& bb)
-    :parent(nullptr), bb(bb) 
+    :parent(nullptr), bb(bb)
   {
   }
-    
-  void addCell(std::shared_ptr<InstanceCell> cell) 
-  { 
-    cell->parent=this; 
-    cells.push_back(cell); 
+
+  void addCell(std::shared_ptr<InstanceCell> cell)
+  {
+    cell->parent=this;
+    cells.push_back(cell);
   }
 
   void computeBound()
@@ -211,9 +211,9 @@ public:
       bb += titr->getPosition();
   }
 
-  bool contains(const glm::vec3& position) const 
-  { 
-    return bb.contains(position); 
+  bool contains(const glm::vec3& position) const
+  {
+    return bb.contains(position);
   }
 
   bool divide(unsigned int maxNumInstancesPerCell=1000)
@@ -353,7 +353,7 @@ std::shared_ptr<pumex::Node> createInstanceGraph( std::shared_ptr<InstanceCell<T
     group = std::make_shared<pumex::Group>();
     for (auto itr = begin(cell->cells); itr != end(cell->cells); ++itr)
       group->addChild(createInstanceGraph(*itr, objectsBBox, bufferAllocator, descriptorPool, filterDescriptorSetLayout));
-    if (dNode != nullptr) 
+    if (dNode != nullptr)
       group->addChild(dNode);
   }
   if (group != nullptr) return group;
@@ -366,7 +366,7 @@ std::shared_ptr<pumex::Node> createInstanceTree(const std::vector<T>& instances,
   auto rootCell = std::make_shared<InstanceCell<T>>();
   rootCell->instances = instances;
   rootCell->divide( maxNumInstancesPerCell );
-    
+
   return createInstanceGraph( rootCell, objectsBBox, bufferAllocator, descriptorPool, filterDescriptorSetLayout);
 }
 
@@ -454,7 +454,7 @@ struct MaterialGpuCull
   glm::vec4 specular;
   glm::vec4 shininess;
 
-  // two functions that define material parameters according to data from an asset's material 
+  // two functions that define material parameters according to data from an asset's material
   void registerProperties(const pumex::Material& material)
   {
     ambient   = material.getProperty("$clr.ambient", glm::vec4(0, 0, 0, 0));
@@ -744,8 +744,8 @@ pumex::Asset* createCar(float detailRatio, const glm::vec4& hullColor, const glm
   wheel.indices.pop_back();
   wheel.indices.pop_back();
 
-  std::vector<std::shared_ptr<pumex::Asset>> wheels = 
-  { 
+  std::vector<std::shared_ptr<pumex::Asset>> wheels =
+  {
     pumex::createSimpleAsset(wheel, "wheel0"),
     pumex::createSimpleAsset(wheel, "wheel1"),
     pumex::createSimpleAsset(wheel, "wheel2"),
@@ -760,7 +760,7 @@ pumex::Asset* createCar(float detailRatio, const glm::vec4& hullColor, const glm
     wheels[i]->materials.push_back(wheelMaterial);
 
   std::vector<std::string> wheelNames = { "wheel0", "wheel1", "wheel2", "wheel3" };
-  std::vector<glm::mat4> wheelTransformations = 
+  std::vector<glm::mat4> wheelTransformations =
   {
     glm::translate(glm::mat4(), glm::vec3(2.0, 1.8, 1.0)) * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0)),
     glm::translate(glm::mat4(), glm::vec3(-2.0, 1.8, 1.0)) * glm::rotate(glm::mat4(), glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0)),
@@ -934,17 +934,17 @@ struct GpuCullApplicationData
   std::shared_ptr<pumex::Node> setupStaticInstances(float staticAreaSize, float densityModifier, uint32_t instancesPerCell, std::shared_ptr<pumex::AssetBufferFilterNode> staticAssetBufferFilterNode, std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DescriptorPool> descriptorPool, std::shared_ptr<pumex::DescriptorSetLayout> staticFilterDescriptorSetLayout1)
   {
     std::map<uint32_t,float> objectDensity =
-    { 
-      { STATIC_CONIFER_TREE_ID, 10000.0f * densityModifier}, 
-      { STATIC_DECIDOUS_TREE_ID, 1000.0f * densityModifier}, 
+    {
+      { STATIC_CONIFER_TREE_ID, 10000.0f * densityModifier},
+      { STATIC_DECIDOUS_TREE_ID, 1000.0f * densityModifier},
       { STATIC_SIMPLE_HOUSE_ID, 100.0f * densityModifier }
     };
     std::map<uint32_t, float> amplitudeModifier =
-    { 
+    {
       { STATIC_CONIFER_TREE_ID,  1.0f },
       { STATIC_DECIDOUS_TREE_ID, 1.0f },
       { STATIC_SIMPLE_HOUSE_ID,  0.0f }  // we don't want the house to wave in the wind
-    }; 
+    };
 
     float fullArea = staticAreaSize * staticAreaSize;
     std::uniform_real_distribution<float> randomX(-0.5f*staticAreaSize, 0.5f * staticAreaSize);
@@ -1101,7 +1101,7 @@ struct GpuCullApplicationData
     }
     return updateData.dynamicObjectData.size();
   }
-  
+
   void update(std::shared_ptr<pumex::Viewer> viewer, float timeSinceStart, float updateStep)
   {
     camHandler->update(viewer.get());
@@ -1456,7 +1456,7 @@ int main(int argc, char * argv[])
       staticAssetBufferFilterNode->setEventResizeOutputs(std::bind(resizeStaticOutputBuffers, staticResultsBuffer, staticResultsIndexBuffer, std::placeholders::_1, std::placeholders::_2));
       staticAssetBufferFilterNode->setName("staticAssetBufferFilterNode");
       workflow->associateMemoryObject("static_indirect_draw", staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
-      
+
       staticFilterPipeline->addChild(staticAssetBufferFilterNode);
 
       std::shared_ptr<pumex::DescriptorPool> staticDescriptorPool = std::make_shared<pumex::DescriptorPool>();
@@ -1549,7 +1549,7 @@ int main(int argc, char * argv[])
 
       auto dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, dynamicFilterPipelineLayout);
       dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_dynamic_filter_instances.comp.spv"), "main" };
-      
+
       dynamicFilterRoot->addChild(dynamicFilterPipeline);
 
       auto dynamicResultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>(std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
@@ -1655,7 +1655,7 @@ int main(int argc, char * argv[])
       surf->setRenderWorkflow(workflow, workflowCompiler);
 
     // Making the update graph
-    // The update in this example is "almost" singlethreaded. 
+    // The update in this example is "almost" singlethreaded.
     // In more complicated scenarios update should be also divided into advanced update graph.
     // Consider make_edge() in update graph :
     // viewer->startUpdateGraph should point to all root nodes.

@@ -27,9 +27,9 @@ namespace pumex
 {
 
 class MemoryImage;
-class MemoryBuffer;	
-	
-// MemoryImage and MemoryBuffer derive from that class 
+class MemoryBuffer;
+
+// MemoryImage and MemoryBuffer derive from that class
 class PUMEX_EXPORT MemoryObject
 {
 public:

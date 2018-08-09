@@ -32,7 +32,7 @@ namespace pumex
 // The same clock on Linux system is implemented in a sufficent way.
 #if defined(_WIN32)
   using HPClock = HPClockWin32;
-#else  
+#else
   using HPClock = std::chrono::high_resolution_clock;
 #endif
 
@@ -41,5 +41,5 @@ inline double inSeconds(const HPClock::duration& duration)
   return std::chrono::duration<double, std::ratio<1, 1>>(duration).count();
 }
 
-	
+
 }

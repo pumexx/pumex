@@ -276,4 +276,3 @@ void TextureRegistryArrayOfTextures::setTexture(uint32_t slotIndex, uint32_t lay
     break;
   }
 }
-

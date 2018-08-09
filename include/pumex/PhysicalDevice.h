@@ -32,7 +32,7 @@ struct QueueTraits;
 class  Viewer;
 
 // Implementation of a Vulkan physical device, works mainly as a database of device properties.
-// Class is not created by user. Instead of this its built during Viewer ( VkInstance ) creation 
+// Class is not created by user. Instead of this its built during Viewer ( VkInstance ) creation
 class PUMEX_EXPORT PhysicalDevice
 {
 public:
@@ -67,5 +67,5 @@ public:
   std::vector<VkDisplayPropertiesKHR>    displayProperties;
 
 };
-  
+
 }

@@ -56,7 +56,7 @@ layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec4 outPosition;
 layout (location = 4) flat out uint materialID;
 
-void main() 
+void main()
 {
   mat4 boneTransform = object.bones[int(inBoneIndex)] * inBoneWeight;
   mat4 modelMatrix = object.position * boneTransform;
@@ -68,6 +68,6 @@ void main()
   outNormal      = normalize(normalMat * inNormal);
   outTangent     = normalize(normalMat * inTangent);
   outUV          = inUV.xy;
-	
+
   materialID  = materialVariants[materialTypes[object.typeID].variantFirst + 0].materialFirst + uint(inUV.z);
 }

@@ -34,5 +34,3 @@ void DrawNode::accept(NodeVisitor& visitor)
     visitor.pop();
   }
 }
-
-

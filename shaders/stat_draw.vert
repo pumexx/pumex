@@ -17,7 +17,7 @@ layout (binding = 0) uniform CameraUbo
 
 layout (location = 0) out vec4 outColor;
 
-void main() 
+void main()
 {
   gl_Position = camera.projectionMatrix * vec4(inPos,1.0);
   outColor    = inColor;

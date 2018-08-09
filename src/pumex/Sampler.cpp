@@ -30,7 +30,7 @@ using namespace pumex;
 
 SamplerTraits::SamplerTraits(bool lt, VkFilter maf, VkFilter mif, VkSamplerMipmapMode mm, VkSamplerAddressMode au, VkSamplerAddressMode av, VkSamplerAddressMode aw, float mlb, VkBool32 ae,
   float maa, VkBool32 ce, VkCompareOp co, float mil, float mal, VkBorderColor bc, VkBool32 uc)
-  : linearTiling{ lt }, magFilter{ maf }, minFilter{ mif }, mipmapMode{ mm }, addressModeU{ au }, addressModeV{ av }, addressModeW{ aw }, mipLodBias{ mlb }, 
+  : linearTiling{ lt }, magFilter{ maf }, minFilter{ mif }, mipmapMode{ mm }, addressModeU{ au }, addressModeV{ av }, addressModeW{ aw }, mipLodBias{ mlb },
   anisotropyEnable{ ae }, maxAnisotropy{ maa }, compareEnable{ ce }, compareOp{ co }, minLod{ mil }, maxLod{ mal }, borderColor{ bc }, unnormalizedCoordinates{ uc }
 {
 }
@@ -54,8 +54,8 @@ void Sampler::setSamplerTraits(const SamplerTraits& st)
   invalidateDescriptors();
 }
 
-void Sampler::addResourceOwner(std::shared_ptr<Resource> resource) 
-{ 
+void Sampler::addResourceOwner(std::shared_ptr<Resource> resource)
+{
   if (std::find_if(begin(resourceOwners), end(resourceOwners), [&resource](std::weak_ptr<Resource> r) { return !r.expired() && r.lock().get() == resource.get(); }) == end(resourceOwners))
     resourceOwners.push_back(resource);
 }

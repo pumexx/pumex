@@ -33,12 +33,12 @@ namespace pumex
 struct PUMEX_EXPORT ImageTraits
 {
   explicit ImageTraits() = default;
-  explicit ImageTraits(VkImageUsageFlags usage, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT, 
+  explicit ImageTraits(VkImageUsageFlags usage, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
     bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageCreateFlags imageCreate = 0,
     VkImageType imageType = VK_IMAGE_TYPE_2D, VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE);
   ImageTraits(const ImageTraits& traits);
   ImageTraits& operator=(const ImageTraits& traits);
-  
+
   VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;
   VkExtent3D               extent         = VkExtent3D{ 1, 1, 1 };
@@ -84,7 +84,7 @@ protected:
   bool                                   ownsImage    = true;
 };
 
-// inlines 
+// inlines
 VkDevice             Image::getDevice() const      { return device; }
 VkImage              Image::getHandleImage() const { return image; }
 VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }
@@ -108,4 +108,3 @@ public:
 };
 
 }
-

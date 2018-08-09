@@ -31,7 +31,7 @@ namespace pumex
 // Implementation of HPClock has been adapted from stackoverflow ( thx to MS for high_resolution_clock implementation on VS :( ) :
 // FIXME : there are rumours that high_resolution_clock has been properly implemented on newest versions of Visual Studio
 // http://stackoverflow.com/questions/13263277/difference-between-stdsystem-clock-and-stdsteady-clock
-	
+
 struct PUMEX_EXPORT HPClockWin32
 {
   typedef std::chrono::nanoseconds                        duration;
@@ -57,6 +57,6 @@ private:
   {
 	CHECK_LOG_THROW( QueryPerformanceFrequency(&frequency) == 0, "QueryPerformanceFrequency returns 0" );
   }
-};	
+};
 
 }

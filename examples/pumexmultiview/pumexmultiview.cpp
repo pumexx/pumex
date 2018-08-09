@@ -67,7 +67,7 @@ struct MaterialData
   uint32_t  metallicTextureIndex  = 0;
   uint32_t  normalTextureIndex    = 0;
 
-  // two functions that define material parameters according to data from an asset's material 
+  // two functions that define material parameters according to data from an asset's material
   void registerProperties(const pumex::Material& material)
   {
   }
@@ -333,7 +333,7 @@ int main( int argc, char * argv[] )
     workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, 0x0, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) });
       workflow->addImageInput      ("multiview", "color",      "color",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentOutput("multiview", "surface", "multiview", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
-     
+
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);

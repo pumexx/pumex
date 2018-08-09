@@ -156,7 +156,7 @@ struct VoxelizerApplicationData
       positionBuffer->invalidateData();
     }
 
-    voxelPositionData->position = glm::translate(glm::mat4(), glm::vec3(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMin.z)) * 
+    voxelPositionData->position = glm::translate(glm::mat4(), glm::vec3(voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMin.z)) *
                                  glm::scale(glm::mat4(), glm::vec3(voxelBoundingBox.bbMax.x - voxelBoundingBox.bbMin.x, voxelBoundingBox.bbMax.y - voxelBoundingBox.bbMin.y, voxelBoundingBox.bbMax.z - voxelBoundingBox.bbMin.z));
     voxelPositionBuffer->invalidateData();
   }

@@ -41,7 +41,7 @@ void addBox(Geometry& geometry, glm::vec3 a, glm::vec3 b, bool drawFrontFace)
   if (m[0].y > m[1].y) std::swap(m[0].y, m[1].y);
   if (m[0].z > m[1].z) std::swap(m[0].z, m[1].z);
 
-  static uint32_t v[] = { 0,0,0,   1,0,0,   0,0,1,   1,0,1,  
+  static uint32_t v[] = { 0,0,0,   1,0,0,   0,0,1,   1,0,1,
                           1,0,0,   1,1,0,   1,0,1,   1,1,1,
                           1,1,0,   0,1,0,   1,1,1,   0,1,1,
                           0,1,0,   0,0,0,   0,1,1,   0,0,1,
@@ -128,7 +128,7 @@ void addCone(Geometry& geometry, const glm::vec3& origin, float radius, float he
     verticesSoFar = geometry.getVertexCount();
     float angle = 0.0f;
     float texCoord = 0.0f;
-    for (uint32_t topi = 0; topi<numSegments; ++topi, angle += angleDelta, texCoord += texCoordHorzDelta) 
+    for (uint32_t topi = 0; topi<numSegments; ++topi, angle += angleDelta, texCoord += texCoordHorzDelta)
     {
       float c = cosf(angle);
       float s = sinf(angle);

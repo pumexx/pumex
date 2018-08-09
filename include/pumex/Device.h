@@ -106,7 +106,7 @@ public:
 
   std::shared_ptr<StagingBuffer>  acquireStagingBuffer( const void* data, VkDeviceSize size );
   void                            releaseStagingBuffer(std::shared_ptr<StagingBuffer> buffer);
-  
+
   inline void                     setID(uint32_t newID);
   inline uint32_t                 getID() const;
 

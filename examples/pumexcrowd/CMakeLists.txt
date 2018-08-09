@@ -1,4 +1,4 @@
-set( PUMEXCROWD_SHADER_NAMES 
+set( PUMEXCROWD_SHADER_NAMES
   shaders/crowd_filter_instances.comp
   shaders/crowd_instanced_animation.vert
   shaders/crowd_instanced_animation.frag
@@ -13,7 +13,7 @@ set_target_properties( pumexcrowd PROPERTIES RESOURCE "${PUMEXCROWD_OUTPUT_SHADE
 target_link_libraries( pumexcrowd pumexlib )
 set_target_postfixes( pumexcrowd )
 
-install( TARGETS pumexcrowd 
+install( TARGETS pumexcrowd
          EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples
          RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
