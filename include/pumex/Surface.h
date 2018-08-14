@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
@@ -185,9 +186,9 @@ protected:
   bool                                          checkWorkflow();
 
 public:
-  static const std::unordered_map<std::string, VkPresentModeKHR>                   nameToPresentationModes;
-  static const std::unordered_map<VkPresentModeKHR, std::string>                   presentationModeNames;
-  static const std::unordered_map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> replacementModes;
+  static const std::unordered_map<std::string, VkPresentModeKHR>         nameToPresentationModes;
+  static const std::map<VkPresentModeKHR, std::string>                   presentationModeNames;
+  static const std::map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> replacementModes;
 };
 
 bool                         Surface::isRealized() const                                                               { return realized; }

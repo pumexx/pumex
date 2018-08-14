@@ -49,7 +49,7 @@ const std::unordered_map<std::string, VkPresentModeKHR> Surface::nameToPresentat
   { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
 };
 
-const std::unordered_map<VkPresentModeKHR, std::string> Surface::presentationModeNames
+const std::map<VkPresentModeKHR, std::string> Surface::presentationModeNames
 {
   { VK_PRESENT_MODE_IMMEDIATE_KHR,    "immediate" },
   { VK_PRESENT_MODE_MAILBOX_KHR,      "mailbox" },
@@ -57,7 +57,7 @@ const std::unordered_map<VkPresentModeKHR, std::string> Surface::presentationMod
   { VK_PRESENT_MODE_FIFO_RELAXED_KHR, "fifo_relaxed" }
 };
 
-const std::unordered_map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> Surface::replacementModes
+const std::map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> Surface::replacementModes
 {
   { VK_PRESENT_MODE_IMMEDIATE_KHR,{ VK_PRESENT_MODE_MAILBOX_KHR , VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR } },
   { VK_PRESENT_MODE_MAILBOX_KHR,{ VK_PRESENT_MODE_IMMEDIATE_KHR , VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR } },
