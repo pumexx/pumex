@@ -140,18 +140,11 @@ int main( int argc, char * argv[] )
   SET_LOG_INFO;
 
   // process command line using args library
-  std::unordered_map<std::string, VkPresentModeKHR> availablePresentationModes
-  {
-    { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
-    { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
-    { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
-    { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
-  };
   args::ArgumentParser                         parser("pumex example : minimal 3D model viewer without textures");
   args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
-  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, availablePresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
   args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");

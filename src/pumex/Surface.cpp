@@ -41,6 +41,31 @@ SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkP
 {
 }
 
+const std::unordered_map<std::string, VkPresentModeKHR> Surface::nameToPresentationModes
+{
+  { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
+  { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
+  { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
+  { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
+};
+
+const std::unordered_map<VkPresentModeKHR, std::string> Surface::presentationModeNames
+{
+  { VK_PRESENT_MODE_IMMEDIATE_KHR,    "immediate" },
+  { VK_PRESENT_MODE_MAILBOX_KHR,      "mailbox" },
+  { VK_PRESENT_MODE_FIFO_KHR,         "fifo" },
+  { VK_PRESENT_MODE_FIFO_RELAXED_KHR, "fifo_relaxed" }
+};
+
+const std::unordered_map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> Surface::replacementModes
+{
+  { VK_PRESENT_MODE_IMMEDIATE_KHR,{ VK_PRESENT_MODE_MAILBOX_KHR , VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR } },
+  { VK_PRESENT_MODE_MAILBOX_KHR,{ VK_PRESENT_MODE_IMMEDIATE_KHR , VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR } },
+  { VK_PRESENT_MODE_FIFO_KHR,{ VK_PRESENT_MODE_FIFO_RELAXED_KHR , VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR } },
+  { VK_PRESENT_MODE_FIFO_RELAXED_KHR,{ VK_PRESENT_MODE_FIFO_KHR , VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR } }
+};
+
+
 Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
   : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st)
 {
@@ -79,11 +104,36 @@ void Surface::realize()
 
   // collect surface properties
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phDev, surface, &surfaceCapabilities), "failed vkGetPhysicalDeviceSurfaceCapabilitiesKHR for surface " << getID() );
+
+  // collect available presentation modes
   uint32_t presentModeCount;
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfacePresentModesKHR(phDev, surface, &presentModeCount, nullptr), "Could not get present modes for surface " << getID());
   CHECK_LOG_THROW( presentModeCount == 0, "No present modes defined for this surface" );
   presentModes.resize(presentModeCount);
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfacePresentModesKHR(phDev, surface, &presentModeCount, presentModes.data()), "Could not get present modes " << presentModeCount << " for surface " << getID());
+
+  // check if presentation mode from surface traits is available
+  auto presentIt = std::find(begin(presentModes), end(presentModes), surfaceTraits.swapchainPresentMode);
+  if (presentIt == end(presentModes))
+  {
+    // presentation mode from surface traits is not available. Choose the most appropriate one and inform user about the change
+
+    auto prefIt = replacementModes.find(surfaceTraits.swapchainPresentMode);
+    CHECK_LOG_THROW(prefIt == end(replacementModes), "Presentation mode <" <<surfaceTraits.swapchainPresentMode << "> not available on GPU and not recognized by library");
+    VkPresentModeKHR finalPresentationMode = surfaceTraits.swapchainPresentMode;
+    for (auto it = begin(prefIt->second); it != end(prefIt->second); ++it)
+    {
+      auto secondChoiceIt = std::find(begin(presentModes), end(presentModes), *it);
+      if (secondChoiceIt == end(presentModes))
+        continue;
+      finalPresentationMode = *it;
+      break;
+    }
+    CHECK_LOG_THROW(finalPresentationMode == surfaceTraits.swapchainPresentMode, "Presentation mode <" << surfaceTraits.swapchainPresentMode << "> not available on GPU. Library cannot find the replacement");
+
+    LOG_WARNING << "Warning : <" << presentationModeNames.at(surfaceTraits.swapchainPresentMode) <<"> presentation mode  not available. Library will use <" << presentationModeNames.at(finalPresentationMode) << "> presentation mode instead." << std::endl ;
+    surfaceTraits.swapchainPresentMode = finalPresentationMode;
+  }
 
   uint32_t surfaceFormatCount;
   VK_CHECK_LOG_THROW( vkGetPhysicalDeviceSurfaceFormatsKHR(phDev, surface, &surfaceFormatCount, nullptr), "Could not get surface formats for surface " << getID());

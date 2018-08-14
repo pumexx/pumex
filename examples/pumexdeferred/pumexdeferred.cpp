@@ -197,13 +197,6 @@ int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
 
-  std::unordered_map<std::string, VkPresentModeKHR> availablePresentationModes
-  {
-    { "immediate",    VK_PRESENT_MODE_IMMEDIATE_KHR },
-    { "mailbox",      VK_PRESENT_MODE_MAILBOX_KHR },
-    { "fifo",         VK_PRESENT_MODE_FIFO_KHR },
-    { "fifo_relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR }
-  };
   std::unordered_map<std::string, VkSampleCountFlagBits> availableSamplesPerPixel
   {
     {  "1", VK_SAMPLE_COUNT_1_BIT },
@@ -216,7 +209,7 @@ int main( int argc, char * argv[] )
   args::HelpFlag                                    help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                                        enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                                        useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
-  args::MapFlag<std::string, VkPresentModeKHR>      presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, availablePresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::MapFlag<std::string, VkPresentModeKHR>      presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                         updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Flag                                        skipDepthPrepass(parser, "nodp", "skip depth prepass", { 'n' });
   args::MapFlag<std::string, VkSampleCountFlagBits> samplesPerPixel(parser, "samples", "samples per pixel (1,2,4,8)", { 's' }, availableSamplesPerPixel, VK_SAMPLE_COUNT_4_BIT);
