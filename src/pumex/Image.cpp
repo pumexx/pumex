@@ -99,8 +99,7 @@ Image::~Image()
 {
   if (ownsImage)
   {
-    if (image != VK_NULL_HANDLE)
-      vkDestroyImage(device, image, nullptr);
+    vkDestroyImage(device, image, nullptr);
     allocator->deallocate(device, memoryBlock);
   }
 }

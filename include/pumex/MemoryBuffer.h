@@ -459,7 +459,7 @@ bool SetDataOperation<T>::perform(const RenderContext& renderContext, MemoryBuff
 {
   // if new data size is bigger than existing buffer size - we have to remove it
   auto ownerAllocator = owner->getAllocator();
-  if (internals.buffer!=VK_NULL_HANDLE && internals.memoryBlock.alignedSize < uglyGetSize(*data))
+  if (internals.buffer != VK_NULL_HANDLE && internals.memoryBlock.alignedSize < uglyGetSize(*data))
   {
     vkDestroyBuffer(renderContext.vkDevice, internals.buffer, nullptr);
     ownerAllocator->deallocate(renderContext.vkDevice, internals.memoryBlock);

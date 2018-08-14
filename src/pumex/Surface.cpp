@@ -222,10 +222,8 @@ void Surface::cleanup()
       vkDestroySemaphore(dev, sem, nullptr);
     for (auto sem : frameBufferReadySemaphores)
       vkDestroySemaphore(dev, sem, nullptr);
-    if(renderFinishedSemaphore != VK_NULL_HANDLE)
-      vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
-    if (imageAvailableSemaphore != VK_NULL_HANDLE)
-      vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
+    vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
+    vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
     primaryCommandBuffers.clear();
     presentCommandBuffer = nullptr;
     prepareCommandBuffer = nullptr;
