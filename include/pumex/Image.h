@@ -36,8 +36,8 @@ struct PUMEX_EXPORT ImageTraits
   explicit ImageTraits(VkImageUsageFlags usage, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
     bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageCreateFlags imageCreate = 0,
     VkImageType imageType = VK_IMAGE_TYPE_2D, VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE);
-  ImageTraits(const ImageTraits& traits);
-  ImageTraits& operator=(const ImageTraits& traits);
+  ImageTraits(const ImageTraits& traits) = default;
+  ImageTraits& operator=(const ImageTraits& traits) = default;
 
   VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;

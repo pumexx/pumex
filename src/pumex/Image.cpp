@@ -32,31 +32,6 @@ ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, u
 {
 }
 
-ImageTraits::ImageTraits(const ImageTraits& traits)
-  : usage{ traits.usage }, format{ traits.format }, extent(traits.extent), mipLevels{ traits.mipLevels }, arrayLayers{ traits.arrayLayers }, samples{ traits.samples },
-  linearTiling{ traits.linearTiling }, initialLayout{ traits.initialLayout }, imageCreate{ traits.imageCreate }, imageType{ traits.imageType }, sharingMode{ traits.sharingMode }
-{
-}
-
-ImageTraits& ImageTraits::operator=(const ImageTraits& traits)
-{
-  if (this != &traits)
-  {
-    usage = traits.usage;
-    format = traits.format;
-    extent = traits.extent;
-    mipLevels = traits.mipLevels;
-    arrayLayers = traits.arrayLayers;
-    samples = traits.samples;
-    linearTiling = traits.linearTiling;
-    initialLayout = traits.initialLayout;
-    imageCreate = traits.imageCreate;
-    imageType = traits.imageType;
-    sharingMode = traits.sharingMode;
-  }
-  return *this;
-}
-
 Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAllocator> a)
   : imageTraits{ it }, device(d->device), allocator{ a }, ownsImage{ true }
 {
