@@ -75,7 +75,7 @@ struct PUMEX_EXPORT SubpassDefinition
 {
   SubpassDefinition();
   SubpassDefinition(VkPipelineBindPoint pipelineBindPoint, const std::vector<AttachmentReference>& inputAttachments, const std::vector<AttachmentReference>& colorAttachments, const std::vector<AttachmentReference>& resolveAttachments, const AttachmentReference& depthStencilAttachment, const std::vector<uint32_t>& preserveAttachments, VkSubpassDescriptionFlags flags = 0x0, uint32_t multiViewMask = 0x0);
-  SubpassDefinition& operator=(const SubpassDefinition& subpassDefinition);
+  SubpassDefinition& operator=(const SubpassDefinition& subpassDefinition) = default;
 
   VkPipelineBindPoint                pipelineBindPoint;
   std::vector<VkAttachmentReference> inputAttachments;

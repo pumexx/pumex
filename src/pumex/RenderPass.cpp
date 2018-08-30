@@ -88,22 +88,6 @@ SubpassDefinition::SubpassDefinition(VkPipelineBindPoint pbp, const std::vector<
   depthStencilAttachment = da.getReference();
 }
 
-SubpassDefinition& SubpassDefinition::operator=(const SubpassDefinition& subpassDefinition)
-{
-  if (this != &subpassDefinition)
-  {
-    pipelineBindPoint      = subpassDefinition.pipelineBindPoint;
-    inputAttachments       = subpassDefinition.inputAttachments;
-    colorAttachments       = subpassDefinition.colorAttachments;
-    resolveAttachments     = subpassDefinition.resolveAttachments;
-    depthStencilAttachment = subpassDefinition.depthStencilAttachment;
-    preserveAttachments    = subpassDefinition.preserveAttachments;
-    flags                  = subpassDefinition.flags;
-    multiViewMask          = subpassDefinition.multiViewMask;
-  }
-  return *this;
-}
-
 // Be advised : resulting description is as long valid as SubpassDefinition exists.
 // We are passing pointers to internal elements here
 VkSubpassDescription SubpassDefinition::getDescription() const

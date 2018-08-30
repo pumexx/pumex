@@ -39,30 +39,6 @@ MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, u
 {
 }
 
-MemoryObjectBarrier::MemoryObjectBarrier(const MemoryObjectBarrier& rhs)
-  : objectType(rhs.objectType), srcAccessMask{ rhs.srcAccessMask }, dstAccessMask{ rhs.dstAccessMask }, srcQueueFamilyIndex{ rhs.srcQueueFamilyIndex }, dstQueueFamilyIndex{ rhs.dstQueueFamilyIndex }, memoryObject{ rhs.memoryObject },
-    oldLayout{ rhs.oldLayout }, newLayout{ rhs.newLayout }, imageRange{ rhs.imageRange }, bufferRange{ rhs.bufferRange }
-{
-}
-
-MemoryObjectBarrier& MemoryObjectBarrier::operator=(const MemoryObjectBarrier& rhs)
-{
-  if (this != &rhs)
-  {
-    objectType            = rhs.objectType;
-    srcAccessMask         = rhs.srcAccessMask;
-    dstAccessMask         = rhs.dstAccessMask;
-    srcQueueFamilyIndex   = rhs.srcQueueFamilyIndex;
-    dstQueueFamilyIndex   = rhs.dstQueueFamilyIndex;
-    memoryObject          = rhs.memoryObject;
-    oldLayout             = rhs.oldLayout;
-    newLayout             = rhs.newLayout;
-    imageRange            = rhs.imageRange;
-    bufferRange           = rhs.bufferRange;
-  }
-  return *this;
-}
-
 MemoryObjectBarrier::~MemoryObjectBarrier()
 {
 }

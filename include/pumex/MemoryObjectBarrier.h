@@ -39,8 +39,8 @@ public:
   MemoryObjectBarrier();
   MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryObject> memoryObject, VkImageLayout oldLayout, VkImageLayout newLayout, const ImageSubresourceRange& imageRange);
   MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryObject> memoryObject, const BufferSubresourceRange& bufferRange);
-  MemoryObjectBarrier(const MemoryObjectBarrier&);
-  MemoryObjectBarrier& operator=(const MemoryObjectBarrier&);
+  MemoryObjectBarrier(const MemoryObjectBarrier&) = default;
+  MemoryObjectBarrier& operator=(const MemoryObjectBarrier&) = default;
   ~MemoryObjectBarrier();
 
   MemoryObject::Type            objectType;
