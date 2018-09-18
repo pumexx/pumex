@@ -359,7 +359,7 @@ std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, c
     }
 
     // STEP 5 : load material description
-    std::vector<aiTextureType> texTypes = { aiTextureType_DIFFUSE, aiTextureType_SPECULAR, aiTextureType_AMBIENT, aiTextureType_EMISSIVE, aiTextureType_HEIGHT, aiTextureType_NORMALS, aiTextureType_SHININESS, aiTextureType_OPACITY, aiTextureType_DISPLACEMENT, aiTextureType_LIGHTMAP, aiTextureType_REFLECTION };
+    std::vector<aiTextureType> texTypes = { aiTextureType_DIFFUSE, aiTextureType_SPECULAR, aiTextureType_AMBIENT, aiTextureType_EMISSIVE, aiTextureType_HEIGHT, aiTextureType_NORMALS, aiTextureType_SHININESS, aiTextureType_OPACITY, aiTextureType_DISPLACEMENT, aiTextureType_LIGHTMAP, aiTextureType_REFLECTION, aiTextureType_UNKNOWN };
     for (uint32_t i = 0; i < scene->mNumMaterials; ++i)
     {
       Material material;
@@ -372,6 +372,7 @@ std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, c
         {
           aiString texName;
           aiReturn res = scene->mMaterials[i]->GetTexture(texTypes[j], k, &texName);
+          // FIXME : we are skipping k parameter here...
           material.textures.insert({ j, texName.C_Str() });
         }
       }

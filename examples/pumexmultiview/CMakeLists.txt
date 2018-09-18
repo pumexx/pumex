@@ -16,7 +16,8 @@ set_target_properties( pumexmultiview PROPERTIES RESOURCE "${PUMEXMULTIVIEW_OUTP
 target_link_libraries( pumexmultiview pumexlib )
 set_target_postfixes( pumexmultiview )
 
-install( TARGETS pumexmultiview EXPORT PumexTargets
+install( TARGETS pumexmultiview
+         EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples
          RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )

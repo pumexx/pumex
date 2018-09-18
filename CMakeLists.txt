@@ -221,7 +221,8 @@ if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )
 endif()
 
-install( TARGETS pumexlib EXPORT PumexTargets
+install( TARGETS pumexlib 
+         EXPORT PumexTargets
          ARCHIVE DESTINATION lib COMPONENT libraries
          LIBRARY DESTINATION lib COMPONENT libraries
          RUNTIME DESTINATION bin COMPONENT libraries
@@ -236,11 +237,12 @@ install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/fonts/ DESTINATION share/pum
 install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/people/ DESTINATION share/pumex/people COMPONENT examples )
 install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex/sponza COMPONENT examples )
 install( EXPORT PumexTargets
-  FILE pumex-config.cmake
+  FILE pumex-targets.cmake
   NAMESPACE pumex::
   DESTINATION lib/cmake/pumex
   COMPONENT cmake_files
 )
+install( FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pumex-config.cmake DESTINATION lib/cmake/pumex COMPONENT cmake_files )
 
 include( CMakePackageConfigHelpers )
 write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake

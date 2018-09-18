@@ -16,7 +16,8 @@ set_target_properties( pumexdeferred PROPERTIES RESOURCE "${PUMEXDEFERRED_OUTPUT
 target_link_libraries( pumexdeferred pumexlib )
 set_target_postfixes( pumexdeferred )
 
-install( TARGETS pumexdeferred EXPORT PumexTargets
+install( TARGETS pumexdeferred
+         EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples
          RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )

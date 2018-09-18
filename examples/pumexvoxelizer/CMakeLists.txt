@@ -17,7 +17,8 @@ set_target_properties( pumexvoxelizer PROPERTIES RESOURCE "${PUMEXVOXELIZER_OUTP
 target_link_libraries( pumexvoxelizer pumexlib )
 set_target_postfixes( pumexvoxelizer )
 
-install( TARGETS pumexvoxelizer EXPORT PumexTargets
+install( TARGETS pumexvoxelizer
+         EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples
          RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )

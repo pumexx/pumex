@@ -48,8 +48,7 @@ template <typename T> class Buffer;
 // TextureSemantic struct helps to differentiate these purposes and put textures in proper places in MaterialSet
 struct TextureSemantic
 {
-  // you must modify shaders if the number of types defined below has changed. Shaders may use TextureSemanticCount
-  enum Type { Diffuse, Specular, Ambient, Emissive, Height, Normals, Shininess, Opacity, Displacement, LightMap, Reflection, TextureSemanticCount };
+  enum Type { Diffuse, Specular, Ambient, Emissive, Height, Normals, Shininess, Opacity, Displacement, LightMap, Reflection, Unknown, TextureSemanticCount };
 
   TextureSemantic(const Type& t, uint32_t i)
     : type{ t }, index{ i }

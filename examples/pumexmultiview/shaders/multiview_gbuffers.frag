@@ -3,9 +3,6 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-// change value below if a number of TextureSemantic types in MaterialSet.h has changed
-#define TextureSemanticCount 11
-
 layout (location = 0) in vec3 inNormal;
 layout (location = 1) in vec3 inTangent;
 layout (location = 2) in vec2 inUV;

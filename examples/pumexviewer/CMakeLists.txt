@@ -12,7 +12,8 @@ set_target_properties( pumexviewer PROPERTIES RESOURCE "${PUMEXVIEWER_OUTPUT_SHA
 target_link_libraries( pumexviewer pumexlib )
 set_target_postfixes( pumexviewer )
 
-install( TARGETS pumexviewer EXPORT PumexTargets
+install( TARGETS pumexviewer
+         EXPORT PumexTargets
          RUNTIME DESTINATION bin COMPONENT examples
          RESOURCE DESTINATION share/pumex/shaders COMPONENT examples
        )
