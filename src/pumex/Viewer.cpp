@@ -31,9 +31,9 @@
 #include <pumex/TimeStatistics.h>
 #include <pumex/InputEvent.h>
 #include <pumex/Version.h>
-#if defined(_WIN32)
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
-#elif defined(__linux__)
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
   #include <pumex/platform/linux/WindowXcb.h>
   #include <X11/Xlib.h>
   #include <unistd.h>
@@ -139,9 +139,9 @@ Viewer::Viewer(const ViewerTraits& vt)
 
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
-#if defined(_WIN32)
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
   enabledInstanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(__linux__)
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
   enabledInstanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
   XInitThreads();
 #elif defined(__ANDROID__)
@@ -295,9 +295,9 @@ void Viewer::run()
     //case 2:
     //  LOG_INFO << "U:  *" << std::endl; break;
     //}
-#if defined(_WIN32)
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
     updateContinueRun = WindowWin32::checkWindowMessages();
-#elif defined (__linux__)
+#elif defined (VK_USE_PLATFORM_XCB_KHR)
     updateContinueRun = WindowXcb::checkWindowMessages();
 #endif
 

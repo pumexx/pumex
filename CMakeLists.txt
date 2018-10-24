@@ -6,6 +6,7 @@ set( PUMEX_SOVERSION 1 )
 message( STATUS "Building PUMEX library version ${PUMEX_VERSION_MAJOR}.${PUMEX_VERSION_MINOR}.${PUMEX_VERSION_PATCH}" )
 
 option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
+option( PUMEX_BUILD_QT                   "Build Pumex with QT support" OFF )
 if(WIN32)
   option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
@@ -117,6 +118,11 @@ if(WIN32)
 elseif(UNIX AND NOT APPLE)
   list( APPEND PUMEXLIB_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/linux/WindowXcb.h
+  )  
+endif()
+if(PUMEX_BUILD_QT)
+  list( APPEND PUMEXLIB_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/qt/WindowQT.h
   )
 endif()
 
@@ -184,6 +190,12 @@ elseif(UNIX AND NOT APPLE)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/linux/WindowXcb.cpp
   )
 endif()
+if(PUMEX_BUILD_QT)
+  list( APPEND PUMEXLIB_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/qt/WindowQT.cpp
+  )
+endif()
+
 
 add_library( pumexlib SHARED "" )
 target_sources( pumexlib
@@ -211,6 +223,7 @@ if(WIN32)
 elseif(UNIX AND NOT APPLE)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
 endif()
+
 add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
 set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
 set_target_properties( pumexlib PROPERTIES RESOURCE "${PUMEXLIB_OUTPUT_SHADERS}" )

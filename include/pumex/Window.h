@@ -45,12 +45,12 @@ struct PUMEX_EXPORT WindowTraits
   enum Type{ WINDOW, FULLSCREEN, HALFSCREEN_LEFT, HALFSCREEN_RIGHT };
   WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, Type wType, const std::string& windowName);
 
-  uint32_t screenNum = 0;
-  uint32_t x         = 0;
-  uint32_t y         = 0;
-  uint32_t w         = 1;
-  uint32_t h         = 1;
-  Type     type      = WINDOW;
+  uint32_t    screenNum = 0;
+  uint32_t    x         = 0;
+  uint32_t    y         = 0;
+  uint32_t    w         = 1;
+  uint32_t    h         = 1;
+  Type        type      = WINDOW;
   std::string windowName;
 };
 

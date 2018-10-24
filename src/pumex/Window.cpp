@@ -21,9 +21,9 @@
 //
 
 #include <pumex/Window.h>
-#if defined(_WIN32)
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
-#elif defined(__linux__)
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
   #include <pumex/platform/linux/WindowXcb.h>
 //#elif defined(__ANDROID__)
 //  #include <pumex/platform/win32/WindowWin32.h>
@@ -44,9 +44,9 @@ Window::~Window()
 
 std::shared_ptr<Window> Window::createWindow(const WindowTraits& windowTraits)
 {
-#if defined(_WIN32)
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
   return std::make_shared<WindowWin32>(windowTraits);
-#elif defined(__linux__)
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
   return std::make_shared<WindowXcb>(windowTraits);
 //#elif defined(__ANDROID__)
   //  #include <pumex/platform/win32/WindowWin32.h>
