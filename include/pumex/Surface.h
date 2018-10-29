@@ -80,6 +80,8 @@ struct PUMEX_EXPORT SurfaceTraits
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
+  // this variable exists so that WindowQT will not destroy surface in cleanup(), because Vulkan surface is owned by QT
+  bool                               destroySurfaceDuringCleanup = true;
 };
 
 // class representing a Vulkan surface
@@ -87,7 +89,7 @@ class PUMEX_EXPORT Surface : public std::enable_shared_from_this<Surface>
 {
 public:
   Surface()                          = delete;
-  explicit Surface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Window> window, std::shared_ptr<Device> device, VkSurfaceKHR surface, const SurfaceTraits& surfaceTraits);
+  explicit Surface(std::shared_ptr<Device> device, std::shared_ptr<Window> window, VkSurfaceKHR surface, const SurfaceTraits& surfaceTraits);
   Surface(const Surface&)            = delete;
   Surface& operator=(const Surface&) = delete;
   Surface(Surface&&)                 = delete;
@@ -114,7 +116,7 @@ public:
 
   void                          setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler);
 
-  inline void                   setID(uint32_t newID);
+  void                          setID(std::shared_ptr<Viewer> viewer, uint32_t newID);
   inline uint32_t               getID() const;
 
   std::shared_ptr<MemoryBuffer> getRegisteredMemoryBuffer(const std::string& name);
@@ -133,8 +135,8 @@ public:
   std::shared_ptr<Queue>        getPresentationQueue();
 
   std::weak_ptr<Viewer>                         viewer;
-  std::weak_ptr<Window>                         window;
   std::weak_ptr<Device>                         device;
+  std::shared_ptr<Window>                       window;
 
   VkSurfaceKHR                                  surface                      = VK_NULL_HANDLE;
   SurfaceTraits                                 surfaceTraits;
@@ -192,7 +194,6 @@ public:
 };
 
 bool                         Surface::isRealized() const                                                               { return realized; }
-void                         Surface::setID(uint32_t newID)                                                            { id = newID; }
 uint32_t                     Surface::getID() const                                                                    { return id; }
 uint32_t                     Surface::getImageCount() const                                                            { return surfaceTraits.imageCount; }
 uint32_t                     Surface::getImageIndex() const                                                            { return swapChainImageIndex; }

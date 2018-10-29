@@ -644,18 +644,18 @@ int main(int argc, char * argv[])
     std::vector<pumex::WindowTraits> windowTraits;
     if (render3windows)
     {
-      windowTraits.emplace_back( pumex::WindowTraits{ 0, 30,   100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 1" } );
-      windowTraits.emplace_back( pumex::WindowTraits{ 0, 570,  100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 2" } );
-      windowTraits.emplace_back( pumex::WindowTraits{ 0, 1110, 100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 3" } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 30,   100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 1", true } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 570,  100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 2", true } );
+      windowTraits.emplace_back( pumex::WindowTraits{ 0, 1110, 100, 512, 384, pumex::WindowTraits::WINDOW, "Crowd rendering 3", true } );
     }
     else if (renderVRwindows)
     {
-      windowTraits.emplace_back(pumex::WindowTraits{ 0, 0, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_LEFT, "Crowd rendering L" });
-      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_RIGHT, "Crowd rendering R" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 0, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_LEFT, "Crowd rendering L", true });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 0, 100, 100, pumex::WindowTraits::HALFSCREEN_RIGHT, "Crowd rendering R", true });
     }
     else
     {
-      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Crowd rendering" });
+      windowTraits.emplace_back(pumex::WindowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Crowd rendering", true });
     }
 
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -663,12 +663,12 @@ int main(int argc, char * argv[])
 
     std::vector<std::shared_ptr<pumex::Window>> windows;
     for (const auto& wt : windowTraits)
-      windows.push_back(pumex::Window::createWindow(wt));
+      windows.push_back(pumex::Window::createNativeWindow(wt));
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
-    for (auto& win : windows)
-      surfaces.push_back(viewer->addSurface(win, device, surfaceTraits));
+    for (auto& window : windows)
+      surfaces.push_back(window->createSurface(device, surfaceTraits));
 
     // allocate 24 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);

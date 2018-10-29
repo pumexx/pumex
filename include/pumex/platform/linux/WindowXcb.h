@@ -42,14 +42,13 @@ public:
   static void unregisterWindow(xcb_window_t windowID);
   static WindowXcb* getWindow(xcb_window_t windowID);
 
-  std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
+  std::shared_ptr<Surface> createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
 
   static bool checkWindowMessages();
 
   void normalizeMouseCoordinates( float& x, float& y) const;
   InputEvent::Key xcbKeyCodeToPumex(xcb_keycode_t keycode) const;
 
-  bool swapChainResizable = false;
   float lastMouseX = 0.0f;
   float lastMouseY = 0.0f;
   bool  resizeCalled = false;

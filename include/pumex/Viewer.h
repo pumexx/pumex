@@ -98,14 +98,16 @@ public:
   Viewer& operator=(Viewer&&)      = delete;
   ~Viewer();
 
-  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<std::string>& requestedExtensions);
-  std::shared_ptr<Surface>   addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits);
-  std::vector<uint32_t>      getDeviceIDs() const;
-  Device*                    getDevice(uint32_t id);
+  void                       addSurface(std::shared_ptr<Surface> surface);
+  void                       removeSurface(uint32_t surfaceID);
   std::vector<uint32_t>      getSurfaceIDs() const;
   Surface*                   getSurface(uint32_t id);
-  inline uint32_t            getNumDevices() const;
   inline uint32_t            getNumSurfaces() const;
+
+  std::shared_ptr<Device>    addDevice(unsigned int physicalDeviceIndex, const std::vector<std::string>& requestedExtensions);
+  std::vector<uint32_t>      getDeviceIDs() const;
+  Device*                    getDevice(uint32_t id);
+  inline uint32_t            getNumDevices() const;
 
   inline void                setEventRenderStart(std::function<void(Viewer*)> event);
   inline void                setEventRenderFinish(std::function<void(Viewer*)> event);
@@ -173,12 +175,15 @@ protected:
   std::vector<std::shared_ptr<PhysicalDevice>>           physicalDevices;
   std::unordered_map<uint32_t, std::shared_ptr<Device>>  devices;
   std::unordered_map<uint32_t, std::shared_ptr<Surface>> surfaces;
-  std::vector<std::shared_ptr<Window>>                   windows;
   std::function<void(Viewer*)>                           eventRenderStart;
   std::function<void(Viewer*)>                           eventRenderFinish;
   std::vector<std::shared_ptr<InputEventHandler>>        inputEventHandlers;
   bool                                                   realized                           = false;
+  bool                                                   renderContinueRun                  = true;
+  bool                                                   updateContinueRun                  = true;
   bool                                                   viewerTerminate                    = false;
+  std::exception_ptr                                     exceptionCaught;
+
   VkInstance                                             instance                           = VK_NULL_HANDLE;
 
   std::vector<const char*>                               enabledInstanceExtensions;

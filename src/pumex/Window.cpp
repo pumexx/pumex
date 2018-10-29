@@ -23,35 +23,49 @@
 #include <pumex/Window.h>
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-  #include <pumex/platform/linux/WindowXcb.h>
-//#elif defined(__ANDROID__)
-//  #include <pumex/platform/win32/WindowWin32.h>
 #endif
+#if defined(VK_USE_PLATFORM_XCB_KHR)
+  #include <pumex/platform/linux/WindowXcb.h>
+#endif
+//#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+//  #include <pumex/platform/win32/WindowWin32.h>
+//#endif
 #include <pumex/Viewer.h>
 #include <pumex/Surface.h>
 
 using namespace pumex;
 
-WindowTraits::WindowTraits(uint32_t sn, uint32_t ax, uint32_t ay, uint32_t aw, uint32_t ah, Type wt, const std::string& aWindowName)
-  : screenNum{ sn }, x{ ax }, y{ ay }, w{ aw }, h{ ah }, type{wt}, windowName(aWindowName)
+WindowTraits::WindowTraits(uint32_t sn, uint32_t ax, uint32_t ay, uint32_t aw, uint32_t ah, Type wt, const std::string& aWindowName, bool mw)
+  : screenNum{ sn }, x{ ax }, y{ ay }, w{ aw }, h{ ah }, type{ wt }, windowName(aWindowName), mainWindow{ mw }
 {
+}
+
+Window::Window(const WindowTraits& windowTraits)
+  : mainWindow(windowTraits.mainWindow)
+{
+
 }
 
 Window::~Window()
 {
 }
 
-std::shared_ptr<Window> Window::createWindow(const WindowTraits& windowTraits)
+std::shared_ptr<Window> Window::createNativeWindow(const WindowTraits& windowTraits)
 {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   return std::make_shared<WindowWin32>(windowTraits);
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-  return std::make_shared<WindowXcb>(windowTraits);
-//#elif defined(__ANDROID__)
-  //  #include <pumex/platform/win32/WindowWin32.h>
 #endif
+#if defined(VK_USE_PLATFORM_XCB_KHR)
+  return std::make_shared<WindowXcb>(windowTraits);
+#endif
+//#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+//  return std::make_shared<WindowXcb>(windowTraits);
+//#endif
 
+}
+
+void Window::endFrame()
+{
 }
 
 void Window::pushInputEvent(const InputEvent& event)

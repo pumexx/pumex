@@ -130,7 +130,7 @@ uint32_t PhysicalDevice::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags 
     typeBits >>= 1;
   }
 
-#if defined(__ANDROID__)
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
   //todo : Exceptions are disabled by default on Android (need to add LOCAL_CPP_FEATURES += exceptions to Android.mk), so for now just return zero
   if (memTypeFound)
   {

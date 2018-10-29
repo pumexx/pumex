@@ -26,56 +26,226 @@
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 #include <QtGui/QVulkanInstance.h>
+#include <qevent.h>
 
 using namespace pumex;
+
+std::unordered_map<int, InputEvent::Key> WindowQT::qtKeycodes;
+std::unique_ptr<QVulkanInstance>         WindowQT::qtInstance;
+
 
 WindowQT::WindowQT(QWindow *parent)
   : QWindow(parent)
 {
   setSurfaceType(QSurface::VulkanSurface);
+  if (qtKeycodes.empty())
+    fillQTKeyCodes();
 }
 
 WindowQT::WindowQT(const WindowTraits& windowTraits)
   : QWindow()
 {
+  CHECK_LOG_THROW(windowTraits.type != WindowTraits::WINDOW, "QT window may use only WindowTraits::WINDOW type");
   setSurfaceType(QSurface::VulkanSurface);
+  setPosition(windowTraits.x, windowTraits.y);
+  setWidth(windowTraits.w);
+  setHeight(windowTraits.h);
+  setTitle(QString::fromStdString(windowTraits.windowName));
+  show();
+  Window::width  = windowTraits.w;
+  Window::height = windowTraits.h;
+  if (qtKeycodes.empty())
+    fillQTKeyCodes();
 }
 
 WindowQT::~WindowQT()
 {
 }
 
-std::shared_ptr<Surface> WindowQT::createSurface(std::shared_ptr<Viewer> v, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> WindowQT::createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
-  QVulkanInstance* qtInstance = new QVulkanInstance;
-  qtInstance->setVkInstance(v->getInstance());
-  setVulkanInstance(qtInstance);
+  // return existing surface when it was already created
+  if (!surface.expired())
+    return surface.lock();
+  auto viewer = device->viewer.lock();
+  if (qtInstance.get() == nullptr)
+  {
+    qtInstance = std::make_unique<QVulkanInstance>();
+    qtInstance->setVkInstance(viewer->getInstance());
+    qtInstance->create();
+  }
+  setVulkanInstance(qtInstance.get());
 
-  VkSurfaceKHR vkSurface;
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-  VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
-  surfaceCreateInfo.sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-  surfaceCreateInfo.hinstance  = ::GetModuleHandle(NULL);
-  surfaceCreateInfo.hwnd       = _hwnd;
-  VK_CHECK_LOG_THROW(vkCreateWin32SurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-  VkXcbSurfaceCreateInfoKHR surfaceCreateInfo{};
-  surfaceCreateInfo.sType      = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-  surfaceCreateInfo.connection = connection;
-  surfaceCreateInfo.window     = window;
-  VK_CHECK_LOG_THROW(vkCreateXcbSurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
-#endif
-  std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
+  VkSurfaceKHR vkSurface = QVulkanInstance::surfaceForWindow(this);
+  // surfaces used by QT are owned by QT and therefore are also destroyed by QT. We must informs Surface class not to call vkDestroySurfaceKHR() when QT window is used
+  SurfaceTraits st = surfaceTraits;
+  st.destroySurfaceDuringCleanup = false;
+  std::shared_ptr<Surface> result = std::make_shared<Surface>(device, shared_from_this(), vkSurface, st);
+  viewer->addSurface(result);
 
-  viewer             = v;
-  surface            = result;
-  swapChainResizable = true;
+  surface = result;
   return result;
+}
+
+void WindowQT::endFrame()
+{
+  qtInstance->presentQueued(this);
 }
 
 void WindowQT::normalizeMouseCoordinates(float& x, float& y) const
 {
   // x and y are defined in windows coordinates as oposed to Windows OS
-  x = x / width();
-  y = y / height();
+  x = x / Window::width;
+  y = y / Window::height;
+}
+
+InputEvent::Key WindowQT::qtKeyCodeToPumex(int keycode) const
+{
+  auto it = qtKeycodes.find(keycode);
+  if (it != end(qtKeycodes))
+    return it->second;
+  //  LOG_ERROR << "Unknown keycode : 0x" << std::hex << (uint32_t)keycode << std::endl;
+  return InputEvent::KEY_UNDEFINED;
+}
+
+
+void WindowQT::fillQTKeyCodes()
+{
+  // important keys
+  qtKeycodes.insert({ Qt::Key_Escape, InputEvent::ESCAPE });
+  qtKeycodes.insert({ Qt::Key_Space,  InputEvent::SPACE });
+  qtKeycodes.insert({ Qt::Key_Tab,    InputEvent::TAB });
+  qtKeycodes.insert({ Qt::Key_Shift,  InputEvent::SHIFT });
+
+  int i = 0;
+
+  // keys F1-F10
+  typedef EnumIterator<InputEvent::Key, InputEvent::Key::F1, InputEvent::Key::F10> FunKeyIterator;
+  i = Qt::Key_F1;
+  for (InputEvent::Key f : FunKeyIterator())
+    qtKeycodes.insert({ i++, f });
+
+  // numbers
+  typedef EnumIterator<InputEvent::Key, InputEvent::Key::N0, InputEvent::Key::N9> NumKeyIterator;
+  i = Qt::Key_0;
+  for (InputEvent::Key f : NumKeyIterator())
+    qtKeycodes.insert({ i++, f });
+
+  // letters
+  typedef EnumIterator<InputEvent::Key, InputEvent::Key::A, InputEvent::Key::Z> LetterKeyIterator;
+  i = Qt::Key_A;
+  for (InputEvent::Key f : LetterKeyIterator())
+    qtKeycodes.insert({ i++, f });
+}
+
+
+void WindowQT::exposeEvent(QExposeEvent *)
+{
+  //if (isExposed() && !m_inited) 
+  //{
+  //  m_inited = true;
+  //  init();
+  //  recreateSwapChain();
+  //  render();
+  //}
+
+  //if (!isExposed() && m_inited) {
+  //  m_inited = false;
+  //  releaseSwapChain();
+  //  releaseResources();
+  //}
+}
+
+bool WindowQT::event(QEvent *e)
+{
+  auto timeNow = HPClock::now();
+  switch (e->type()) {
+  case QEvent::UpdateRequest:
+    break;
+  case QEvent::PlatformSurface:
+    if (static_cast<QPlatformSurfaceEvent *>(e)->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
+    { 
+      surface.lock()->viewer.lock()->removeSurface(surface.lock()->getID());
+      if (mainWindow)
+        surface.lock()->viewer.lock()->setTerminate();
+    }
+    break;
+  case QEvent::MouseMove:
+  {
+    QMouseEvent* event = static_cast<QMouseEvent*>(e);
+    float mx = event->x();
+    float my = event->y();
+    normalizeMouseCoordinates(mx, my);
+    pushInputEvent(InputEvent(timeNow, InputEvent::MOUSE_MOVE, InputEvent::BUTTON_UNDEFINED, mx, my));
+    break;
+  }
+  case QEvent::MouseButtonPress:
+  {
+    QMouseEvent* event = static_cast<QMouseEvent*>(e);
+
+    InputEvent::MouseButton button = InputEvent::BUTTON_UNDEFINED;
+    if (event->button() == Qt::MouseButton::LeftButton)        button = InputEvent::LEFT;
+    else if (event->button() == Qt::MouseButton::MiddleButton) button = InputEvent::MIDDLE;
+    else if (event->button() == Qt::MouseButton::RightButton)  button = InputEvent::RIGHT;
+    else break;
+    pressedMouseButtons.insert(button);
+
+    float mx = event->x();
+    float my = event->y();
+    normalizeMouseCoordinates(mx, my);
+    pushInputEvent(InputEvent(timeNow, InputEvent::MOUSE_KEY_PRESSED, button, mx, my));
+    break;
+  }
+  case QEvent::MouseButtonRelease:
+  {
+    QMouseEvent* event = static_cast<QMouseEvent*>(e);
+
+    InputEvent::MouseButton button = InputEvent::BUTTON_UNDEFINED;
+    if (event->button() == Qt::MouseButton::LeftButton)        button = InputEvent::LEFT;
+    else if (event->button() == Qt::MouseButton::MiddleButton) button = InputEvent::MIDDLE;
+    else if (event->button() == Qt::MouseButton::RightButton)  button = InputEvent::RIGHT;
+    else break;
+    pressedMouseButtons.erase(button);
+
+    float mx = event->x();
+    float my = event->y();
+    normalizeMouseCoordinates(mx, my);
+    pushInputEvent(InputEvent(timeNow, InputEvent::MOUSE_KEY_RELEASED, button, mx, my));
+    break;
+  }
+  case QEvent::MouseButtonDblClick:
+  {
+    QMouseEvent* event = static_cast<QMouseEvent*>(e);
+
+    InputEvent::MouseButton button = InputEvent::BUTTON_UNDEFINED;
+    if (event->button() == Qt::MouseButton::LeftButton)        button = InputEvent::LEFT;
+    else if (event->button() == Qt::MouseButton::MiddleButton) button = InputEvent::MIDDLE;
+    else if (event->button() == Qt::MouseButton::RightButton)  button = InputEvent::RIGHT;
+    else break;
+    pressedMouseButtons.insert(button);
+
+    float mx = event->x();
+    float my = event->y();
+    normalizeMouseCoordinates(mx, my);
+    pushInputEvent(InputEvent(timeNow, InputEvent::MOUSE_KEY_DOUBLE_PRESSED, button, mx, my));
+    break;
+  }
+  case QEvent::KeyPress:
+  {
+    QKeyEvent* event    = static_cast<QKeyEvent*>(e);
+    InputEvent::Key key = qtKeyCodeToPumex(event->key());
+    pushInputEvent(InputEvent(timeNow, InputEvent::KEYBOARD_KEY_PRESSED, key));
+    break;
+  }
+  case QEvent::KeyRelease:
+  {
+    QKeyEvent* event    = static_cast<QKeyEvent*>(e);
+    InputEvent::Key key = qtKeyCodeToPumex(event->key());
+    pushInputEvent(InputEvent(timeNow, InputEvent::KEYBOARD_KEY_RELEASED, key));
+    break;
+  }
+  default:
+    break;
+  }
+  return QWindow::event(e);
 }

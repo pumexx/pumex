@@ -154,22 +154,24 @@ WindowXcb::~WindowXcb()
   }
 }
 
-std::shared_ptr<Surface> WindowXcb::createSurface(std::shared_ptr<Viewer> v, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> WindowXcb::createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
+  // return existing surface when it was already created
+  if (!surface.expired())
+    return surface.lock();
+  auto viewer = device->viewer.lock();
+	
   VkSurfaceKHR vkSurface;
   VkXcbSurfaceCreateInfoKHR surfaceCreateInfo{};
     surfaceCreateInfo.sType      = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
     surfaceCreateInfo.connection = connection;
     surfaceCreateInfo.window     = window;
-  VK_CHECK_LOG_THROW(vkCreateXcbSurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
+  VK_CHECK_LOG_THROW(vkCreateXcbSurfaceKHR(viewer->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
 
-  std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
-  // create swapchain
-//  result->resizeSurface(width, height);
+  std::shared_ptr<Surface> result = std::make_shared<Surface>(device, shared_from_this(), vkSurface, surfaceTraits);
+  viewer->addSurface(result);
 
-  viewer = v;
-  surface = result;
-  swapChainResizable = true;
+  surface            = result;
   return result;
 }
 

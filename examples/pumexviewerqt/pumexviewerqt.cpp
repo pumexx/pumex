@@ -23,12 +23,12 @@
 #include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <args.hxx>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
-#include <args.hxx>
 #include <pumex/platform/qt/WindowQT.h>
-#include <QCoreApplication>
+#include <QGuiApplication>
 
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render workflow consists of only one render operation
@@ -140,13 +140,11 @@ struct ViewerApplicationData
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
-  QApplication aplication(argc,argv);
 
   // process command line using args library
   args::ArgumentParser                         parser("pumex example : minimal 3D model viewer without textures");
   args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
-  args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
@@ -185,7 +183,7 @@ int main( int argc, char * argv[] )
   uint32_t updateFrequency      = std::max(1U, args::get(updatesPerSecond));
   std::string modelFileName     = args::get(modelNameArg);
   std::string animationFileName = args::get(animationNameArg);
-  std::string windowName        = "Pumex viewer : ";
+  std::string windowName        = "Pumex viewer in QT window : ";
   windowName += modelFileName;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -218,14 +216,6 @@ int main( int argc, char * argv[] )
     // now is the time to create devices, windows and surfaces.
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
-
-    // window traits define the screen on which the window will be shown, coordinates on that window, etc
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
-    std::shared_ptr<pumex::WindowQT> window = std::make_shared<pumex::WindowQT>(windowTraits);
-	//pumex::Window::createWindow();
-
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
 
     // alocate 16 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -374,10 +364,7 @@ int main( int argc, char * argv[] )
     viewer->addInputEventHandler(bcamHandler);
     applicationData->setCameraHandler(bcamHandler);
 
-    // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
     std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-    surface->setRenderWorkflow(workflow, workflowCompiler);
-
     // We must connect update graph that works independently from render graph
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
@@ -386,14 +373,36 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
-    // events are used to call aplication data update methods. These methods generate data visisble by renderer through uniform buffers
-    viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
-    surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
+    // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
+    viewer->setEventRenderStart(std::bind(&ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset));
+
+    //std::shared_ptr<pumex::Surface> surface;
+    // QT has its own "main" loop inside QGuiApplication::exec()
+    // we will move it to its own thread
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, pumex::WindowTraits::WINDOW, windowName, true };
+    QGuiApplication application(argc, argv);
+
+    // window traits define the screen on which the window will be shown, coordinates on that window, etc
+    std::shared_ptr<pumex::WindowQT> window = std::make_shared<pumex::WindowQT>(windowTraits);
+
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
+
+    // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
+    surface->setRenderWorkflow(workflow, workflowCompiler);
+    surface->setEventSurfaceRenderStart(std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
     // object calculating statistics must be also connected as an event
     surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-    // main renderer loop is inside Viewer::run()
+    std::thread viewerThread([&]
+    {
+        viewer->run();
+    }
+    );
+
     application.exec();
+    // main renderer loop is inside Viewer::run()
+    viewerThread.join();
   }
   catch (const std::exception& e)
   {

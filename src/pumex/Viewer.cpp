@@ -33,7 +33,8 @@
 #include <pumex/Version.h>
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
+#endif
+#if defined(VK_USE_PLATFORM_XCB_KHR)
   #include <pumex/platform/linux/WindowXcb.h>
   #include <X11/Xlib.h>
   #include <unistd.h>
@@ -144,7 +145,7 @@ Viewer::Viewer(const ViewerTraits& vt)
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
   enabledInstanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
   XInitThreads();
-#elif defined(__ANDROID__)
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
   enabledInstanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #endif
   if (viewerTraits.useDebugLayers())
@@ -207,10 +208,6 @@ void Viewer::run()
 {
   if (!isRealized())
     realize();
-
-  bool renderContinueRun = true;
-  bool updateContinueRun = true;
-  std::exception_ptr exceptionCaught;
 
   std::thread renderThread([&]
   {
@@ -297,7 +294,8 @@ void Viewer::run()
     //}
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
     updateContinueRun = WindowWin32::checkWindowMessages();
-#elif defined (VK_USE_PLATFORM_XCB_KHR)
+#endif
+#if defined(VK_USE_PLATFORM_XCB_KHR)
     updateContinueRun = WindowXcb::checkWindowMessages();
 #endif
 
@@ -360,7 +358,6 @@ void Viewer::cleanup()
         s.second->cleanup();
     }
     surfaces.clear();
-    windows.clear();
     if (isRealized())
     {
       for (auto& d : devices)
@@ -394,7 +391,9 @@ void Viewer::realize()
   for (auto& s : surfaces)
     s.second->realize();
 
-  realized = true;
+  renderContinueRun = true;
+  updateContinueRun = true;
+  realized          = true;
 }
 
 void Viewer::setTerminate()
@@ -412,13 +411,17 @@ std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, cons
   return device;
 }
 
-std::shared_ptr<Surface> Viewer::addSurface(std::shared_ptr<Window> window, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
+void Viewer::addSurface(std::shared_ptr<Surface> surface)
 {
-  std::shared_ptr<Surface> surface = window->createSurface(shared_from_this(), device, surfaceTraits);
-  surface->setID(nextSurfaceID);
+  surface->setID(shared_from_this(), nextSurfaceID);
   surfaces.insert({ nextSurfaceID++, surface });
-  windows.push_back(window);
-  return surface;
+}
+
+void Viewer::removeSurface(uint32_t surfaceID)
+{
+  surfaces.erase(surfaceID);
+  if(surfaces.empty())
+    setTerminate();
 }
 
 std::vector<uint32_t> Viewer::getDeviceIDs() const
@@ -610,9 +613,9 @@ void Viewer::handleInputEvents()
 {
   // collect inputEvents from all windows
   std::vector<InputEvent> inputEvents;
-  for (auto& window : windows)
+  for (auto& s : surfaces)
   {
-    std::vector<InputEvent> windowInputEvents = window->getInputEvents();
+    std::vector<InputEvent> windowInputEvents = s.second->window->getInputEvents();
     inputEvents.insert(end(inputEvents), begin(windowInputEvents), end(windowInputEvents));
   }
   // sort input events by event time
@@ -828,6 +831,7 @@ void Viewer::buildRenderGraph()
         tickStart = HPClock::now();
 
       surface->endFrame();
+      surface->window->endFrame();
 
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {

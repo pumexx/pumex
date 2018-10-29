@@ -23,7 +23,6 @@ else()
   option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       OFF )
 endif()
 
-
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" )
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules" )
 
@@ -225,8 +224,12 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
-set_target_properties( pumexlib PROPERTIES VERSION ${PUMEX_VERSION} SOVERSION ${PUMEX_SOVERSION} )
-set_target_properties( pumexlib PROPERTIES RESOURCE "${PUMEXLIB_OUTPUT_SHADERS}" )
+set_target_properties( pumexlib PROPERTIES 
+  VERSION   ${PUMEX_VERSION} 
+  SOVERSION ${PUMEX_SOVERSION}
+  RESOURCE  "${PUMEXLIB_OUTPUT_SHADERS}"
+  AUTOMOC   ${PUMEX_BUILD_QT}
+)
 target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
 set_target_postfixes( pumexlib )
 

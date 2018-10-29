@@ -66,8 +66,8 @@ const std::map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> Surface::replace
 };
 
 
-Surface::Surface(std::shared_ptr<Viewer> v, std::shared_ptr<Window> w, std::shared_ptr<Device> d, VkSurfaceKHR s, const SurfaceTraits& st)
-  : viewer{ v }, window{ w }, device{ d }, surface{ s }, surfaceTraits(st)
+Surface::Surface(std::shared_ptr<Device> d, std::shared_ptr<Window> w, VkSurfaceKHR s, const SurfaceTraits& st)
+  : device{ d }, window{ w }, surface{ s }, surfaceTraits(st)
 {
   timeStatistics = std::make_unique<TimeStatistics>(32);
 
@@ -231,7 +231,8 @@ void Surface::cleanup()
     for(auto q : queues )
       device.lock()->releaseQueue(q);
     queues.clear();
-    vkDestroySurfaceKHR(viewer.lock()->getInstance(), surface, nullptr);
+    if(surfaceTraits.destroySurfaceDuringCleanup)
+      vkDestroySurfaceKHR(viewer.lock()->getInstance(), surface, nullptr);
     surface = VK_NULL_HANDLE;
   }
 }
@@ -645,6 +646,13 @@ void Surface::setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::s
   renderWorkflow         = workflow;
   renderWorkflowCompiler = compiler;
 }
+
+void Surface::setID(std::shared_ptr<Viewer> v, uint32_t newID) 
+{ 
+  viewer = v;
+  id = newID; 
+}
+
 
 std::shared_ptr<MemoryBuffer> Surface::getRegisteredMemoryBuffer(const std::string& name)
 {

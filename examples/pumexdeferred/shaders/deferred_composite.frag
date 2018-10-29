@@ -77,6 +77,17 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+// tone mapping adapted from https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+vec3 toneMappingACESFilm( vec3 rgbColor )
+{
+    float a = 2.51f;
+    float b = 0.03f;
+    float c = 2.43f;
+    float d = 0.59f;
+    float e = 0.14f;
+    return clamp((rgbColor*(a*rgbColor+b))/(rgbColor*(c*rgbColor+d)+e), 0.0, 1.0);
+}
+
 void main()
 {
   vec3 worldPosition = subpassLoad(inPosition,gl_SampleID).xyz;
@@ -122,8 +133,8 @@ void main()
     finalColor += (kD * albedo / PI + specular) * radiance * NdotL;
   }
 
-  // Reinhard tone mapping
-  finalColor = finalColor / (finalColor + vec3(1.0));
+  // ACES tone mapping
+  finalColor = toneMappingACESFilm( finalColor );
   // gamma correction
   finalColor = pow(finalColor, vec3(1.0/2.2));
   //output

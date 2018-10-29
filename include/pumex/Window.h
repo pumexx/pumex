@@ -43,7 +43,7 @@ struct SurfaceTraits;
 struct PUMEX_EXPORT WindowTraits
 {
   enum Type{ WINDOW, FULLSCREEN, HALFSCREEN_LEFT, HALFSCREEN_RIGHT };
-  WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, Type wType, const std::string& windowName);
+  WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, Type wType, const std::string& windowName, bool mainWindow);
 
   uint32_t    screenNum = 0;
   uint32_t    x         = 0;
@@ -52,6 +52,7 @@ struct PUMEX_EXPORT WindowTraits
   uint32_t    h         = 1;
   Type        type      = WINDOW;
   std::string windowName;
+  bool        mainWindow = true; // closing main window closes application. Application may have many main windows
 };
 
 // Class storing a single input event ( mouse or keyboard )
@@ -101,15 +102,17 @@ class PUMEX_EXPORT Window
 {
 public:
   Window()                         = default;
+  Window(const WindowTraits& windowTraits);
   Window(const Window&)            = delete;
   Window& operator=(const Window&) = delete;
   Window(Window&&)                 = delete;
   Window& operator=(Window&&)      = delete;
   virtual ~Window();
 
-  static std::shared_ptr<Window> createWindow(const WindowTraits& windowTraits);
+  static std::shared_ptr<Window> createNativeWindow(const WindowTraits& windowTraits);
 
-  virtual std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) = 0;
+  virtual std::shared_ptr<Surface> createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) = 0;
+  virtual void endFrame();
   uint32_t width     = 1;
   uint32_t height    = 1;
   uint32_t newWidth  = 1;
@@ -118,10 +121,10 @@ public:
   void                    pushInputEvent( const InputEvent& event );
   std::vector<InputEvent> getInputEvents();
 protected:
-  std::weak_ptr<Viewer>   viewer;
   std::weak_ptr<Surface>  surface;
   mutable std::mutex      inputMutex;
   std::vector<InputEvent> inputEvents;
+  bool                    mainWindow = true;
 };
 
 }

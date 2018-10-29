@@ -21,6 +21,7 @@
 //
 
 #pragma once
+#include <set>
 #include <unordered_map>
 #include <mutex>
 #include <pumex/Window.h>
@@ -30,7 +31,7 @@ namespace pumex
 {
 
 // class implementing a pumex::Window for QT
-class PUMEX_EXPORT WindowQT : public Window, public QWindow, public std::enable_shared_from_this<WindowQT>
+class PUMEX_EXPORT WindowQT : public QWindow, public pumex::Window, public std::enable_shared_from_this<WindowQT>
 {
   Q_OBJECT
 public:
@@ -40,17 +41,24 @@ public:
   WindowQT& operator=(const WindowQT&) = delete;
   virtual ~WindowQT();
 
-  std::shared_ptr<Surface> createSurface(std::shared_ptr<Viewer> viewer, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
+  std::shared_ptr<Surface> createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
 
-//  static bool checkWindowMessages();
+  void endFrame() override;
 
   void normalizeMouseCoordinates( float& x, float& y) const;
 
-  bool                swapChainResizable  = false;
-  float               lastMouseX          = 0.0f;
-  float               lastMouseY          = 0.0f;
-  bool                resizeCalled        = false;
-  HPClock::time_point lastResizeTimePoint;
+  InputEvent::Key qtKeyCodeToPumex(int keycode) const;
+
+  static std::unique_ptr<QVulkanInstance> qtInstance;
+protected:
+  static void fillQTKeyCodes();
+
+  void exposeEvent(QExposeEvent *) override;
+  bool event(QEvent *) override;
+
+  static std::unordered_map<int, InputEvent::Key> qtKeycodes;
+
+  std::set<InputEvent::MouseButton> pressedMouseButtons;
 };
 
 }

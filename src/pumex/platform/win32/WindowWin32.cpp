@@ -134,7 +134,7 @@ WindowWin32::WindowWin32(const WindowTraits& windowTraits)
 
   registerWindow(_hwnd, this);
   GetClientRect(_hwnd,&rect);
-  width = newWidth = rect.right - rect.left;
+  width  = newWidth  = rect.right  - rect.left;
   height = newHeight = rect.bottom - rect.top;
 
   ShowWindow(_hwnd, SW_SHOW);
@@ -154,21 +154,23 @@ WindowWin32::~WindowWin32()
     ::UnregisterClass(windowClassName.c_str(), ::GetModuleHandle(NULL));
 }
 
-std::shared_ptr<Surface> WindowWin32::createSurface(std::shared_ptr<Viewer> v, std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
+std::shared_ptr<Surface> WindowWin32::createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits)
 {
+  // return existing surface when it was already created
+  if (!surface.expired())
+    return surface.lock();
+  auto viewer = device->viewer.lock();
   VkSurfaceKHR vkSurface;
   VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
     surfaceCreateInfo.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surfaceCreateInfo.hinstance = ::GetModuleHandle(NULL);
     surfaceCreateInfo.hwnd      = _hwnd;
-  VK_CHECK_LOG_THROW(vkCreateWin32SurfaceKHR(v->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
+  VK_CHECK_LOG_THROW(vkCreateWin32SurfaceKHR(viewer->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
 
-  std::shared_ptr<Surface> result = std::make_shared<Surface>(v, shared_from_this(), device, vkSurface, surfaceTraits);
-  // create swapchain
-  //result->resizeSurface(width,height);
+  std::shared_ptr<Surface> result = std::make_shared<Surface>(device, shared_from_this(), vkSurface, surfaceTraits);
+  viewer->addSurface(result);
 
-  viewer  = v;
-  surface = result;
+  surface            = result;
   swapChainResizable = true;
   return result;
 }
@@ -192,10 +194,13 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
   switch (msg)
   {
   case WM_CLOSE:
-    viewer.lock()->setTerminate();
+    surface.lock()->viewer.lock()->removeSurface(surface.lock()->getID());
+    if(mainWindow)
+      surface.lock()->viewer.lock()->setTerminate();
     break;
   case WM_DESTROY:
-    ::PostQuitMessage(0);
+    if(mainWindow)
+      ::PostQuitMessage(0);
     break;
   case WM_PAINT:
     ValidateRect(_hwnd, NULL);

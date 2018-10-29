@@ -217,11 +217,11 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
     // window traits define the screen on which the window will be shown, coordinates on that window, etc
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
-    std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
+    std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
+    std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
     // alocate 16 MB for frame buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -382,7 +382,7 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
-    // events are used to call aplication data update methods. These methods generate data visisble by renderer through uniform buffers
+    // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
     viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
     surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
     // object calculating statistics must be also connected as an event
