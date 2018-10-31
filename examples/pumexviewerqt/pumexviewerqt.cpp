@@ -28,7 +28,8 @@
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
 #include <pumex/platform/qt/WindowQT.h>
-#include <QGuiApplication>
+#include <QtGui/QGuiApplication>
+#include <QtCore/QLoggingCategory>
 
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render workflow consists of only one render operation
@@ -140,6 +141,7 @@ struct ViewerApplicationData
 int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
+  QGuiApplication application(argc, argv);
 
   // process command line using args library
   args::ArgumentParser                         parser("pumex example : minimal 3D model viewer without textures");
@@ -373,16 +375,11 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(viewer->opStartUpdateGraph, update);
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
-    // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
-    viewer->setEventRenderStart(std::bind(&ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset));
-
-    //std::shared_ptr<pumex::Surface> surface;
-    // QT has its own "main" loop inside QGuiApplication::exec()
-    // we will move it to its own thread
-    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, pumex::WindowTraits::WINDOW, windowName, true };
-    QGuiApplication application(argc, argv);
+    if (enableDebugging)
+      QLoggingCategory::setFilterRules(QStringLiteral("qt.vulkan=true"));
 
     // window traits define the screen on which the window will be shown, coordinates on that window, etc
+    pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, pumex::WindowTraits::WINDOW, windowName, true };
     std::shared_ptr<pumex::WindowQT> window = std::make_shared<pumex::WindowQT>(windowTraits);
 
     pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
@@ -390,18 +387,19 @@ int main( int argc, char * argv[] )
 
     // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
     surface->setRenderWorkflow(workflow, workflowCompiler);
+    // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
+    viewer->setEventRenderStart(std::bind(&ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset));   
     surface->setEventSurfaceRenderStart(std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
     // object calculating statistics must be also connected as an event
     surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
+    window->show();
     std::thread viewerThread([&]
     {
         viewer->run();
     }
     );
-
     application.exec();
-    // main renderer loop is inside Viewer::run()
     viewerThread.join();
   }
   catch (const std::exception& e)

@@ -198,6 +198,8 @@ WindowXcb* WindowXcb::getWindow(xcb_window_t windowID)
 
 bool WindowXcb::checkWindowMessages()
 {
+  if(connection==nullptr)
+      return true;
   auto timeNow = HPClock::now();
   xcb_generic_event_t *event;
   while ((event = xcb_poll_for_event(connection)))
@@ -209,10 +211,7 @@ bool WindowXcb::checkWindowMessages()
       xcb_client_message_event_t* clientMessage = (xcb_client_message_event_t *)event;
       WindowXcb* window = WindowXcb::getWindow(clientMessage->window);
       if (clientMessage->data.data32[0] == window->wmDeleteWin)
-      {
-        window->viewer.lock()->setTerminate();
-        return false;
-      }
+        return !window->isMainWindow();
       break;
     }
     case XCB_MOTION_NOTIFY:
@@ -284,12 +283,15 @@ bool WindowXcb::checkWindowMessages()
     }
     case XCB_DESTROY_NOTIFY:
     {
+      LOG_ERROR<<"XCB_DESTROY_NOTIFY"<<std::endl;
       xcb_destroy_notify_event_t* destroyNotify = (xcb_destroy_notify_event_t*)event;
       WindowXcb* window = WindowXcb::getWindow(destroyNotify->window);
       if(window!=nullptr)
       {
-        window->viewer.lock()->setTerminate();
-        return false;
+        auto viewer = window->surface.lock()->viewer.lock();
+        auto id     = window->surface.lock()->getID();
+        viewer->removeSurface(id);
+        return true;
       }
       break;
     }
@@ -332,7 +334,6 @@ bool WindowXcb::checkWindowMessages()
   }
 
   return true;
-
 }
 
 void WindowXcb::normalizeMouseCoordinates(float& x, float& y) const

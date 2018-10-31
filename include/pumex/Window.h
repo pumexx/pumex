@@ -120,11 +120,14 @@ public:
 
   void                    pushInputEvent( const InputEvent& event );
   std::vector<InputEvent> getInputEvents();
+  inline bool isMainWindow() const;
 protected:
   std::weak_ptr<Surface>  surface;
   mutable std::mutex      inputMutex;
   std::vector<InputEvent> inputEvents;
   bool                    mainWindow = true;
 };
+
+bool Window::isMainWindow() const { return mainWindow; }
 
 }

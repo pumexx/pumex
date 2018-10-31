@@ -194,10 +194,12 @@ LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
   switch (msg)
   {
   case WM_CLOSE:
-    surface.lock()->viewer.lock()->removeSurface(surface.lock()->getID());
-    if(mainWindow)
-      surface.lock()->viewer.lock()->setTerminate();
+  {
+    auto viewer = surface.lock()->viewer.lock();
+    auto id     = surface.lock()->getID();
+    viewer->removeSurface(id);
     break;
+  }
   case WM_DESTROY:
     if(mainWindow)
       ::PostQuitMessage(0);

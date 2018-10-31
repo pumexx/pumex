@@ -203,6 +203,7 @@ protected:
   uint32_t                                               prevUpdateIndex                    = 0; // accessible only during update. DO NOT USE IN RENDER.
   bool                                                   updateInProgress                   = false;
 
+  mutable std::mutex                                     renderMutex;
   mutable std::mutex                                     updateMutex;
   std::condition_variable                                updateConditionVariable;
 

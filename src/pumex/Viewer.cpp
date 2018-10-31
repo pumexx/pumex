@@ -213,6 +213,7 @@ void Viewer::run()
   {
     while (true)
     {
+      std::lock_guard<std::mutex> renderLock(renderMutex);
       if (!renderGraphValid)
       {
         buildRenderGraph();
@@ -413,15 +414,23 @@ std::shared_ptr<Device> Viewer::addDevice(unsigned int physicalDeviceIndex, cons
 
 void Viewer::addSurface(std::shared_ptr<Surface> surface)
 {
+  std::lock_guard<std::mutex> renderLock(renderMutex);
   surface->setID(shared_from_this(), nextSurfaceID);
   surfaces.insert({ nextSurfaceID++, surface });
+  renderGraphValid = false;
 }
 
 void Viewer::removeSurface(uint32_t surfaceID)
 {
-  surfaces.erase(surfaceID);
-  if(surfaces.empty())
+  std::lock_guard<std::mutex> renderLock(renderMutex);
+  auto it = surfaces.find(surfaceID);
+  CHECK_LOG_THROW(it == end(surfaces), "Cannot remove surface with id = " << surfaceID);
+  bool isMainWindow = it->second->window->isMainWindow();
+  // FIXME - what about removing resources allocated for this surface ?
+  surfaces.erase(it);
+  if(isMainWindow || surfaces.empty())
     setTerminate();
+  renderGraphValid = false;
 }
 
 std::vector<uint32_t> Viewer::getDeviceIDs() const

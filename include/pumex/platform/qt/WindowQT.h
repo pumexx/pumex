@@ -25,7 +25,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <pumex/Window.h>
-#include <QtGui/QWindow.h>
+#include <QtGui/QWindow>
 
 namespace pumex
 {
@@ -53,7 +53,6 @@ public:
 protected:
   static void fillQTKeyCodes();
 
-  void exposeEvent(QExposeEvent *) override;
   bool event(QEvent *) override;
 
   static std::unordered_map<int, InputEvent::Key> qtKeycodes;

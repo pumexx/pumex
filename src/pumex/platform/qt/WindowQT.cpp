@@ -12,7 +12,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -25,19 +25,22 @@
 #include <pumex/Viewer.h>
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
-#include <QtGui/QVulkanInstance.h>
-#include <qevent.h>
+#include <QtGui/QVulkanInstance>
+#include <QtGui/QPlatformSurfaceEvent>
+#include <QtCore/QEvent>
 
 using namespace pumex;
 
 std::unordered_map<int, InputEvent::Key> WindowQT::qtKeycodes;
 std::unique_ptr<QVulkanInstance>         WindowQT::qtInstance;
 
-
 WindowQT::WindowQT(QWindow *parent)
   : QWindow(parent)
 {
   setSurfaceType(QSurface::VulkanSurface);
+  create();
+  Window::width  = Window::newWidth  = QWindow::width();
+  Window::height = Window::newHeight = QWindow::height();
   if (qtKeycodes.empty())
     fillQTKeyCodes();
 }
@@ -48,12 +51,11 @@ WindowQT::WindowQT(const WindowTraits& windowTraits)
   CHECK_LOG_THROW(windowTraits.type != WindowTraits::WINDOW, "QT window may use only WindowTraits::WINDOW type");
   setSurfaceType(QSurface::VulkanSurface);
   setPosition(windowTraits.x, windowTraits.y);
-  setWidth(windowTraits.w);
-  setHeight(windowTraits.h);
+  resize(windowTraits.w, windowTraits.h);
   setTitle(QString::fromStdString(windowTraits.windowName));
-  show();
-  Window::width  = windowTraits.w;
-  Window::height = windowTraits.h;
+  create();
+  Window::width  = Window::newWidth  = QWindow::width();
+  Window::height = Window::newHeight = QWindow::height();
   if (qtKeycodes.empty())
     fillQTKeyCodes();
 }
@@ -108,7 +110,6 @@ InputEvent::Key WindowQT::qtKeyCodeToPumex(int keycode) const
   return InputEvent::KEY_UNDEFINED;
 }
 
-
 void WindowQT::fillQTKeyCodes()
 {
   // important keys
@@ -138,36 +139,29 @@ void WindowQT::fillQTKeyCodes()
     qtKeycodes.insert({ i++, f });
 }
 
-
-void WindowQT::exposeEvent(QExposeEvent *)
-{
-  //if (isExposed() && !m_inited) 
-  //{
-  //  m_inited = true;
-  //  init();
-  //  recreateSwapChain();
-  //  render();
-  //}
-
-  //if (!isExposed() && m_inited) {
-  //  m_inited = false;
-  //  releaseSwapChain();
-  //  releaseResources();
-  //}
-}
-
 bool WindowQT::event(QEvent *e)
 {
   auto timeNow = HPClock::now();
   switch (e->type()) {
   case QEvent::UpdateRequest:
     break;
+  case QEvent::Resize:
+  {
+    QResizeEvent* event = static_cast<QResizeEvent*>(e);
+    Window::newWidth  = event->size().width();
+    Window::newHeight = event->size().height();
+    auto surf         = surface.lock();
+    surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, Window::newWidth, Window::newHeight));
+    Window::width     = Window::newWidth;
+    Window::height    = Window::newHeight;
+    break;
+  }
   case QEvent::PlatformSurface:
     if (static_cast<QPlatformSurfaceEvent *>(e)->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
-    { 
-      surface.lock()->viewer.lock()->removeSurface(surface.lock()->getID());
-      if (mainWindow)
-        surface.lock()->viewer.lock()->setTerminate();
+    {
+      auto viewer = surface.lock()->viewer.lock();
+      auto id     = surface.lock()->getID();
+      viewer->removeSurface(id);
     }
     break;
   case QEvent::MouseMove:

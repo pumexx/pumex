@@ -9,7 +9,11 @@ add_executable( pumexviewerqt pumexviewerqt.cpp )
 target_include_directories( pumexviewerqt PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexviewerqt pumexviewerqt-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
 set_target_properties( pumexviewerqt PROPERTIES RESOURCE "${PUMEXVIEWERQT_OUTPUT_SHADERS}" )
-target_link_libraries( pumexviewerqt pumexlib )
+if(UNIX AND NOT APPLE)
+  target_link_libraries( pumexviewerqt pumexlib pthread )
+else()
+  target_link_libraries( pumexviewerqt pumexlib )
+endif()
 set_target_postfixes( pumexviewerqt )
 
 install( TARGETS pumexviewerqt
