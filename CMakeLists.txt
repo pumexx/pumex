@@ -50,6 +50,7 @@ add_custom_target ( pumexlib-shaders DEPENDS ${PUMEXLIB_OUTPUT_SHADERS} SOURCES 
 add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set( PUMEXLIB_HEADERS )
+set( PUMEXLIB_HEADERS_QT )
 list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Asset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBuffer.h
@@ -120,12 +121,13 @@ elseif(UNIX AND NOT APPLE)
   )  
 endif()
 if(PUMEX_BUILD_QT)
-  list( APPEND PUMEXLIB_HEADERS
+  list( APPEND PUMEXLIB_HEADERS_QT
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/qt/WindowQT.h
   )
 endif()
 
 set( PUMEXLIB_SOURCES )
+set( PUMEXLIB_SOURCES_QT )
 list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Asset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBuffer.cpp
@@ -190,18 +192,24 @@ elseif(UNIX AND NOT APPLE)
   )
 endif()
 if(PUMEX_BUILD_QT)
-  list( APPEND PUMEXLIB_SOURCES
+  list( APPEND PUMEXLIB_SOURCES_QT
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/qt/WindowQT.cpp
   )
 endif()
 
+set( PUMEXLIB_SOURCES_QT_MOC )
+if( PUMEX_BUILD_QT )
+  qt5_wrap_cpp( PUMEXLIB_SOURCES_QT_MOC ${PUMEXLIB_HEADERS_QT} )
+endif()
 
 add_library( pumexlib SHARED "" )
 target_sources( pumexlib
   PUBLIC
-    $<BUILD_INTERFACE:${PUMEXLIB_HEADERS}>
+    $<BUILD_INTERFACE: ${PUMEXLIB_HEADERS} ${PUMEXLIB_HEADERS_QT}>
   PRIVATE
     ${PUMEXLIB_SOURCES}
+    ${PUMEXLIB_SOURCES_QT}
+	${PUMEXLIB_SOURCES_QT_MOC}
 )
 target_include_directories( pumexlib
   PUBLIC
@@ -228,7 +236,6 @@ set_target_properties( pumexlib PROPERTIES
   VERSION   ${PUMEX_VERSION} 
   SOVERSION ${PUMEX_SOVERSION}
   RESOURCE  "${PUMEXLIB_OUTPUT_SHADERS}"
-  AUTOMOC   ${PUMEX_BUILD_QT}
 )
 target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
 set_target_postfixes( pumexlib )

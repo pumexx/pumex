@@ -43,6 +43,7 @@ struct SurfaceTraits;
 struct PUMEX_EXPORT WindowTraits
 {
   enum Type{ WINDOW, FULLSCREEN, HALFSCREEN_LEFT, HALFSCREEN_RIGHT };
+  WindowTraits() = default;
   WindowTraits(uint32_t screenNum, uint32_t x, uint32_t y, uint32_t w, uint32_t h, Type wType, const std::string& windowName, bool mainWindow);
 
   uint32_t    screenNum = 0;

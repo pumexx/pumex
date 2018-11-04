@@ -34,28 +34,55 @@ using namespace pumex;
 std::unordered_map<int, InputEvent::Key> WindowQT::qtKeycodes;
 std::unique_ptr<QVulkanInstance>         WindowQT::qtInstance;
 
-WindowQT::WindowQT(QWindow *parent)
+QWindowPumex::QWindowPumex(QWindow *parent)
   : QWindow(parent)
 {
+  window = std::make_shared<WindowQT>(this);
   setSurfaceType(QSurface::VulkanSurface);
   create();
-  Window::width  = Window::newWidth  = QWindow::width();
-  Window::height = Window::newHeight = QWindow::height();
-  if (qtKeycodes.empty())
-    fillQTKeyCodes();
 }
 
-WindowQT::WindowQT(const WindowTraits& windowTraits)
+QWindowPumex::QWindowPumex(const WindowTraits& windowTraits)
   : QWindow()
 {
-  CHECK_LOG_THROW(windowTraits.type != WindowTraits::WINDOW, "QT window may use only WindowTraits::WINDOW type");
+  window = std::make_shared<WindowQT>(this, windowTraits);
   setSurfaceType(QSurface::VulkanSurface);
   setPosition(windowTraits.x, windowTraits.y);
   resize(windowTraits.w, windowTraits.h);
   setTitle(QString::fromStdString(windowTraits.windowName));
   create();
-  Window::width  = Window::newWidth  = QWindow::width();
-  Window::height = Window::newHeight = QWindow::height();
+}
+
+QWindowPumex::~QWindowPumex()
+{
+  window = nullptr;
+}
+
+std::shared_ptr<WindowQT> QWindowPumex::getWindowQT()
+{
+  return window;
+}
+
+bool QWindowPumex::event(QEvent *e)
+{
+  window->event(e);
+  return QWindow::event(e);
+}
+
+WindowQT::WindowQT(QWindowPumex* o, const WindowTraits& wt)
+  : pumex::Window(wt), std::enable_shared_from_this<pumex::WindowQT>(), owner{ o }
+{
+  CHECK_LOG_THROW(wt.type != WindowTraits::WINDOW, "QT window may use only WindowTraits::WINDOW type");
+  if (owner != nullptr)
+  {
+    width  = newWidth  = owner->width();
+    height = newHeight = owner->height();
+  }
+  else
+  {
+    width  = newWidth  = wt.w;
+    height = newHeight = wt.h;
+  }
   if (qtKeycodes.empty())
     fillQTKeyCodes();
 }
@@ -76,10 +103,10 @@ std::shared_ptr<Surface> WindowQT::createSurface(std::shared_ptr<Device> device,
     qtInstance->setVkInstance(viewer->getInstance());
     qtInstance->create();
   }
-  setVulkanInstance(qtInstance.get());
+  owner->setVulkanInstance(qtInstance.get());
 
-  VkSurfaceKHR vkSurface = QVulkanInstance::surfaceForWindow(this);
-  // surfaces used by QT are owned by QT and therefore are also destroyed by QT. We must informs Surface class not to call vkDestroySurfaceKHR() when QT window is used
+  VkSurfaceKHR vkSurface = QVulkanInstance::surfaceForWindow(owner);
+  // surfaces used by QT are owned by QT and therefore are also destroyed by QT. We must inform Surface class not to call vkDestroySurfaceKHR() when QT window is used
   SurfaceTraits st = surfaceTraits;
   st.destroySurfaceDuringCleanup = false;
   std::shared_ptr<Surface> result = std::make_shared<Surface>(device, shared_from_this(), vkSurface, st);
@@ -91,14 +118,14 @@ std::shared_ptr<Surface> WindowQT::createSurface(std::shared_ptr<Device> device,
 
 void WindowQT::endFrame()
 {
-  qtInstance->presentQueued(this);
+  qtInstance->presentQueued(owner);
 }
 
 void WindowQT::normalizeMouseCoordinates(float& x, float& y) const
 {
   // x and y are defined in windows coordinates as oposed to Windows OS
-  x = x / Window::width;
-  y = y / Window::height;
+  x = x / width;
+  y = y / height;
 }
 
 InputEvent::Key WindowQT::qtKeyCodeToPumex(int keycode) const
@@ -148,20 +175,25 @@ bool WindowQT::event(QEvent *e)
   case QEvent::Resize:
   {
     QResizeEvent* event = static_cast<QResizeEvent*>(e);
-    Window::newWidth  = event->size().width();
-    Window::newHeight = event->size().height();
-    auto surf         = surface.lock();
-    surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, Window::newWidth, Window::newHeight));
-    Window::width     = Window::newWidth;
-    Window::height    = Window::newHeight;
+    newWidth  = event->size().width();
+    newHeight = event->size().height();
+    auto surf = surface.lock();
+    if(surf.get() != nullptr)
+      surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, newWidth, newHeight));
+    width     = newWidth;
+    height    = newHeight;
     break;
   }
   case QEvent::PlatformSurface:
     if (static_cast<QPlatformSurfaceEvent *>(e)->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
     {
-      auto viewer = surface.lock()->viewer.lock();
-      auto id     = surface.lock()->getID();
-      viewer->removeSurface(id);
+      auto surf = surface.lock();
+      if (surf.get() != nullptr)
+      {
+        auto viewer = surf->viewer.lock();
+        auto id     = surf->getID();
+        viewer->removeSurface(id);
+      }
     }
     break;
   case QEvent::MouseMove:
@@ -241,5 +273,5 @@ bool WindowQT::event(QEvent *e)
   default:
     break;
   }
-  return QWindow::event(e);
+  return true;
 }

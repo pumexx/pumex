@@ -30,13 +30,30 @@
 namespace pumex
 {
 
-// class implementing a pumex::Window for QT
-class PUMEX_EXPORT WindowQT : public QWindow, public pumex::Window, public std::enable_shared_from_this<WindowQT>
+class WindowQT;
+
+// QWindow descendant
+class PUMEX_EXPORT QWindowPumex : public QWindow
 {
   Q_OBJECT
+
 public:
-  explicit WindowQT(QWindow *parent);
-  explicit WindowQT(const WindowTraits& windowTraits);
+  explicit QWindowPumex(QWindow *parent = nullptr);
+  explicit QWindowPumex(const WindowTraits& windowTraits);
+  virtual ~QWindowPumex();
+
+  std::shared_ptr<WindowQT> getWindowQT();
+
+  bool event(QEvent *) override;
+protected:
+  std::shared_ptr<WindowQT> window;
+};
+
+// class implementing a pumex::Window for QT, contained within QWindowPumex
+class PUMEX_EXPORT WindowQT : public pumex::Window, public std::enable_shared_from_this<WindowQT>
+{
+public:
+  explicit WindowQT(QWindowPumex *owner = nullptr, const WindowTraits& windowTraits = WindowTraits());
   WindowQT(const WindowQT&)            = delete;
   WindowQT& operator=(const WindowQT&) = delete;
   virtual ~WindowQT();
@@ -44,6 +61,8 @@ public:
   std::shared_ptr<Surface> createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) override;
 
   void endFrame() override;
+
+  bool event(QEvent *e);
 
   void normalizeMouseCoordinates( float& x, float& y) const;
 
@@ -53,9 +72,8 @@ public:
 protected:
   static void fillQTKeyCodes();
 
-  bool event(QEvent *) override;
-
   static std::unordered_map<int, InputEvent::Key> qtKeycodes;
+  QWindowPumex* owner = nullptr;
 
   std::set<InputEvent::MouseButton> pressedMouseButtons;
 };
