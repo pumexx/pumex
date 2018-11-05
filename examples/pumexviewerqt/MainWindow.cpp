@@ -21,7 +21,7 @@
 //
 
 #include "MainWindow.h"
-#include <pumex/platform/qt/WindowQt.h>
+#include <pumex/platform/qt/WindowQT.h>
 #include <QAction>
 #include <QLayout>
 #include <QStatusBar>

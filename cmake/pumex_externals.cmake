@@ -14,7 +14,7 @@ if( UNIX AND NOT APPLE )
   find_package( X11 REQUIRED )
   find_package( XCB REQUIRED )
   find_package( Threads REQUIRED )
-  list( APPEND PUMEXLIB_LIBRARIES X11::X11 XCB::XCB Threads::Threads )
+  list( APPEND PUMEXLIB_LIBRARIES ${XCB_LIBRARIES} ${X11_LIBRARIES} )
 endif()
 
 find_package( Vulkan REQUIRED )

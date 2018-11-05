@@ -16,12 +16,11 @@ set_target_properties( pumexviewerqt PROPERTIES
   RESOURCE "${PUMEXVIEWERQT_OUTPUT_SHADERS}"
 )
 
-#if(UNIX AND NOT APPLE)
-#  target_link_libraries( pumexviewerqt pumexlib pthread )
-#else()
-#  target_link_libraries( pumexviewerqt pumexlib )
-#endif()
-target_link_libraries( pumexviewerqt pumexlib Qt5::Widgets )
+if(UNIX AND NOT APPLE)
+  target_link_libraries( pumexviewerqt pumexlib pthread Qt5::Widgets )
+else()
+  target_link_libraries( pumexviewerqt pumexlib Qt5::Widgets )
+endif()
 
 set_target_postfixes( pumexviewerqt )
 
