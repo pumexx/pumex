@@ -28,12 +28,32 @@
 
 using namespace pumex;
 
+AssetNode::AssetNode(std::shared_ptr<DeviceMemoryAllocator> ba, uint32_t rm, uint32_t vb)
+  : DrawNode(), renderMask{ rm }, vertexBinding{ vb }
+{
+  vertices = std::make_shared<std::vector<float>>();
+  indices = std::make_shared<std::vector<uint32_t>>();
+
+  vertexBuffer = std::make_shared<Buffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swOnce);
+  indexBuffer = std::make_shared<Buffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swOnce);
+}
+
 AssetNode::AssetNode(std::shared_ptr<Asset> asset, std::shared_ptr<DeviceMemoryAllocator> ba, uint32_t rm, uint32_t vb)
   : DrawNode(), renderMask{ rm }, vertexBinding{ vb }
 {
   vertices     = std::make_shared<std::vector<float>>();
   indices      = std::make_shared<std::vector<uint32_t>>();
 
+  vertexBuffer = std::make_shared<Buffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swOnce);
+  indexBuffer  = std::make_shared<Buffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swOnce);
+
+  setAsset(asset);
+}
+
+void AssetNode::setAsset(std::shared_ptr<Asset> asset)
+{
+  vertices->clear();
+  indices->clear();
   VkDeviceSize vertexCount = 0;
   for (unsigned int i = 0; i < asset->geometries.size(); ++i)
   {
@@ -44,10 +64,12 @@ AssetNode::AssetNode(std::shared_ptr<Asset> asset, std::shared_ptr<DeviceMemoryA
     std::transform(begin(asset->geometries[i].indices), end(asset->geometries[i].indices), std::back_inserter(*indices), [vertexCount](uint32_t value)->uint32_t { return value + vertexCount; });
     vertexCount += asset->geometries[i].getVertexCount();
   }
-
-  vertexBuffer = std::make_shared<Buffer<std::vector<float>>>(vertices, ba, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerDevice, swOnce);
-  indexBuffer  = std::make_shared<Buffer<std::vector<uint32_t>>>(indices, ba, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, pbPerDevice, swOnce);
+  invalidateNodeAndParents();
+  notifyCommandBuffers();
+  vertexBuffer->invalidateData();
+  indexBuffer->invalidateData();
 }
+
 
 void AssetNode::validate(const RenderContext& renderContext)
 {

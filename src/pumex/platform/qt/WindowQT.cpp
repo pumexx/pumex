@@ -175,13 +175,11 @@ bool WindowQT::event(QEvent *e)
   case QEvent::Resize:
   {
     QResizeEvent* event = static_cast<QResizeEvent*>(e);
-    newWidth  = event->size().width();
-    newHeight = event->size().height();
+    width  = newWidth  = event->size().width();
+    height = newHeight = event->size().height();
     auto surf = surface.lock();
     if(surf.get() != nullptr)
       surf->actions.addAction(std::bind(&Surface::resizeSurface, surf, newWidth, newHeight));
-    width     = newWidth;
-    height    = newHeight;
     break;
   }
   case QEvent::PlatformSurface:

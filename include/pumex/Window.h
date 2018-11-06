@@ -113,15 +113,17 @@ public:
   static std::shared_ptr<Window> createNativeWindow(const WindowTraits& windowTraits);
 
   virtual std::shared_ptr<Surface> createSurface(std::shared_ptr<Device> device, const SurfaceTraits& surfaceTraits) = 0;
-  virtual void endFrame();
-  uint32_t width     = 1;
-  uint32_t height    = 1;
-  uint32_t newWidth  = 1;
-  uint32_t newHeight = 1;
+  virtual void                     endFrame();
 
-  void                    pushInputEvent( const InputEvent& event );
-  std::vector<InputEvent> getInputEvents();
-  inline bool isMainWindow() const;
+  void                             pushInputEvent( const InputEvent& event );
+  std::vector<InputEvent>          getInputEvents();
+  inline bool                      isMainWindow() const;
+
+  uint32_t                width      = 1;
+  uint32_t                height     = 1;
+  uint32_t                newWidth   = 1;
+  uint32_t                newHeight  = 1;
+
 protected:
   std::weak_ptr<Surface>  surface;
   mutable std::mutex      inputMutex;

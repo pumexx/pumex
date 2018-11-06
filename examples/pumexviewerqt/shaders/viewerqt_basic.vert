@@ -24,6 +24,7 @@ layout (binding = 0) uniform CameraUbo
 
 layout (binding = 1) uniform PositionSbo
 {
+  vec4  color;
   mat4  position;
   mat4  bones[MAX_BONES];
 } object;
@@ -43,7 +44,7 @@ void main()
   mat4 modelMatrix  = object.position * boneTransform;
 
   outNormal        = mat3(inverse(transpose(modelMatrix))) * inNormal;
-  outColor         = vec3(1.0,1.0,1.0);
+  outColor         = object.color.xyz;
   outUV            = inUV;
   vec4 eyePosition = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
   outLightVec      = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );

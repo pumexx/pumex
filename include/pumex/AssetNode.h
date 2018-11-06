@@ -36,7 +36,10 @@ class DeviceMemoryAllocator;
 class PUMEX_EXPORT AssetNode : public DrawNode
 {
 public:
+  AssetNode(std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, uint32_t renderMask, uint32_t vertexBinding);
   AssetNode(std::shared_ptr<Asset> asset, std::shared_ptr<DeviceMemoryAllocator> bufferAllocator, uint32_t renderMask, uint32_t vertexBinding);
+
+  void setAsset(std::shared_ptr<Asset> asset);
 
   void validate(const RenderContext& renderContext) override;
 

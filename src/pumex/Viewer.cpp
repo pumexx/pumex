@@ -496,10 +496,13 @@ void Viewer::addDefaultDirectory(const filesystem::path & directory)
 
 std::string Viewer::getAbsoluteFilePath(const std::string& relativeFilePath) const
 {
-  filesystem::path relPath(relativeFilePath);
+  // check if our relativeFilePath candidate is not absolute path
+  filesystem::path candidate(relativeFilePath);
+  if (candidate.is_absolute() && filesystem::exists(candidate))
+    return candidate.string();
   for (auto directory : defaultDirectories)
   {
-    filesystem::path targetPath = directory / relPath;
+    filesystem::path targetPath = directory / candidate;
     if (filesystem::exists(targetPath))
       return targetPath.string();
   }

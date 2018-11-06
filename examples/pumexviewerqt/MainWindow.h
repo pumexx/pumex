@@ -21,31 +21,38 @@
 //
 
 #pragma once
-#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QWidget>
+#include <glm/vec4.hpp>
 
-class ToolBar;
+class QPushButton;
+
 namespace pumex
 {
   class QWindowPumex;
 }
 
-class MainWindow : public QMainWindow
+class MainWindow : public QWidget
 {
   Q_OBJECT
 
 public:
-  explicit MainWindow(QWidget *parent = nullptr, Qt::WindowFlags flags = 0);
+  explicit MainWindow(pumex::QWindowPumex* pumexWindow);
   virtual ~MainWindow();
 
-  pumex::QWindowPumex* getVulkanWindow();
+signals:
+  void signalSetModelColor(const glm::vec4& modelColor);
+  void signalLoadModel(const std::string& modelFileName);
+  void signalLoadAnimation(const std::string& animationFileName);
 
 public slots:
-  void actionTriggered(QAction *action);
-private:
-  void setupToolBar();
+  void setModelColor();
+  void loadModel();
+  void loadAnimation();
 
-  pumex::QWindowPumex* vulkanWindow     = nullptr;
-  QWidget*             vulkanContainer  = nullptr;
-  QList<ToolBar*>      toolBars;
-  QList<QDockWidget*>  extraDockWidgets;
+private:
+  QPushButton* btnSetModelColor;
+  QPushButton* btnLoadModel;
+  QPushButton* btnLoadAnimation;
+  QPushButton* btnQuit;
+  QColor       modelColor;
 };

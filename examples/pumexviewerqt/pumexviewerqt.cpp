@@ -40,25 +40,43 @@ const uint32_t MAX_BONES = 511;
 struct PositionData
 {
   PositionData()
+    : color{ 1.0f, 1.0f, 1.0f, 1.0f }
   {
   }
   PositionData(const glm::mat4& p)
-    : position{ p }
+    : color{ 1.0f, 1.0f, 1.0f, 1.0f }, position { p }
   {
   }
+  glm::vec4 color;
   glm::mat4 position;
   glm::mat4 bones[MAX_BONES];
 };
 
-struct ViewerApplicationData
+class ViewerApplicationData
 {
-  ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
+public:
+  ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator, std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator, const std::vector<pumex::VertexSemantic>& requiredSemantic)
+    : semantic(requiredSemantic)
   {
     // create buffers visible from renderer
     cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
     textCameraBuffer = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
+    assetNode        = std::make_shared<pumex::AssetNode>(verticesAllocator, 1, 0);
+    assetNode->setName("assetNode");
+    boxAssetNode     = std::make_shared<pumex::AssetNode>(verticesAllocator, 1, 0);
+    boxAssetNode->setName("boxAssetNode");
     positionData     = std::make_shared<PositionData>();
     positionBuffer   = std::make_shared<pumex::Buffer<PositionData>>(positionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
+
+    // create default model shown at startup
+    pumex::Geometry defaultGeometry;
+    defaultGeometry.name     = "defaultGeometry";
+    defaultGeometry.semantic = semantic;
+    pumex::addSphere(defaultGeometry, glm::vec3(0.0f, 0.0f, 0.0f), 1.0f, 16, 16, true);
+    asset = pumex::createSimpleAsset(defaultGeometry, "defaultGeometry");
+    assetNode->setAsset(asset);
+
+    updateBoxAssetNode();
   }
 
   void setCameraHandler(std::shared_ptr<pumex::BasicCameraHandler> bcamHandler)
@@ -93,8 +111,10 @@ struct ViewerApplicationData
     textCameraBuffer->setData(surface.get(), textCamera);
   }
 
-  void prepareModelForRendering(pumex::Viewer* viewer, std::shared_ptr<pumex::Asset> asset)
+  void prepareModelForRendering(pumex::Viewer* viewer)
   {
+    actions.performActions();
+
     // animate asset if it has animation
     if (asset->animations.empty())
       return;
@@ -132,11 +152,103 @@ struct ViewerApplicationData
     positionBuffer->invalidateData();
   }
 
+  void setModelColor(const glm::vec4& color)
+  {
+    positionData->color = color;
+    positionBuffer->invalidateData();
+  }
+
+  void loadModel(std::shared_ptr<pumex::Viewer> viewer, const std::string& modelFileName)
+  {
+    std::shared_ptr<pumex::Asset> loadedAsset;
+    try
+    {
+      loadedAsset = loader.load(viewer, modelFileName, false, semantic);
+    }
+    catch (std::exception& e)
+    {
+      LOG_ERROR << "EXCEPTION during model loading : "<< e.what() << std::endl;
+      return;
+    }
+    if (loadedAsset.get() == nullptr)
+      return;
+    // This method is performed in a GUI thread.
+    // After loading a model we will send it to render thread ( setModel will be called during actions.performActions() )
+    actions.addAction(std::bind(&ViewerApplicationData::setModel, this, loadedAsset));
+  }
+
+  void loadAnimation(std::shared_ptr<pumex::Viewer> viewer, const std::string& modelFileName)
+  {
+    std::shared_ptr<pumex::Asset> loadedAsset;
+    try
+    {
+      loadedAsset = loader.load(viewer, modelFileName, false, semantic);
+    }
+    catch (std::exception& e)
+    {
+      LOG_ERROR << "EXCEPTION during model loading : " << e.what() << std::endl;
+      return;
+    }
+    if (loadedAsset.get() == nullptr)
+      return;
+    if (loadedAsset->animations.empty())
+    {
+      LOG_ERROR << "No animations have been found in a file  : " << modelFileName << std::endl;
+      return;
+    }
+    // This method is performed in a GUI thread.
+    // After loading a model we will send it to render thread ( setAnimation will be called during actions.performActions() )
+    if (loadedAsset.get() != nullptr)
+      actions.addAction(std::bind(&ViewerApplicationData::setAnimation, this, loadedAsset));
+  }
+
+  void setModel(std::shared_ptr<pumex::Asset> loadedAsset)
+  {
+    auto animations   = asset->animations;
+    asset             = loadedAsset;
+    asset->animations = animations;
+    assetNode->setAsset(asset);
+    updateBoxAssetNode();
+  }
+
+  void setAnimation(std::shared_ptr<pumex::Asset> loadedAsset)
+  {
+    asset->animations = loadedAsset->animations;
+    updateBoxAssetNode();
+  }
+
+  void updateBoxAssetNode()
+  {
+    pumex::BoundingBox bbox;
+    if (asset->animations.size() > 0)
+      bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
+    else
+      bbox = pumex::calculateBoundingBox(*asset, 1);
+
+    // create a bounding box as a geometry to render
+    pumex::Geometry boxg;
+    boxg.name = "box";
+    boxg.semantic = semantic;
+    pumex::addBox(boxg, bbox.bbMin, bbox.bbMax, true);
+    std::shared_ptr<pumex::Asset> boxAsset = pumex::createSimpleAsset(boxg, "root");
+    boxAssetNode->setAsset(boxAsset);
+
+    // is this the fastest way to calculate all global transformations for a model ?
+    std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
+    std::copy(begin(globalTransforms), end(globalTransforms), std::begin(positionData->bones));
+  }
+
+  std::vector<pumex::VertexSemantic>            semantic;
   std::shared_ptr<pumex::Buffer<pumex::Camera>> cameraBuffer;
   std::shared_ptr<pumex::Buffer<pumex::Camera>> textCameraBuffer;
+  std::shared_ptr<pumex::Asset>                 asset;
+  std::shared_ptr<pumex::AssetNode>             assetNode;
+  std::shared_ptr<pumex::AssetNode>             boxAssetNode;
   std::shared_ptr<PositionData>                 positionData;
   std::shared_ptr<pumex::Buffer<PositionData>>  positionBuffer;
   std::shared_ptr<pumex::BasicCameraHandler>    camHandler;
+  pumex::ActionQueue                            actions;
+  pumex::AssetLoaderAssimp                      loader;
 };
 
 int main( int argc, char * argv[] )
@@ -148,10 +260,8 @@ int main( int argc, char * argv[] )
   args::ArgumentParser                         parser("pumex example : minimal 3D model viewer without textures");
   args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
-  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_FIFO_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
-  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
-  args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
   try
   {
     parser.ParseCLI(argc, argv);
@@ -176,18 +286,8 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  if (!modelNameArg)
-  {
-    LOG_ERROR << "Model filename is not defined" << std::endl;
-    FLUSH_LOG;
-    return 1;
-  }
   VkPresentModeKHR presentMode  = args::get(presentationMode);
   uint32_t updateFrequency      = std::max(1U, args::get(updatesPerSecond));
-  std::string modelFileName     = args::get(modelNameArg);
-  std::string animationFileName = args::get(animationNameArg);
-  std::string windowName        = "Pumex viewer in QT window : ";
-  windowName += modelFileName;
 
   std::shared_ptr<pumex::Viewer> viewer;
   try
@@ -202,19 +302,6 @@ int main( int argc, char * argv[] )
 
     // Viewer object is created
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
-
-    // vertex semantic defines how a single vertex in an asset will look like
-    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
-
-    // we load an asset using Assimp asset loader
-    pumex::AssetLoaderAssimp loader;
-    std::shared_ptr<pumex::Asset> asset(loader.load(viewer, modelFileName, false, requiredSemantic));
-
-    if (!animationFileName.empty() )
-    {
-      std::shared_ptr<pumex::Asset> animAsset(loader.load(viewer, animationFileName, true, requiredSemantic));
-      asset->animations = animAsset->animations;
-    }
 
     // now is the time to create devices, windows and surfaces.
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -231,10 +318,15 @@ int main( int argc, char * argv[] )
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
+    // let's create QT window and assign it to main QT window ( see MainWindow.cpp for details )
+    pumex::QWindowPumex*        pumexWindow = new pumex::QWindowPumex;
+    std::shared_ptr<MainWindow> mainWindow = std::make_shared<MainWindow>(pumexWindow);
+    // then we create a surface in this window
+    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    std::shared_ptr<pumex::Surface> surface = pumexWindow->getWindowQT()->createSurface(device, surfaceTraits);
 
     // render workflow will use one queue with below defined traits
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
-
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
       workflow->addResourceType("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
@@ -243,6 +335,20 @@ int main( int argc, char * argv[] )
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
       workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+
+    // vertex semantic defines how a single vertex in an asset will look like
+    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+
+    // Application data class stores all information required to update rendering ( animation state, camera position, etc )
+    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator, verticesAllocator, requiredSemantic);
+
+    // Connect MainWindow signals to ViewerApplicationData methods. 
+    // Caution : lambda is not a proper QT receiver and connection will not be automatically closed when applicationData goes out of scope.
+    // I used this construction, because MainWindow and ViewerApplicationData go aout of scope in the same time, so there is little chance for signal to be emitted.
+    // Moreover - I used QT signals because I didn't want to add ViewerApplicationData dependency to MainWindow.
+    QObject::connect(mainWindow.get(), &MainWindow::signalSetModelColor, [&](const glm::vec4& color)      { applicationData->setModelColor(color); });
+    QObject::connect(mainWindow.get(), &MainWindow::signalLoadModel,     [&](const std::string& fileName) { applicationData->loadModel(viewer, fileName); });
+    QObject::connect(mainWindow.get(), &MainWindow::signalLoadAnimation, [&](const std::string& fileName) { applicationData->loadAnimation(viewer, fileName); });
 
     // our render operation named "rendering" must have scenegraph attached
     auto renderRoot = std::make_shared<pumex::Group>();
@@ -277,8 +383,8 @@ int main( int argc, char * argv[] )
     // loading vertex and fragment shader
     pipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.vert.spv"), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.frag.spv"), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewerqt_basic.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewerqt_basic.frag.spv"), "main" }
     };
     // vertex input - we will use the same vertex semantic that the loaded model has
     pipeline->vertexInput =
@@ -291,10 +397,7 @@ int main( int argc, char * argv[] )
     };
     renderRoot->addChild(pipeline);
 
-    // AssetNode class is a simple class that binds vertex and index buffers and also performs vkCmdDrawIndexed call on a model
-    std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
-    assetNode->setName("assetNode");
-    pipeline->addChild(assetNode);
+    pipeline->addChild(applicationData->assetNode);
 
     // Our additional pipeline will draw a wireframe bounding box using polygon mode VK_POLYGON_MODE_LINE using the same shaders
     auto wireframePipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, pipelineLayout);
@@ -302,8 +405,8 @@ int main( int argc, char * argv[] )
     wireframePipeline->cullMode = VK_CULL_MODE_NONE;
     wireframePipeline->shaderStages =
     {
-      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.vert.spv"), "main" },
-      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewer_basic.frag.spv"), "main" }
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewerqt_basic.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/viewerqt_basic.frag.spv"), "main" }
     };
     wireframePipeline->vertexInput =
     {
@@ -315,33 +418,7 @@ int main( int argc, char * argv[] )
     };
     renderRoot->addChild(wireframePipeline);
 
-    // if model uses animation then calculate bounding box using animation. Otherwise calculate bounding box using only vertices
-    pumex::BoundingBox bbox;
-    if (asset->animations.size() > 0)
-      bbox = pumex::calculateBoundingBox(asset->skeleton, asset->animations[0], true);
-    else
-      bbox = pumex::calculateBoundingBox(*asset, 1);
-
-    // create a bounding box as a geometry to render
-    pumex::Geometry boxg;
-    boxg.name = "box";
-    boxg.semantic = requiredSemantic;
-    pumex::addBox(boxg, bbox.bbMin, bbox.bbMax, true);
-    std::shared_ptr<pumex::Asset> boxAsset(pumex::createSimpleAsset(boxg, "root"));
-
-    // and connect this geometry to pipeline that draws wireframe
-    std::shared_ptr<pumex::AssetNode> boxAssetNode = std::make_shared<pumex::AssetNode>(boxAsset, verticesAllocator, 1, 0);
-    boxAssetNode->setName("boxAssetNode");
-    wireframePipeline->addChild(boxAssetNode);
-
-    // Application data class stores all information required to update rendering ( animation state, camera position, etc )
-    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator);
-
-    // is this the fastest way to calculate all global transformations for a model ?
-    std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
-    PositionData modelData;
-    std::copy(begin(globalTransforms), end(globalTransforms), std::begin(modelData.bones));
-    (*applicationData->positionData) = modelData;
+    wireframePipeline->addChild(applicationData->boxAssetNode);
 
     // here we create above mentioned uniform buffers - one for camera state and one for model state
     auto cameraUbo   = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
@@ -379,16 +456,10 @@ int main( int argc, char * argv[] )
     if (enableDebugging)
       QLoggingCategory::setFilterRules(QStringLiteral("qt.vulkan=true"));
 
-    // window traits define the screen on which the window will be shown, coordinates on that window, etc
-    std::shared_ptr<MainWindow> mainWindow = std::make_shared<MainWindow>();
-
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
-    std::shared_ptr<pumex::Surface> surface = mainWindow->getVulkanWindow()->getWindowQT()->createSurface(device, surfaceTraits);
-
     // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
     surface->setRenderWorkflow(workflow, workflowCompiler);
     // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
-    viewer->setEventRenderStart(std::bind(&ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset));   
+    viewer->setEventRenderStart(std::bind(&ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1));
     surface->setEventSurfaceRenderStart(std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
     // object calculating statistics must be also connected as an event
     surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -400,6 +471,7 @@ int main( int argc, char * argv[] )
     }
     );
     application.exec();
+    viewer->setTerminate();
     viewerThread.join();
   }
   catch (const std::exception& e)
