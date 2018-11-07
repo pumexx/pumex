@@ -61,9 +61,9 @@ Our next goal after device creation is creation of a window. Creation of windows
 ```C++
 std::string windowName = "Pumex viewer : ";
 windowName += modelFileName;
-pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ?pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName };
+pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ?pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
 
-std::shared_ptr<pumex::Window> window = pumex::Window::createWindow(windowTraits);
+std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 ```
 
 We can see that our window will be created on screen number 0, with specified position, size and name. If user requested fullscreen window in command line then the window will be fullscreen ( without OS specific window decorations ).
@@ -82,7 +82,7 @@ Our new **pumex::Surface** will be using earlier created device to do its work. 
 ```C++
 pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
 
-std::shared_ptr<pumex::Surface> surface = viewer->addSurface(window, device, surfaceTraits);
+std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 ```
 
 Device layer is done at this point. Now we start to prepare a render workflow. During its work render workflow is responsible for allocation of memory used by framebuffers. There exists a special class to make these allocations possible : **pumex::DeviceMemoryAllocator**. It will allocate memory for render workflow images from a 16 MB pool of local GPU memory.

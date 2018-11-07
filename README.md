@@ -5,7 +5,7 @@ The purpose of the **Pumex** library is to create an efficient and universal ren
 - enables **multithreaded rendering on many windows** ( or many screens ) at once, may use many graphics cards in a single application
 - decouples rendering stage from update stage and enables **update step with constant time rate** independent from rendering time rate
 - uses modern C++ ( C++11 to C++17 ) but not overuses its features if it's not necessary
-- works on many platforms ( at the moment Pumex supports rendering on **Windows** and **Linux**. **Android port is planned** in a near future. Also rendering to **Qt** windows is planned )
+- works on many platforms ( at the moment Pumex supports rendering inside native windows on  **Windows** and **Linux** operating systems and optionally - inside **QT** windows. **Android port is planned** ).
 - implements efficient rendering algorithms ( like instanced rendering with vkCmdDrawIndexedIndirect() to draw many objects of different types with one draw call )
 
 Quick preview on Youtube :
@@ -81,9 +81,7 @@ Scene graph shown below is connected to the *"lighting"* operation from image ab
 
 ## Pumex examples
 
-There are six example programs in Pumex right now.
-
-Each of the examples accepts following options from command line :
+Pumex library comes with a set of examples implementing different aspects of it. Each of the examples accepts following options from command line :
 
 ```
 -h, --help                        display this help menu
@@ -146,6 +144,8 @@ Below is additional image showing pumexcrowd example working in VR mode ( 2 wind
 
 ![pumexcrowd in VR mode](doc/images/crowdVR.png "VR mode")
 
+
+
 ### pumexgpucull
 
  Application that renders simple not textured static objects ( trees, buildings ) and dynamic objects ( cars, airplanes, blimps ) on one or more windows.
@@ -176,13 +176,15 @@ Command line parameters enable us to use one of predefined window configurations
                                     how many static instances per cell
 ```
 
+
+
 ### pumexdeferred
 
 Application that makes deferred rendering with multisampling in one window. The number of samples per pixel may be configured from command line ( see parameters below ). Available values of samples per pixel include : 1, 2, 4, 8.
 
 By default application uses depth prepass rendering, but you are able to switch it off using command line parameters ( see below ).
 
-Application presents how to use attachment produced by one render operation as input attachment in following render operation.
+Application presents how to use attachment produced by one render operation as input attachment in a following render operation.
 
 Famous Sponza Palace model is used as a render scene.
 
@@ -238,6 +240,18 @@ Show Sponza palace model :
 pumexviewer sponza/sponza.dae
 ```
 
+
+
+### pumexviewerqt
+
+If Pumex was built withQT support enabled ( CMake flag **PUMEX_BUILD_QT** set to ON - see: **Building and installation** section ), then there is additional example showing how to create a window using **QT** library and how to cooperate with it. **pumexviewerqt** example performs rendering the same way as **pumexviewer** example. 
+
+Difference is that models and animations are not loaded from command line, but when user presses appropriate buttons to do so ( code presents how to use QFileDialog to load a 3D model and send data to pumex application using QT signals ). Additionally user may change model color ( code shows how to use QColorDialog ).
+
+![pumexviewerqt example](doc/images/viewerqt.png "pumexviewerqt example")
+
+
+
 ### pumexvoxelizer
 
 Application that performs realtime voxelization of a 3D model **provided by the user in command line**. After producing 3D texture raymarching algorithm is used to render it on screen.
@@ -284,6 +298,8 @@ Installer contains libraries, example applications, header files, data files and
 
 Installer puts all these elements in **C:\Program Files\Pumex** directory by default ( you may choose different target directory during installation process ).
 
+Installer does not have QT support at the moment.
+
 
 
 ## Building and installation on Windows
@@ -294,12 +310,15 @@ Elements that are required to build and install Pumex on Windows :
 - [CMake](https://cmake.org/) **version at least 3.7.0** ( earlier versions do not have FindVulkan.cmake module) and if you are using Vulkan SDK newer than 1.0.42 then use CMake **version at least 3.9.0**.
 - [git](https://git-scm.com/)
 - Microsoft Visual Studio 2015 ( 64 bit ) or Microsoft Visual Studio 2017 ( 64 bit )
+- [QT5 GUI library](https://www.qt.io/)  - optionally - if you are planning to build Pumex with support for rendering inside QT windows. Important notice: newest versions of QT library ( QT 5.12 ) have Vulkan support disabled by default, so you need to recompile QT from sources with **Vulkan SDK** present in your system. Have fun.
 
-Steps needed to build and install library :
+Steps required to build and install library :
 
 1. download Pumex Library from [here](https://github.com/pumexx/pumex)
 
 2. create solution files for MS Visual Studio using CMake
+
+   1. to build Pumex with support for QT5 library - you need to set the flag **PUMEX_BUILD_QT** manually in CMake GUI. This flag is switched off by default. Also remember, that you have to recompile QT5 library yourself, because Vulkan support is switched off in QT by default.
 
 3. build Release version for 64 bit. **All external dependencies will be downloaded during first build**. Now you are able to run examples from within Visual Studio
 
@@ -325,8 +344,9 @@ Elements that are required to build and install Pumex on Windows :
   - [Assimp](https://github.com/assimp/assimp)
   - [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/)
   - [Freetype2](https://www.freetype.org/)
+  - [QT5 GUI library](https://www.qt.io/) - optionally - if you are planning to build Pumex with support for rendering inside QT windows. Important notice: newest versions of QT library ( QT 5.12 ) have Vulkan support disabled by default, so you need to recompile QT from sources with **Vulkan SDK** present in your system. Have fun.
 
-You can install above mentioned libraries using this command :
+You can install above mentioned libraries using this command ( excluding QT ) :
 
 ```sudo apt-get install libassimp-dev libtbb-dev libfreetype6-dev```
 
@@ -337,6 +357,8 @@ Steps required to build and install library :
 1. download Pumex Library from [here](https://github.com/pumexx/pumex)
 
 2. create solution files for gcc using **CMake**, choose "Release" configuration type for maximum performance
+
+   1. to build Pumex with support for QT5 library - you need to set the flag **PUMEX_BUILD_QT** manually in CMake GUI. This flag is switched off by default. Also remember, that you have to compile and install QT5 library yourself, because Vulkan support is switched off in QT by default.
 
 3. perform **make -j4**
 
@@ -375,8 +397,9 @@ Pumex renderer is dependent on a following set of libraries :
 * [GLM](http://glm.g-truc.net) - provides math classes and functions that are similar to their GLSL counterparts ( matrices, vectors, etc. )
 * [GLI](http://gli.g-truc.net) - provides classes and functions to load, write and manipulate textures ( currently DDS and KTX texture formats are loaded / written )
 * [args](https://github.com/Taywee/args)  - small header-only library for command line parsing.
+* [QT5 GUI library](https://www.qt.io/) - well known GUI library for C++. This is **optional** dependence if you want to render inside QT windows. 
 
-On Windows all dependencies are downloaded and built on first Pumex library build. On Linux - first three libraries must be installed using your local package manager ( see section about installation on Linux ).
+On Windows all mandatory dependencies are downloaded and built on first Pumex library build. On Linux - first three libraries must be installed using your local package manager ( see section about installation on Linux ). On both systems optional QT library must be downloaded manually and built with Vulkan support enabled.
 
 
 
@@ -386,7 +409,6 @@ On Windows all dependencies are downloaded and built on first Pumex library buil
 
 ## Future plans
 
-- Qt windows rendering
 - Android port
 - iOS port through [MoltenVK](https://github.com/KhronosGroup/MoltenVK) ( if possible )
 - at the moment compiled render workflow uses only one VkQueue to render its work. Plan is to enable using multiple queues in that context, so things like **async compute** may be easily implemented by library user
@@ -408,5 +430,5 @@ On Windows all dependencies are downloaded and built on first Pumex library buil
 
 
 
-**Remark** : Pumex is a "work in progress" which means that some elements are not implemented yet ( like push constants for example ) and some may not work properly on every combination of hardware / operating system. At the moment I also have only one monitor on my PC, so I am unable to test Pumex on multiple screens (multiple windows on one screen work like a charm , though ). Moreover I haven't tested Pumex on any AMD graphics card for the same reason. Pumex API is subject to change.
+**Remark** : Pumex is a "work in progress" which means that some elements are not implemented yet ( like push constants for example ) and some may not work properly on every combination of hardware / operating system. Pumex API is subject to change.
 
