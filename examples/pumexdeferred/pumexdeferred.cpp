@@ -293,26 +293,26 @@ int main( int argc, char * argv[] )
     if (!skipDepthPrepass)
     {
       workflow->addRenderOperation("zPrepass", pumex::RenderOperation::Graphics);
-        workflow->addAttachmentDepthOutput("zPrepass", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentDepthOutput("zPrepass", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
     }
 
     workflow->addRenderOperation("gBuffer", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "position", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "normals",  pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "albedo",   pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "pbr",      pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       if (!skipDepthPrepass)
-        workflow->addAttachmentDepthInput("gBuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+        workflow->addAttachmentDepthInput("gBuffer", "depth_samples", "depth");
       else
-        workflow->addAttachmentDepthOutput("gBuffer", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+        workflow->addAttachmentDepthOutput("gBuffer", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
     workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position",         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals",          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "color_samples", "albedo",           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "color_samples", "pbr",              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve",          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
-      workflow->addAttachmentResolveOutput("lighting", "surface",       "color", "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position");
+      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals");
+      workflow->addAttachmentInput        ("lighting", "color_samples", "albedo");
+      workflow->addAttachmentInput        ("lighting", "color_samples", "pbr");
+      workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve",          pumex::ImageSubresourceRange());
+      workflow->addAttachmentResolveOutput("lighting", "surface",       "color", "resolve", pumex::ImageSubresourceRange());
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers

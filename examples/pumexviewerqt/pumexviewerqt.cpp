@@ -333,8 +333,8 @@ int main( int argc, char * argv[] )
 
     // workflow will only have one operation that has two output attachments : depth buffer and swapchain image
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentOutput(      "rendering", "surface",       "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     // vertex semantic defines how a single vertex in an asset will look like
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };

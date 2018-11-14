@@ -308,24 +308,24 @@ int main( int argc, char * argv[] )
       workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) },      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
     workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f, 1.0f, 2.0f) });
-      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
     workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f, 1.0f, 2.0f) });
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position",         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals",          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "color_samples", "albedo",           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentInput        ("lighting", "color_samples", "pbr",              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve",          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
-      workflow->addAttachmentResolveOutput("lighting", "color",         "color", "resolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position");
+      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals");
+      workflow->addAttachmentInput        ("lighting", "color_samples", "albedo");
+      workflow->addAttachmentInput        ("lighting", "color_samples", "pbr");
+      workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve");
+      workflow->addAttachmentResolveOutput("lighting", "color",         "color", "resolve");
 
     // third operation copies images created in "lighting" operation to a single texture ( full width image ) and performs barrel distortion on it
     workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, 0x0, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) });
-      workflow->addImageInput      ("multiview", "color",      "color",     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentOutput("multiview", "surface", "multiview", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, pumex::loadOpDontCare());
+      workflow->addImageInput      ("multiview", "color",      "color",  pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      workflow->addAttachmentOutput("multiview", "surface", "multiview", pumex::ImageSubresourceRange());
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers

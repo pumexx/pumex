@@ -32,18 +32,18 @@
 
 using namespace pumex;
 
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu)
+WorkflowResourceType::WorkflowResourceType(const std::string& tn, bool p, VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu)
   : metaType{ Attachment }, typeName{ tn }, persistent{ p }, attachment{ f, s, at, as, iu }
 {
 }
 
-RenderWorkflowResourceType::RenderWorkflowResourceType(const std::string& tn, bool p, const MetaType& mt)
+WorkflowResourceType::WorkflowResourceType(const std::string& tn, bool p, const MetaType& mt)
   : metaType{ mt }, typeName{ tn }, persistent{ p }
 {
-  CHECK_LOG_THROW(metaType == Attachment, "RenderWorkflowResourceType() : Cannot create attachment using this constructor");
+  CHECK_LOG_THROW(metaType == Attachment, "WorkflowResourceType() : Cannot create attachment using this constructor");
 }
 
-bool RenderWorkflowResourceType::isEqual(const RenderWorkflowResourceType& rhs) const
+bool WorkflowResourceType::isEqual(const WorkflowResourceType& rhs) const
 {
   // resources must have the same metatype
   if (metaType != rhs.metaType)
@@ -60,7 +60,7 @@ bool RenderWorkflowResourceType::isEqual(const RenderWorkflowResourceType& rhs) 
   return false;
 }
 
-bool RenderWorkflowResourceType::AttachmentData::isEqual(const AttachmentData& rhs) const
+bool WorkflowResourceType::AttachmentData::isEqual(const AttachmentData& rhs) const
 {
   if (format != rhs.format)
     return false;
@@ -74,7 +74,7 @@ bool RenderWorkflowResourceType::AttachmentData::isEqual(const AttachmentData& r
   return true;
 }
 
-WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<RenderWorkflowResourceType> t)
+WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<WorkflowResourceType> t)
   : name{ n }, resourceType{ t }
 {
 }
@@ -103,8 +103,8 @@ std::shared_ptr<Node> RenderOperation::getRenderOperationNode()
   return node;
 }
 
-ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld)
-  : operation{ op }, resource{ res }, transitionType{ tt }, layout{ l }, load{ ld }, resolveResource{}, imageSubresourceRange{}, pipelineStage{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }, accessFlags{ VK_ACCESS_UNIFORM_READ_BIT }, bufferSubresourceRange{}
+ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, const ImageSubresourceRange& isr, VkImageLayout l, const LoadOp& ld)
+  : operation{ op }, resource{ res }, transitionType{ tt }, layout{ l }, load{ ld }, resolveResource{}, imageSubresourceRange{isr}, pipelineStage{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }, accessFlags{ VK_ACCESS_UNIFORM_READ_BIT }, bufferSubresourceRange{}
 {
 }
 
@@ -112,11 +112,6 @@ ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std:
   : operation{ op }, resource{ res }, transitionType{ tt }, layout{ VK_IMAGE_LAYOUT_UNDEFINED }, load{}, resolveResource{}, imageSubresourceRange{}, pipelineStage{ ps }, accessFlags{ af }, bufferSubresourceRange{ bsr }
 {
 
-}
-
-ResourceTransition::ResourceTransition(std::shared_ptr<RenderOperation> op, std::shared_ptr<WorkflowResource> res, ResourceTransitionType tt, VkImageLayout l, const LoadOp& ld, const ImageSubresourceRange& isr)
-  : operation{ op }, resource{ res }, transitionType{ tt }, layout{ l }, load{ ld }, resolveResource{}, imageSubresourceRange{ isr }, pipelineStage{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }, accessFlags{ VK_ACCESS_UNIFORM_READ_BIT }, bufferSubresourceRange{}
-{
 }
 
 ResourceTransition::~ResourceTransition()
@@ -156,7 +151,7 @@ RenderWorkflow::~RenderWorkflow()
 {
 }
 
-void RenderWorkflow::addResourceType(std::shared_ptr<RenderWorkflowResourceType> tp)
+void RenderWorkflow::addResourceType(std::shared_ptr<WorkflowResourceType> tp)
 {
   auto it = resourceTypes.find(tp->typeName);
   CHECK_LOG_THROW(it != end(resourceTypes), "RenderWorkflow : resource type already exists : " + tp->typeName);
@@ -166,15 +161,15 @@ void RenderWorkflow::addResourceType(std::shared_ptr<RenderWorkflowResourceType>
 
 void RenderWorkflow::addResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage)
 {
-  addResourceType(std::make_shared<RenderWorkflowResourceType>(typeName, persistent, format, samples, attachmentType, attachmentSize, imageUsage));
+  addResourceType(std::make_shared<WorkflowResourceType>(typeName, persistent, format, samples, attachmentType, attachmentSize, imageUsage));
 }
 
-void RenderWorkflow::addResourceType(const std::string& typeName, bool persistent, const RenderWorkflowResourceType::MetaType& metaType)
+void RenderWorkflow::addResourceType(const std::string& typeName, bool persistent, const WorkflowResourceType::MetaType& metaType)
 {
-  addResourceType(std::make_shared<RenderWorkflowResourceType>(typeName, persistent, metaType));
+  addResourceType(std::make_shared<WorkflowResourceType>(typeName, persistent, metaType));
 }
 
-std::shared_ptr<RenderWorkflowResourceType> RenderWorkflow::getResourceType(const std::string& typeName) const
+std::shared_ptr<WorkflowResourceType> RenderWorkflow::getResourceType(const std::string& typeName) const
 {
   auto it = resourceTypes.find(typeName);
   CHECK_LOG_THROW(it == end(resourceTypes), "RenderWorkflow : there is no resource type with name " + typeName);
@@ -222,7 +217,7 @@ std::shared_ptr<Node> RenderWorkflow::getRenderOperationNode(const std::string& 
   return getRenderOperation(opName)->node;
 }
 
-void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout)
+void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const ImageSubresourceRange& imageSubresourceRange)
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -231,12 +226,12 @@ void RenderWorkflow::addAttachmentInput(const std::string& opName, const std::st
     resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
   else
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentInput() : resource is not an attachment");
-  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentInput, layout, loadOpLoad()));
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentInput() : resource is not an attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentInput, imageSubresourceRange, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, loadOpLoad()));
   valid = false;
 }
 
-void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp)
+void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const ImageSubresourceRange& imageSubresourceRange, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -248,12 +243,12 @@ void RenderWorkflow::addAttachmentOutput(const std::string& opName, const std::s
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
     // resource may only have one transition with output type
   }
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentOutput() : resource is not an attachment");
-  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, layout, loadOp));
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentOutput() : resource is not an attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentOutput, imageSubresourceRange, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, loadOp));
   valid = false;
 }
 
-void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const std::string& resourceSource, VkImageLayout layout, const LoadOp& loadOp)
+void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const std::string& resourceSource, const ImageSubresourceRange& imageSubresourceRange, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -267,14 +262,14 @@ void RenderWorkflow::addAttachmentResolveOutput(const std::string& opName, const
   }
   auto resolveIt = resources.find(resourceSource);
   CHECK_LOG_THROW(resolveIt == end(resources), "RenderWorkflow : added pointer no to nonexisting resolve resource");
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentResolveOutput() : resource is not an attachment");
-  std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentResolveOutput, layout, loadOp);
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentResolveOutput() : resource is not an attachment");
+  std::shared_ptr<ResourceTransition> resourceTransition = std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentResolveOutput, imageSubresourceRange, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, loadOp);
   resourceTransition->resolveResource = resolveIt->second;
   transitions.push_back(resourceTransition);
   valid = false;
 }
 
-void RenderWorkflow::addAttachmentDepthInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout)
+void RenderWorkflow::addAttachmentDepthInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const ImageSubresourceRange& imageSubresourceRange)
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -286,12 +281,12 @@ void RenderWorkflow::addAttachmentDepthInput(const std::string& opName, const st
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
     // resource may only have one transition with output type
   }
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentDepthOutput() : resource is not an attachment");
-  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthInput, layout, loadOpLoad()));
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentDepthOutput() : resource is not an attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthInput, imageSubresourceRange, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, loadOpLoad()));
   valid = false;
 }
 
-void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp)
+void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const ImageSubresourceRange& imageSubresourceRange, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -303,12 +298,12 @@ void RenderWorkflow::addAttachmentDepthOutput(const std::string& opName, const s
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
     // resource may only have one transition with output type
   }
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentDepthOutput() : resource is not an attachment");
-  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthOutput, layout, loadOp));
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addAttachmentDepthOutput() : resource is not an attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttAttachmentDepthOutput, imageSubresourceRange, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, loadOp));
   valid = false;
 }
 
-void RenderWorkflow::addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange)
+void RenderWorkflow::addBufferInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const BufferSubresourceRange& bufferSubresourceRange, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags)
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -317,12 +312,12 @@ void RenderWorkflow::addBufferInput(const std::string& opName, const std::string
     resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
   else
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Buffer, "RenderWorkflow::addBufferInput() : resource is not a buffer");
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Buffer, "RenderWorkflow::addBufferInput() : resource is not a buffer");
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttBufferInput, pipelineStage, accessFlags, bufferSubresourceRange));
   valid = false;
 }
 
-void RenderWorkflow::addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags, const BufferSubresourceRange& bufferSubresourceRange)
+void RenderWorkflow::addBufferOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const BufferSubresourceRange& bufferSubresourceRange, VkPipelineStageFlagBits pipelineStage, VkAccessFlagBits accessFlags )
 {
   auto operation = getRenderOperation(opName);
   auto resType   = getResourceType(resourceType);
@@ -334,12 +329,12 @@ void RenderWorkflow::addBufferOutput(const std::string& opName, const std::strin
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
     // resource may only have one transition with output type
   }
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Buffer, "RenderWorkflow::addBufferOutput() : resource is not a buffer");
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Buffer, "RenderWorkflow::addBufferOutput() : resource is not a buffer");
   transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttBufferOutput, pipelineStage, accessFlags, bufferSubresourceRange));
   valid = false;
 }
 
-void RenderWorkflow::addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const ImageSubresourceRange& imageSubresourceRange)
+void RenderWorkflow::addImageInput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const ImageSubresourceRange& imageSubresourceRange, VkImageLayout layout)
 {
   auto operation = getRenderOperation(opName);
   auto resType = getResourceType(resourceType);
@@ -348,12 +343,12 @@ void RenderWorkflow::addImageInput(const std::string& opName, const std::string&
     resIt = resources.insert({ resourceName, std::make_shared<WorkflowResource>(resourceName, resType) }).first;
   else
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Image && resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addImageInput() : resource is not an image nor attachment");
-  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageInput, layout, loadOpLoad(), imageSubresourceRange));
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Image && resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addImageInput() : resource is not an image nor attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageInput, imageSubresourceRange, layout, loadOpLoad()));
   valid = false;
 }
 
-void RenderWorkflow::addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, VkImageLayout layout, const LoadOp& loadOp, const ImageSubresourceRange& imageSubresourceRange)
+void RenderWorkflow::addImageOutput(const std::string& opName, const std::string& resourceType, const std::string& resourceName, const ImageSubresourceRange& imageSubresourceRange, VkImageLayout layout, const LoadOp& loadOp)
 {
   auto operation = getRenderOperation(opName);
   auto resType = getResourceType(resourceType);
@@ -365,8 +360,8 @@ void RenderWorkflow::addImageOutput(const std::string& opName, const std::string
     CHECK_LOG_THROW(resType != resIt->second->resourceType, "RenderWorkflow : ambiguous type of the input");
     // resource may only have one transition with output type
   }
-  CHECK_LOG_THROW(resType->metaType != RenderWorkflowResourceType::Image && resType->metaType != RenderWorkflowResourceType::Attachment, "RenderWorkflow::addImageOutput() : resource is not an image nor attachment");
-  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageOutput, layout, loadOp, imageSubresourceRange));
+  CHECK_LOG_THROW(resType->metaType != WorkflowResourceType::Image && resType->metaType != WorkflowResourceType::Attachment, "RenderWorkflow::addImageOutput() : resource is not an image nor attachment");
+  transitions.push_back(std::make_shared<ResourceTransition>(operation, resIt->second, rttImageOutput, imageSubresourceRange, layout, loadOp));
   valid = false;
 }
 
@@ -389,18 +384,18 @@ void RenderWorkflow::associateMemoryObject(const std::string& name, std::shared_
 {
   auto resIt = resources.find(name);
   CHECK_LOG_THROW(resIt == end(resources), "RenderWorkflow : cannot associate memory object to nonexisting resource");
-  CHECK_LOG_THROW(resIt->second->resourceType->metaType == RenderWorkflowResourceType::Attachment, "Cannot associate memory object with attachment. Attachments are created by RenderWorkflow");
+  CHECK_LOG_THROW(resIt->second->resourceType->metaType == WorkflowResourceType::Attachment, "Cannot associate memory object with attachment. Attachments are created by RenderWorkflow");
   switch (memoryObject->getType())
   {
   case MemoryObject::moBuffer:
   {
-    CHECK_LOG_THROW(resIt->second->resourceType->metaType != RenderWorkflowResourceType::Buffer, "RenderWorkflow : cannot associate memory buffer and resource " << resIt->second->name);
+    CHECK_LOG_THROW(resIt->second->resourceType->metaType != WorkflowResourceType::Buffer, "RenderWorkflow : cannot associate memory buffer and resource " << resIt->second->name);
     associatedMemoryObjects.insert({ name, memoryObject });
     break;
   }
   case MemoryObject::moImage:
   {
-    CHECK_LOG_THROW(resIt->second->resourceType->metaType != RenderWorkflowResourceType::Image, "RenderWorkflow : cannot associate memory image and resource " << resIt->second->name);
+    CHECK_LOG_THROW(resIt->second->resourceType->metaType != WorkflowResourceType::Image, "RenderWorkflow : cannot associate memory image and resource " << resIt->second->name);
     associatedMemoryObjects.insert({ name, memoryObject });
     auto memoryImage = std::dynamic_pointer_cast<MemoryImage>(memoryObject);
     auto imageView = std::make_shared<ImageView>(memoryImage, memoryImage->getFullImageRange(), imageViewType);
@@ -519,7 +514,7 @@ std::vector<std::shared_ptr<ResourceTransition>> RenderWorkflow::getResourceIO(c
   auto resource = getResource(resourceName);
   std::vector<std::shared_ptr<ResourceTransition>> results;
   std::copy_if(begin(transitions), end(transitions), std::back_inserter(results),
-    [resource, transitionTypes](std::shared_ptr<ResourceTransition> c)->bool { return c->resource == resource && (c->transitionType & transitionTypes); });
+    [resource, transitionTypes](std::shared_ptr<ResourceTransition> c)->bool{ return c->resource == resource && (c->transitionType & transitionTypes); });
   return results;
 }
 
@@ -916,7 +911,7 @@ void SingleQueueWorkflowCompiler::findAliasedResources(const RenderWorkflow& wor
   {
     workflowResults->resourceAlias.insert({ resourceName , resourceName });
     auto resource = workflow.getResource(resourceName);
-    if (resource->resourceType->metaType != RenderWorkflowResourceType::Attachment && workflow.getAssociatedMemoryObject(resourceName) != nullptr)
+    if (resource->resourceType->metaType != WorkflowResourceType::Attachment && workflow.getAssociatedMemoryObject(resourceName) != nullptr)
       continue;
     if (resource->resourceType->attachment.attachmentType == atSurface)
       continue;
@@ -1269,7 +1264,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       {
         // FIXME
         auto resource          = workflow.getResource(resName);
-        if (resource->resourceType->metaType != RenderWorkflowResourceType::Attachment)
+        if (resource->resourceType->metaType != WorkflowResourceType::Attachment)
           continue;
         if (definedImages.find(workflowResults->resourceAlias.at(resName)) == end(definedImages))
           continue;
@@ -1463,14 +1458,14 @@ void SingleQueueWorkflowCompiler::createPipelineBarrier(std::shared_ptr<Resource
     rbgit = consumingCommand->barriersBeforeOp.insert({ rbg, std::vector<MemoryObjectBarrier>() }).first;
   switch (generatingTransition->resource->resourceType->metaType)
   {
-  case RenderWorkflowResourceType::Buffer:
+  case WorkflowResourceType::Buffer:
   {
     auto bufferRange = generatingTransition->bufferSubresourceRange;
     rbgit->second.push_back(MemoryObjectBarrier(srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, memoryObject, bufferRange));
     break;
   }
-  case RenderWorkflowResourceType::Image:
-  case RenderWorkflowResourceType::Attachment:
+  case WorkflowResourceType::Image:
+  case WorkflowResourceType::Attachment:
   {
     VkImageLayout oldLayout = generatingTransition->layout;
     VkImageLayout newLayout = consumingTransition->layout;

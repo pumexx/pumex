@@ -278,17 +278,17 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("voxelizer_workflow", frameBufferAllocator, queueTraits);
       workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,     VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
       workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("image_3d",      false, pumex::RenderWorkflowResourceType::Image);
+      workflow->addResourceType("image_3d",      false, pumex::WorkflowResourceType::Image);
 
     // first operation creates 3D texture of underlying model ( model voxelization )
     workflow->addRenderOperation("voxelization", pumex::RenderOperation::Graphics, 0, pumex::AttachmentSize( pumex::AttachmentSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)));
-      workflow->addImageOutput("voxelization", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
+      workflow->addImageOutput("voxelization", "image_3d", "voxels", pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
 
     // second operation renders 3D model and raymarches 3D texture to show that model and texture are in the same position
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addImageInput("rendering", "image_3d", "voxels", VK_IMAGE_LAYOUT_GENERAL);
-      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addImageInput("rendering", "image_3d", "voxels", pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL);
+      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentOutput(      "rendering", "surface",       "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(buffersAllocator, volumeAllocator, asset);
 

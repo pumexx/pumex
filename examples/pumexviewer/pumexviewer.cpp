@@ -244,8 +244,8 @@ int main( int argc, char * argv[] )
 
     // workflow will only have one operation that has two output attachments : depth buffer and swapchain image
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput(      "rendering", "surface",       "color", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,         pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      workflow->addAttachmentOutput(      "rendering", "surface",       "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     // our render operation named "rendering" must have scenegraph attached
     auto renderRoot = std::make_shared<pumex::Group>();
