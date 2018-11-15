@@ -40,10 +40,8 @@ namespace pumex
 
 class  Device;
 struct QueueTraits;
-struct SubpassDefinition;
 class  DeviceMemoryAllocator;
 class  RenderPass;
-struct FrameBufferImageDefinition;
 class  Node;
 class  Resource;
 class  RenderCommand;
@@ -96,37 +94,50 @@ struct PUMEX_EXPORT AttachmentSize
   enum Type { Undefined, Absolute, SurfaceDependent };
 
   AttachmentSize()
-    : attachmentSize{ Undefined }, imageSize{ 0.0f, 0.0f, 0.0f }
+    : type{ Undefined }, imageSize{ 0.0f, 0.0f }
   {
   }
-  AttachmentSize(Type aSize, const glm::vec3& imSize)
-    : attachmentSize{ aSize }, imageSize{ imSize }
-  {
-  }
-  AttachmentSize(Type aSize, const glm::vec2& imSize)
-    : attachmentSize{ aSize }, imageSize{ imSize.x, imSize.y, 1.0f }
+  AttachmentSize(Type aType, const glm::vec2& imSize, uint32_t aLayers = 1)
+    : type{ aType }, imageSize{ imSize.x, imSize.y }, arrayLayers{ aLayers }
   {
   }
 
-  Type      attachmentSize;
-  glm::vec3 imageSize;
+  Type      type;
+  glm::vec2 imageSize;
+  uint32_t  arrayLayers;
 };
 
-inline bool operator==(const AttachmentSize& lhs, const AttachmentSize& rhs)
-{
-  return lhs.attachmentSize == rhs.attachmentSize && lhs.imageSize == rhs.imageSize;
-}
+inline bool operator==(const AttachmentSize& lhs, const AttachmentSize& rhs);
+inline bool operator!=(const AttachmentSize& lhs, const AttachmentSize& rhs);
 
-inline bool operator!=(const AttachmentSize& lhs, const AttachmentSize& rhs)
+struct AttachmentDefinition
 {
-  return lhs.attachmentSize != rhs.attachmentSize || lhs.imageSize != rhs.imageSize;
-}
+  AttachmentDefinition()
+    : format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, attachmentType{ atUndefined }, attachmentSize{}, imageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT }, swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA)
+  {
+  }
+  AttachmentDefinition(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
+    : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, imageUsage{ iu }, swizzles{ sw }
+  {
+  }
+
+  VkFormat              format;
+  VkSampleCountFlagBits samples;
+  AttachmentType        attachmentType;
+  AttachmentSize        attachmentSize;
+  VkImageUsageFlags     imageUsage;
+
+  gli::swizzles         swizzles;
+};
+
+inline bool operator==(const AttachmentDefinition& lhs, const AttachmentDefinition& rhs);
 
 class PUMEX_EXPORT WorkflowResourceType
 {
 public:
   enum MetaType { Undefined, Attachment, Image, Buffer };
 
+  WorkflowResourceType();
   // constructor for attachments
   WorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage);
   // constructor for images and buffers
@@ -138,40 +149,22 @@ public:
   MetaType              metaType;
   std::string           typeName;
   bool                  persistent;
-
-  struct AttachmentData
-  {
-    AttachmentData()
-      : format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, attachmentType{ atUndefined }, attachmentSize{}, imageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT }, swizzles( gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA )
-    {
-    }
-    AttachmentData(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
-      : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, imageUsage{ iu }, swizzles { sw }
-    {
-    }
-
-    VkFormat              format;
-    VkSampleCountFlagBits samples;
-    AttachmentType        attachmentType;
-    AttachmentSize        attachmentSize;
-    VkImageUsageFlags     imageUsage;
-
-    gli::swizzles         swizzles;
-
-    bool isEqual(const AttachmentData& rhs) const;
-  };
-
-  AttachmentData attachment;
+  AttachmentDefinition  attachment;
 };
+
+inline bool operator==(const WorkflowResourceType& lhs, const WorkflowResourceType& rhs);
 
 class PUMEX_EXPORT WorkflowResource
 {
 public:
+  WorkflowResource() = default;
   WorkflowResource(const std::string& name, std::shared_ptr<WorkflowResourceType> resourceType);
 
   std::string                           name;
   std::shared_ptr<WorkflowResourceType> resourceType;
 };
+
+inline bool operator==(const WorkflowResource& lhs, const WorkflowResource& rhs);
 
 class RenderWorkflow;
 
@@ -180,7 +173,7 @@ class PUMEX_EXPORT RenderOperation
 public:
   enum Type { Graphics, Compute };
 
-  RenderOperation(const std::string& name, Type operationType, uint32_t multiViewMask = 0x0, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f)) );
+  RenderOperation(const std::string& name, Type operationType, uint32_t multiViewMask = 0x0, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1) );
   virtual ~RenderOperation();
 
   void                  setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
@@ -265,7 +258,7 @@ public:
   std::vector<std::shared_ptr<FrameBuffer>>                                          frameBuffers;
 
   QueueTraits                getPresentationQueue() const;
-  FrameBufferImageDefinition getSwapChainImageDefinition() const;
+  WorkflowResource           getSwapChainAttachmentResource() const;
 };
 
 class PUMEX_EXPORT RenderWorkflowCompiler
@@ -294,7 +287,7 @@ public:
   inline const std::vector<QueueTraits>&           getQueueTraits() const;
 
   void                                             addRenderOperation(std::shared_ptr<RenderOperation> op);
-  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, uint32_t multiViewMask = 0x0, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)));
+  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, uint32_t multiViewMask = 0x0, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f), 1));
 
   std::vector<std::string>                         getRenderOperationNames() const;
   std::shared_ptr<RenderOperation>                 getRenderOperation(const std::string& opName) const;
@@ -380,12 +373,50 @@ private:
   StandardRenderWorkflowCostCalculator   costCalculator;
 };
 
+// inline methods/functions :
+
 LoadOp             loadOpLoad()                        { return LoadOp(LoadOp::Load, glm::vec4(0.0f)); }
 LoadOp             loadOpClear(const glm::vec2& color) { return LoadOp(LoadOp::Clear, glm::vec4(color.x, color.y, 0.0f, 0.0f)); }
 LoadOp             loadOpClear(const glm::vec4& color) { return LoadOp(LoadOp::Clear, color); }
 LoadOp             loadOpDontCare()                    { return LoadOp(LoadOp::DontCare, glm::vec4(0.0f));}
 StoreOp            storeOpStore()                      { return StoreOp(StoreOp::Store); }
 StoreOp            storeOpDontCare()                   { return StoreOp(StoreOp::DontCare); }
+
+bool operator==(const AttachmentSize& lhs, const AttachmentSize& rhs)
+{
+  return lhs.type == rhs.type && lhs.imageSize == rhs.imageSize && lhs.arrayLayers == rhs.arrayLayers;
+}
+
+bool operator!=(const AttachmentSize& lhs, const AttachmentSize& rhs)
+{
+  return lhs.type != rhs.type || lhs.imageSize != rhs.imageSize || lhs.arrayLayers != rhs.arrayLayers;
+}
+
+bool operator==(const AttachmentDefinition& lhs, const AttachmentDefinition& rhs)
+{
+  return lhs.format == rhs.format && lhs.samples == rhs.samples && lhs.attachmentType == rhs.attachmentType && lhs.attachmentSize == rhs.attachmentSize && lhs.swizzles == rhs.swizzles;
+}
+
+bool operator==(const WorkflowResourceType& lhs, const WorkflowResourceType& rhs)
+{
+  if (lhs.metaType != rhs.metaType)
+    return false;
+  switch (lhs.metaType)
+  {
+  case WorkflowResourceType::Attachment:
+    return lhs.attachment == rhs.attachment;
+  case WorkflowResourceType::Buffer:
+  case WorkflowResourceType::Image:
+  default:
+    return false; // FIXME : cannot compare it
+  }
+  return false;
+}
+
+bool operator==(const WorkflowResource& lhs, const WorkflowResource& rhs)
+{
+  return lhs.name == rhs.name && lhs.resourceType == rhs.resourceType;
+}
 
 bool                            WorkflowResourceType::isImageOrAttachment() const { return metaType == WorkflowResourceType::Attachment || metaType == WorkflowResourceType::Image; };
 const std::vector<QueueTraits>& RenderWorkflow::getQueueTraits() const                  { return queueTraits; }

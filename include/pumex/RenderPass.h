@@ -43,9 +43,9 @@ class  BuildCommandBufferVisitor;
 class  FrameBuffer;
 
 // VkAttachmentDescription wrapper
-struct PUMEX_EXPORT AttachmentDefinition
+struct PUMEX_EXPORT AttachmentDescription
 {
-  AttachmentDefinition(uint32_t imageDefinitionIndex, VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
+  AttachmentDescription(uint32_t imageDefinitionIndex, VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
   uint32_t                     imageDefinitionIndex;
   VkFormat                     format;
   VkSampleCountFlagBits        samples;
@@ -71,11 +71,11 @@ struct PUMEX_EXPORT AttachmentReference
 };
 
 // struct storing information about subpass
-struct PUMEX_EXPORT SubpassDefinition
+struct PUMEX_EXPORT SubpassDescription
 {
-  SubpassDefinition();
-  SubpassDefinition(VkPipelineBindPoint pipelineBindPoint, const std::vector<AttachmentReference>& inputAttachments, const std::vector<AttachmentReference>& colorAttachments, const std::vector<AttachmentReference>& resolveAttachments, const AttachmentReference& depthStencilAttachment, const std::vector<uint32_t>& preserveAttachments, VkSubpassDescriptionFlags flags = 0x0, uint32_t multiViewMask = 0x0);
-  SubpassDefinition& operator=(const SubpassDefinition& subpassDefinition) = default;
+  SubpassDescription();
+  SubpassDescription(VkPipelineBindPoint pipelineBindPoint, const std::vector<AttachmentReference>& inputAttachments, const std::vector<AttachmentReference>& colorAttachments, const std::vector<AttachmentReference>& resolveAttachments, const AttachmentReference& depthStencilAttachment, const std::vector<uint32_t>& preserveAttachments, VkSubpassDescriptionFlags flags = 0x0, uint32_t multiViewMask = 0x0);
+  SubpassDescription& operator=(const SubpassDescription& SubpassDescription) = default;
 
   VkPipelineBindPoint                pipelineBindPoint;
   std::vector<VkAttachmentReference> inputAttachments;
@@ -91,9 +91,9 @@ struct PUMEX_EXPORT SubpassDefinition
 };
 
 // struct storing information about subpass dependencies
-struct PUMEX_EXPORT SubpassDependencyDefinition
+struct PUMEX_EXPORT SubpassDependencyDescription
 {
-  SubpassDependencyDefinition( uint32_t srcSubpass, uint32_t dstSubpass, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkDependencyFlags dependencyFlags = 0 );
+  SubpassDependencyDescription( uint32_t srcSubpass, uint32_t dstSubpass, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkDependencyFlags dependencyFlags = 0 );
 
   uint32_t                srcSubpass;
   uint32_t                dstSubpass;
@@ -120,7 +120,7 @@ public:
   ~RenderPass();
 
   void         addSubPass(std::shared_ptr<RenderSubPass> renderSubPass);
-  void         setRenderPassData(std::shared_ptr<FrameBuffer> frameBuffer, const std::vector<AttachmentDefinition>& attachments, const std::vector<VkClearValue>& clearValues);
+  void         setRenderPassData(std::shared_ptr<FrameBuffer> frameBuffer, const std::vector<AttachmentDescription>& attachments, const std::vector<VkClearValue>& clearValues);
 
   void         invalidate(const RenderContext& renderContext);
   void         validate(const RenderContext& renderContext);
@@ -128,11 +128,11 @@ public:
 
 
   std::shared_ptr<FrameBuffer>              frameBuffer;
-  std::vector<AttachmentDefinition>         attachments;
+  std::vector<AttachmentDescription>        attachments;
   std::vector<VkClearValue>                 clearValues;
   std::vector<char>                         clearValuesInitialized;
   std::vector<std::weak_ptr<RenderSubPass>> subPasses;
-  std::vector<SubpassDependencyDefinition>  dependencies;
+  std::vector<SubpassDependencyDescription> dependencies;
   bool                                      multiViewRenderPass = false;
 
 protected:
@@ -179,7 +179,7 @@ class PUMEX_EXPORT RenderSubPass : public RenderCommand
 public:
   explicit RenderSubPass();
 
-  void setSubPassDefinition(const SubpassDefinition& subPassDefinition);
+  void setSubpassDescription(const SubpassDescription& SubpassDescription);
 
   void validate(const RenderContext& renderContext) override;
   void applyRenderContextVisitor(RenderContextVisitor& visitor) override;
@@ -191,8 +191,7 @@ public:
 
   std::shared_ptr<RenderPass>      renderPass;
   uint32_t                         subpassIndex;
-
-  SubpassDefinition                definition;
+  SubpassDescription               definition;
 };
 
 // class representing Vulkan compute pass - created during render compilation from RenderOperation objects

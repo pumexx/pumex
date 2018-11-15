@@ -139,10 +139,10 @@ struct MultiviewApplicationData
     std::vector<pumex::Camera> cameras;
     {
       pumex::Camera camera;
-      camera.setViewMatrix(glm::translate(glm::mat4(), glm::vec3(0.0325f, 0.0f, 0.0f)) * viewMatrix);
       camera.setObserverPosition(camHandler->getObserverPosition(surface.get()));
       camera.setTimeSinceStart(renderTime);
       camera.setProjectionMatrix(glm::perspective(glm::radians(60.0f), 0.5f * (float)renderWidth / (float)renderHeight, 0.1f, 10000.0f));
+      camera.setViewMatrix(glm::translate(glm::mat4(), glm::vec3(0.0325f, 0.0f, 0.0f)) * viewMatrix);
       cameras.push_back(camera);
       camera.setViewMatrix(glm::translate(glm::mat4(), glm::vec3(-0.0325f, 0.0f, 0.0f)) * viewMatrix);
       cameras.push_back(camera);
@@ -300,21 +300,21 @@ int main( int argc, char * argv[] )
     // images used to create and consume gbuffers in "gbuffers" and "lighting" operations are half the width of the screen, but there are two layers in each image.
     // Thanks to this little trick we don't have to change viewports and scissors
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          SAMPLE_COUNT,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("color",         false, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f,1.0f,2.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          SAMPLE_COUNT,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("color",         false, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
       workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) },      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f, 1.0f, 2.0f) });
+    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f, 1.0f), 2 });
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec3(0.5f, 1.0f, 2.0f) });
+    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f, 1.0f), 2 });
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position");
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals");
       workflow->addAttachmentInput        ("lighting", "color_samples", "albedo");

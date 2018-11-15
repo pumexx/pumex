@@ -251,17 +251,17 @@ void Surface::createSwapChain()
   swapChainSize = surfaceCapabilities.currentExtent;
 //  LOG_ERROR << "cs " << swapChainSize.width << "x" << swapChainSize.height << std::endl;
 
-  FrameBufferImageDefinition swapChainDefinition = workflowResults->getSwapChainImageDefinition();
+  WorkflowResource& resource = workflowResults->getSwapChainAttachmentResource();
 
   VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCreateInfo.surface               = surface;
     swapchainCreateInfo.minImageCount         = surfaceTraits.imageCount;
-    swapchainCreateInfo.imageFormat           = swapChainDefinition.format;
+    swapchainCreateInfo.imageFormat           = resource.resourceType->attachment.format;
     swapchainCreateInfo.imageColorSpace       = surfaceTraits.imageColorSpace;
     swapchainCreateInfo.imageExtent           = swapChainSize;
     swapchainCreateInfo.imageArrayLayers      = surfaceTraits.imageArrayLayers;
-    swapchainCreateInfo.imageUsage            = swapChainDefinition.usage;
+    swapchainCreateInfo.imageUsage            = resource.resourceType->attachment.imageUsage;
     swapchainCreateInfo.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
     swapchainCreateInfo.queueFamilyIndexCount = 0;
     swapchainCreateInfo.pQueueFamilyIndices   = nullptr;
@@ -286,7 +286,7 @@ void Surface::createSwapChain()
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
   VkExtent3D extent{ swapChainSize.width, swapChainSize.height, 1 };
   for (uint32_t i = 0; i < imageCount; i++)
-    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], swapChainDefinition.format, extent, 1, 1));
+    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], resource.resourceType->attachment.format, extent, 1, 1));
 
   prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
   presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());

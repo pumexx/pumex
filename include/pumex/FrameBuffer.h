@@ -41,25 +41,11 @@ class RenderPass;
 class MemoryImage;
 class ImageView;
 
-struct PUMEX_EXPORT FrameBufferImageDefinition
-{
-  FrameBufferImageDefinition();
-  FrameBufferImageDefinition(AttachmentType attachmentType, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkSampleCountFlagBits samples, const std::string& name, const AttachmentSize& attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f)), const gli::swizzles& swizzles = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA));
-  AttachmentType        attachmentType;
-  VkFormat              format;
-  VkImageUsageFlags     usage;
-  VkImageAspectFlags    aspectMask;
-  VkSampleCountFlagBits samples;
-  std::string           name;
-  AttachmentSize        attachmentSize;
-  gli::swizzles         swizzles;
-};
-
 class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
   FrameBuffer()                              = delete;
-  explicit FrameBuffer(const AttachmentSize& frameBufferSize, const std::vector<FrameBufferImageDefinition>& imageDefinitions, std::shared_ptr<RenderPass> renderPass, std::map<std::string, std::shared_ptr<MemoryImage>> memoryImages, std::map<std::string, std::shared_ptr<ImageView>> imageViews);
+  explicit FrameBuffer(const AttachmentSize& frameBufferSize, const std::vector<WorkflowResource>& attachmentResources, std::shared_ptr<RenderPass> renderPass, std::map<std::string, std::shared_ptr<MemoryImage>> memoryImages, std::map<std::string, std::shared_ptr<ImageView>> imageViews);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   FrameBuffer(FrameBuffer&&)                 = delete;
@@ -71,9 +57,9 @@ public:
   void                              prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                              reset(Surface* surface);
 
-  inline size_t                     getNumImageDefinitions() const;
-  const FrameBufferImageDefinition& getImageDefinition(uint32_t index) const;
-  const FrameBufferImageDefinition& getSwapChainImageDefinition() const;
+  inline size_t                     getNumAttachmentResources() const;
+  const WorkflowResource&           getAttachmentResource(uint32_t index) const;
+  const WorkflowResource&           getSwapChainAttachmentResource() const;
   std::shared_ptr<MemoryImage>      getMemoryImage(uint32_t index) const;
   std::shared_ptr<ImageView>        getImageView(uint32_t index) const;
   std::shared_ptr<ImageView>        getImageView(const std::string& name) const;
@@ -92,7 +78,7 @@ protected:
   std::unordered_map<VkSurfaceKHR, FrameBufferData> perObjectData;
 
   AttachmentSize                                    frameBufferSize;
-  std::vector<FrameBufferImageDefinition>           imageDefinitions;
+  std::vector<WorkflowResource>                     attachmentResources;
   std::weak_ptr<RenderPass>                         renderPass;
   std::vector<std::shared_ptr<MemoryImage>>         memoryImages;
   std::vector<std::shared_ptr<ImageView>>           imageViews;
@@ -100,6 +86,6 @@ protected:
   uint32_t                                          activeCount;
 };
 
-size_t FrameBuffer::getNumImageDefinitions() const { return imageDefinitions.size(); }
+size_t FrameBuffer::getNumAttachmentResources() const { return attachmentResources.size(); }
 
 }

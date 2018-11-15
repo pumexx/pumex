@@ -33,12 +33,12 @@
 
 using namespace pumex;
 
-AttachmentDefinition::AttachmentDefinition(uint32_t id, VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
+AttachmentDescription::AttachmentDescription(uint32_t id, VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
   : imageDefinitionIndex{ id }, format{ f }, samples{ s }, loadOp { lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }
 {
 }
 
-VkAttachmentDescription AttachmentDefinition::getDescription() const
+VkAttachmentDescription AttachmentDescription::getDescription() const
 {
   VkAttachmentDescription desc{};
   desc.flags          = flags;
@@ -71,12 +71,12 @@ VkAttachmentReference AttachmentReference::getReference() const
   return ref;
 }
 
-SubpassDefinition::SubpassDefinition()
+SubpassDescription::SubpassDescription()
   : pipelineBindPoint{ VK_PIPELINE_BIND_POINT_GRAPHICS }, depthStencilAttachment{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED }, flags{ 0 }, multiViewMask{ 0x0 }
 {
 }
 
-SubpassDefinition::SubpassDefinition(VkPipelineBindPoint pbp, const std::vector<AttachmentReference>& ia, const std::vector<AttachmentReference>& ca, const std::vector<AttachmentReference>& ra, const AttachmentReference& da, const std::vector<uint32_t>& pa, VkSubpassDescriptionFlags fs, uint32_t mvm)
+SubpassDescription::SubpassDescription(VkPipelineBindPoint pbp, const std::vector<AttachmentReference>& ia, const std::vector<AttachmentReference>& ca, const std::vector<AttachmentReference>& ra, const AttachmentReference& da, const std::vector<uint32_t>& pa, VkSubpassDescriptionFlags fs, uint32_t mvm)
   : pipelineBindPoint{ pbp }, preserveAttachments(pa), flags{ fs }, multiViewMask{ mvm }
 {
   for ( const auto& a : ia)
@@ -88,9 +88,9 @@ SubpassDefinition::SubpassDefinition(VkPipelineBindPoint pbp, const std::vector<
   depthStencilAttachment = da.getReference();
 }
 
-// Be advised : resulting description is as long valid as SubpassDefinition exists.
+// Be advised : resulting description is as long valid as SubpassDescription exists.
 // We are passing pointers to internal elements here
-VkSubpassDescription SubpassDefinition::getDescription() const
+VkSubpassDescription SubpassDescription::getDescription() const
 {
   VkSubpassDescription desc;
     desc.flags                   = flags;
@@ -106,12 +106,12 @@ VkSubpassDescription SubpassDefinition::getDescription() const
   return desc;
 }
 
-SubpassDependencyDefinition::SubpassDependencyDefinition(uint32_t ss, uint32_t ds, VkPipelineStageFlags ssm, VkPipelineStageFlags dsm, VkAccessFlags sam, VkAccessFlags dam, VkDependencyFlags df)
+SubpassDependencyDescription::SubpassDependencyDescription(uint32_t ss, uint32_t ds, VkPipelineStageFlags ssm, VkPipelineStageFlags dsm, VkAccessFlags sam, VkAccessFlags dam, VkDependencyFlags df)
   : srcSubpass{ ss }, dstSubpass{ ds }, srcStageMask{ ssm }, dstStageMask{ dsm }, srcAccessMask{ sam }, dstAccessMask{ dam }, dependencyFlags{df}
 {
 }
 
-VkSubpassDependency SubpassDependencyDefinition::getDependency() const
+VkSubpassDependency SubpassDependencyDescription::getDependency() const
 {
   VkSubpassDependency dep;
     dep.srcSubpass      = srcSubpass;
@@ -145,7 +145,7 @@ void RenderPass::addSubPass(std::shared_ptr<RenderSubPass> renderSubPass)
   subPasses.push_back(renderSubPass);
 }
 
-void RenderPass::setRenderPassData(std::shared_ptr<FrameBuffer> fb, const std::vector<AttachmentDefinition>& at, const std::vector<VkClearValue>& cv)
+void RenderPass::setRenderPassData(std::shared_ptr<FrameBuffer> fb, const std::vector<AttachmentDescription>& at, const std::vector<VkClearValue>& cv)
 {
   std::lock_guard<std::mutex> lock(mutex);
   frameBuffer = fb;
@@ -243,9 +243,9 @@ RenderSubPass::RenderSubPass()
 {
 }
 
-void RenderSubPass::setSubPassDefinition(const SubpassDefinition& subPassDefinition)
+void RenderSubPass::setSubpassDescription(const SubpassDescription& SubpassDescription)
 {
-  definition = subPassDefinition;
+  definition = SubpassDescription;
 }
 
 void RenderSubPass::validate(const RenderContext& renderContext)
@@ -283,7 +283,7 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
     VkRect2D rectangle;
     VkViewport viewport;
     // FIXME : what about viewport Z coordinates ?
-    switch (operation->attachmentSize.attachmentSize)
+    switch (operation->attachmentSize.type)
     {
     case AttachmentSize::SurfaceDependent:
       rectangle = makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.imageSize.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.imageSize.y);

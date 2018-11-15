@@ -76,7 +76,7 @@ struct PUMEX_EXPORT SurfaceTraits
 
   uint32_t                           imageCount;
   VkColorSpaceKHR                    imageColorSpace;
-  uint32_t                           imageArrayLayers; // always 1 ( until VR )
+  uint32_t                           imageArrayLayers;
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;

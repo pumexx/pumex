@@ -32,6 +32,12 @@
 
 using namespace pumex;
 
+WorkflowResourceType::WorkflowResourceType()
+  : metaType{ Undefined }, persistent{ false }, attachment{}
+{
+}
+
+
 WorkflowResourceType::WorkflowResourceType(const std::string& tn, bool p, VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu)
   : metaType{ Attachment }, typeName{ tn }, persistent{ p }, attachment{ f, s, at, as, iu }
 {
@@ -51,27 +57,13 @@ bool WorkflowResourceType::isEqual(const WorkflowResourceType& rhs) const
   switch (metaType)
   {
   case Attachment:
-    return attachment.isEqual(rhs.attachment);
+    return attachment == rhs.attachment;
   case Buffer:
   case Image:
   default:
     return false;
   }
   return false;
-}
-
-bool WorkflowResourceType::AttachmentData::isEqual(const AttachmentData& rhs) const
-{
-  if (format != rhs.format)
-    return false;
-  if (samples != rhs.samples)
-    return false;
-  if (attachmentType != rhs.attachmentType)
-    return false;
-  if (attachmentSize != rhs.attachmentSize)
-    return false;
-  // swizzles ?!?
-  return true;
 }
 
 WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<WorkflowResourceType> t)
@@ -127,19 +119,19 @@ QueueTraits RenderWorkflowResults::getPresentationQueue() const
   return queueTraits[presentationQueueIndex];
 }
 
-FrameBufferImageDefinition RenderWorkflowResults::getSwapChainImageDefinition() const
+WorkflowResource RenderWorkflowResults::getSwapChainAttachmentResource() const
 {
   for (const auto& frameBuffer : frameBuffers)
   {
-    for (uint32_t i = 0; i < frameBuffer->getNumImageDefinitions(); ++i)
+    for (uint32_t i = 0; i < frameBuffer->getNumAttachmentResources(); ++i)
     {
-      const FrameBufferImageDefinition& fbid = frameBuffer->getImageDefinition(i);
-      if (fbid.attachmentType == atSurface)
-        return FrameBufferImageDefinition(fbid);
+      const WorkflowResource& wr = frameBuffer->getAttachmentResource(i);
+      if (wr.resourceType->attachment.attachmentType == atSurface)
+        return WorkflowResource(wr);
     }
   }
   CHECK_LOG_THROW(true, "There's no framebuffer with swapchain image definition");
-  return FrameBufferImageDefinition();
+  return WorkflowResource();
 }
 
 RenderWorkflow::RenderWorkflow(const std::string& n, std::shared_ptr<DeviceMemoryAllocator> fba, const std::vector<QueueTraits>& qt)
@@ -1076,9 +1068,9 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
   // build framebuffers
   for (auto& renderPass : renderPasses)
   {
-    std::map<std::string,uint32_t>          definedImages;
-    std::vector<FrameBufferImageDefinition> frameBufferDefinitions;
-    std::vector<VkImageLayout>              rpInitialLayouts;
+    std::map<std::string,uint32_t> definedImages;
+    std::vector<WorkflowResource>  resources;
+    std::vector<VkImageLayout>     rpInitialLayouts;
     for (auto& sb : renderPass->subPasses)
     {
       auto subPass           = sb.lock();
@@ -1089,10 +1081,11 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       {
         VkExtent3D imSize{ 1,1,1 };
         auto resourceName   = workflowResults->resourceAlias.at(transition->resource->name);
+        WorkflowResource resource(resourceName, transition->resource->resourceType);
+        auto resourceType   = resource.resourceType;
         uint32_t resid      = resourceMap.at(resourceName);
-        auto resourceType   = transition->resource->resourceType;
         auto aspectMask     = getAspectMask(resourceType->attachment.attachmentType);
-        uint32_t layerCount = static_cast<uint32_t>(resourceType->attachment.attachmentSize.imageSize.z);
+        uint32_t layerCount = resourceType->attachment.attachmentSize.arrayLayers;
         auto ait            = workflowResults->registeredMemoryImages.find(resourceName);
         if (ait == end(workflowResults->registeredMemoryImages))
         {
@@ -1111,17 +1104,8 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
         if (definedImages.find(resourceName) == end(definedImages))
         {
           rpInitialLayouts.push_back(opLayouts[resid]);
-          definedImages.insert({ resourceName,static_cast<uint32_t>(frameBufferDefinitions.size()) });
-          frameBufferDefinitions.push_back(FrameBufferImageDefinition(
-            resourceType->attachment.attachmentType,
-            resourceType->attachment.format,
-            resourceType->attachment.imageUsage,
-            aspectMask,
-            resourceType->attachment.samples,
-            resourceName,
-            resourceType->attachment.attachmentSize,
-            resourceType->attachment.swizzles
-          ));
+          definedImages.insert({ resourceName,static_cast<uint32_t>(resources.size()) });
+          resources.push_back(resource);
         }
       }
     }
@@ -1129,19 +1113,19 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
     AttachmentSize frameBufferSize;
     if (!renderPass->subPasses.empty())
       frameBufferSize = renderPass->subPasses[0].lock()->operation->attachmentSize;
-    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, frameBufferDefinitions, renderPass, workflowResults->registeredMemoryImages, workflowResults->registeredImageViews);
+    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, resources, renderPass, workflowResults->registeredMemoryImages, workflowResults->registeredImageViews);
     workflowResults->frameBuffers.push_back(frameBuffer);
 
     // build attachments, clear values and image layouts
-    std::vector<AttachmentDefinition> attachments;
-    std::vector<VkClearValue>         clearValues(frameBufferDefinitions.size(), makeColorClearValue(glm::vec4(0.0f)));
-    std::vector<char>                 clearValuesInitialized(frameBufferDefinitions.size(), false);
-    for (uint32_t i = 0; i < frameBufferDefinitions.size(); ++i)
+    std::vector<AttachmentDescription> attachments;
+    std::vector<VkClearValue>         clearValues(resources.size(), makeColorClearValue(glm::vec4(0.0f)));
+    std::vector<char>                 clearValuesInitialized(resources.size(), false);
+    for (uint32_t i = 0; i < resources.size(); ++i)
     {
-      attachments.push_back(AttachmentDefinition(
+      attachments.push_back(AttachmentDescription(
         i,
-        frameBufferDefinitions[i].format,
-        frameBufferDefinitions[i].samples,
+        resources[i].resourceType->attachment.format,
+        resources[i].resourceType->attachment.samples,
         VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         VK_ATTACHMENT_STORE_OP_DONT_CARE,
         VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -1166,7 +1150,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
         auto resourceName = workflowResults->resourceAlias.at(transition->resource->name);
         uint32_t attIndex = definedImages.at(resourceName);
 
-        frameBufferDefinitions[attIndex].usage |= getAttachmentUsage(transition->layout);
+        resources[attIndex].resourceType->attachment.imageUsage |= getAttachmentUsage(transition->layout);
         attachments[attIndex].finalLayout      = transition->layout;
         AttachmentType at                      = transition->resource->resourceType->attachment.attachmentType;
         bool colorDepthAttachment              = (at == atSurface) || (at == atColor) || (at == atDepth) || (at == atDepthStencil);
@@ -1240,7 +1224,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       else
         dsa = { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
 
-      SubpassDefinition subPassDefinition(VK_PIPELINE_BIND_POINT_GRAPHICS, ia, oa, ra, dsa, pa, 0, subPass->operation->multiViewMask);
+      SubpassDescription subPassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, ia, oa, ra, dsa, pa, 0, subPass->operation->multiViewMask);
 
       // OK, so we have a subpass definition - the one thing that's missing is information about preserved attachments ( in a subpass ) and attachments that must be saved ( in a render pass )
 
@@ -1295,7 +1279,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
         bool save                  = lastSubpass && (usedLater || isSurfaceOrPersistent);
         uint32_t attIndex          = definedImages.at(workflowResults->resourceAlias.at(resName));
         if (preserve)
-          subPassDefinition.preserveAttachments.push_back(attIndex);
+          subPassDescription.preserveAttachments.push_back(attIndex);
         if (save)
         {
           AttachmentType at = resource->resourceType->attachment.attachmentType;
@@ -1306,7 +1290,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
           if (stencilAttachment)    attachments[attIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
         }
       }
-      subPass->setSubPassDefinition(subPassDefinition);
+      subPass->setSubpassDescription(subPassDescription);
     }
     renderPass->setRenderPassData(frameBuffer, attachments, clearValues);
   }
@@ -1396,9 +1380,9 @@ void SingleQueueWorkflowCompiler::createSubpassDependency(std::shared_ptr<Resour
     dstSubpassIndex = consumingSubpass->subpassIndex;
 
     auto dep = std::find_if(begin(consumingSubpass->renderPass->dependencies), end(consumingSubpass->renderPass->dependencies),
-      [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
+      [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDescription& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
     if (dep == end(consumingSubpass->renderPass->dependencies))
-      dep = consumingSubpass->renderPass->dependencies.insert(end(consumingSubpass->renderPass->dependencies), SubpassDependencyDefinition(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));
+      dep = consumingSubpass->renderPass->dependencies.insert(end(consumingSubpass->renderPass->dependencies), SubpassDependencyDescription(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));
     dep->srcStageMask    |= srcStageMask;
     dep->dstStageMask    |= dstStageMask;
     dep->srcAccessMask   |= srcAccessMask;
@@ -1411,9 +1395,9 @@ void SingleQueueWorkflowCompiler::createSubpassDependency(std::shared_ptr<Resour
     srcSubpassIndex = generatingSubpass->subpassIndex;
 
     auto dep = std::find_if(begin(generatingSubpass->renderPass->dependencies), end(generatingSubpass->renderPass->dependencies),
-      [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDefinition& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
+      [srcSubpassIndex, dstSubpassIndex](const SubpassDependencyDescription& sd) -> bool { return sd.srcSubpass == srcSubpassIndex && sd.dstSubpass == dstSubpassIndex; });
     if (dep == end(generatingSubpass->renderPass->dependencies))
-      dep = generatingSubpass->renderPass->dependencies.insert(end(generatingSubpass->renderPass->dependencies), SubpassDependencyDefinition(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));
+      dep = generatingSubpass->renderPass->dependencies.insert(end(generatingSubpass->renderPass->dependencies), SubpassDependencyDescription(srcSubpassIndex, dstSubpassIndex, 0, 0, 0, 0, 0));
     dep->srcStageMask    |= srcStageMask;
     dep->dstStageMask    |= dstStageMask;
     dep->srcAccessMask   |= srcAccessMask;
