@@ -25,25 +25,18 @@
 #include <vector>
 #include <set>
 #include <map>
-#include <memory>
-#include <mutex>
 #include <vulkan/vulkan.h>
-#include <gli/texture.hpp>
 #include <pumex/Export.h>
-#include <pumex/Command.h>
-#include <pumex/PerObjectData.h>
 #include <pumex/MemoryBuffer.h>
 #include <pumex/MemoryImage.h>
 
 namespace pumex
 {
 
-class  Device;
 struct QueueTraits;
 class  DeviceMemoryAllocator;
 class  RenderPass;
 class  Node;
-class  Resource;
 class  RenderCommand;
 
 struct PUMEX_EXPORT LoadOp
@@ -89,44 +82,21 @@ enum AttachmentType { atUndefined, atSurface, atColor, atDepth, atDepthStencil, 
 inline VkImageAspectFlags getAspectMask(AttachmentType at);
 inline VkImageUsageFlags  getAttachmentUsage(VkImageLayout imageLayout);
 
-struct PUMEX_EXPORT AttachmentSize
-{
-  enum Type { Undefined, Absolute, SurfaceDependent };
-
-  AttachmentSize()
-    : type{ Undefined }, imageSize{ 0.0f, 0.0f }
-  {
-  }
-  AttachmentSize(Type aType, const glm::vec2& imSize, uint32_t aLayers = 1)
-    : type{ aType }, imageSize{ imSize.x, imSize.y }, arrayLayers{ aLayers }
-  {
-  }
-
-  Type      type;
-  glm::vec2 imageSize;
-  uint32_t  arrayLayers;
-};
-
-inline bool operator==(const AttachmentSize& lhs, const AttachmentSize& rhs);
-inline bool operator!=(const AttachmentSize& lhs, const AttachmentSize& rhs);
-
 struct AttachmentDefinition
 {
   AttachmentDefinition()
-    : format{ VK_FORMAT_UNDEFINED }, samples{ VK_SAMPLE_COUNT_1_BIT }, attachmentType{ atUndefined }, attachmentSize{}, imageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT }, swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA)
+    : format{ VK_FORMAT_UNDEFINED }, attachmentType{ atUndefined }, attachmentSize{}, imageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT }, swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA)
   {
   }
-  AttachmentDefinition(VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
-    : format{ f }, samples{ s }, attachmentType{ at }, attachmentSize{ as }, imageUsage{ iu }, swizzles{ sw }
+  AttachmentDefinition(VkFormat f, const ImageSize& as, AttachmentType at, VkImageUsageFlags iu, const gli::swizzles& sw = gli::swizzles(gli::swizzle::SWIZZLE_RED, gli::swizzle::SWIZZLE_GREEN, gli::swizzle::SWIZZLE_BLUE, gli::swizzle::SWIZZLE_ALPHA))
+    : format{ f }, attachmentSize{ as }, attachmentType{ at }, imageUsage{ iu }, swizzles{ sw }
   {
   }
 
   VkFormat              format;
-  VkSampleCountFlagBits samples;
+  ImageSize             attachmentSize;
   AttachmentType        attachmentType;
-  AttachmentSize        attachmentSize;
   VkImageUsageFlags     imageUsage;
-
   gli::swizzles         swizzles;
 };
 
@@ -139,9 +109,9 @@ public:
 
   WorkflowResourceType();
   // constructor for attachments
-  WorkflowResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage);
+  WorkflowResourceType(const std::string& typeName, VkFormat format, const ImageSize& attachmentSize, AttachmentType attachmentType, VkImageUsageFlags imageUsage, bool persistent);
   // constructor for images and buffers
-  WorkflowResourceType(const std::string& typeName, bool persistent, const MetaType& metaType);
+  WorkflowResourceType(const std::string& typeName, const MetaType& metaType, bool persistent );
 
   inline bool isImageOrAttachment() const; // it's image or attachment
   bool isEqual(const WorkflowResourceType& rhs) const;
@@ -173,7 +143,7 @@ class PUMEX_EXPORT RenderOperation
 public:
   enum Type { Graphics, Compute };
 
-  RenderOperation(const std::string& name, Type operationType, uint32_t multiViewMask = 0x0, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1) );
+  RenderOperation(const std::string& name, Type operationType, ImageSize attachmentSize = ImageSize{ ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 }, uint32_t multiViewMask = 0x0);
   virtual ~RenderOperation();
 
   void                  setRenderWorkflow ( std::shared_ptr<RenderWorkflow> renderWorkflow );
@@ -183,8 +153,8 @@ public:
 
   std::string                   name;
   Type                          operationType;
+  ImageSize                     attachmentSize;
   uint32_t                      multiViewMask;
-  AttachmentSize                attachmentSize;
 
   std::weak_ptr<RenderWorkflow> renderWorkflow;
   std::shared_ptr<Node>         node;
@@ -280,14 +250,14 @@ public:
 
   void                                             addResourceType(std::shared_ptr<WorkflowResourceType> tp);
   // two convenient functions for resource type creation
-  void                                             addResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage);
-  void                                             addResourceType(const std::string& typeName, bool persistent, const WorkflowResourceType::MetaType& metaType);
+  void                                             addResourceType(const std::string& typeName, VkFormat format, const ImageSize& attachmentSize, AttachmentType attachmentType, VkImageUsageFlags imageUsage, bool persistent );
+  void                                             addResourceType(const std::string& typeName, const WorkflowResourceType::MetaType& metaType, bool persistent);
   std::shared_ptr<WorkflowResourceType>      getResourceType(const std::string& typeName) const;
 
   inline const std::vector<QueueTraits>&           getQueueTraits() const;
 
   void                                             addRenderOperation(std::shared_ptr<RenderOperation> op);
-  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, uint32_t multiViewMask = 0x0, AttachmentSize attachmentSize = AttachmentSize(AttachmentSize::SurfaceDependent, glm::vec2(1.0f, 1.0f), 1));
+  void                                             addRenderOperation(const std::string& name, RenderOperation::Type operationType, const ImageSize& attachmentSize = ImageSize{ ImageSize::SurfaceDependent, glm::vec2(1.0f, 1.0f), 1 }, uint32_t multiViewMask = 0x0);
 
   std::vector<std::string>                         getRenderOperationNames() const;
   std::shared_ptr<RenderOperation>                 getRenderOperation(const std::string& opName) const;
@@ -333,7 +303,7 @@ public:
 protected:
   // data provided by user during workflow setup
   std::string                                                                  name;
-  std::unordered_map<std::string, std::shared_ptr<WorkflowResourceType>> resourceTypes;
+  std::unordered_map<std::string, std::shared_ptr<WorkflowResourceType>>       resourceTypes;
   std::unordered_map<std::string, std::shared_ptr<RenderOperation>>            renderOperations;
   std::unordered_map<std::string, std::shared_ptr<WorkflowResource>>           resources;
   std::map<std::string, std::shared_ptr<MemoryObject>>                         associatedMemoryObjects;
@@ -373,7 +343,7 @@ private:
   StandardRenderWorkflowCostCalculator   costCalculator;
 };
 
-// inline methods/functions :
+// inlines
 
 LoadOp             loadOpLoad()                        { return LoadOp(LoadOp::Load, glm::vec4(0.0f)); }
 LoadOp             loadOpClear(const glm::vec2& color) { return LoadOp(LoadOp::Clear, glm::vec4(color.x, color.y, 0.0f, 0.0f)); }
@@ -382,19 +352,9 @@ LoadOp             loadOpDontCare()                    { return LoadOp(LoadOp::D
 StoreOp            storeOpStore()                      { return StoreOp(StoreOp::Store); }
 StoreOp            storeOpDontCare()                   { return StoreOp(StoreOp::DontCare); }
 
-bool operator==(const AttachmentSize& lhs, const AttachmentSize& rhs)
-{
-  return lhs.type == rhs.type && lhs.imageSize == rhs.imageSize && lhs.arrayLayers == rhs.arrayLayers;
-}
-
-bool operator!=(const AttachmentSize& lhs, const AttachmentSize& rhs)
-{
-  return lhs.type != rhs.type || lhs.imageSize != rhs.imageSize || lhs.arrayLayers != rhs.arrayLayers;
-}
-
 bool operator==(const AttachmentDefinition& lhs, const AttachmentDefinition& rhs)
 {
-  return lhs.format == rhs.format && lhs.samples == rhs.samples && lhs.attachmentType == rhs.attachmentType && lhs.attachmentSize == rhs.attachmentSize && lhs.swizzles == rhs.swizzles;
+  return lhs.format == rhs.format && lhs.attachmentType == rhs.attachmentType && lhs.attachmentSize == rhs.attachmentSize && lhs.imageUsage == rhs.imageUsage && lhs.swizzles == rhs.swizzles;
 }
 
 bool operator==(const WorkflowResourceType& lhs, const WorkflowResourceType& rhs)

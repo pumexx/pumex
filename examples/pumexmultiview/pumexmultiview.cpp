@@ -41,9 +41,9 @@
 // - Oculus SDK uses its own functions replacing some of the functions from Vulkan SDK ( swapchain image acquirement, swapchain image presentation, etc )
 // - Oculus performs barrel distortion itself, so you don't have to really do this. Example performs barrel distortion for educational purposes
 
-const uint32_t              MAX_BONES = 511;
-const VkSampleCountFlagBits SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
-const uint32_t              MODEL_SPONZA_ID = 1;
+const uint32_t MAX_BONES       = 511;
+const uint32_t SAMPLE_COUNT    = 2;
+const uint32_t MODEL_SPONZA_ID = 1;
 
 struct PositionData
 {
@@ -299,22 +299,26 @@ int main( int argc, char * argv[] )
 
     // images used to create and consume gbuffers in "gbuffers" and "lighting" operations are half the width of the screen, but there are two layers in each image.
     // Thanks to this little trick we don't have to change viewports and scissors
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          SAMPLE_COUNT,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      SAMPLE_COUNT,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("color",         false, VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2 }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-      workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) },      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+    pumex::ImageSize halfScreenSizeMultiSampled{ pumex::ImageSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2, 1, SAMPLE_COUNT };
+    pumex::ImageSize halfScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2, 1, 1 };
+    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 };
 
-    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f, 1.0f), 2 });
+    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
+      workflow->addResourceType("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, halfScreenSizeMultiSampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false );
+      workflow->addResourceType("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      halfScreenSizeMultiSampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false);
+      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,          halfScreenSizeMultiSampled, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               false);
+      workflow->addResourceType("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      halfScreenSizeMultiSampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       false);
+      workflow->addResourceType("color",         VK_FORMAT_B8G8R8A8_UNORM,      halfScreenSize,             pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,          false);
+      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSize,             pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       true);
+
+    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, halfScreenSizeMultiSampled, 0x3U );
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
       workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
       workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, 0x3U, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(0.5f, 1.0f), 2 });
+    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, halfScreenSizeMultiSampled, 0x3U );
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position");
       workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals");
       workflow->addAttachmentInput        ("lighting", "color_samples", "albedo");
@@ -323,7 +327,7 @@ int main( int argc, char * argv[] )
       workflow->addAttachmentResolveOutput("lighting", "color",         "color", "resolve");
 
     // third operation copies images created in "lighting" operation to a single texture ( full width image ) and performs barrel distortion on it
-    workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, 0x0, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) });
+    workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, fullScreenSize, 0x0);
       workflow->addImageInput      ("multiview", "color",      "color",  pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
       workflow->addAttachmentOutput("multiview", "surface", "multiview", pumex::ImageSubresourceRange());
 
@@ -384,7 +388,7 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF },
       { VK_FALSE, 0xF }
     };
-    gbufferPipeline->rasterizationSamples = SAMPLE_COUNT;
+    gbufferPipeline->rasterizationSamples = pumex::makeSamples(SAMPLE_COUNT);
 
     gbufferRoot->addChild(gbufferPipeline);
 
@@ -480,7 +484,7 @@ int main( int argc, char * argv[] )
     {
       { VK_FALSE, 0xF }
     };
-    compositePipeline->rasterizationSamples = SAMPLE_COUNT;
+    compositePipeline->rasterizationSamples = pumex::makeSamples(SAMPLE_COUNT);
 
     lightingRoot->addChild(compositePipeline);
 
@@ -499,7 +503,7 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
-    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer, SAMPLE_COUNT);
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer, pumex::makeSamples(SAMPLE_COUNT));
     viewer->addInputEventHandler(tsHandler);
     lightingRoot->addChild(tsHandler->getRoot());
 

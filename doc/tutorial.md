@@ -100,9 +100,11 @@ std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::Render
 Inputs and outputs of workflow operations must have its types defined before we may use it. In our example there will be only one operation ( named *"rendering"* ), that has two outputs : depth buffer and a swapchain image. Both of them will have the same size corresponding to surface size. We declare all that data as shown below :
 
 ```C++
-workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
 
-workflow->addResourceType("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,    fullScreenSize, pumex::atDepth, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false);
+
+workflow->addResourceType("surface", VK_FORMAT_B8G8R8A8_UNORM, fullScreenSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, true);
 ```
 
 Our render operation is a graphics operation that uses outputs with above defined types. For each output we must also define :

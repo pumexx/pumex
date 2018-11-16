@@ -67,7 +67,7 @@ bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) cons
 struct SetImageTraitsOperation : public MemoryImage::Operation
 {
   SetImageTraitsOperation(MemoryImage* o, const ImageTraits& t, VkImageAspectFlags am, uint32_t ac)
-    : MemoryImage::Operation(o, MemoryImage::Operation::SetImageTraits, ImageSubresourceRange(am, 0, t.mipLevels, 0, t.arrayLayers), ac), imageTraits{ t }
+    : MemoryImage::Operation(o, MemoryImage::Operation::SetImageTraits, ImageSubresourceRange(am, 0, t.imageSize.mipLevels, 0, t.imageSize.arrayLayers), ac), imageTraits{ t }
   {}
   bool perform(const RenderContext& renderContext, MemoryImage::MemoryImageInternal& internals, std::shared_ptr<CommandBuffer> commandBuffer) override
   {
@@ -91,7 +91,7 @@ struct SetImageOperation : public MemoryImage::Operation
     CHECK_LOG_THROW(internals.image == nullptr, "Image was not created before call to setImage operation, which should not happen because this call is made automatically during setImage() setup...");
     gli::texture::extent_type extent = texture->extent();
     const ImageTraits& imageTraits   = internals.image->getImageTraits();
-    VkExtent3D currExtent            = imageTraits.extent;
+    VkExtent3D currExtent            = makeVkExtent3D(imageTraits.imageSize);
     CHECK_LOG_THROW((extent.x != currExtent.width) || (extent.y != currExtent.height) || (extent.z != currExtent.depth), "MemoryImage has wrong size : ( " << extent.x << " x " << extent.y << " x " << extent.z << " ) should be ( " << currExtent.width << " x " << currExtent.height << " x " << currExtent.depth << " )");
 
     auto ownerAllocator = owner->getAllocator();
@@ -449,7 +449,7 @@ void MemoryImage::validate(const RenderContext& renderContext)
   {
     pddit->second.data[activeIndex].image = std::make_shared<Image>(renderContext.device, imageTraits, allocator);
     notifyCommandBufferSources(renderContext);
-    notifyImageViews(renderContext, ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers));
+    notifyImageViews(renderContext, ImageSubresourceRange(aspectMask, 0, imageTraits.imageSize.mipLevels, 0, imageTraits.imageSize.arrayLayers));
     // if there's a texture - it must be sent now
     if (texture != nullptr)
       internalSetImage(keyValue, renderContext.vkDevice, renderContext.vkSurface, texture);
@@ -480,7 +480,7 @@ void MemoryImage::validate(const RenderContext& renderContext)
 
 ImageSubresourceRange MemoryImage::getFullImageRange()
 {
-  return ImageSubresourceRange(aspectMask, 0, imageTraits.mipLevels, 0, imageTraits.arrayLayers);
+  return ImageSubresourceRange(aspectMask, 0, imageTraits.imageSize.mipLevels, 0, imageTraits.imageSize.arrayLayers);
 }
 
 void MemoryImage::addCommandBufferSource(std::shared_ptr<CommandBufferSource> cbSource)
@@ -585,7 +585,7 @@ void MemoryImage::internalSetImages(uint32_t key, VkDevice device, VkSurfaceKHR 
     pddit->second.data[i].image = images[i];
   }
   pddit->second.commonData.imageOperations.clear();
-  ImageSubresourceRange range(aspectMask, 0, images[0]->getImageTraits().mipLevels, 0, images[0]->getImageTraits().arrayLayers);
+  ImageSubresourceRange range(aspectMask, 0, images[0]->getImageTraits().imageSize.mipLevels, 0, images[0]->getImageTraits().imageSize.arrayLayers);
   pddit->second.commonData.imageOperations.push_back(std::make_shared<NotifyImageViewsOperation>(this, range, activeCount));
   pddit->second.invalidate();
   invalidateImageViews();

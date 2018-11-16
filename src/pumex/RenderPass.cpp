@@ -285,17 +285,17 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
     // FIXME : what about viewport Z coordinates ?
     switch (operation->attachmentSize.type)
     {
-    case AttachmentSize::SurfaceDependent:
-      rectangle = makeVkRect2D(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.imageSize.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.imageSize.y);
-      viewport  = makeViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.imageSize.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.imageSize.y, 0.0f, 1.0f);
+    case ImageSize::SurfaceDependent:
+      rectangle = makeVkRect2D(operation->attachmentSize, commandVisitor.renderContext.surface->swapChainSize);
+      viewport  = makeVkViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.size.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.size.y, 0.0f, 1.0f);
       break;
-    case AttachmentSize::Absolute:
-      rectangle = makeVkRect2D(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y);
-      viewport  = makeViewport(0, 0, operation->attachmentSize.imageSize.x, operation->attachmentSize.imageSize.y, 0.0f, 1.0f);
+    case ImageSize::Absolute:
+      rectangle = makeVkRect2D(operation->attachmentSize);
+      viewport  = makeVkViewport(0, 0, operation->attachmentSize.size.x, operation->attachmentSize.size.y, 0.0f, 1.0f);
       break;
     default:
       rectangle = makeVkRect2D(0, 0, 1, 1);
-      viewport  = makeViewport(0, 0, 1, 1, 0.0f, 1.0f);
+      viewport  = makeVkViewport(0, 0, 1, 1, 0.0f, 1.0f);
       break;
     }
 

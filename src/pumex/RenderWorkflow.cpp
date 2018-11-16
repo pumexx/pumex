@@ -38,12 +38,12 @@ WorkflowResourceType::WorkflowResourceType()
 }
 
 
-WorkflowResourceType::WorkflowResourceType(const std::string& tn, bool p, VkFormat f, VkSampleCountFlagBits s, AttachmentType at, const AttachmentSize& as, VkImageUsageFlags iu)
-  : metaType{ Attachment }, typeName{ tn }, persistent{ p }, attachment{ f, s, at, as, iu }
+WorkflowResourceType::WorkflowResourceType(const std::string& tn, VkFormat f, const ImageSize& as, AttachmentType at, VkImageUsageFlags iu, bool p)
+  : metaType{ Attachment }, typeName{ tn }, persistent{ p }, attachment{ f, as, at, iu }
 {
 }
 
-WorkflowResourceType::WorkflowResourceType(const std::string& tn, bool p, const MetaType& mt)
+WorkflowResourceType::WorkflowResourceType(const std::string& tn, const MetaType& mt, bool p )
   : metaType{ mt }, typeName{ tn }, persistent{ p }
 {
   CHECK_LOG_THROW(metaType == Attachment, "WorkflowResourceType() : Cannot create attachment using this constructor");
@@ -71,8 +71,8 @@ WorkflowResource::WorkflowResource(const std::string& n, std::shared_ptr<Workflo
 {
 }
 
-RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, uint32_t mvm, AttachmentSize at )
-  : name{ n }, operationType{ t }, multiViewMask{ mvm }, attachmentSize{ at }
+RenderOperation::RenderOperation(const std::string& n, RenderOperation::Type t, ImageSize at, uint32_t mvm )
+  : name{ n }, operationType{ t }, attachmentSize{ at }, multiViewMask{ mvm }
 {
 }
 
@@ -151,14 +151,14 @@ void RenderWorkflow::addResourceType(std::shared_ptr<WorkflowResourceType> tp)
   valid = false;
 }
 
-void RenderWorkflow::addResourceType(const std::string& typeName, bool persistent, VkFormat format, VkSampleCountFlagBits samples, AttachmentType attachmentType, const AttachmentSize& attachmentSize, VkImageUsageFlags imageUsage)
+void RenderWorkflow::addResourceType(const std::string& typeName, VkFormat format, const ImageSize& attachmentSize, AttachmentType attachmentType, VkImageUsageFlags imageUsage, bool persistent )
 {
-  addResourceType(std::make_shared<WorkflowResourceType>(typeName, persistent, format, samples, attachmentType, attachmentSize, imageUsage));
+  addResourceType(std::make_shared<WorkflowResourceType>(typeName, format, attachmentSize, attachmentType, imageUsage, persistent));
 }
 
-void RenderWorkflow::addResourceType(const std::string& typeName, bool persistent, const WorkflowResourceType::MetaType& metaType)
+void RenderWorkflow::addResourceType(const std::string& typeName, const WorkflowResourceType::MetaType& metaType, bool persistent)
 {
-  addResourceType(std::make_shared<WorkflowResourceType>(typeName, persistent, metaType));
+  addResourceType(std::make_shared<WorkflowResourceType>(typeName, metaType, persistent));
 }
 
 std::shared_ptr<WorkflowResourceType> RenderWorkflow::getResourceType(const std::string& typeName) const
@@ -178,9 +178,9 @@ void RenderWorkflow::addRenderOperation(std::shared_ptr<RenderOperation> op)
   valid = false;
 }
 
-void RenderWorkflow::addRenderOperation(const std::string& name, RenderOperation::Type operationType, uint32_t multiViewMask, AttachmentSize attachmentSize )
+void RenderWorkflow::addRenderOperation(const std::string& name, RenderOperation::Type operationType, const ImageSize& attachmentSize, uint32_t multiViewMask )
 {
-  addRenderOperation(std::make_shared<RenderOperation>(name, operationType, multiViewMask, attachmentSize));
+  addRenderOperation(std::make_shared<RenderOperation>(name, operationType, attachmentSize, multiViewMask ));
 }
 
 std::vector<std::string> RenderWorkflow::getRenderOperationNames() const
@@ -524,7 +524,7 @@ bool RenderWorkflow::compile(std::shared_ptr<RenderWorkflowCompiler> compiler)
 
 void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const RenderWorkflow& workflow)
 {
-  std::unordered_map<int, AttachmentSize> tags;
+  std::unordered_map<int, ImageSize> tags;
   attachmentTag.clear();
   int currentTag = 0;
 
@@ -536,7 +536,7 @@ void StandardRenderWorkflowCostCalculator::tagOperationByAttachmentType(const Re
       attachmentTag.insert({ operationName, currentTag++ });
       continue;
     }
-    AttachmentSize attachmentSize = operation->attachmentSize;
+    ImageSize attachmentSize = operation->attachmentSize;
     int tagFound = -1;
     for (auto& tit : tags)
     {
@@ -1079,23 +1079,23 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       auto opLayouts         = allLayouts[opid];
       for (auto& transition : transitions)
       {
-        VkExtent3D imSize{ 1,1,1 };
+        ImageSize imageSize{ transition->resource->resourceType->attachment.attachmentSize };
         auto resourceName   = workflowResults->resourceAlias.at(transition->resource->name);
         WorkflowResource resource(resourceName, transition->resource->resourceType);
         auto resourceType   = resource.resourceType;
         uint32_t resid      = resourceMap.at(resourceName);
         auto aspectMask     = getAspectMask(resourceType->attachment.attachmentType);
-        uint32_t layerCount = resourceType->attachment.attachmentSize.arrayLayers;
         auto ait            = workflowResults->registeredMemoryImages.find(resourceName);
         if (ait == end(workflowResults->registeredMemoryImages))
         {
-          ImageTraits imageTraits(resourceType->attachment.imageUsage, resourceType->attachment.format, imSize, 1, layerCount, resourceType->attachment.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+          ImageTraits imageTraits(resourceType->attachment.format, imageSize, resourceType->attachment.imageUsage, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
           SwapChainImageBehaviour scib = (resourceType->attachment.attachmentType == atSurface) ? swForEachImage : swOnce;
           ait = workflowResults->registeredMemoryImages.insert({ resourceName, std::make_shared<MemoryImage>(imageTraits, workflow.frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) }).first;
         }
         auto aiv = workflowResults->registeredImageViews.find(resourceName);
         if (aiv == end(workflowResults->registeredImageViews))
         {
+          uint32_t layerCount           = resourceType->attachment.attachmentSize.arrayLayers;
           ImageSubresourceRange range(aspectMask, 0, 1, 0, layerCount);
           VkImageViewType imageViewType = (layerCount > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
           aiv = workflowResults->registeredImageViews.insert({ resourceName, std::make_shared<ImageView>(ait->second, range, imageViewType) }).first;
@@ -1110,7 +1110,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       }
     }
 
-    AttachmentSize frameBufferSize;
+    ImageSize frameBufferSize;
     if (!renderPass->subPasses.empty())
       frameBufferSize = renderPass->subPasses[0].lock()->operation->attachmentSize;
     auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, resources, renderPass, workflowResults->registeredMemoryImages, workflowResults->registeredImageViews);
@@ -1125,7 +1125,7 @@ void SingleQueueWorkflowCompiler::buildFrameBuffersAndRenderPasses(const RenderW
       attachments.push_back(AttachmentDescription(
         i,
         resources[i].resourceType->attachment.format,
-        resources[i].resourceType->attachment.samples,
+        makeSamples(resources[i].resourceType->attachment.attachmentSize),
         VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         VK_ATTACHMENT_STORE_OP_DONT_CARE,
         VK_ATTACHMENT_LOAD_OP_DONT_CARE,

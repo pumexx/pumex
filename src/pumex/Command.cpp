@@ -484,9 +484,9 @@ void CommandBuffer::setImageLayout(Image& image, VkImageAspectFlags aspectMask, 
   VkImageSubresourceRange subresourceRange{};
     subresourceRange.aspectMask     = aspectMask;
     subresourceRange.baseMipLevel   = 0;
-    subresourceRange.levelCount     = image.getImageTraits().mipLevels;
+    subresourceRange.levelCount     = image.getImageTraits().imageSize.mipLevels;
     subresourceRange.baseArrayLayer = 0;
-    subresourceRange.layerCount     = image.getImageTraits().arrayLayers;
+    subresourceRange.layerCount     = image.getImageTraits().imageSize.arrayLayers;
   setImageLayout(image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
 

@@ -29,22 +29,58 @@
 namespace pumex
 {
 
+struct PUMEX_EXPORT ImageSize
+{
+  enum Type { Undefined, Absolute, SurfaceDependent };
+
+  ImageSize()
+    : type{ Undefined }, size{ 0.0f, 0.0f, 0.0f }, arrayLayers{ 1 }, mipLevels{ 1 }
+  {
+  }
+  ImageSize(Type aType, const glm::vec2& imSize, uint32_t aLayers = 1, uint32_t mLevels = 1, uint32_t xSamples = 1)
+    : type{ aType }, size{ imSize.x, imSize.y, 1.0f }, arrayLayers{ aLayers }, mipLevels{ mLevels }, samples{ xSamples }
+  {
+  }
+  ImageSize(Type aType, const glm::vec3& imSize, uint32_t aLayers = 1, uint32_t mLevels = 1, uint32_t xSamples = 1)
+    : type{ aType }, size{ imSize }, arrayLayers{ aLayers }, mipLevels{ mLevels }, samples{ xSamples }
+  {
+  }
+
+  Type      type;
+  glm::vec3 size;
+  uint32_t  arrayLayers;
+  uint32_t  mipLevels;
+  uint32_t  samples;
+};
+
+inline bool operator==(const ImageSize& lhs, const ImageSize& rhs);
+inline bool operator!=(const ImageSize& lhs, const ImageSize& rhs);
+
+PUMEX_EXPORT VkExtent3D            makeVkExtent3D(const ImageSize& iSize);
+PUMEX_EXPORT VkExtent3D            makeVkExtent3D(const ImageSize& iSize, const VkExtent3D& extent);
+PUMEX_EXPORT VkExtent3D            makeVkExtent3D(const ImageSize& iSize, const VkExtent2D& extent);
+PUMEX_EXPORT VkExtent2D            makeVkExtent2D(const ImageSize& iSize);
+PUMEX_EXPORT VkExtent2D            makeVkExtent2D(const ImageSize& iSize, const VkExtent2D& extent);
+PUMEX_EXPORT VkRect2D              makeVkRect2D(int32_t x, int32_t y, uint32_t width, uint32_t height);
+PUMEX_EXPORT VkRect2D              makeVkRect2D(const ImageSize& iSize);
+PUMEX_EXPORT VkRect2D              makeVkRect2D(const ImageSize& iSize, const VkExtent2D& extent);
+PUMEX_EXPORT VkViewport            makeVkViewport(float x, float y, float width, float height, float minDepth, float maxDepth);
+PUMEX_EXPORT VkSampleCountFlagBits makeSamples(uint32_t samples);
+PUMEX_EXPORT VkSampleCountFlagBits makeSamples(const ImageSize& iSize);
+
 // struct representing all options required to create or describe VkImage
 struct PUMEX_EXPORT ImageTraits
 {
-  explicit ImageTraits() = default;
-  explicit ImageTraits(VkImageUsageFlags usage, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
+  explicit ImageTraits()                            = default;
+  explicit ImageTraits(VkFormat format, ImageSize imageSize, VkImageUsageFlags usage,
     bool linearTiling = false, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageCreateFlags imageCreate = 0,
     VkImageType imageType = VK_IMAGE_TYPE_2D, VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE);
-  ImageTraits(const ImageTraits& traits) = default;
+  ImageTraits(const ImageTraits& traits)            = default;
   ImageTraits& operator=(const ImageTraits& traits) = default;
 
-  VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;
-  VkExtent3D               extent         = VkExtent3D{ 1, 1, 1 };
-  uint32_t                 mipLevels      = 1;
-  uint32_t                 arrayLayers    = 1;
-  VkSampleCountFlagBits    samples        = VK_SAMPLE_COUNT_1_BIT;
+  ImageSize                imageSize      = ImageSize{ ImageSize::Absolute, glm::vec3{1.0f, 1.0f, 1.0f}, 1, 1 };
+  VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   bool                     linearTiling   = false;
   VkImageLayout            initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImageCreateFlags       imageCreate    = 0;
@@ -60,7 +96,7 @@ public:
   // user creates VkImage and assigns memory to it
   explicit Image(Device* device, const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   // user delivers VkImage, Image does not own it, just creates VkImageView
-  explicit Image(Device* device, VkImage image, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels = 1, uint32_t arrayLayers = 1);
+  explicit Image(Device* device, VkImage image, VkFormat format, const ImageSize& imageSize = ImageSize{ ImageSize::Absolute, glm::vec3{ 1.0f, 1.0f, 1.0f }, 1, 1 });
   Image(const Image&)                = delete;
   Image& operator=(const Image&)     = delete;
   Image(Image&&)                     = delete;
@@ -85,6 +121,17 @@ protected:
 };
 
 // inlines
+bool operator==(const ImageSize& lhs, const ImageSize& rhs)
+{
+  return lhs.type == rhs.type && lhs.size == rhs.size && lhs.arrayLayers == rhs.arrayLayers && lhs.mipLevels == rhs.mipLevels;
+}
+
+bool operator!=(const ImageSize& lhs, const ImageSize& rhs)
+{
+  return lhs.type != rhs.type || lhs.size != rhs.size || lhs.arrayLayers != rhs.arrayLayers || lhs.mipLevels != rhs.mipLevels;
+}
+
+
 VkDevice             Image::getDevice() const      { return device; }
 VkImage              Image::getHandleImage() const { return image; }
 VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }

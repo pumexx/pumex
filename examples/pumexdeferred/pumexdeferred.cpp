@@ -197,12 +197,12 @@ int main( int argc, char * argv[] )
 {
   SET_LOG_INFO;
 
-  std::unordered_map<std::string, VkSampleCountFlagBits> availableSamplesPerPixel
+  std::unordered_map<std::string, uint32_t> availableSamplesPerPixel
   {
-    {  "1", VK_SAMPLE_COUNT_1_BIT },
-    {  "2", VK_SAMPLE_COUNT_2_BIT },
-    {  "4", VK_SAMPLE_COUNT_4_BIT },
-    {  "8", VK_SAMPLE_COUNT_8_BIT }
+    {  "1", 1 },
+    {  "2", 2 },
+    {  "4", 4 },
+    {  "8", 8 }
   };
 
   args::ArgumentParser                              parser("pumex example : deferred rendering with physically based rendering and antialiasing");
@@ -212,7 +212,7 @@ int main( int argc, char * argv[] )
   args::MapFlag<std::string, VkPresentModeKHR>      presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                         updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Flag                                        skipDepthPrepass(parser, "nodp", "skip depth prepass", { 'n' });
-  args::MapFlag<std::string, VkSampleCountFlagBits> samplesPerPixel(parser, "samples", "samples per pixel (1,2,4,8)", { 's' }, availableSamplesPerPixel, VK_SAMPLE_COUNT_4_BIT);
+  args::MapFlag<std::string, uint32_t>              samplesPerPixel(parser, "samples", "samples per pixel (1,2,4,8)", { 's' }, availableSamplesPerPixel, 4);
   try
   {
     parser.ParseCLI(argc, argv);
@@ -237,9 +237,9 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  VkPresentModeKHR presentMode      = args::get(presentationMode);
-  uint32_t updateFrequency          = std::max(1U, args::get(updatesPerSecond));
-  VkSampleCountFlagBits sampleCount = args::get(samplesPerPixel);
+  VkPresentModeKHR presentMode = args::get(presentationMode);
+  uint32_t updateFrequency     = std::max(1U, args::get(updatesPerSecond));
+  uint32_t sampleCount         = args::get(samplesPerPixel);
 
   LOG_INFO << "Deferred rendering with physically based rendering and antialiasing : ";
   if (enableDebugging)
@@ -250,10 +250,10 @@ int main( int argc, char * argv[] )
     LOG_INFO << "depth prepass NOT present, ";
   switch (sampleCount)
   {
-  case VK_SAMPLE_COUNT_1_BIT: LOG_INFO << "1 sample per pixel"; break;
-  case VK_SAMPLE_COUNT_2_BIT: LOG_INFO << "2 samples per pixel"; break;
-  case VK_SAMPLE_COUNT_4_BIT: LOG_INFO << "4 samples per pixel"; break;
-  case VK_SAMPLE_COUNT_8_BIT: LOG_INFO << "8 samples per pixel"; break;
+  case 1: LOG_INFO << "1 sample per pixel"; break;
+  case 2: LOG_INFO << "2 samples per pixel"; break;
+  case 4: LOG_INFO << "4 samples per pixel"; break;
+  case 8: LOG_INFO << "8 samples per pixel"; break;
   default: LOG_INFO << "unknown number of samples per pixel"; break;
   }
   LOG_INFO << std::endl;
@@ -283,12 +283,15 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
+    pumex::ImageSize fullScreenSizeMultisampled{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, sampleCount };
+    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  false, VK_FORMAT_R16G16B16A16_SFLOAT, sampleCount,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("color_samples", false, VK_FORMAT_B8G8R8A8_UNORM,      sampleCount,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,          sampleCount,          pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("resolve",       false, VK_FORMAT_B8G8R8A8_UNORM,      sampleCount,          pumex::atColor,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM,      VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, fullScreenSizeMultisampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false);
+      workflow->addResourceType("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSizeMultisampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false);
+      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,          fullScreenSizeMultisampled, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               false);
+      workflow->addResourceType("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSizeMultisampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       false);
+      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSize,             pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       true);
 
     if (!skipDepthPrepass)
     {
@@ -402,7 +405,7 @@ int main( int argc, char * argv[] )
       {
         { 0, VK_VERTEX_INPUT_RATE_VERTEX, requiredSemantic }
       };
-      buildzPipeline->rasterizationSamples = sampleCount;
+      buildzPipeline->rasterizationSamples = pumex::makeSamples(sampleCount);
 
       buildzRoot->addChild(buildzPipeline);
 
@@ -471,7 +474,7 @@ int main( int argc, char * argv[] )
       { VK_FALSE, 0xF },
       { VK_FALSE, 0xF }
     };
-    gbufferPipeline->rasterizationSamples = sampleCount;
+    gbufferPipeline->rasterizationSamples = pumex::makeSamples(sampleCount);
 
     gbufferRoot->addChild(gbufferPipeline);
 
@@ -531,7 +534,7 @@ int main( int argc, char * argv[] )
     {
       { VK_FALSE, 0xF }
     };
-    compositePipeline->rasterizationSamples = sampleCount;
+    compositePipeline->rasterizationSamples = pumex::makeSamples(sampleCount);
 
     lightingRoot->addChild(compositePipeline);
 
@@ -550,7 +553,7 @@ int main( int argc, char * argv[] )
     compositeDescriptorSet->setDescriptor(5, std::make_shared<pumex::InputAttachment>("pbr", iaSampler));
     assetNode->setDescriptorSet(0, compositeDescriptorSet);
 
-    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer, sampleCount);
+    std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer, pumex::makeSamples(sampleCount));
     viewer->addInputEventHandler(tsHandler);
     lightingRoot->addChild(tsHandler->getRoot());
 

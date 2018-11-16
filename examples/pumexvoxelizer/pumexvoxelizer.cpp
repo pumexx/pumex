@@ -68,7 +68,8 @@ struct VoxelizerApplicationData
     voxelPositionBuffer  = std::make_shared<pumex::Buffer<PositionData>>(voxelPositionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
     // build 3D texture
-    pumex::ImageTraits   volumeImageTraits( VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_FORMAT_B8G8R8A8_UNORM, { CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE }, 1, CLIPMAP_TEXTURE_COUNT, VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
+    pumex::ImageSize volumeSize{ pumex::ImageSize::Absolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
+    pumex::ImageTraits   volumeImageTraits( VK_FORMAT_B8G8R8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
     volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
 
     pumex::BoundingBox bbox;
@@ -275,13 +276,15 @@ int main( int argc, char * argv[] )
 
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
+    pumex::ImageSize surfaceSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("voxelizer_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,     VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("surface",       true,  VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-      workflow->addResourceType("image_3d",      false, pumex::WorkflowResourceType::Image);
+      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,     surfaceSize, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false );
+      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM, surfaceSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         true);
+      workflow->addResourceType("image_3d",      pumex::WorkflowResourceType::Image, false );
 
     // first operation creates 3D texture of underlying model ( model voxelization )
-    workflow->addRenderOperation("voxelization", pumex::RenderOperation::Graphics, 0, pumex::AttachmentSize( pumex::AttachmentSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)));
+    workflow->addRenderOperation("voxelization", pumex::RenderOperation::Graphics, pumex::ImageSize( pumex::ImageSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)));
       workflow->addImageOutput("voxelization", "image_3d", "voxels", pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
 
     // second operation renders 3D model and raymarches 3D texture to show that model and texture are in the same position

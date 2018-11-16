@@ -32,8 +32,8 @@
 
 using namespace pumex;
 
-FrameBuffer::FrameBuffer(const AttachmentSize& fbs, const std::vector<WorkflowResource>& ar, std::shared_ptr<RenderPass> rp, std::map<std::string, std::shared_ptr<MemoryImage>> mi, std::map<std::string, std::shared_ptr<ImageView>> iv)
-  : frameBufferSize{fbs}, attachmentResources(ar), renderPass{ rp }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const ImageSize& is, const std::vector<WorkflowResource>& ar, std::shared_ptr<RenderPass> rp, std::map<std::string, std::shared_ptr<MemoryImage>> mi, std::map<std::string, std::shared_ptr<ImageView>> iv)
+  : frameBufferSize{is}, attachmentResources(ar), renderPass{ rp }, activeCount{ 1 }
 {
   for( const auto& resource : attachmentResources)
   {
@@ -88,25 +88,22 @@ void FrameBuffer::validate(const RenderContext& renderContext)
     iViews[i] = imageViews[i]->getImageView(renderContext);
   // find framebuffer size from first image definition
 
-  uint32_t frameBufferWidth, frameBufferHeight;
+  VkExtent2D extent;
   switch (frameBufferSize.type)
   {
-  case AttachmentSize::SurfaceDependent:
+  case ImageSize::SurfaceDependent:
   {
-    frameBufferWidth  = renderContext.surface->swapChainSize.width  * frameBufferSize.imageSize.x;
-    frameBufferHeight = renderContext.surface->swapChainSize.height * frameBufferSize.imageSize.y;
+    extent = makeVkExtent2D(frameBufferSize, renderContext.surface->swapChainSize);
     break;
   }
-  case AttachmentSize::Absolute:
+  case ImageSize::Absolute:
   {
-    frameBufferWidth  = frameBufferSize.imageSize.x;
-    frameBufferHeight = frameBufferSize.imageSize.y;
+    extent = makeVkExtent2D(frameBufferSize);
     break;
   }
   default:
   {
-    frameBufferWidth  = 1;
-    frameBufferHeight = 1;
+    extent = VkExtent2D{ 1,1 };
     break;
   }
   }
@@ -117,8 +114,8 @@ void FrameBuffer::validate(const RenderContext& renderContext)
     frameBufferCreateInfo.renderPass      = rp->getHandle(renderContext);
     frameBufferCreateInfo.attachmentCount = iViews.size();
     frameBufferCreateInfo.pAttachments    = iViews.data();
-    frameBufferCreateInfo.width           = frameBufferWidth;
-    frameBufferCreateInfo.height          = frameBufferHeight;
+    frameBufferCreateInfo.width           = extent.width;
+    frameBufferCreateInfo.height          = extent.height;
     frameBufferCreateInfo.layers          = frameBufferSize.arrayLayers;
   VK_CHECK_LOG_THROW(vkCreateFramebuffer(renderContext.vkDevice, &frameBufferCreateInfo, nullptr, &pddit->second.data[activeIndex].frameBuffer), "Could not create frame buffer " << activeIndex);
   pddit->second.valid[activeIndex] = true;
@@ -146,33 +143,10 @@ void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::v
     }
     else
     {
-      VkExtent3D imSize;
-      switch (resource.resourceType->attachment.attachmentSize.type)
-      {
-      case AttachmentSize::SurfaceDependent:
-      {
-        imSize.width  = renderContext.surface->swapChainSize.width  * resource.resourceType->attachment.attachmentSize.imageSize.x;
-        imSize.height = renderContext.surface->swapChainSize.height * resource.resourceType->attachment.attachmentSize.imageSize.y;
-        imSize.depth  = 1;
-        break;
-      }
-      case AttachmentSize::Absolute:
-      {
-        imSize.width  = resource.resourceType->attachment.attachmentSize.imageSize.x;
-        imSize.height = resource.resourceType->attachment.attachmentSize.imageSize.y;
-        imSize.depth  = 1;
-        break;
-      }
-      default:
-      {
-        imSize.width  = 1;
-        imSize.height = 1;
-        imSize.depth  = 1;
-        break;
-      }
-      }
-      uint32_t layerCount = resource.resourceType->attachment.attachmentSize.arrayLayers;
-      ImageTraits imageTraits(resource.resourceType->attachment.imageUsage, resource.resourceType->attachment.format, imSize, 1, layerCount, resource.resourceType->attachment.samples, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      ImageSize imageSize{ resource.resourceType->attachment.attachmentSize };
+      if(imageSize.type == ImageSize::SurfaceDependent)
+        imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
+      ImageTraits imageTraits(resource.resourceType->attachment.format, imageSize, resource.resourceType->attachment.imageUsage, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
       memoryImages[i]->setImageTraits(renderContext.surface, imageTraits);
     }
   }

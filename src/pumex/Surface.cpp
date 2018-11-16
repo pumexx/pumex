@@ -284,10 +284,8 @@ void Surface::createSwapChain()
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, nullptr), "Could not get swapchain images");
   std::vector<VkImage> images(imageCount);
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
-  VkExtent3D extent{ swapChainSize.width, swapChainSize.height, 1 };
   for (uint32_t i = 0; i < imageCount; i++)
-    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], resource.resourceType->attachment.format, extent, 1, 1));
-
+    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], resource.resourceType->attachment.format, resource.resourceType->attachment.attachmentSize));
   prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
   presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
 }

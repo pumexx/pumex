@@ -190,28 +190,6 @@ protected:
   std::set<CommandBuffer*> commandBuffers;
 };
 
-inline VkRect2D makeVkRect2D(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
-{
-  VkRect2D rect{};
-    rect.offset.x      = x;
-    rect.offset.y      = y;
-    rect.extent.width  = width;
-    rect.extent.height = height;
-  return rect;
-}
-
-inline VkViewport makeViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
-{
-  VkViewport viewport{};
-    viewport.x        = x;
-    viewport.y        = y;
-    viewport.width    = width;
-    viewport.height   = height;
-    viewport.minDepth = minDepth;
-    viewport.maxDepth = maxDepth;
-  return viewport;
-}
-
 inline VkClearValue makeColorClearValue(const glm::vec4& color)
 {
   VkClearValue value;

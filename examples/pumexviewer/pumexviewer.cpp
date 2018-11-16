@@ -238,9 +238,11 @@ int main( int argc, char * argv[] )
     // render workflow will use one queue with below defined traits
     std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
+    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+
     std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("depth_samples", false, VK_FORMAT_D32_SFLOAT,    VK_SAMPLE_COUNT_1_BIT, pumex::atDepth,   pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-      workflow->addResourceType("surface",       true, VK_FORMAT_B8G8R8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, pumex::atSurface, pumex::AttachmentSize{ pumex::AttachmentSize::SurfaceDependent, glm::vec2(1.0f,1.0f) }, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,     fullScreenSize, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false);
+      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM, fullScreenSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         true);
 
     // workflow will only have one operation that has two output attachments : depth buffer and swapchain image
     workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);

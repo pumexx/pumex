@@ -25,10 +25,109 @@
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
+namespace pumex
+{
+  VkExtent3D makeVkExtent3D(const ImageSize& iSize)
+  {
+    return VkExtent3D
+    { 
+      static_cast<uint32_t>(iSize.size.x), 
+      static_cast<uint32_t>(iSize.size.y), 
+      static_cast<uint32_t>(iSize.size.z) 
+    };
+  }
 
-ImageTraits::ImageTraits(VkImageUsageFlags u, VkFormat f, const VkExtent3D& e, uint32_t m, uint32_t l, VkSampleCountFlagBits s, bool lt, VkImageLayout il,
-  VkImageCreateFlags ic, VkImageType it, VkSharingMode sm)
-  : usage{ u }, format{ f }, extent( e ), mipLevels{ m }, arrayLayers{ l }, samples{ s }, linearTiling{ lt }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }
+  VkExtent3D makeVkExtent3D(const ImageSize& iSize, const VkExtent3D& extent)
+  {
+    return VkExtent3D
+    {
+      static_cast<uint32_t>(iSize.size.x * extent.width),
+      static_cast<uint32_t>(iSize.size.y * extent.height),
+      static_cast<uint32_t>(iSize.size.z * extent.depth)
+    };
+  }
+
+  VkExtent3D makeVkExtent3D(const ImageSize& iSize, const VkExtent2D& extent)
+  {
+    return VkExtent3D
+    {
+      static_cast<uint32_t>(iSize.size.x * extent.width),
+      static_cast<uint32_t>(iSize.size.y * extent.height),
+      1
+    };
+  }
+
+  VkExtent2D makeVkExtent2D(const ImageSize& iSize)
+  {
+    return VkExtent2D
+    {
+      static_cast<uint32_t>(iSize.size.x),
+      static_cast<uint32_t>(iSize.size.y)
+    };
+  }
+
+  VkExtent2D makeVkExtent2D(const ImageSize& iSize, const VkExtent2D& extent)
+  {
+    return VkExtent2D
+    {
+      static_cast<uint32_t>(iSize.size.x * extent.width),
+      static_cast<uint32_t>(iSize.size.y * extent.height)
+    };
+  }
+
+  VkRect2D makeVkRect2D(int32_t x, int32_t y, uint32_t width, uint32_t height)
+  {
+    return VkRect2D{ VkOffset2D{ x, y }, VkExtent2D{ width, height } };
+  }
+
+  VkRect2D makeVkRect2D(const ImageSize& iSize)
+  {
+    return VkRect2D{ VkOffset2D{0,0}, makeVkExtent2D(iSize) };
+  }
+
+  VkRect2D makeVkRect2D(const ImageSize& iSize, const VkExtent2D& extent)
+  {
+    return VkRect2D{ VkOffset2D{ 0,0 }, makeVkExtent2D(iSize, extent) };
+  }
+
+  VkViewport makeVkViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+  {
+    return VkViewport{x,y,width,height,minDepth,maxDepth};
+  }
+
+  VkSampleCountFlagBits makeSamples(uint32_t samples)
+  {
+    switch (samples)
+    {
+    case 1:
+      return VK_SAMPLE_COUNT_1_BIT;
+    case 2:
+      return VK_SAMPLE_COUNT_2_BIT;
+    case 4:
+      return VK_SAMPLE_COUNT_4_BIT;
+    case 8:
+      return VK_SAMPLE_COUNT_8_BIT;
+    case 16:
+      return VK_SAMPLE_COUNT_16_BIT;
+    case 32:
+      return VK_SAMPLE_COUNT_32_BIT;
+    case 64:
+      return VK_SAMPLE_COUNT_64_BIT;
+    default:
+      return VK_SAMPLE_COUNT_1_BIT;
+    }
+    return VK_SAMPLE_COUNT_1_BIT;
+  }
+
+  VkSampleCountFlagBits makeSamples(const ImageSize& iSize)
+  {
+    return makeSamples(iSize.samples);
+  }
+
+}
+
+ImageTraits::ImageTraits(VkFormat f, ImageSize imSize, VkImageUsageFlags u, bool lt, VkImageLayout il, VkImageCreateFlags ic, VkImageType it, VkSharingMode sm)
+  : format{ f }, imageSize{ imSize }, usage{ u }, linearTiling{ lt }, initialLayout{ il }, imageCreate{ ic }, imageType{ it }, sharingMode{ sm }
 {
 }
 
@@ -40,10 +139,10 @@ Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAlloc
     imageCI.flags         = imageTraits.imageCreate;
     imageCI.imageType     = imageTraits.imageType;
     imageCI.format        = imageTraits.format;
-    imageCI.extent        = imageTraits.extent;
-    imageCI.mipLevels     = imageTraits.mipLevels;
-    imageCI.arrayLayers   = imageTraits.arrayLayers;
-    imageCI.samples       = imageTraits.samples;
+    imageCI.extent        = makeVkExtent3D(imageTraits.imageSize);
+    imageCI.mipLevels     = imageTraits.imageSize.mipLevels;
+    imageCI.arrayLayers   = imageTraits.imageSize.arrayLayers;
+    imageCI.samples       = makeSamples(imageTraits.imageSize);
     imageCI.tiling        = imageTraits.linearTiling ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
     imageCI.usage         = imageTraits.usage;
     imageCI.sharingMode   = imageTraits.sharingMode;
@@ -60,14 +159,12 @@ Image::Image(Device* d, const ImageTraits& it, std::shared_ptr<DeviceMemoryAlloc
   VK_CHECK_LOG_THROW(vkBindImageMemory(device, image, memoryBlock.memory, memoryBlock.alignedOffset), "failed vkBindImageMemory");
 }
 
-Image::Image(Device* d, VkImage i, VkFormat format, const VkExtent3D& extent, uint32_t mipLevels, uint32_t arrayLayers)
+Image::Image(Device* d, VkImage i, VkFormat format, const ImageSize& imageSize)
   : device(d->device), image{ i }, ownsImage{  false }
 {
   // gather all what we know about delivered image
   imageTraits.format      = format;
-  imageTraits.extent      = extent;
-  imageTraits.mipLevels   = mipLevels;
-  imageTraits.arrayLayers = arrayLayers;
+  imageTraits.imageSize   = imageSize;
 }
 
 Image::~Image()
@@ -103,8 +200,8 @@ namespace pumex
 ImageTraits getImageTraitsFromTexture(const gli::texture& texture, VkImageUsageFlags usage)
 {
   auto t = texture.extent(0);
-  return ImageTraits(usage, vulkanFormatFromGliFormat(texture.format()), { uint32_t(t.x), uint32_t(t.y), uint32_t(t.z) },
-    texture.levels(), texture.layers(), VK_SAMPLE_COUNT_1_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, vulkanImageTypeFromTextureExtents(t), VK_SHARING_MODE_EXCLUSIVE);
+  return ImageTraits(vulkanFormatFromGliFormat(texture.format()), ImageSize{ ImageSize::Absolute, glm::vec3(t.x, t.y, t.z), static_cast<uint32_t>(texture.layers()), static_cast<uint32_t>(texture.levels()), 1 }, usage,
+    false, VK_IMAGE_LAYOUT_UNDEFINED, 0, vulkanImageTypeFromTextureExtents(t), VK_SHARING_MODE_EXCLUSIVE);
 }
 
 VkFormat vulkanFormatFromGliFormat(gli::texture::format_type format)
