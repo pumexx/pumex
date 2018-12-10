@@ -30,15 +30,14 @@
 #include <pumex/Export.h>
 #include <pumex/Device.h>
 #include <pumex/utils/ActionQueue.h>
+#include <pumex/RenderGraph.h>
 
 namespace pumex
 {
 
 class Viewer;
 class Window;
-class RenderWorkflow;
-class RenderWorkflowCompiler;
-class RenderWorkflowResults;
+class RenderGraphExecutable;
 class CommandPool;
 class CommandBuffer;
 class FrameBuffer;
@@ -60,7 +59,7 @@ const uint32_t TSS_GROUP_PRIMARY_BUFFERS   = 10;
 
 const uint32_t TSS_CHANNEL_BEGINFRAME                   = 1;
 const uint32_t TSS_CHANNEL_EVENTSURFACERENDERSTART      = 2;
-const uint32_t TSS_CHANNEL_VALIDATEWORKFLOW             = 3;
+const uint32_t TSS_CHANNEL_VALIDATERENDERGRAPH             = 3;
 const uint32_t TSS_CHANNEL_VALIDATESECONDARYNODES       = 4;
 const uint32_t TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS = 5;
 const uint32_t TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS = 6;
@@ -72,16 +71,16 @@ const uint32_t TSS_CHANNEL_EVENTSURFACERENDERFINISH     = 9;
 // struct representing information required to create a Vulkan surface
 struct PUMEX_EXPORT SurfaceTraits
 {
-  explicit SurfaceTraits(uint32_t imageCount, VkColorSpaceKHR imageColorSpace, uint32_t imageArrayLayers, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
+  explicit SurfaceTraits(const ResourceDefinition& swapChainDefinition, uint32_t swapChainImageCount, VkColorSpaceKHR swapChainImageColorSpace, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
 
-  uint32_t                           imageCount;
-  VkColorSpaceKHR                    imageColorSpace;
-  uint32_t                           imageArrayLayers;
+  ResourceDefinition                 swapChainDefinition;
+  uint32_t                           swapChainImageCount;
+  VkColorSpaceKHR                    swapChainImageColorSpace;
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
   VkCompositeAlphaFlagBitsKHR        compositeAlpha;
-  // this variable exists so that WindowQT will not destroy surface in cleanup(), because Vulkan surface is owned by QT
-  bool                               destroySurfaceDuringCleanup = true;
+  // this variable exists so that WindowQT will not destroy surface on cleanup(), because Vulkan surface is owned by QT
+  bool                               destroySurfaceOnCleanup = true;
 };
 
 // class representing a Vulkan surface
@@ -97,14 +96,15 @@ public:
   virtual ~Surface();
 
   inline bool                   isRealized() const;
+  void                          collectQueueTraits();
   void                          realize();
   void                          cleanup();
   void                          beginFrame();
-  void                          validateWorkflow();
+  void                          validateRenderGraphs();
   void                          setCommandBufferIndices();
-  void                          validatePrimaryNodes(uint32_t queueNumber);
-  void                          validatePrimaryDescriptors(uint32_t queueNumber);
-  void                          buildPrimaryCommandBuffer(uint32_t queueNumber);
+  void                          validatePrimaryNodes(uint32_t queueIndex);
+  void                          validatePrimaryDescriptors(uint32_t queueIndex);
+  void                          buildPrimaryCommandBuffer(uint32_t queueIndex);
   void                          validateSecondaryNodes();
   void                          validateSecondaryDescriptors();
   void                          buildSecondaryCommandBuffers();
@@ -114,14 +114,14 @@ public:
   inline uint32_t               getImageCount() const;
   inline uint32_t               getImageIndex() const;
 
-  void                          setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler);
+  void                          addRenderGraph(const std::string& name, bool active);
+  std::vector<uint32_t>         getQueueIndices(const std::string renderGraphName) const;
+  uint32_t                      getNumQueues() const;
+  Queue*                        getQueue(uint32_t index) const;
+  std::shared_ptr<CommandPool>  getCommandPool(uint32_t index) const;
 
   void                          setID(std::shared_ptr<Viewer> viewer, uint32_t newID);
   inline uint32_t               getID() const;
-
-  std::shared_ptr<MemoryBuffer> getRegisteredMemoryBuffer(const std::string& name);
-  std::shared_ptr<MemoryImage>  getRegisteredMemoryImage(const std::string& name);
-  std::shared_ptr<ImageView>    getRegisteredImageView(const std::string& name);
 
   inline void                   setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event);
   inline void                   setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event);
@@ -130,6 +130,7 @@ public:
   void                          onEventSurfaceRenderStart();
   void                          onEventSurfaceRenderFinish();
   void                          onEventSurfacePrepareStatistics(TimeStatistics* viewerStatistics);
+
 
   std::shared_ptr<CommandPool>  getPresentationCommandPool();
   std::shared_ptr<Queue>        getPresentationQueue();
@@ -141,17 +142,10 @@ public:
   VkSurfaceKHR                                  surface                      = VK_NULL_HANDLE;
   SurfaceTraits                                 surfaceTraits;
 
-  std::shared_ptr<RenderWorkflow>               renderWorkflow;
-  std::shared_ptr<RenderWorkflowCompiler>       renderWorkflowCompiler;
-  std::shared_ptr<RenderWorkflowResults>        workflowResults;
-
   VkSurfaceCapabilitiesKHR                      surfaceCapabilities;
   std::vector<VkPresentModeKHR>                 presentModes;
   std::vector<VkSurfaceFormatKHR>               surfaceFormats;
   std::vector<VkBool32>                         supportsPresent;
-
-  std::vector<std::shared_ptr<Queue>>           queues;
-  std::vector<std::shared_ptr<CommandPool>>     commandPools;
 
   VkExtent2D                                    swapChainSize                = VkExtent2D{1,1};
   uint32_t                                      swapChainImageIndex          = 0;
@@ -166,27 +160,33 @@ protected:
   bool                                          realized                     = false;
   bool                                          resized                      = false;
 
-  std::vector<VkFence>                          waitFences;
+  std::vector<QueueTraits>                      queueTraits;
+  std::vector<std::shared_ptr<Queue>>           queues;
+  std::vector<std::shared_ptr<CommandPool>>     commandPools;
+  uint32_t                                      presentationQueueIndex       = -1;
+
+  std::vector<std::tuple<std::string, bool>>    renderGraphData;
+  std::map<std::string, std::vector<uint32_t>>  renderGraphQueueIndices;
+  std::map<std::string, std::vector<std::shared_ptr<CommandBuffer>>> primaryCommandBuffers;
+
   std::shared_ptr<CommandBuffer>                prepareCommandBuffer;
-  std::vector<std::shared_ptr<CommandBuffer>>   primaryCommandBuffers;
   std::shared_ptr<CommandBuffer>                presentCommandBuffer;
+  std::vector<VkFence>                          waitFences;
 
   std::vector<Node*>                            secondaryCommandBufferNodes;
   std::vector<VkRenderPass>                     secondaryCommandBufferRenderPasses;
   std::vector<uint32_t>                         secondaryCommandBufferSubPasses;
 
   VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;
-  std::vector<VkSemaphore>                      frameBufferReadySemaphores;
-  std::vector<VkSemaphore>                      renderCompleteSemaphores;
+  std::vector<VkSemaphore>                      attachmentsLayoutCompletedSemaphores;
+  std::vector<std::vector<VkSemaphore>>         queueSubmissionCompletedSemaphores;
   VkSemaphore                                   renderFinishedSemaphore      = VK_NULL_HANDLE;
 
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderFinish;
   std::function<void(Surface*, TimeStatistics*, TimeStatistics*)> eventSurfacePrepareStatistics;
 
-  void                                          createSwapChain();
-  bool                                          checkWorkflow();
-
+  void                                          recreateSwapChain();
 public:
   static const std::unordered_map<std::string, VkPresentModeKHR>         nameToPresentationModes;
   static const std::map<VkPresentModeKHR, std::string>                   presentationModeNames;
@@ -195,7 +195,7 @@ public:
 
 bool                         Surface::isRealized() const                                                               { return realized; }
 uint32_t                     Surface::getID() const                                                                    { return id; }
-uint32_t                     Surface::getImageCount() const                                                            { return surfaceTraits.imageCount; }
+uint32_t                     Surface::getImageCount() const                                                            { return surfaceTraits.swapChainImageCount; }
 uint32_t                     Surface::getImageIndex() const                                                            { return swapChainImageIndex; }
 void                         Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
 void                         Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }
@@ -203,4 +203,3 @@ void                         Surface::setEventSurfacePrepareStatistics(std::func
 
 
 }
-

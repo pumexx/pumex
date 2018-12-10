@@ -28,6 +28,7 @@
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/MemoryObject.h>
+#include <pumex/ResourceRange.h>
 #include <pumex/PerObjectData.h>
 #include <pumex/Image.h>
 
@@ -39,22 +40,6 @@ class RenderContext;
 class CommandBuffer;
 class CommandBufferSource;
 class ImageView;
-
-// struct defining subresource range for image
-struct PUMEX_EXPORT ImageSubresourceRange
-{
-  ImageSubresourceRange();
-  ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
-
-  VkImageSubresourceRange getSubresource() const;
-  bool contains(const ImageSubresourceRange& subRange) const;
-
-  VkImageAspectFlags    aspectMask;
-  uint32_t              baseMipLevel;
-  uint32_t              levelCount;
-  uint32_t              baseArrayLayer;
-  uint32_t              layerCount;
-};
 
 // MemoryImage class stores Vulkan images per sufrace or per device ( according to user's needs )
 // Class uses gli::texture to store texture data on CPU

@@ -640,6 +640,9 @@ int main(int argc, char * argv[])
   try
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    // allocate 24 MB for frame buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     std::vector<pumex::WindowTraits> windowTraits;
     if (render3windows)
@@ -665,32 +668,34 @@ int main(int argc, char * argv[])
     for (const auto& wt : windowTraits)
       windows.push_back(pumex::Window::createNativeWindow(wt));
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
     for (auto& window : windows)
       surfaces.push_back(window->createSurface(device, surfaceTraits));
 
-    // allocate 24 MB for frame buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f } };
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
+    pumex::ResourceDefinition indirectResults("indirectResults");
+    pumex::ResourceDefinition indirectDraw("indirectDraw");
 
-    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+    pumex::RenderOperation crowdCompute("crowd_compute", pumex::opCompute);
+      crowdCompute.addBufferOutput("indirect_results",     indirectResults, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      crowdCompute.addBufferOutput("indirect_draw",        indirectDraw,    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("crowd_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("depth_samples",   VK_FORMAT_D32_SFLOAT,     fullScreenSize, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false);
-      workflow->addResourceType("surface",         VK_FORMAT_B8G8R8A8_UNORM, fullScreenSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         true);
-      workflow->addResourceType("compute_results", pumex::WorkflowResourceType::Buffer, false);
+    pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
+      rendering.addBufferInput("indirect_results",         indirectResults,     pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput("indirect_draw",            indirectDraw,        pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
-    workflow->addRenderOperation("crowd_compute", pumex::RenderOperation::Compute);
-      workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_results", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
-      workflow->addBufferOutput( "crowd_compute", "compute_results", "indirect_draw",    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT );
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("crowd_render_graph");
+      renderGraph->addRenderOperation(crowdCompute);
+      renderGraph->addRenderOperation(rendering);
 
-    workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_results", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
-      workflow->addBufferInput          ( "rendering", "compute_results", "indirect_draw",    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT );
-      workflow->addAttachmentDepthOutput( "rendering", "depth_samples",   "depth",            pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput     ( "rendering", "surface",         "color",            pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+    renderGraph->addResourceTransition("crowd_compute", "indirect_results", "rendering", "indirect_results", "indirect_results_buffer");
+    renderGraph->addResourceTransition("crowd_compute", "indirect_draw",    "rendering", "indirect_draw",    "indirect_draw_buffer");
 
     // alocate 12 MB for uniform and storage buffers
     auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -726,7 +731,7 @@ int main(int argc, char * argv[])
 
     auto computeRoot = std::make_shared<pumex::Group>();
     computeRoot->setName("computeRoot");
-    workflow->setRenderOperationNode("crowd_compute", computeRoot);
+    renderGraph->setRenderOperationNode("crowd_compute", computeRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> filterLayoutBindings =
     {
@@ -749,12 +754,12 @@ int main(int argc, char * argv[])
 
     auto resultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>( std::make_shared<std::vector<uint32_t>>(), localBuffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
     auto resultsSbo = std::make_shared<pumex::StorageBuffer>(resultsBuffer);
-    workflow->associateMemoryObject("indirect_results", resultsBuffer);
+    viewer->getExternalMemoryObjects()->addMemoryObject("indirect_results_buffer", indirectResults, resultsBuffer);
 
     auto assetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(skeletalAssetBuffer, localBuffersAllocator);
     assetBufferFilterNode->setName("staticAssetBufferFilterNode");
     filterPipeline->addChild(assetBufferFilterNode);
-    workflow->associateMemoryObject("indirect_draw", assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+    viewer->getExternalMemoryObjects()->addMemoryObject("indirect_draw_buffer", indirectDraw, assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
 
     applicationData->setupInstances(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, assetBufferFilterNode);
 
@@ -785,7 +790,7 @@ int main(int argc, char * argv[])
 
     auto renderingRoot = std::make_shared<pumex::Group>();
     renderingRoot->setName("renderingRoot");
-    workflow->setRenderOperationNode("rendering", renderingRoot);
+    renderGraph->setRenderOperationNode("rendering", renderingRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> instancedRenderLayoutBindings =
     {
@@ -862,10 +867,11 @@ int main(int argc, char * argv[])
       applicationData->setSlaveViewMatrix(0, glm::mat4());
     }
 
-    // connecting workflow to all surfaces
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
+    // connecting render graph to all surfaces
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f, pumex::qaExclusive } };
+    viewer->compileRenderGraph(renderGraph, queueTraits);
     for (auto& surf : surfaces)
-      surf->setRenderWorkflow(workflow, workflowCompiler);
+      surf->addRenderGraph(renderGraph->name, true);
 
     // Making the update graph
     // The update in this example is "almost" singlethreaded.

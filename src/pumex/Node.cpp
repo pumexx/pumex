@@ -130,7 +130,7 @@ bool Node::nodeValidate(const RenderContext& renderContext)
     pddit = perObjectData.insert({ keyValue, NodeData(renderContext, swForEachImage) }).first;
   if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool==nullptr)
   {
-    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(renderContext.surface->getPresentationQueue()->familyIndex);
+    pddit->second.commonData.secondaryCommandPool   = std::make_shared<CommandPool>(renderContext.queue->familyIndex);
     pddit->second.commonData.secondaryCommandPool->validate(renderContext.device);
     pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderContext.device, pddit->second.commonData.secondaryCommandPool, activeCount);
   }
@@ -174,13 +174,13 @@ void Node::invalidateNodeAndParents(Surface* surface)
   auto pddit = perObjectData.find(surface->getID());
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ surface->getID(), NodeData(surface->device.lock()->device, surface->surface, activeCount, swForEachImage) }).first;
-  if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool==nullptr)
-  {
-    Device* device = surface->device.lock().get();
-    pddit->second.commonData.secondaryCommandPool = std::make_shared<CommandPool>(surface->getPresentationQueue()->familyIndex);
-    pddit->second.commonData.secondaryCommandPool->validate(device);
-    pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, device, pddit->second.commonData.secondaryCommandPool, activeCount);
-  }
+  //if (secondaryBufferPresent && pddit->second.commonData.secondaryCommandPool==nullptr)
+  //{
+  //  Device* device = surface->device.lock().get();
+  //  pddit->second.commonData.secondaryCommandPool = std::make_shared<CommandPool>(surface->getPresentationQueue()->familyIndex);
+  //  pddit->second.commonData.secondaryCommandPool->validate(device);
+  //  pddit->second.commonData.secondaryCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_SECONDARY, device, pddit->second.commonData.secondaryCommandPool, activeCount);
+  //}
   pddit->second.invalidate();
   if (!hasSecondaryBuffer())
     for (auto& parent : parents)

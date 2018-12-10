@@ -29,6 +29,7 @@
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
 #include <pumex/MemoryObject.h>
+#include <pumex/ResourceRange.h>
 #include <pumex/PerObjectData.h>
 #include <pumex/Device.h>
 #include <pumex/DeviceMemoryAllocator.h>
@@ -45,19 +46,6 @@ class Resource;
 class RenderContext;
 class CommandBuffer;
 class BufferView;
-
-
-// struct defining subresource range for buffer
-struct PUMEX_EXPORT BufferSubresourceRange
-{
-  BufferSubresourceRange();
-  BufferSubresourceRange(VkDeviceSize offset, VkDeviceSize range);
-
-  bool contains(const BufferSubresourceRange& subRange) const;
-
-  VkDeviceSize offset;
-  VkDeviceSize range;
-};
 
 // class that manages buffer data in a memory. This class is not used directly - use Buffer<T> instead ( see below )
 class PUMEX_EXPORT MemoryBuffer : public MemoryObject

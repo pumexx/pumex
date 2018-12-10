@@ -32,20 +32,9 @@
 
 using namespace pumex;
 
-FrameBuffer::FrameBuffer(const ImageSize& is, const std::vector<WorkflowResource>& ar, std::shared_ptr<RenderPass> rp, std::map<std::string, std::shared_ptr<MemoryImage>> mi, std::map<std::string, std::shared_ptr<ImageView>> iv)
-  : frameBufferSize{is}, attachmentResources(ar), renderPass{ rp }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::map<uint32_t, RenderGraphImageInfo>& ii, const std::map<uint32_t, std::shared_ptr<MemoryImage>>& mi, const std::map<uint32_t, std::shared_ptr<ImageView>>& iv)
+  : frameBufferSize{ is }, renderPass{ rp }, imageInfo{ ii }, memoryImages{ mi }, imageViews{ iv }, activeCount{ 1 }
 {
-  for( const auto& resource : attachmentResources)
-  {
-    CHECK_LOG_THROW(frameBufferSize != resource.resourceType->attachment.attachmentSize, "FrameBuffer::FrameBuffer() : image definition size is different from framebuffer size");
-    auto mit = mi.find(resource.name);
-    CHECK_LOG_THROW(mit == end(mi), "FrameBuffer::FrameBuffer() : not all memory images have been supplied");
-    memoryImages.push_back(mit->second);
-
-    auto vit = iv.find(resource.name);
-    CHECK_LOG_THROW(vit == end(iv), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied");
-    imageViews.push_back(vit->second);
-  }
 }
 
 FrameBuffer::~FrameBuffer()
@@ -80,32 +69,23 @@ void FrameBuffer::validate(const RenderContext& renderContext)
     vkDestroyFramebuffer(renderContext.vkDevice, pddit->second.data[activeIndex].frameBuffer, nullptr);
 
   for (auto& imageView : imageViews)
-    imageView->validate(renderContext);
+    imageView.second->validate(renderContext);
 
   // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
-  std::vector<VkImageView> iViews(attachmentResources.size(), VK_NULL_HANDLE);
-  for (uint32_t i = 0; i < attachmentResources.size(); i++)
-    iViews[i] = imageViews[i]->getImageView(renderContext);
-  // find framebuffer size from first image definition
+  std::vector<VkImageView> iViews;
+  for (auto& imageView : imageViews)
+    iViews.push_back(imageView.second->getImageView(renderContext));
 
+  // find framebuffer size from first image definition
   VkExtent2D extent;
   switch (frameBufferSize.type)
   {
-  case ImageSize::SurfaceDependent:
-  {
-    extent = makeVkExtent2D(frameBufferSize, renderContext.surface->swapChainSize);
-    break;
-  }
-  case ImageSize::Absolute:
-  {
-    extent = makeVkExtent2D(frameBufferSize);
-    break;
-  }
+  case isSurfaceDependent:
+    extent = makeVkExtent2D(frameBufferSize, renderContext.surface->swapChainSize); break;
+  case isAbsolute:
+    extent = makeVkExtent2D(frameBufferSize); break;
   default:
-  {
-    extent = VkExtent2D{ 1,1 };
-    break;
-  }
+    extent = VkExtent2D{ 1,1 }; break;
   }
 
   // define frame buffers
@@ -134,20 +114,24 @@ void FrameBuffer::invalidate(const RenderContext& renderContext)
 void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (uint32_t i = 0; i < attachmentResources.size(); i++)
+  for (auto& memoryImage : memoryImages)
   {
-    WorkflowResource& resource = attachmentResources[i];
-    if (resource.resourceType->attachment.attachmentType == atSurface)
+    auto iiit = imageInfo.find(memoryImage.first);
+    CHECK_LOG_THROW(iiit==end(imageInfo), "Missing imageInfo : " << memoryImage.first);
+    if(iiit->second.isSwapchainImage)
     {
-      memoryImages[i]->setImages(renderContext.surface, swapChainImages);
+      memoryImage.second->setImages(renderContext.surface, swapChainImages);
     }
     else
     {
-      ImageSize imageSize{ resource.resourceType->attachment.attachmentSize };
-      if(imageSize.type == ImageSize::SurfaceDependent)
+      ImageSize imageSize = iiit->second.attachmentDefinition.attachmentSize;
+      if (imageSize.type == isSurfaceDependent)
+      {
+        imageSize.type = isAbsolute;
         imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
-      ImageTraits imageTraits(resource.resourceType->attachment.format, imageSize, resource.resourceType->attachment.imageUsage, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-      memoryImages[i]->setImageTraits(renderContext.surface, imageTraits);
+      }
+      ImageTraits imageTraits(iiit->second.attachmentDefinition.format, imageSize, iiit->second.imageUsage, false, iiit->second.layoutOutside, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      memoryImage.second->setImageTraits(renderContext.surface, imageTraits);
     }
   }
   auto rp = renderPass.lock();
@@ -169,38 +153,35 @@ void FrameBuffer::reset(Surface* surface)
   memoryImages.clear();
 }
 
-const WorkflowResource& FrameBuffer::getAttachmentResource(uint32_t index) const
+std::map<uint32_t, uint32_t> FrameBuffer::getAttachmentOrder() const
 {
-  CHECK_LOG_THROW(index >= attachmentResources.size(), "Image definition index out of bounds");
-  return attachmentResources[index];
+  std::map<uint32_t, uint32_t> results;
+  uint32_t i = 0;
+  for (auto& x : memoryImages)
+    results.insert({ x.first, i++ });
+  return results;
 }
 
-const WorkflowResource& FrameBuffer::getSwapChainAttachmentResource() const
+std::vector<AttachmentDescription> FrameBuffer::getAttachmentDescription() const
 {
-  std::lock_guard<std::mutex> lock(mutex);
-  auto it = std::find_if(begin(attachmentResources), end(attachmentResources), [](const WorkflowResource& def) { return def.resourceType->attachment.attachmentType == atSurface;  });
-  CHECK_LOG_THROW(it == end(attachmentResources), "Framebuffer used by the surface does not have swapchain image defined");
-  return *it;
-}
-
-std::shared_ptr<MemoryImage> FrameBuffer::getMemoryImage(uint32_t index) const
-{
-  CHECK_LOG_THROW(index >= memoryImages.size(), "Texture index out of bounds");
-  return memoryImages[index];
-}
-
-std::shared_ptr<ImageView> FrameBuffer::getImageView(uint32_t index) const
-{
-  CHECK_LOG_THROW(index >= memoryImages.size(), "Texture index out of bounds");
-  return imageViews[index];
-}
-
-std::shared_ptr<ImageView> FrameBuffer::getImageView(const std::string& name) const
-{
-  auto it = std::find_if(begin(attachmentResources), end(attachmentResources), [&name](const WorkflowResource& def) { return def.name == name; });
-  if (it == end(attachmentResources))
-    return std::shared_ptr<ImageView>();
-  return imageViews[std::distance(begin(attachmentResources),it)];
+  std::vector<AttachmentDescription> results;
+  for( const auto& iinfo : imageInfo )
+  {
+    const AttachmentDefinition& attachmentDefinition = iinfo.second.attachmentDefinition;
+    results.push_back( AttachmentDescription(
+      iinfo.first,
+      attachmentDefinition.format,
+      makeSamples(attachmentDefinition.attachmentSize),
+      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+      VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+      VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      VK_IMAGE_LAYOUT_UNDEFINED,
+      VK_IMAGE_LAYOUT_UNDEFINED,
+      0
+    ));
+  }
+  return results;
 }
 
 VkFramebuffer FrameBuffer::getHandleFrameBuffer(const RenderContext& renderContext) const

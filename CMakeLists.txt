@@ -86,11 +86,15 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Pipeline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Pumex.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Query.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Queue.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderContext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderPass.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderVisitors.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderWorkflow.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderGraph.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderGraphCompiler.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/RenderGraphExecution.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Resource.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/ResourceRange.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/SampledImage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Sampler.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/StandardHandlers.h
@@ -160,11 +164,15 @@ list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/PhysicalDevice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Pipeline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Query.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Queue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderContext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderPass.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderVisitors.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderWorkflow.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderGraph.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderGraphCompiler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/RenderGraphExecution.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Resource.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/ResourceRange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/SampledImage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Sampler.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/StandardHandlers.cpp

@@ -29,7 +29,6 @@
 #include <pumex/Surface.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderVisitors.h>
-#include <pumex/RenderWorkflow.h>
 
 using namespace pumex;
 
@@ -258,9 +257,9 @@ void RenderSubPass::applyRenderContextVisitor(RenderContextVisitor& visitor)
   visitor.renderContext.setFrameBuffer(renderPass->frameBuffer);
   visitor.renderContext.setRenderPass(renderPass);
   visitor.renderContext.setSubpassIndex(subpassIndex);
-  visitor.renderContext.setRenderOperation(operation);
+  visitor.renderContext.setRenderOperation(&operation);
 
-  operation->node->accept(visitor);
+  operation.node->accept(visitor);
 
   visitor.renderContext.setRenderOperation(nullptr);
   visitor.renderContext.setSubpassIndex(0);
@@ -273,25 +272,25 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   commandVisitor.renderContext.setFrameBuffer(renderPass->frameBuffer);
   commandVisitor.renderContext.setRenderPass(renderPass);
   commandVisitor.renderContext.setSubpassIndex(subpassIndex);
-  commandVisitor.renderContext.setRenderOperation(operation);
+  commandVisitor.renderContext.setRenderOperation(&operation);
   for (auto& barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
-  VkSubpassContents subpassContents = (operation->node != nullptr && !operation->node->hasSecondaryBuffer()) ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
+  VkSubpassContents subpassContents = (operation.node.get() != nullptr && !operation.node->hasSecondaryBuffer()) ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
   if (subpassIndex == 0)
   {
     VkRect2D rectangle;
     VkViewport viewport;
     // FIXME : what about viewport Z coordinates ?
-    switch (operation->attachmentSize.type)
+    switch (operation.attachmentSize.type)
     {
-    case ImageSize::SurfaceDependent:
-      rectangle = makeVkRect2D(operation->attachmentSize, commandVisitor.renderContext.surface->swapChainSize);
-      viewport  = makeVkViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation->attachmentSize.size.x, commandVisitor.renderContext.surface->swapChainSize.height * operation->attachmentSize.size.y, 0.0f, 1.0f);
+    case isSurfaceDependent:
+      rectangle = makeVkRect2D(operation.attachmentSize, commandVisitor.renderContext.surface->swapChainSize);
+      viewport  = makeVkViewport(0, 0, commandVisitor.renderContext.surface->swapChainSize.width * operation.attachmentSize.size.x, commandVisitor.renderContext.surface->swapChainSize.height * operation.attachmentSize.size.y, 0.0f, 1.0f);
       break;
-    case ImageSize::Absolute:
-      rectangle = makeVkRect2D(operation->attachmentSize);
-      viewport  = makeVkViewport(0, 0, operation->attachmentSize.size.x, operation->attachmentSize.size.y, 0.0f, 1.0f);
+    case isAbsolute:
+      rectangle = makeVkRect2D(operation.attachmentSize);
+      viewport  = makeVkViewport(0, 0, operation.attachmentSize.size.x, operation.attachmentSize.size.y, 0.0f, 1.0f);
       break;
     default:
       rectangle = makeVkRect2D(0, 0, 1, 1);
@@ -309,9 +308,9 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   }
 
   if (subpassContents == VK_SUBPASS_CONTENTS_INLINE)
-    operation->node->accept(commandVisitor);
+    operation.node->accept(commandVisitor);
   else
-    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation->node->getSecondaryBuffer(commandVisitor.renderContext).get());
+    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation.node->getSecondaryBuffer(commandVisitor.renderContext).get());
 
   if (renderPass->subPasses.size() == subpassIndex + 1)
     commandVisitor.commandBuffer->cmdEndRenderPass();
@@ -348,25 +347,25 @@ void ComputePass::applyRenderContextVisitor(RenderContextVisitor& visitor)
 {
 //  if (!operation->node->hasSecondaryBuffer())
 //    return;
-  visitor.renderContext.setRenderOperation(operation);
+  visitor.renderContext.setRenderOperation(&operation);
 
-  operation->node->accept(visitor);
+  operation.node->accept(visitor);
 
   visitor.renderContext.setRenderOperation(nullptr);
 }
 
 void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
 {
-  commandVisitor.renderContext.setRenderOperation(operation);
+  commandVisitor.renderContext.setRenderOperation(&operation);
 
   for (auto& barrierGroup : barriersBeforeOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
 
-  VkSubpassContents subpassContents = operation->node->hasSecondaryBuffer() ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : VK_SUBPASS_CONTENTS_INLINE;
+  VkSubpassContents subpassContents = operation.node->hasSecondaryBuffer() ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : VK_SUBPASS_CONTENTS_INLINE;
   if (subpassContents == VK_SUBPASS_CONTENTS_INLINE)
-    operation->node->accept(commandVisitor);
+    operation.node->accept(commandVisitor);
   else
-    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation->node->getSecondaryBuffer(commandVisitor.renderContext).get());
+    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation.node->getSecondaryBuffer(commandVisitor.renderContext).get());
 
   for (auto& barrierGroup : barriersAfterOp)
     commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);

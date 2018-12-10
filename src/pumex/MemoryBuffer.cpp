@@ -29,21 +29,6 @@
 
 using namespace pumex;
 
-BufferSubresourceRange::BufferSubresourceRange()
-  : offset{ 0 }, range{ VK_WHOLE_SIZE }
-{
-}
-
-BufferSubresourceRange::BufferSubresourceRange(VkDeviceSize o, VkDeviceSize r)
-  : offset{ o }, range{ r }
-{
-}
-
-bool BufferSubresourceRange::contains(const BufferSubresourceRange& subRange) const
-{
-  return (offset <= subRange.offset) && (offset + range >= subRange.offset + subRange.range);
-}
-
 MemoryBuffer::MemoryBuffer(std::shared_ptr<DeviceMemoryAllocator> a, VkBufferUsageFlags bu, PerObjectBehaviour pob, SwapChainImageBehaviour scib, bool sdpo, bool usdm)
   : MemoryObject(MemoryObject::moBuffer), perObjectBehaviour{ pob }, swapChainImageBehaviour{ scib }, sameDataPerObject{ sdpo }, allocator{ a }, bufferUsage{ bu }, activeCount{ 1 }
 {
@@ -152,7 +137,7 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
         bufop->updated[activeIndex] = true;
       }
     }
-    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.queue, submit);
+    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.vkQueue, submit);
     for (auto& bufop : pddit->second.commonData.bufferOperations)
       bufop->releaseResources(renderContext);
     // if all operations are done for each index - remove them from list
@@ -236,7 +221,7 @@ VkBufferView BufferView::getBufferView(const RenderContext& renderContext) const
 {
   auto keyValue = getKeyID(renderContext, memBuffer->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
-  if (pddit == perObjectData.end())
+  if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   return pddit->second.data[activeIndex].bufferView;

@@ -29,12 +29,14 @@ namespace pumex
 {
 
 class Surface;
+class Queue;
 class CommandPool;
 class Device;
 class DescriptorPool;
 class FrameBuffer;
 class RenderPass;
 class RenderOperation;
+class RenderGraphExecutable;
 class PipelineLayout;
 class AssetBuffer;
 
@@ -44,40 +46,45 @@ class PUMEX_EXPORT RenderContext
 public:
   explicit RenderContext(Surface* surface, uint32_t queueNumber);
 
+  inline void                setRenderGraphExecutable(std::shared_ptr<RenderGraphExecutable> rge);
   inline void                setFrameBuffer(std::shared_ptr<FrameBuffer> frameBuffer);
   inline void                setRenderPass(std::shared_ptr<RenderPass> renderPass);
   inline void                setSubpassIndex(uint32_t subpassIndex);
-  void                       setRenderOperation(std::shared_ptr<RenderOperation> renderOperation);
+  void                       setRenderOperation(RenderOperation* ro);
   inline PipelineLayout*     setCurrentPipelineLayout(PipelineLayout* pipelineLayout);
   inline VkPipelineBindPoint setCurrentBindPoint(VkPipelineBindPoint bindPoint);
   inline AssetBuffer*        setCurrentAssetBuffer(AssetBuffer* assetBuffer);
   inline uint32_t            setCurrentRenderMask(uint32_t renderMask);
 
   // elements of the context that are constant through visitor work
-  Surface*                         surface                = nullptr;
-  VkSurfaceKHR                     vkSurface              = VK_NULL_HANDLE;
-  std::shared_ptr<CommandPool>     commandPool;
-  VkQueue                          queue                  = VK_NULL_HANDLE;
-  Device*                          device                 = nullptr;
-  VkDevice                         vkDevice               = VK_NULL_HANDLE;
-  DescriptorPool*                  descriptorPool         = nullptr;
-  uint32_t                         activeIndex            = 0;
-  uint32_t                         imageCount             = 1;
+  Surface*                               surface                = nullptr;
+  VkSurfaceKHR                           vkSurface              = VK_NULL_HANDLE;
+  std::shared_ptr<CommandPool>           commandPool;
+  Queue*                                 queue                  = nullptr;
+  VkQueue                                vkQueue                = VK_NULL_HANDLE;
+  Device*                                device                 = nullptr;
+  VkDevice                               vkDevice               = VK_NULL_HANDLE;
+  DescriptorPool*                        descriptorPool         = nullptr;
+  uint32_t                               activeIndex            = 0;
+  uint32_t                               imageCount             = 1;
 
   // elements of the context that may change during visitor work
-  std::shared_ptr<FrameBuffer>     frameBuffer;
-  std::shared_ptr<RenderPass>      renderPass;
-  uint32_t                         subpassIndex           = 0;
-  std::shared_ptr<RenderOperation> renderOperation;
-  PipelineLayout*                  currentPipelineLayout  = nullptr; // pipeline layout
-  AssetBuffer*                     currentAssetBuffer     = nullptr; // asset buffer
-  uint32_t                         currentRenderMask      = 0;
-  VkPipelineBindPoint              currentBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  std::shared_ptr<RenderGraphExecutable> renderGraphExecutable;
+  std::shared_ptr<FrameBuffer>           frameBuffer;
+  std::shared_ptr<RenderPass>            renderPass;
+  uint32_t                               subpassIndex           = 0;
+  RenderOperation*                       renderOperation        = nullptr;
+  PipelineLayout*                        currentPipelineLayout  = nullptr; // pipeline layout
+  AssetBuffer*                           currentAssetBuffer     = nullptr; // asset buffer
+  uint32_t                               currentRenderMask      = 0;
+  VkPipelineBindPoint                    currentBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
 };
 
-void             RenderContext::setFrameBuffer(std::shared_ptr<FrameBuffer> fb) { frameBuffer = fb; }
-void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)   { renderPass = rp; }
-void             RenderContext::setSubpassIndex(uint32_t si)                    { subpassIndex = si; }
+void             RenderContext::setRenderGraphExecutable(std::shared_ptr<RenderGraphExecutable> rg) { renderGraphExecutable = rg; }
+void             RenderContext::setFrameBuffer(std::shared_ptr<FrameBuffer> fb)                     { frameBuffer = fb; }
+void             RenderContext::setRenderPass(std::shared_ptr<RenderPass> rp)                       { renderPass = rp; }
+void             RenderContext::setSubpassIndex(uint32_t si)                                        { subpassIndex = si; }
+
 
 inline VkPipelineBindPoint RenderContext::setCurrentBindPoint(VkPipelineBindPoint bindPoint)
 {

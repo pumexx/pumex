@@ -1298,6 +1298,9 @@ int main(int argc, char * argv[])
   try
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    // allocate 32 MB for frame buffers ( actually only depth buffer will be allocated )
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     std::vector<pumex::WindowTraits> windowTraits;
     if (render3windows)
@@ -1323,13 +1326,12 @@ int main(int argc, char * argv[])
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
     for (auto& window : windows)
       surfaces.push_back(window->createSurface(device, surfaceTraits));
 
-    // allocate 32 MB for frame buffers ( actually only depth buffer will be allocated )
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 32 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // alocate 256 MB for uniform and storage buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 32 MB for vertex and index buffers
@@ -1339,46 +1341,65 @@ int main(int argc, char * argv[])
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f } };
+    pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
-    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("gpucull_render_graph");
 
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("gpucull_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("depth_samples",   VK_FORMAT_D32_SFLOAT,     fullScreenSize, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false);
-      workflow->addResourceType("surface",         VK_FORMAT_B8G8R8A8_UNORM, fullScreenSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         true);
-      workflow->addResourceType("compute_results", pumex::WorkflowResourceType::Buffer, false);
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
+    pumex::ResourceDefinition indirectCounter("indirectCounter");
+    pumex::ResourceDefinition indirectIndex("indirectIndex");
+    pumex::ResourceDefinition indirectResults("indirectResults");
+    pumex::ResourceDefinition indirectDraw("indirectDraw");
 
-    workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentDepthOutput("rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput(     "rendering", "surface",       "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+    pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     if (showStaticRendering)
     {
-      workflow->addRenderOperation("static_filter", pumex::RenderOperation::Compute);
-      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_counter", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_index",   pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_results", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferOutput("static_filter", "compute_results", "static_indirect_draw",    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_counter", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_index",   pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_results", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-      workflow->addBufferInput ("rendering",     "compute_results", "static_indirect_draw",    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      pumex::RenderOperation staticFilter("static_filter", pumex::opCompute);
+        staticFilter.addBufferOutput("static_indirect_counter", indirectCounter, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+        staticFilter.addBufferOutput("static_indirect_index",   indirectIndex,   pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+        staticFilter.addBufferOutput("static_indirect_results", indirectResults, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+        staticFilter.addBufferOutput("static_indirect_draw",    indirectDraw,    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      renderGraph->addRenderOperation(staticFilter);
+
+      rendering.addBufferInput("static_indirect_counter", indirectCounter, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput("static_indirect_index",   indirectIndex,   pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput("static_indirect_results", indirectResults, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput("static_indirect_draw",    indirectDraw,    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
     }
 
     if (showDynamicRendering)
     {
-      workflow->addRenderOperation("dynamic_filter", pumex::RenderOperation::Compute);
-      workflow->addBufferOutput("dynamic_filter", "compute_results", "dynamic_indirect_results", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferOutput("dynamic_filter", "compute_results", "dynamic_indirect_draw",    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      workflow->addBufferInput( "rendering",      "compute_results", "dynamic_indirect_results", pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-      workflow->addBufferInput( "rendering",      "compute_results", "dynamic_indirect_draw",    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      pumex::RenderOperation dynamicFilter("dynamic_filter", pumex::opCompute);
+        dynamicFilter.addBufferOutput("dynamic_indirect_results", indirectResults, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+        dynamicFilter.addBufferOutput("dynamic_indirect_draw",    indirectDraw,    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      renderGraph->addRenderOperation(dynamicFilter);
+
+      rendering.addBufferInput( "dynamic_indirect_results", indirectResults,  pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput( "dynamic_indirect_draw",    indirectDraw,     pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    }
+    renderGraph->addRenderOperation(rendering);
+
+    if (showStaticRendering)
+    {
+      renderGraph->addResourceTransition("static_filter", "static_indirect_counter", "rendering", "static_indirect_counter", "static_indirect_counter_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_index",   "rendering", "static_indirect_index",   "static_indirect_index_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_results", "rendering", "static_indirect_results", "static_indirect_results_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_draw",    "rendering", "static_indirect_draw",    "static_indirect_draw_buffer");
+    }
+    if (showDynamicRendering)
+    {
+      renderGraph->addResourceTransition("dynamic_filter", "dynamic_indirect_results", "rendering", "dynamic_indirect_results", "dynamic_indirect_results_buffer");
+      renderGraph->addResourceTransition("dynamic_filter", "dynamic_indirect_draw",    "rendering", "dynamic_indirect_draw",    "dynamic_indirect_draw_buffer");
     }
 
     std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(buffersAllocator);
 
     auto renderingRoot = std::make_shared<pumex::Group>();
     renderingRoot->setName("renderingRoot");
-    workflow->setRenderOperationNode("rendering", renderingRoot);
+    renderGraph->setRenderOperationNode("rendering", renderingRoot);
 
     std::vector<pumex::VertexSemantic>                        vertexSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     std::vector<pumex::TextureSemantic>                       textureSemantic = {};
@@ -1428,7 +1449,7 @@ int main(int argc, char * argv[])
 
       auto staticFilterRoot = std::make_shared<pumex::Group>();
       staticFilterRoot->setName("staticFilterRoot");
-      workflow->setRenderOperationNode("static_filter", staticFilterRoot);
+      renderGraph->setRenderOperationNode("static_filter", staticFilterRoot);
 
       auto staticFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, staticFilterPipelineLayout);
       staticFilterPipeline->setName("staticFilterPipeline");
@@ -1437,20 +1458,20 @@ int main(int argc, char * argv[])
 
       auto staticCounterBuffer = std::make_shared<pumex::Buffer<uint32_t>>(std::make_shared<uint32_t>(0), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto staticCounterSbo    = std::make_shared<pumex::StorageBuffer>(staticCounterBuffer);
-      workflow->associateMemoryObject("static_indirect_counter", staticCounterBuffer);
+      viewer->getExternalMemoryObjects()->addMemoryObject("static_indirect_counter_buffer", indirectCounter, staticCounterBuffer);
 
       auto staticResultsIndexBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>(std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto staticResultsIndexSbo = std::make_shared<pumex::StorageBuffer>(staticResultsIndexBuffer);
-      workflow->associateMemoryObject("static_indirect_index", staticResultsIndexBuffer);
+      viewer->getExternalMemoryObjects()->addMemoryObject("static_indirect_index_buffer", indirectIndex, staticResultsIndexBuffer);
 
       auto staticResultsBuffer = std::make_shared<pumex::Buffer<std::vector<StaticInstanceData>>>(std::make_shared<std::vector<StaticInstanceData>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto staticResultsSbo = std::make_shared<pumex::StorageBuffer>(staticResultsBuffer);
-      workflow->associateMemoryObject("static_indirect_results", staticResultsBuffer);
+      viewer->getExternalMemoryObjects()->addMemoryObject("static_indirect_results_buffer", indirectResults, staticResultsBuffer);
 
       auto staticAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(staticAssetBuffer, buffersAllocator);
       staticAssetBufferFilterNode->setEventResizeOutputs(std::bind(resizeStaticOutputBuffers, staticResultsBuffer, staticResultsIndexBuffer, std::placeholders::_1, std::placeholders::_2));
       staticAssetBufferFilterNode->setName("staticAssetBufferFilterNode");
-      workflow->associateMemoryObject("static_indirect_draw", staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+      viewer->getExternalMemoryObjects()->addMemoryObject("static_indirect_draw_buffer", indirectDraw, staticAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
 
       staticFilterPipeline->addChild(staticAssetBufferFilterNode);
 
@@ -1540,7 +1561,7 @@ int main(int argc, char * argv[])
 
       auto dynamicFilterRoot = std::make_shared<pumex::Group>();
       dynamicFilterRoot->setName("staticFilterRoot");
-      workflow->setRenderOperationNode("dynamic_filter", dynamicFilterRoot);
+      renderGraph->setRenderOperationNode("dynamic_filter", dynamicFilterRoot);
 
       auto dynamicFilterPipeline = std::make_shared<pumex::ComputePipeline>(pipelineCache, dynamicFilterPipelineLayout);
       dynamicFilterPipeline->shaderStage = { VK_SHADER_STAGE_COMPUTE_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/gpucull_dynamic_filter_instances.comp.spv"), "main" };
@@ -1549,12 +1570,12 @@ int main(int argc, char * argv[])
 
       auto dynamicResultsBuffer = std::make_shared<pumex::Buffer<std::vector<uint32_t>>>(std::make_shared<std::vector<uint32_t>>(), buffersAllocator, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, pumex::pbPerSurface, pumex::swForEachImage);
       auto dynamicResultsSbo = std::make_shared<pumex::StorageBuffer>(dynamicResultsBuffer);
-      workflow->associateMemoryObject("dynamic_indirect_results", dynamicResultsBuffer);
+      viewer->getExternalMemoryObjects()->addMemoryObject("dynamic_indirect_results_buffer", indirectResults, dynamicResultsBuffer);
 
       auto dynamicAssetBufferFilterNode = std::make_shared<pumex::AssetBufferFilterNode>(dynamicAssetBuffer, buffersAllocator);
       dynamicAssetBufferFilterNode->setName("dynamicAssetBufferFilterNode");
       dynamicFilterPipeline->addChild(dynamicAssetBufferFilterNode);
-      workflow->associateMemoryObject("dynamic_indirect_draw", dynamicAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
+      viewer->getExternalMemoryObjects()->addMemoryObject("dynamic_indirect_draw_buffer", indirectDraw, dynamicAssetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
 
       uint32_t instanceCount = applicationData->setupDynamicInstances(dynamicAreaSize, densityModifier, dynamicAssetBufferFilterNode);
 
@@ -1644,10 +1665,11 @@ int main(int argc, char * argv[])
       applicationData->setSlaveViewMatrix(0, glm::mat4());
     }
 
-    // connecting workflow to all surfaces
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
+    // connecting render graph to all surfaces
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0, 0.75f, pumex::qaExclusive } };
+    viewer->compileRenderGraph(renderGraph, queueTraits);
     for (auto& surf : surfaces)
-      surf->setRenderWorkflow(workflow, workflowCompiler);
+      surf->addRenderGraph(renderGraph->name, true);
 
     // Making the update graph
     // The update in this example is "almost" singlethreaded.

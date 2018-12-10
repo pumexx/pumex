@@ -22,7 +22,7 @@
 
 #include <pumex/StorageBuffer.h>
 #include <pumex/RenderContext.h>
-#include <pumex/RenderWorkflow.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 
@@ -54,8 +54,8 @@ void StorageBuffer::validate(const RenderContext& renderContext)
   std::lock_guard<std::mutex> lock(mutex);
   if (!resourceName.empty())
   {
-    auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
-    memoryBuffer       = renderContext.surface->getRegisteredMemoryBuffer(resourceAlias);
+    memoryBuffer = renderContext.renderGraphExecutable->getMemoryBuffer(renderContext.renderOperation->name, resourceName);
+    CHECK_LOG_THROW(memoryBuffer.get() == nullptr, "StorageBuffer::validate : unknown entry " << resourceName);
     registered         = false;
   }
   if (!registered)

@@ -208,18 +208,20 @@ auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, desc
 descriptorSet->setDescriptor(0, std::make_shared<pumex::SampledImage>(volumeImageView));
 ```
 
-There exists another way to connect images and buffers - when images or buffers are associated to a **pumex::RenderWorkflow** ( using **pumex::RenderWorkflow::associateMemoryObject()** method ). In case of images **pumex::RenderWorkflow** creates pumex::ImageView objects for us :
+There exists another way to connect images and buffers - when images or buffers are associated to **render graphs** ( using **viewer->getExternalMemoryObjects()->addMemoryObject()** method before render graph is compiled ). In case of images **pumex::RenderWorkflow** creates pumex::ImageView objects for us :
 
 ```
 auto volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
 
-renderWorkflow->associateMemoryObject("voxels", volumeMemoryImage, VK_IMAGE_VIEW_TYPE_3D);
+pumex::ResourceDefinition image_3d(pumex::rmtImage, "image_3d");
+
+viewer->getExternalMemoryObjects()->addMemoryObject("voxels", image_3d, volumeMemoryImage, VK_IMAGE_VIEW_TYPE_3D);
 
 auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, descriptorSetLayout);
 descriptorSet->setDescriptor(0, std::make_shared<pumex::StorageImage>("voxels"));
 ```
 
-Input attachments are created internally by **pumex::RenderWorkflow**. Each input attachment is associated to a render workflow by default. To sample input attachment as an image you need to :
+Input attachments are created internally by **pumex::RenderWorkflow**. Each input attachment is associated to a render graph by default. To sample input attachment as an image you need to :
 
 - provide sampler in pumex::InputAttachment constructor
 - use provided external sampler in a shader.

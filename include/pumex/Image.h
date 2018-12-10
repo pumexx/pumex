@@ -24,37 +24,11 @@
 #include <vulkan/vulkan.h>
 #include <gli/texture.hpp>
 #include <pumex/Export.h>
+#include <pumex/ResourceRange.h>
 #include <pumex/DeviceMemoryAllocator.h>
 
 namespace pumex
 {
-
-struct PUMEX_EXPORT ImageSize
-{
-  enum Type { Undefined, Absolute, SurfaceDependent };
-
-  ImageSize()
-    : type{ Undefined }, size{ 0.0f, 0.0f, 0.0f }, arrayLayers{ 1 }, mipLevels{ 1 }
-  {
-  }
-  ImageSize(Type aType, const glm::vec2& imSize, uint32_t aLayers = 1, uint32_t mLevels = 1, uint32_t xSamples = 1)
-    : type{ aType }, size{ imSize.x, imSize.y, 1.0f }, arrayLayers{ aLayers }, mipLevels{ mLevels }, samples{ xSamples }
-  {
-  }
-  ImageSize(Type aType, const glm::vec3& imSize, uint32_t aLayers = 1, uint32_t mLevels = 1, uint32_t xSamples = 1)
-    : type{ aType }, size{ imSize }, arrayLayers{ aLayers }, mipLevels{ mLevels }, samples{ xSamples }
-  {
-  }
-
-  Type      type;
-  glm::vec3 size;
-  uint32_t  arrayLayers;
-  uint32_t  mipLevels;
-  uint32_t  samples;
-};
-
-inline bool operator==(const ImageSize& lhs, const ImageSize& rhs);
-inline bool operator!=(const ImageSize& lhs, const ImageSize& rhs);
 
 PUMEX_EXPORT VkExtent3D            makeVkExtent3D(const ImageSize& iSize);
 PUMEX_EXPORT VkExtent3D            makeVkExtent3D(const ImageSize& iSize, const VkExtent3D& extent);
@@ -79,7 +53,7 @@ struct PUMEX_EXPORT ImageTraits
   ImageTraits& operator=(const ImageTraits& traits) = default;
 
   VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;
-  ImageSize                imageSize      = ImageSize{ ImageSize::Absolute, glm::vec3{1.0f, 1.0f, 1.0f}, 1, 1 };
+  ImageSize                imageSize      = ImageSize{ isAbsolute, glm::vec3{1.0f, 1.0f, 1.0f}, 1, 1 };
   VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   bool                     linearTiling   = false;
   VkImageLayout            initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -96,7 +70,7 @@ public:
   // user creates VkImage and assigns memory to it
   explicit Image(Device* device, const ImageTraits& imageTraits, std::shared_ptr<DeviceMemoryAllocator> allocator);
   // user delivers VkImage, Image does not own it, just creates VkImageView
-  explicit Image(Device* device, VkImage image, VkFormat format, const ImageSize& imageSize = ImageSize{ ImageSize::Absolute, glm::vec3{ 1.0f, 1.0f, 1.0f }, 1, 1 });
+  explicit Image(Device* device, VkImage image, VkFormat format, const ImageSize& imageSize = ImageSize{ isAbsolute, glm::vec3{ 1.0f, 1.0f, 1.0f }, 1, 1 });
   Image(const Image&)                = delete;
   Image& operator=(const Image&)     = delete;
   Image(Image&&)                     = delete;
@@ -121,17 +95,6 @@ protected:
 };
 
 // inlines
-bool operator==(const ImageSize& lhs, const ImageSize& rhs)
-{
-  return lhs.type == rhs.type && lhs.size == rhs.size && lhs.arrayLayers == rhs.arrayLayers && lhs.mipLevels == rhs.mipLevels;
-}
-
-bool operator!=(const ImageSize& lhs, const ImageSize& rhs)
-{
-  return lhs.type != rhs.type || lhs.size != rhs.size || lhs.arrayLayers != rhs.arrayLayers || lhs.mipLevels != rhs.mipLevels;
-}
-
-
 VkDevice             Image::getDevice() const      { return device; }
 VkImage              Image::getHandleImage() const { return image; }
 VkDeviceSize         Image::getMemorySize() const  { return memoryBlock.alignedSize; }

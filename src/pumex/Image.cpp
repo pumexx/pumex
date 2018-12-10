@@ -200,7 +200,7 @@ namespace pumex
 ImageTraits getImageTraitsFromTexture(const gli::texture& texture, VkImageUsageFlags usage)
 {
   auto t = texture.extent(0);
-  return ImageTraits(vulkanFormatFromGliFormat(texture.format()), ImageSize{ ImageSize::Absolute, glm::vec3(t.x, t.y, t.z), static_cast<uint32_t>(texture.layers()), static_cast<uint32_t>(texture.levels()), 1 }, usage,
+  return ImageTraits(vulkanFormatFromGliFormat(texture.format()), ImageSize{ isAbsolute, glm::vec3(t.x, t.y, t.z), static_cast<uint32_t>(texture.layers()), static_cast<uint32_t>(texture.levels()), 1 }, usage,
     false, VK_IMAGE_LAYOUT_UNDEFINED, 0, vulkanImageTypeFromTextureExtents(t), VK_SHARING_MODE_EXCLUSIVE);
 }
 

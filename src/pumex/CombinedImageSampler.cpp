@@ -24,7 +24,7 @@
 #include <pumex/MemoryImage.h>
 #include <pumex/Sampler.h>
 #include <pumex/RenderContext.h>
-#include <pumex/RenderWorkflow.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 
@@ -65,8 +65,8 @@ void CombinedImageSampler::validate(const RenderContext& renderContext)
 
   if (!resourceName.empty())
   {
-    auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
-    imageView          = renderContext.surface->getRegisteredImageView(resourceAlias);
+    imageView = renderContext.renderGraphExecutable->getImageView(renderContext.renderOperation->name, resourceName);
+    CHECK_LOG_THROW(imageView.get() == nullptr, "CombinedImageSampler::validate : unknown entry " << resourceName);
     registered         = false;
   }
   if (!registered)

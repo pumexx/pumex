@@ -283,6 +283,9 @@ int main( int argc, char * argv[] )
   try
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    // allocate 512 MB for frame buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 512 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MULTIVIEW_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
@@ -290,46 +293,53 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Multiview deferred rendering with PBR and antialiasing", true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
-
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 512 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
 
     // images used to create and consume gbuffers in "gbuffers" and "lighting" operations are half the width of the screen, but there are two layers in each image.
     // Thanks to this little trick we don't have to change viewports and scissors
-    pumex::ImageSize halfScreenSizeMultiSampled{ pumex::ImageSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2, 1, SAMPLE_COUNT };
-    pumex::ImageSize halfScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(0.5f,1.0f), 2, 1, 1 };
-    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 };
+    pumex::ImageSize halfScreenSizeMultiSampled{ pumex::isSurfaceDependent, glm::vec2(0.5f,1.0f), 2, 1, SAMPLE_COUNT };
+    pumex::ImageSize halfScreenSize{ pumex::isSurfaceDependent, glm::vec2(0.5f,1.0f), 2, 1, 1 };
+    pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 };
 
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, halfScreenSizeMultiSampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false );
-      workflow->addResourceType("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      halfScreenSizeMultiSampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false);
-      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,          halfScreenSizeMultiSampled, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               false);
-      workflow->addResourceType("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      halfScreenSizeMultiSampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       false);
-      workflow->addResourceType("color",         VK_FORMAT_B8G8R8A8_UNORM,      halfScreenSize,             pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,          false);
-      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSize,             pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       true);
+    pumex::ResourceDefinition vec3Samples(VK_FORMAT_R16G16B16A16_SFLOAT, halfScreenSizeMultiSampled, pumex::atColor);
+    pumex::ResourceDefinition colorSamples(VK_FORMAT_B8G8R8A8_UNORM,     halfScreenSizeMultiSampled, pumex::atColor);
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT,         halfScreenSizeMultiSampled, pumex::atDepth);
+    pumex::ResourceDefinition resolveSamples(VK_FORMAT_B8G8R8A8_UNORM,   halfScreenSizeMultiSampled, pumex::atColor);
+    pumex::ResourceDefinition color(VK_FORMAT_B8G8R8A8_UNORM,            halfScreenSize,             pumex::atColor);
 
-    workflow->addRenderOperation("gbuffer", pumex::RenderOperation::Graphics, halfScreenSizeMultiSampled, 0x3U );
-      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "position", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "vec3_samples",  "normals",  pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "albedo",   pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      workflow->addAttachmentOutput     ("gbuffer", "color_samples", "pbr",      pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentDepthOutput("gbuffer", "depth_samples", "depth",    pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+    pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, halfScreenSizeMultiSampled, 0x3U);
+      gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      gbuffer.addAttachmentOutput("normals",    vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      gbuffer.addAttachmentOutput("albedo",     colorSamples, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      gbuffer.addAttachmentOutput("pbr",        colorSamples, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      gbuffer.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics, halfScreenSizeMultiSampled, 0x3U );
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position");
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals");
-      workflow->addAttachmentInput        ("lighting", "color_samples", "albedo");
-      workflow->addAttachmentInput        ("lighting", "color_samples", "pbr");
-      workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve");
-      workflow->addAttachmentResolveOutput("lighting", "color",         "color", "resolve");
+    pumex::RenderOperation lighting("lighting", pumex::opGraphics, halfScreenSizeMultiSampled, 0x3U);
+      lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare());
+      lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), "resolve" );
 
-    // third operation copies images created in "lighting" operation to a single texture ( full width image ) and performs barrel distortion on it
-    workflow->addRenderOperation("multiview", pumex::RenderOperation::Graphics, fullScreenSize, 0x0);
-      workflow->addImageInput      ("multiview", "color",      "color",  pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      workflow->addAttachmentOutput("multiview", "surface", "multiview", pumex::ImageSubresourceRange());
+    pumex::RenderOperation multiview("multiview", pumex::opGraphics, fullScreenSize, 0x0);
+      multiview.addImageInput("color", color,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      multiview.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpDontCare());
+
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");
+      renderGraph->addRenderOperation(gbuffer);
+      renderGraph->addRenderOperation(lighting);
+      renderGraph->addRenderOperation(multiview);
+
+    renderGraph->addResourceTransition("gbuffer",  "position", "lighting",  "position" );
+    renderGraph->addResourceTransition("gbuffer",  "normals",  "lighting",  "normals");
+    renderGraph->addResourceTransition("gbuffer",  "albedo",   "lighting",  "albedo");
+    renderGraph->addResourceTransition("gbuffer",  "pbr",      "lighting",  "pbr");
+    renderGraph->addResourceTransition("gbuffer",  "depth",    "lighting",  "depth");
+    renderGraph->addResourceTransition("lighting", "color",    "multiview", "color");
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -345,7 +355,7 @@ int main( int argc, char * argv[] )
 
     auto gbufferRoot = std::make_shared<pumex::Group>();
     gbufferRoot->setName("gbufferRoot");
-    workflow->setRenderOperationNode("gbuffer", gbufferRoot);
+    renderGraph->setRenderOperationNode("gbuffer", gbufferRoot);
 
     auto pipelineCache = std::make_shared<pumex::PipelineCache>();
 
@@ -447,7 +457,7 @@ int main( int argc, char * argv[] )
 
     auto lightingRoot = std::make_shared<pumex::Group>();
     lightingRoot->setName("lightingRoot");
-    workflow->setRenderOperationNode("lighting", lightingRoot);
+    renderGraph->setRenderOperationNode("lighting", lightingRoot);
 
     std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
 
@@ -516,7 +526,7 @@ int main( int argc, char * argv[] )
 
     auto multiviewRoot = std::make_shared<pumex::Group>();
     multiviewRoot->setName("multiviewRoot");
-    workflow->setRenderOperationNode("multiview", multiviewRoot);
+    renderGraph->setRenderOperationNode("multiview", multiviewRoot);
 
     // Look closely at method that builds geometry for "multiview" operation ( buildMultiViewQuads() )
     // Geometry consists of two quads - each of them covers half of the screen. Z texture coordinate for the left quad is equal to 0, while Z texture coordinate for the right quad is equal to 1.
@@ -570,9 +580,10 @@ int main( int argc, char * argv[] )
 
     /***********************************/
 
-    // connect workflow to a surface
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-    surface->setRenderWorkflow(workflow, workflowCompiler);
+    // connect render graph to a surface
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f, pumex::qaExclusive } };
+    viewer->compileRenderGraph(renderGraph, queueTraits);
+    surface->addRenderGraph(renderGraph->name, true);
 
     // build simple update graph
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)

@@ -23,13 +23,8 @@
 #include <pumex/Asset.h>
 #include <set>
 #include <queue>
-#include <algorithm>
-#include <iterator>
-#include <pumex/Device.h>
-#include <pumex/Surface.h>
-#include <pumex/utils/Log.h>
-#include <pumex/utils/Buffer.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <pumex/utils/Log.h>
 
 namespace pumex
 {

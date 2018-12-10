@@ -32,13 +32,13 @@
 namespace pumex
 {
 
-// MemoryObjectBarrier objects are created during workflow compilation
+// MemoryObjectBarrier objects are created during render graph compilation
 class PUMEX_EXPORT MemoryObjectBarrier
 {
 public:
   MemoryObjectBarrier();
-  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryObject> memoryObject, VkImageLayout oldLayout, VkImageLayout newLayout, const ImageSubresourceRange& imageRange);
-  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex, std::shared_ptr<MemoryObject> memoryObject, const BufferSubresourceRange& bufferRange);
+  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueIndex, uint32_t dstQueueIndex, std::shared_ptr<MemoryObject> memoryObject, VkImageLayout oldLayout, VkImageLayout newLayout, const ImageSubresourceRange& imageRange);
+  MemoryObjectBarrier(VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, uint32_t srcQueueIndex, uint32_t dstQueueIndex, std::shared_ptr<MemoryObject> memoryObject, const BufferSubresourceRange& bufferRange);
   MemoryObjectBarrier(const MemoryObjectBarrier&) = default;
   MemoryObjectBarrier& operator=(const MemoryObjectBarrier&) = default;
   ~MemoryObjectBarrier();
@@ -46,8 +46,8 @@ public:
   MemoryObject::Type            objectType;
   VkAccessFlags                 srcAccessMask;
   VkAccessFlags                 dstAccessMask;
-  uint32_t                      srcQueueFamilyIndex;
-  uint32_t                      dstQueueFamilyIndex;
+  uint32_t                      srcQueueIndex; // FIXME : this is not queue family index !
+  uint32_t                      dstQueueIndex;
   std::shared_ptr<MemoryObject> memoryObject;
 
   VkImageLayout                 oldLayout;   // used by images

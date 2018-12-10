@@ -29,7 +29,7 @@
 #include <args.hxx>
 
 // This example shows how to setup basic deferred renderer with antialiasing.
-// Render workflow defines three render operations :
+// Render graph defines three render operations :
 // - first one fills zbuffer
 // - second one fills gbuffers with data
 // - third one renders lights using gbuffers as input
@@ -269,6 +269,8 @@ int main( int argc, char * argv[] )
   try
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 512 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
@@ -276,46 +278,58 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing", true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapchainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM, 1);
+    pumex::SurfaceTraits surfaceTraits{ swapchainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 512 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    pumex::ImageSize fullScreenSizeMultisampled{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, sampleCount };
+    pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
+    pumex::ResourceDefinition vec3Samples(VK_FORMAT_R16G16B16A16_SFLOAT, fullScreenSizeMultisampled, pumex::atColor);
+    pumex::ResourceDefinition colorSamples(VK_FORMAT_B8G8R8A8_UNORM,     fullScreenSizeMultisampled, pumex::atColor);
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT,         fullScreenSizeMultisampled, pumex::atDepth);
+    pumex::ResourceDefinition resolveSamples(VK_FORMAT_B8G8R8A8_UNORM,   fullScreenSizeMultisampled, pumex::atColor);
+    pumex::ResourceDefinition color(VK_FORMAT_B8G8R8A8_UNORM,            fullScreenSize,             pumex::atColor);
 
-    pumex::ImageSize fullScreenSizeMultisampled{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, sampleCount };
-    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");
 
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("deferred_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("vec3_samples",  VK_FORMAT_R16G16B16A16_SFLOAT, fullScreenSizeMultisampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false);
-      workflow->addResourceType("color_samples", VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSizeMultisampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, false);
-      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,          fullScreenSizeMultisampled, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,                               false);
-      workflow->addResourceType("resolve",       VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSizeMultisampled, pumex::atColor,   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       false);
-      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM,      fullScreenSize,             pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,                                       true);
+    pumex::RenderOperation zPrepass("zPrepass", pumex::opGraphics, fullScreenSizeMultisampled);
+      zPrepass.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+
+    pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, fullScreenSizeMultisampled, 0x3U);
+      gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      gbuffer.addAttachmentOutput("normals",    vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      gbuffer.addAttachmentOutput("albedo",     colorSamples, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      gbuffer.addAttachmentOutput("pbr",        colorSamples, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+    if (!skipDepthPrepass)
+      gbuffer.setAttachmentDepthInput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+    else
+      gbuffer.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+
+    pumex::RenderOperation lighting("lighting", pumex::opGraphics, fullScreenSizeMultisampled, 0x3U);
+      lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
+      lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+      lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
+      lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare());
+      lighting.addAttachmentResolveOutput(pumex::SWAPCHAIN_NAME, swapchainDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), "resolve" );
 
     if (!skipDepthPrepass)
-    {
-      workflow->addRenderOperation("zPrepass", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentDepthOutput("zPrepass", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-    }
+      renderGraph->addRenderOperation(zPrepass);
+    renderGraph->addRenderOperation(gbuffer);
+    renderGraph->addRenderOperation(lighting);
 
-    workflow->addRenderOperation("gBuffer", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "position", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gBuffer", "vec3_samples",  "normals",  pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "albedo",   pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      workflow->addAttachmentOutput     ("gBuffer", "color_samples", "pbr",      pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      if (!skipDepthPrepass)
-        workflow->addAttachmentDepthInput("gBuffer", "depth_samples", "depth");
-      else
-        workflow->addAttachmentDepthOutput("gBuffer", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-
-    workflow->addRenderOperation("lighting", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "position");
-      workflow->addAttachmentInput        ("lighting", "vec3_samples",  "normals");
-      workflow->addAttachmentInput        ("lighting", "color_samples", "albedo");
-      workflow->addAttachmentInput        ("lighting", "color_samples", "pbr");
-      workflow->addAttachmentOutput       ("lighting", "resolve",       "resolve",          pumex::ImageSubresourceRange());
-      workflow->addAttachmentResolveOutput("lighting", "surface",       "color", "resolve", pumex::ImageSubresourceRange());
+    if (!skipDepthPrepass)
+      renderGraph->addResourceTransition("zPrepass",  "depth", "gbuffer",  "depth" );
+    renderGraph->addResourceTransition("gbuffer", "position", "lighting", "position");
+    renderGraph->addResourceTransition("gbuffer",  "normals",  "lighting",  "normals");
+    renderGraph->addResourceTransition("gbuffer",  "albedo",   "lighting",  "albedo");
+    renderGraph->addResourceTransition("gbuffer",  "pbr",      "lighting",  "pbr");
+    if(!skipDepthPrepass)
+      renderGraph->addResourceTransition("zPrepass",  "depth",    "lighting",  "depth");
+    else
+      renderGraph->addResourceTransition("gbuffer", "depth",    "lighting", "depth");
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -375,7 +389,7 @@ int main( int argc, char * argv[] )
     {
       auto buildzRoot = std::make_shared<pumex::Group>();
       buildzRoot->setName("buildzRoot");
-      workflow->setRenderOperationNode("zPrepass", buildzRoot);
+      renderGraph->setRenderOperationNode("zPrepass", buildzRoot);
 
       std::vector<pumex::DescriptorSetLayoutBinding> buildzLayoutBindings =
       {
@@ -427,7 +441,7 @@ int main( int argc, char * argv[] )
 
     auto gbufferRoot = std::make_shared<pumex::Group>();
     gbufferRoot->setName("gbufferRoot");
-    workflow->setRenderOperationNode("gBuffer", gbufferRoot);
+    renderGraph->setRenderOperationNode("gbuffer", gbufferRoot);
 
     std::vector<pumex::DescriptorSetLayoutBinding> gbufferLayoutBindings =
     {
@@ -497,7 +511,7 @@ int main( int argc, char * argv[] )
 
     auto lightingRoot = std::make_shared<pumex::Group>();
     lightingRoot->setName("lightingRoot");
-    workflow->setRenderOperationNode("lighting", lightingRoot);
+    renderGraph->setRenderOperationNode("lighting", lightingRoot);
 
     std::shared_ptr<pumex::Asset> fullScreenTriangle = pumex::createFullScreenTriangle();
 
@@ -562,9 +576,10 @@ int main( int argc, char * argv[] )
     viewer->addInputEventHandler(bcamHandler);
     applicationData->setCameraHandler(bcamHandler);
 
-    // connect workflow to a surface
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-    surface->setRenderWorkflow(workflow, workflowCompiler);
+    // connect render graph to a surface
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f, pumex::qaExclusive } };
+    viewer->compileRenderGraph(renderGraph, queueTraits);
+    surface->addRenderGraph(renderGraph->name, true);
 
     // build simple update graph
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)

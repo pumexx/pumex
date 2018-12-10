@@ -3,6 +3,7 @@
 The purpose of the **Pumex** library is to create an efficient and universal rendering engine using **Vulkan API** that has following properties :
 
 - enables **multithreaded rendering on many windows** ( or many screens ) at once, may use many graphics cards in a single application
+- uses **render graph** for rendering
 - decouples rendering stage from update stage and enables **update step with constant time rate** independent from rendering time rate
 - uses modern C++ ( C++11 to C++17 ) but not overuses its features if it's not necessary
 - works on many platforms ( at the moment Pumex supports rendering inside native windows on  **Windows** and **Linux** operating systems and optionally - inside **QT** windows. **Android port is planned** ).
@@ -34,15 +35,17 @@ Every Pumex application consists of three distinct layers of objects :
 
 ​
 
-- second layer is called a **render workflow**  ( also known in literature as frame graph, or render graph ). Each Vulkan surface rendered by the application may use its own render workflow, but typically the workflow is shared between surfaces ( see: image above ).
+- second layer is called a **render graph**  ( also known in literature as frame graph ). Each Vulkan surface rendered by the application may use **one or more** render graphs. Render graphs may be shared between surfaces ( see: image above ).
 
-  Render workflow defines render operations and inputs/outputs between them. During application run  abstract workflow is compiled into a set of Vulkan objects required to render a scene: graphics passes and subpasses ( with its attachments and dependencies ), compute passes, images, buffers, attachments and pipeline barriers.  These objects are then used to build a primary command buffer.
+  Render graph defines render operations and inputs/outputs between them. During application run  abstract render graph is compiled into a set of Vulkan objects required to render a scene: graphics passes and subpasses ( with its attachments and dependencies ), compute passes, images, buffers, attachments and pipeline barriers.  These objects are then used to build a primary command buffers.
 
-  An example of render workflow for a simple deferred renderer with depth prepass is shown below.
+  Each render graph may use one or more Vulkan queues for its execution.
+
+  An example of render graph for a simple deferred renderer with depth prepass is shown below.
 
 
 
-![render workflow](doc/images/RenderWorkflowLayer.png)
+![render graph](doc/images/RenderGraphLayer.png)
 
 
 
@@ -203,7 +206,7 @@ Additional command line parameters :
 
 ### pumexmultiview
 
-Application based on pumexdeferred example. It shows how to utilize **VK_KHR_multiview** extension to render two images at the same time ( without a need for a second render workflow and scenegraph traversal ) and how to apply barrel distortion.
+Application based on pumexdeferred example. It shows how to utilize **VK_KHR_multiview** extension to render two images at the same time ( without a need for a second render graph and scene graph traversal ) and how to apply barrel distortion.
 
 Shaders used in that example realize **physically based rendering** inspired by [learnopengl.com](https://learnopengl.com/#!PBR/Theory)
 
@@ -281,7 +284,7 @@ pumexvoxelizer people/wmale1_lod0.dae people/wmale1_run.dae
 Voxelize and render Sponza palace model :
 
 ```
-pumexviewer sponza/sponza.dae
+pumexvoxelizer sponza/sponza.dae
 ```
 
 ------
@@ -410,9 +413,8 @@ On Windows all mandatory dependencies are downloaded and built on first Pumex li
 ## Future plans
 
 - Android port
-- iOS port through [MoltenVK](https://github.com/KhronosGroup/MoltenVK) ( if possible )
-- at the moment compiled render workflow uses only one VkQueue to render its work. Plan is to enable using multiple queues in that context, so things like **async compute** may be easily implemented by library user
-- architecture of a render workflow still needs some improvements
+- iOS port through [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
+- implement async compute that may be run during update phase
 - scene graphs should only render what is visible ( that's why pumexgpucull example is slower than osggpucull example now ). Should it be mandatory or optional ?
 - more texture loaders ( at the moment only dds and ktx texture files are available )
 - asynchronous loading of models and textures

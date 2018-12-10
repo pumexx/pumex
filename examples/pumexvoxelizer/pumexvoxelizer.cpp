@@ -29,7 +29,7 @@
 
 // pumexvoxelizer shows how to voxelize a model ( model may be animated ).
 // This example is based on pumexviewer.
-// Render workflow performs two render operations per frame :
+// Render graph performs two render operations per frame :
 // - model voxelization
 // - rendering of original model and ray marching of voxelized model
 
@@ -68,8 +68,8 @@ struct VoxelizerApplicationData
     voxelPositionBuffer  = std::make_shared<pumex::Buffer<PositionData>>(voxelPositionData, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
 
     // build 3D texture
-    pumex::ImageSize volumeSize{ pumex::ImageSize::Absolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
-    pumex::ImageTraits   volumeImageTraits( VK_FORMAT_B8G8R8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
+    pumex::ImageSize volumeSize{ pumex::isAbsolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
+    pumex::ImageTraits   volumeImageTraits( VK_FORMAT_B8G8R8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_GENERAL, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
     volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
 
     pumex::BoundingBox bbox;
@@ -241,6 +241,9 @@ int main( int argc, char * argv[] )
   try
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    // allocate 16 MB for frame buffer
+    auto frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
     pumex::AssetLoaderAssimp loader;
@@ -258,11 +261,10 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
-    // allocate 16 MB for frame buffer
-    auto frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // alocate 1 MB for uniform and storage buffers
     auto buffersAllocator     = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -274,30 +276,33 @@ int main( int argc, char * argv[] )
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
+    pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
+    pumex::ImageSize volumeSize2D(pumex::isAbsolute, glm::vec2(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE));
+    pumex::ImageSize volumeSize3D{ pumex::isAbsolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
 
-    pumex::ImageSize surfaceSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
+    pumex::ResourceDefinition image_3d(VK_FORMAT_B8G8R8A8_UNORM, volumeSize3D, pumex::atColor, "image_3d");
 
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("voxelizer_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,     surfaceSize, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false );
-      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM, surfaceSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         true);
-      workflow->addResourceType("image_3d",      pumex::WorkflowResourceType::Image, false );
+    pumex::RenderOperation voxelization("voxelization", pumex::opGraphics, volumeSize2D);
+      voxelization.addImageOutput("outVoxels", image_3d, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL);
 
-    // first operation creates 3D texture of underlying model ( model voxelization )
-    workflow->addRenderOperation("voxelization", pumex::RenderOperation::Graphics, pumex::ImageSize( pumex::ImageSize::Absolute, glm::vec2(CLIPMAP_TEXTURE_SIZE,CLIPMAP_TEXTURE_SIZE)));
-      workflow->addImageOutput("voxelization", "image_3d", "voxels", pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)));
+    pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
+      rendering.addImageInput("inVoxels",                  image_3d,            pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL);
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
-    // second operation renders 3D model and raymarches 3D texture to show that model and texture are in the same position
-    workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addImageInput("rendering", "image_3d", "voxels", pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL);
-      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput(      "rendering", "surface",       "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("voxelizer_render_graph");
+    renderGraph->addRenderOperation(voxelization);
+    renderGraph->addRenderOperation(rendering);
+
+    renderGraph->addResourceTransition("voxelization", "outVoxels", "rendering", "inVoxels", "voxels" );
 
     std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(buffersAllocator, volumeAllocator, asset);
 
-    // memory objects that are not attachments must be provided to workflow through associateMemoryObject()
+    // memory objects that are not attachments must be provided to render graph through ExternalMemoryObjects
     // if they're not provided then there are no pipeline barriers for them
-    workflow->associateMemoryObject("voxels", applicationData->volumeMemoryImage, VK_IMAGE_VIEW_TYPE_3D);
+
+    viewer->getExternalMemoryObjects()->addMemoryObject("voxels", image_3d, applicationData->volumeMemoryImage, VK_IMAGE_VIEW_TYPE_3D);
 
     // create pipeline cache
     auto pipelineCache = std::make_shared<pumex::PipelineCache>();
@@ -326,7 +331,7 @@ int main( int argc, char * argv[] )
     voxelizePipeline->cullMode         = VK_CULL_MODE_NONE;
     voxelizePipeline->depthTestEnable  = VK_FALSE;
     voxelizePipeline->depthWriteEnable = VK_FALSE;
-    workflow->setRenderOperationNode("voxelization", voxelizePipeline);
+    renderGraph->setRenderOperationNode("voxelization", voxelizePipeline);
 
     auto voxelizeGroup = std::make_shared<pumex::Group>();
     voxelizeGroup->setName("voxelizeGroup");
@@ -335,12 +340,12 @@ int main( int argc, char * argv[] )
     auto cameraUbo = std::make_shared<pumex::UniformBuffer>(applicationData->cameraBuffer);
     auto positionUbo = std::make_shared<pumex::UniformBuffer>(applicationData->positionBuffer);
 
-    auto volumeStorageImage = std::make_shared<pumex::StorageImage>("voxels");
+    auto volumeStorageImageOut = std::make_shared<pumex::StorageImage>("outVoxels");
 
     auto voxelizeDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, voxelizeDescriptorSetLayout);
     voxelizeDescriptorSet->setDescriptor(0, std::make_shared<pumex::UniformBuffer>(applicationData->voxelizeCameraBuffer));
     voxelizeDescriptorSet->setDescriptor(1, positionUbo);
-    voxelizeDescriptorSet->setDescriptor(2, volumeStorageImage);
+    voxelizeDescriptorSet->setDescriptor(2, volumeStorageImageOut);
     voxelizeGroup->setDescriptorSet(0, voxelizeDescriptorSet);
 
     std::shared_ptr<pumex::AssetNode> assetNode = std::make_shared<pumex::AssetNode>(asset, verticesAllocator, 1, 0);
@@ -349,7 +354,7 @@ int main( int argc, char * argv[] )
 
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
-    workflow->setRenderOperationNode("rendering", renderRoot);
+    renderGraph->setRenderOperationNode("rendering", renderRoot);
 
     pumex::Geometry voxelBox;
     voxelBox.name = "voxelBox";
@@ -388,10 +393,12 @@ int main( int argc, char * argv[] )
     vbaAssetNode->setName("vbaAssetNode");
     raymarchPipeline->addChild(vbaAssetNode);
 
+    auto volumeStorageImageIn = std::make_shared<pumex::StorageImage>("inVoxels");
+
     auto raymarchDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, raymarchDescriptorSetLayout);
     raymarchDescriptorSet->setDescriptor(0, cameraUbo);
     raymarchDescriptorSet->setDescriptor(1, std::make_shared<pumex::UniformBuffer>(applicationData->voxelPositionBuffer));
-    raymarchDescriptorSet->setDescriptor(2, volumeStorageImage);
+    raymarchDescriptorSet->setDescriptor(2, volumeStorageImageIn);
     vbaAssetNode->setDescriptorSet(0, raymarchDescriptorSet);
 
     // create pipeline for basic model rendering
@@ -438,8 +445,9 @@ int main( int argc, char * argv[] )
     viewer->addInputEventHandler(bcamHandler);
     applicationData->setCameraHandler(bcamHandler);
 
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-    surface->setRenderWorkflow(workflow, workflowCompiler);
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f, pumex::qaExclusive } };
+    viewer->compileRenderGraph(renderGraph, queueTraits);
+    surface->addRenderGraph(renderGraph->name, true);
 
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {

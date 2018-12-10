@@ -23,11 +23,12 @@
 #include <pumex/Viewer.h>
 #include <algorithm>
 #include <pumex/utils/Log.h>
+#include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/PhysicalDevice.h>
 #include <pumex/Device.h>
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
-#include <pumex/RenderWorkflow.h>
+#include <pumex/RenderGraphCompiler.h>
 #include <pumex/TimeStatistics.h>
 #include <pumex/InputEvent.h>
 #include <pumex/Version.h>
@@ -51,13 +52,16 @@ const uint32_t MAX_PATH_LENGTH = 256;
 
 Viewer::Viewer(const ViewerTraits& vt)
   : viewerTraits{ vt },
-  opStartUpdateGraph            { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  opEndUpdateGraph              { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  opRenderGraphStart            { renderGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
-  opRenderGraphEventRenderStart { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
-  opRenderGraphFinish           { renderGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
+  opStartUpdateGraph                   { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opEndUpdateGraph                     { updateGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opExecutionFlowGraphStart            { executionFlowGraph, [=](tbb::flow::continue_msg) { doNothing(); } },
+  opExecutionFlowGraphEventRenderStart { executionFlowGraph, [=](tbb::flow::continue_msg) { onEventRenderStart(); } },
+  opExecutionFlowGraphFinish           { executionFlowGraph, [=](tbb::flow::continue_msg) { onEventRenderFinish(); } }
 {
+  externalMemoryObjects = std::make_shared<ExternalMemoryObjects>();
+  renderGraphCompiler = std::dynamic_pointer_cast<RenderGraphCompiler>(std::make_shared<DefaultRenderGraphCompiler>());
   viewerStartTime     = HPClock::now();
+
   for(uint32_t i=0; i<3;++i)
     updateTimes[i] = viewerStartTime;
   renderStartTime     = viewerStartTime;
@@ -214,10 +218,10 @@ void Viewer::run()
     while (true)
     {
       std::lock_guard<std::mutex> renderLock(renderMutex);
-      if (!renderGraphValid)
+      if (!executionFlowGraphValid)
       {
-        buildRenderGraph();
-        renderGraphValid = true;
+        buildExecutionFlowGraph();
+        executionFlowGraphValid = true;
       }
 
       for (auto& it : surfaces)
@@ -245,8 +249,8 @@ void Viewer::run()
         renderContinueRun = !terminating();
         if (renderContinueRun)
         {
-          opRenderGraphStart.try_put(tbb::flow::continue_msg());
-          renderGraph.wait_for_all();
+          opExecutionFlowGraphStart.try_put(tbb::flow::continue_msg());
+          executionFlowGraph.wait_for_all();
         }
       }
       catch (...)
@@ -350,7 +354,10 @@ void Viewer::cleanup()
   eventRenderStart  = nullptr;
   eventRenderFinish = nullptr;
   updateGraph.reset();
-  renderGraph.reset();
+  executionFlowGraph.reset();
+  renderGraphs.clear();
+  externalMemoryObjects = nullptr;
+  frameBufferAllocator = nullptr;
   if (instance != VK_NULL_HANDLE)
   {
     if (isRealized())
@@ -378,15 +385,11 @@ void Viewer::realize()
   if (isRealized())
     return;
 
-  // collect queues that are requested by surface workflows
+  // collect queues that are requested by render graphs
   for (auto& d : devices)
     d.second->resetRequestedQueues();
   for (auto& s : surfaces)
-  {
-    auto device = s.second->device.lock();
-    for (auto& qt : s.second->renderWorkflow->getQueueTraits())
-      device->addRequestedQueue(qt);
-  }
+    s.second->collectQueueTraits();
   for (auto& d : devices)
     d.second->realize();
   for (auto& s : surfaces)
@@ -417,7 +420,7 @@ void Viewer::addSurface(std::shared_ptr<Surface> surface)
   std::lock_guard<std::mutex> renderLock(renderMutex);
   surface->setID(shared_from_this(), nextSurfaceID);
   surfaces.insert({ nextSurfaceID++, surface });
-  renderGraphValid = false;
+  executionFlowGraphValid = false;
 }
 
 void Viewer::removeSurface(uint32_t surfaceID)
@@ -430,7 +433,7 @@ void Viewer::removeSurface(uint32_t surfaceID)
   surfaces.erase(it);
   if(isMainWindow || surfaces.empty())
     setTerminate();
-  renderGraphValid = false;
+  executionFlowGraphValid = false;
 }
 
 std::vector<uint32_t> Viewer::getDeviceIDs() const
@@ -463,6 +466,28 @@ Surface* Viewer::getSurface(uint32_t id)
   if (it == end(surfaces))
     return nullptr;
   return it->second.get();
+}
+
+void Viewer::compileRenderGraph(std::shared_ptr<RenderGraph> renderGraph, const std::vector<QueueTraits>& qt)
+{
+  renderGraph->addMissingResourceTransitions();
+  std::shared_ptr<RenderGraphExecutable> executable = renderGraphCompiler->compile(*renderGraph, *externalMemoryObjects, qt, frameBufferAllocator);
+  renderGraphs.insert({ renderGraph->name, executable });
+  queueTraits.insert({ renderGraph->name, qt });
+}
+
+std::shared_ptr<RenderGraphExecutable> Viewer::getRenderGraphExecutable(const std::string& name) const
+{
+  auto it = renderGraphs.find(name);
+  CHECK_LOG_THROW(it == end(renderGraphs), "Viewer does not have registered render graph : " << name);
+  return it->second;
+}
+
+const std::vector<QueueTraits>& Viewer::getRenderGraphQueueTraits(const std::string& name) const
+{
+  auto it = queueTraits.find(name);
+  CHECK_LOG_THROW(it == end(queueTraits), "Viewer does not have registered queue traits for render graph : " << name);
+  return it->second;
 }
 
 void Viewer::addInputEventHandler(std::shared_ptr<InputEventHandler> eventHandler)
@@ -643,13 +668,13 @@ void Viewer::handleInputEvents()
   }
 }
 
-void Viewer::buildRenderGraph()
+void Viewer::buildExecutionFlowGraph()
 {
-  renderGraph.reset();
+  executionFlowGraph.reset();
 
   opSurfaceBeginFrame.clear();
   opSurfaceEventRenderStart.clear();
-  opSurfaceValidateWorkflow.clear();
+  opSurfaceValidateRenderGraphs.clear();
   opSurfaceValidateSecondaryNodes.clear();
   opSurfaceBarrier0.clear();
   opSurfaceValidateSecondaryDescriptors.clear();
@@ -666,7 +691,7 @@ void Viewer::buildRenderGraph()
   {
     Surface* surface = surf.second.get();
     surfacePointers.emplace_back(surface);
-    opSurfaceBeginFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceBeginFrame.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
@@ -680,7 +705,7 @@ void Viewer::buildRenderGraph()
         surface->timeStatistics->setValues(TSS_CHANNEL_BEGINFRAME, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
-    opSurfaceEventRenderStart.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceEventRenderStart.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_EVENTS))
@@ -694,18 +719,18 @@ void Viewer::buildRenderGraph()
         surface->timeStatistics->setValues(TSS_CHANNEL_EVENTSURFACERENDERSTART, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
-    opSurfaceValidateWorkflow.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceValidateRenderGraphs.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
 
-      surface->validateWorkflow();
+      surface->validateRenderGraphs();
 
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {
         auto tickEnd = HPClock::now();
-        surface->timeStatistics->setValues(TSS_CHANNEL_VALIDATEWORKFLOW, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
+        surface->timeStatistics->setValues(TSS_CHANNEL_VALIDATERENDERGRAPH, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
 
@@ -713,9 +738,10 @@ void Viewer::buildRenderGraph()
       auto jit = opSurfaceValidatePrimaryNodes.find(surface);
       if (jit == end(opSurfaceValidatePrimaryNodes))
         jit = opSurfaceValidatePrimaryNodes.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
-      for (uint32_t i = 0; i < surface->queues.size(); ++i)
+      for (uint32_t i = 0; i < surface->getNumQueues(); ++i)
       {
-        jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+        auto queue = surface->getQueue(i); // FIXME : we have to modify it anyway...
+        jit->second.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
         {
           HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
@@ -726,6 +752,7 @@ void Viewer::buildRenderGraph()
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
           {
             auto tickEnd = HPClock::now();
+            // FIXME - wrong channel number
             surface->timeStatistics->setValues(20 + 10 * i + 0, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
           }
         });
@@ -735,9 +762,9 @@ void Viewer::buildRenderGraph()
       auto jit = opSurfaceValidatePrimaryDescriptors.find(surface);
       if (jit == end(opSurfaceValidatePrimaryDescriptors))
         jit = opSurfaceValidatePrimaryDescriptors.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
-      for (uint32_t i = 0; i < surface->queues.size(); ++i)
+      for (uint32_t i = 0; i < surface->getNumQueues(); ++i)
       {
-        jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+        jit->second.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
         {
           HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
@@ -748,6 +775,7 @@ void Viewer::buildRenderGraph()
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
           {
             auto tickEnd = HPClock::now();
+            // FIXME - wrong channel number
             surface->timeStatistics->setValues(20 + 10 * i + 1, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
           }
         });
@@ -757,9 +785,9 @@ void Viewer::buildRenderGraph()
       auto jit = opSurfacePrimaryBuffers.find(surface);
       if (jit == end(opSurfacePrimaryBuffers))
         jit = opSurfacePrimaryBuffers.insert({ surface, std::vector<tbb::flow::continue_node<tbb::flow::continue_msg>>() }).first;
-      for (uint32_t i = 0; i < surface->queues.size(); ++i)
+      for (uint32_t i = 0; i < surface->getNumQueues(); ++i)
       {
-        jit->second.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+        jit->second.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
         {
           HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
@@ -770,12 +798,13 @@ void Viewer::buildRenderGraph()
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
           {
             auto tickEnd = HPClock::now();
+            // FIXME - wrong channel number
             surface->timeStatistics->setValues(20 + 10 * i + 2, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
           }
         });
       }
     }
-    opSurfaceValidateSecondaryNodes.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceValidateSecondaryNodes.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
@@ -789,11 +818,11 @@ void Viewer::buildRenderGraph()
         surface->timeStatistics->setValues(TSS_CHANNEL_VALIDATESECONDARYNODES, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
-    opSurfaceBarrier0.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceBarrier0.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       doNothing();
     });
-    opSurfaceValidateSecondaryDescriptors.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceValidateSecondaryDescriptors.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
@@ -807,7 +836,7 @@ void Viewer::buildRenderGraph()
         surface->timeStatistics->setValues(TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
-    opSurfaceSecondaryCommandBuffers.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceSecondaryCommandBuffers.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
@@ -822,7 +851,7 @@ void Viewer::buildRenderGraph()
         surface->timeStatistics->setValues(TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
-    opSurfaceDrawFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceDrawFrame.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
@@ -836,7 +865,7 @@ void Viewer::buildRenderGraph()
         surface->timeStatistics->setValues(TSS_CHANNEL_DRAW, inSeconds(tickStart - viewerStartTime), inSeconds(tickEnd - tickStart));
       }
     });
-    opSurfaceEndFrame.emplace_back(renderGraph, [=](tbb::flow::continue_msg)
+    opSurfaceEndFrame.emplace_back(executionFlowGraph, [=](tbb::flow::continue_msg)
     {
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
@@ -864,17 +893,17 @@ void Viewer::buildRenderGraph()
     });
   }
 
-  tbb::flow::make_edge(opRenderGraphStart, opRenderGraphEventRenderStart);
+  tbb::flow::make_edge(opExecutionFlowGraphStart, opExecutionFlowGraphEventRenderStart);
   for (uint32_t i = 0; i < surfacePointers.size(); ++i)
   {
-    tbb::flow::make_edge(opRenderGraphStart, opSurfaceBeginFrame[i]);
-    tbb::flow::make_edge(opRenderGraphStart, opSurfaceEventRenderStart[i]);
+    tbb::flow::make_edge(opExecutionFlowGraphStart, opSurfaceBeginFrame[i]);
+    tbb::flow::make_edge(opExecutionFlowGraphStart, opSurfaceEventRenderStart[i]);
 
-    tbb::flow::make_edge(opSurfaceBeginFrame[i], opSurfaceValidateWorkflow[i]);
-    tbb::flow::make_edge(opSurfaceEventRenderStart[i], opSurfaceValidateWorkflow[i]);
-    tbb::flow::make_edge(opRenderGraphEventRenderStart, opSurfaceValidateWorkflow[i]);
+    tbb::flow::make_edge(opSurfaceBeginFrame[i], opSurfaceValidateRenderGraphs[i]);
+    tbb::flow::make_edge(opSurfaceEventRenderStart[i], opSurfaceValidateRenderGraphs[i]);
+    tbb::flow::make_edge(opExecutionFlowGraphEventRenderStart, opSurfaceValidateRenderGraphs[i]);
 
-    tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceValidateSecondaryNodes[i]);
+    tbb::flow::make_edge(opSurfaceValidateRenderGraphs[i], opSurfaceValidateSecondaryNodes[i]);
     tbb::flow::make_edge(opSurfaceValidateSecondaryNodes[i], opSurfaceBarrier0[i]);
     tbb::flow::make_edge(opSurfaceBarrier0[i], opSurfaceValidateSecondaryDescriptors[i]);
     tbb::flow::make_edge(opSurfaceValidateSecondaryDescriptors[i], opSurfaceSecondaryCommandBuffers[i]);
@@ -883,7 +912,7 @@ void Viewer::buildRenderGraph()
     if (jit0 == end(opSurfaceValidatePrimaryNodes) || jit0->second.size() == 0)
     {
       // no primary command buffer building ? Maybe we should throw an error ?
-      tbb::flow::make_edge(opSurfaceValidateWorkflow[i], opSurfaceSecondaryCommandBuffers[i]);
+      tbb::flow::make_edge(opSurfaceValidateRenderGraphs[i], opSurfaceSecondaryCommandBuffers[i]);
       tbb::flow::make_edge(opSurfaceSecondaryCommandBuffers[i], opSurfaceDrawFrame[i]);
     }
     else
@@ -893,7 +922,7 @@ void Viewer::buildRenderGraph()
 
       for (uint32_t j = 0; j < jit0->second.size(); ++j)
       {
-        tbb::flow::make_edge(opSurfaceValidateWorkflow[i], jit0->second[j]);
+        tbb::flow::make_edge(opSurfaceValidateRenderGraphs[i], jit0->second[j]);
         tbb::flow::make_edge(jit0->second[j], opSurfaceBarrier0[i]);
         tbb::flow::make_edge(opSurfaceBarrier0[i], jit1->second[j]);
         tbb::flow::make_edge(jit1->second[j], opSurfaceSecondaryCommandBuffers[i]);
@@ -903,7 +932,7 @@ void Viewer::buildRenderGraph()
     }
 
     tbb::flow::make_edge(opSurfaceDrawFrame[i], opSurfaceEndFrame[i]);
-    tbb::flow::make_edge(opSurfaceEndFrame[i], opRenderGraphFinish);
+    tbb::flow::make_edge(opSurfaceEndFrame[i], opExecutionFlowGraphFinish);
   }
 }
 

@@ -28,6 +28,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <pumex/Export.h>
+#include <pumex/Queue.h>
 
 namespace pumex
 {
@@ -38,44 +39,6 @@ class CommandPool;
 class DescriptorPool;
 class CommandBuffer;
 class StagingBuffer;
-
-// struct that represents queues that must be provided by Vulkan implementation during initialization
-struct PUMEX_EXPORT QueueTraits
-{
-  QueueTraits(VkQueueFlags mustHave, VkQueueFlags mustNotHave, float priority);
-
-  VkQueueFlags  mustHave    = 0;
-  VkQueueFlags  mustNotHave = 0;
-  float         priority;
-};
-
-inline bool operator==(const QueueTraits& lhs, const QueueTraits& rhs)
-{
-  return (lhs.mustHave == rhs.mustHave) && (lhs.mustNotHave == rhs.mustNotHave) && (lhs.priority == rhs.priority);
-}
-
-inline bool operator!=(const QueueTraits& lhs, const QueueTraits& rhs)
-{
-  return (lhs.mustHave != rhs.mustHave) || (lhs.mustNotHave != rhs.mustNotHave) || (lhs.priority != rhs.priority);
-}
-
-// internal class that stores infromation about one reserved queue
-class Queue
-{
-public:
-  Queue()                        = delete;
-  Queue(const QueueTraits& queueTraits, uint32_t familyIndex, uint32_t index, VkQueue queue);
-  Queue(const Queue&)            = delete;
-  Queue& operator=(const Queue&) = delete;
-  Queue(Queue&&)                 = delete;
-  Queue& operator=(Queue&&)      = delete;
-
-  QueueTraits traits;
-  uint32_t    familyIndex = std::numeric_limits<uint32_t>::max();
-  uint32_t    index       = std::numeric_limits<uint32_t>::max();
-  bool        available   = true;
-  VkQueue     queue       = VK_NULL_HANDLE;
-};
 
 // class representing Vulkan logical device. There may be many logical devices used in a single Viewer object
 class PUMEX_EXPORT Device : public std::enable_shared_from_this<Device>

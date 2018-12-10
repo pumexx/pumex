@@ -65,7 +65,7 @@ protected:
 
   std::shared_ptr<GraphicsPipeline>  drawPipeline;
   std::shared_ptr<DrawVerticesNode>  drawNode;
-  std::shared_ptr<pumex::Buffer<pumex::Camera>> drawCameraBuffer;
+  std::shared_ptr<Buffer<Camera>>    drawCameraBuffer;
 
   std::shared_ptr<GraphicsPipeline>  textPipeline;
   std::shared_ptr<Text>              textDefault;

@@ -50,7 +50,7 @@ protected:
 };
 
 // class implementing a pumex::Window for QT, contained within QWindowPumex
-class PUMEX_EXPORT WindowQT : public pumex::Window, public std::enable_shared_from_this<WindowQT>
+class PUMEX_EXPORT WindowQT : public Window, public std::enable_shared_from_this<WindowQT>
 {
 public:
   explicit WindowQT(QWindowPumex *owner = nullptr, const WindowTraits& windowTraits = WindowTraits());

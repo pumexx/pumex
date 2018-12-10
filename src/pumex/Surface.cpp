@@ -29,15 +29,13 @@
 #include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/MemoryImage.h>
-#include <pumex/Image.h>
 #include <pumex/utils/Log.h>
-#include <pumex/RenderWorkflow.h>
 #include <pumex/TimeStatistics.h>
 
 using namespace pumex;
 
-SurfaceTraits::SurfaceTraits(uint32_t ic, VkColorSpaceKHR ics, uint32_t ial, VkPresentModeKHR  spm, VkSurfaceTransformFlagBitsKHR pt, VkCompositeAlphaFlagBitsKHR ca)
-  : imageCount{ ic }, imageColorSpace{ ics }, imageArrayLayers{ ial }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }
+SurfaceTraits::SurfaceTraits(const ResourceDefinition& sdef, uint32_t sic, VkColorSpaceKHR sics, VkPresentModeKHR spm, VkSurfaceTransformFlagBitsKHR pt, VkCompositeAlphaFlagBitsKHR ca)
+  : swapChainDefinition{ sdef }, swapChainImageCount{ sic }, swapChainImageColorSpace{ sics }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }
 {
 }
 
@@ -67,17 +65,16 @@ const std::map<VkPresentModeKHR, std::vector<VkPresentModeKHR>> Surface::replace
 
 
 Surface::Surface(std::shared_ptr<Device> d, std::shared_ptr<Window> w, VkSurfaceKHR s, const SurfaceTraits& st)
-  : device{ d }, window{ w }, surface{ s }, surfaceTraits(st)
+  : device{ d }, window{ w }, surface{ s }, surfaceTraits{ st }
 {
-  timeStatistics = std::make_unique<TimeStatistics>(32);
-
+  timeStatistics      = std::make_unique<TimeStatistics>(32);
   timeStatistics->registerGroup(TSS_GROUP_BASIC,             L"Surface operations");
   timeStatistics->registerGroup(TSS_GROUP_EVENTS,            L"Surface events");
   timeStatistics->registerGroup(TSS_GROUP_SECONDARY_BUFFERS, L"Secondary buffers");
 
   timeStatistics->registerChannel(TSS_CHANNEL_BEGINFRAME,                   TSS_GROUP_BASIC,             L"beginFrame",                   glm::vec4(0.4f, 0.4f, 0.4f, 0.5f));
   timeStatistics->registerChannel(TSS_CHANNEL_EVENTSURFACERENDERSTART,      TSS_GROUP_EVENTS,            L"eventSurfaceRenderStart",      glm::vec4(0.8f, 0.8f, 0.1f, 0.5f));
-  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATEWORKFLOW,             TSS_GROUP_BASIC,             L"validateWorkflow",             glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
+  timeStatistics->registerChannel(TSS_CHANNEL_VALIDATERENDERGRAPH,          TSS_GROUP_BASIC,             L"validateRenderGraphs",         glm::vec4(0.1f, 0.1f, 0.1f, 0.5f));
   timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYNODES,       TSS_GROUP_SECONDARY_BUFFERS, L"validateSecondaryNodes",       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
   timeStatistics->registerChannel(TSS_CHANNEL_VALIDATESECONDARYDESCRIPTORS, TSS_GROUP_SECONDARY_BUFFERS, L"validateSecondaryDescriptors", glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
   timeStatistics->registerChannel(TSS_CHANNEL_BUILDSECONDARYCOMMANDBUFFERS, TSS_GROUP_SECONDARY_BUFFERS, L"buildSecondaryCommandBuffers", glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
@@ -92,6 +89,52 @@ Surface::~Surface()
 {
   cleanup();
 }
+
+// called before realization - collects queue traits for all render graphs
+void Surface::collectQueueTraits()
+{
+  auto v = viewer.lock();
+  for (auto& rgData : renderGraphData)
+  {
+    auto currentSize = queueTraits.size();
+    std::string& rgName = std::get<0>(rgData);
+    auto qTraits = v->getRenderGraphQueueTraits(rgName);
+    auto qit = renderGraphQueueIndices.insert({ rgName, std::vector<uint32_t>() }).first;
+    for (uint32_t i=0; i<qTraits.size(); ++i)
+    {
+      switch(qTraits[i].assignment)
+      {
+      case qaExclusive:
+      {
+        qit->second.push_back(queueTraits.size());
+        queueTraits.push_back(qTraits[i]);
+        break;
+      }
+      case qaShared:
+      {
+        // Queues may be shared between different render graphs. Queue sharing inside single render graph makes no sense ( possible synchronization deadlocks, 
+        // when two command sequences designed to work in parallel will be spawned serially )
+        auto last = begin(queueTraits) + currentSize;
+        auto it = std::find(begin(queueTraits), last , qTraits[i]);
+        if (it == last)
+        {
+          qit->second.push_back(queueTraits.size());
+          queueTraits.push_back(qTraits[i]);
+        }
+        else
+          qit->second.push_back(std::distance(begin(queueTraits), it));
+        break;
+      }
+      default:
+        break;
+      }
+    }
+  }
+  auto d = device.lock();
+  for( auto& qt : queueTraits )
+    d->addRequestedQueue(qt);
+}
+
 
 void Surface::realize()
 {
@@ -146,41 +189,72 @@ void Surface::realize()
   for (uint32_t i = 0; i < queueFamilyCount; i++)
     VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceSupportKHR(phDev, i, surface, &supportsPresent[i]), "failed vkGetPhysicalDeviceSurfaceSupportKHR for family " << i );
 
-  CHECK_LOG_THROW(renderWorkflow.get() == nullptr, "Render workflow not defined for surface " << getID());
-  CHECK_LOG_THROW(renderWorkflowCompiler.get() == nullptr, "Render workflow compiler not defined for surface " << getID());
-  checkWorkflow();
+  CHECK_LOG_THROW(renderGraphData.empty(), "There are no render graphs defined for surface " << getID());
   // Create synchronization objects
   VkSemaphoreCreateInfo semaphoreCreateInfo{};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-  // get all queues and create command pools and command buffers for them
-  for (auto& q : workflowResults->queueTraits)
+  // get all queues and create command pools and entry semaphores for them
+  for (uint32_t i=0; i<queueTraits.size(); ++i )
   {
-    std::shared_ptr<Queue> queue = deviceSh->getQueue(q, true);
-    CHECK_LOG_THROW(queue.get() == nullptr, "Cannot get the queue for this surface");
+    std::shared_ptr<Queue> queue = deviceSh->getQueue(queueTraits[i], true);
+    CHECK_LOG_THROW(queue.get() == nullptr, "Cannot get the queue for this surface : " << i);
     CHECK_LOG_THROW(supportsPresent[queue->familyIndex] == VK_FALSE, "Support not present for(device,surface,familyIndex) : " << queue->familyIndex);
     queues.push_back(queue);
+
+    // first queue able to perform graphics operations will become presentation queue
+    if (presentationQueueIndex == -1 && ((queueTraits[i].mustHave & VK_QUEUE_GRAPHICS_BIT) != 0))
+      presentationQueueIndex = i;
 
     auto commandPool = std::make_shared<CommandPool>(queue->familyIndex);
     commandPool->validate(deviceSh.get());
     commandPools.push_back(commandPool);
 
-    auto commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPool, surfaceTraits.imageCount);
-    primaryCommandBuffers.push_back(commandBuffer);
-
     // Create a semaphore used to synchronize command submission
     // Ensures that the image is not presented until all commands have been sumbitted and executed
     VkSemaphore semaphore0;
-    VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore0), "Could not create render complete semaphore");
-    frameBufferReadySemaphores.emplace_back(semaphore0);
+    VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore0), "Could not create frameBufferReady semaphore");
+    attachmentsLayoutCompletedSemaphores.emplace_back(semaphore0);
 
-    VkSemaphore semaphore1;
-    VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore1), "Could not create render complete semaphore");
-    renderCompleteSemaphores.emplace_back(semaphore1);
+    queueSubmissionCompletedSemaphores.emplace_back(std::vector<VkSemaphore>());
   }
+
+  for (uint32_t i = 0; i < renderGraphData.size(); ++i)
+  {
+    // for all command sequences - figure out which queues they use, add command buffers for them
+    auto renderGraphName = std::get<0>(renderGraphData[i]);
+    auto queueIndices = renderGraphQueueIndices.find(renderGraphName);
+    CHECK_LOG_THROW(queueIndices == end(renderGraphQueueIndices), "Missing renderGraphQueueIndices for render graph : " << renderGraphName);
+    auto pcbit = primaryCommandBuffers.insert({ renderGraphName,std::vector<std::shared_ptr<CommandBuffer>>() }).first;
+    for (auto& queueIndex : queueIndices->second)
+    {
+      auto commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[queueIndex], surfaceTraits.swapChainImageCount);
+      pcbit->second.push_back(commandBuffer);
+
+      VkSemaphore semaphore1;
+      VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore1), "Could not create render complete semaphore");
+      queueSubmissionCompletedSemaphores[queueIndex].emplace_back(semaphore1);
+    }
+    // register time statistics for all render graphs
+    for (uint32_t j = 0; j < queueIndices->second.size(); ++j)
+    {
+      if (timeStatistics->hasGroup(TSS_GROUP_PRIMARY_BUFFERS + i))
+        continue;
+      std::wstringstream ostr;
+      std::wstring rgName;
+      rgName.assign(begin(renderGraphName), end(renderGraphName));
+      ostr << rgName << " (" << queueIndices->second[j] << ")";
+      timeStatistics->registerGroup(TSS_GROUP_PRIMARY_BUFFERS + i, L"Primary buffers " + ostr.str());
+
+      timeStatistics->registerChannel(20 + 10 * i + 0, TSS_GROUP_PRIMARY_BUFFERS + i, L"validatePrimaryNodes " + ostr.str(), glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 1, TSS_GROUP_PRIMARY_BUFFERS + i, L"validatePrimaryDescriptors " + ostr.str(), glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
+      timeStatistics->registerChannel(20 + 10 * i + 2, TSS_GROUP_PRIMARY_BUFFERS + i, L"buildPrimaryCommandBuffer " + ostr.str(), glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+    }
+  }
+
   // define basic command buffers required to render a frame
-  prepareCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[workflowResults->presentationQueueIndex], surfaceTraits.imageCount);
-  presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[workflowResults->presentationQueueIndex], surfaceTraits.imageCount);
+  prepareCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[presentationQueueIndex], surfaceTraits.swapChainImageCount);
+  presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[presentationQueueIndex], surfaceTraits.swapChainImageCount);
 
   // create all semaphores required to render a frame
   VK_CHECK_LOG_THROW( vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore), "Could not create image available semaphore");
@@ -189,7 +263,7 @@ void Surface::realize()
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-  waitFences.resize(surfaceTraits.imageCount);
+  waitFences.resize(surfaceTraits.swapChainImageCount);
   for (auto& fence : waitFences)
     VK_CHECK_LOG_THROW(vkCreateFence(vkDevice, &fenceCreateInfo, nullptr, &fence), "Could not create a surface wait fence");
 
@@ -207,23 +281,37 @@ void Surface::cleanup()
     vkDestroySwapchainKHR(dev, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
   }
+  auto v = viewer.lock();
   if (surface != VK_NULL_HANDLE)
   {
-    if (workflowResults != nullptr)
+    for (auto& rgData : renderGraphData)
     {
-      for( auto& frameBuffer : workflowResults->frameBuffers)
+      auto executable = v->getRenderGraphExecutable(std::get<0>(rgData));
+      for (auto& frameBuffer : executable->frameBuffers)
         frameBuffer->reset(this);
     }
-
+    renderGraphData.clear();
     for (auto& fence : waitFences)
       vkDestroyFence(dev, fence, nullptr);
+    waitFences.clear();
 
-    for (auto sem : renderCompleteSemaphores)
+    for (auto& semSq : queueSubmissionCompletedSemaphores)
+      for (auto sem : semSq)
+        vkDestroySemaphore(dev, sem, nullptr);
+    queueSubmissionCompletedSemaphores.clear();
+    for (auto sem : attachmentsLayoutCompletedSemaphores)
       vkDestroySemaphore(dev, sem, nullptr);
-    for (auto sem : frameBufferReadySemaphores)
-      vkDestroySemaphore(dev, sem, nullptr);
-    vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
-    vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
+    attachmentsLayoutCompletedSemaphores.clear();
+    if (renderFinishedSemaphore != VK_NULL_HANDLE)
+    {
+      vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
+      renderFinishedSemaphore = VK_NULL_HANDLE;
+    }
+    if (imageAvailableSemaphore != VK_NULL_HANDLE)
+    {
+      vkDestroySemaphore(dev, imageAvailableSemaphore, nullptr);
+      imageAvailableSemaphore = VK_NULL_HANDLE;
+    }
     primaryCommandBuffers.clear();
     presentCommandBuffer = nullptr;
     prepareCommandBuffer = nullptr;
@@ -231,13 +319,13 @@ void Surface::cleanup()
     for(auto q : queues )
       device.lock()->releaseQueue(q);
     queues.clear();
-    if(surfaceTraits.destroySurfaceDuringCleanup)
-      vkDestroySurfaceKHR(viewer.lock()->getInstance(), surface, nullptr);
+    if(surfaceTraits.destroySurfaceOnCleanup)
+      vkDestroySurfaceKHR(v->getInstance(), surface, nullptr);
     surface = VK_NULL_HANDLE;
   }
 }
 
-void Surface::createSwapChain()
+void Surface::recreateSwapChain()
 {
   auto deviceSh = device.lock();
   VkDevice vkDevice = deviceSh->device;
@@ -251,17 +339,15 @@ void Surface::createSwapChain()
   swapChainSize = surfaceCapabilities.currentExtent;
 //  LOG_ERROR << "cs " << swapChainSize.width << "x" << swapChainSize.height << std::endl;
 
-  WorkflowResource& resource = workflowResults->getSwapChainAttachmentResource();
-
   VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCreateInfo.surface               = surface;
-    swapchainCreateInfo.minImageCount         = surfaceTraits.imageCount;
-    swapchainCreateInfo.imageFormat           = resource.resourceType->attachment.format;
-    swapchainCreateInfo.imageColorSpace       = surfaceTraits.imageColorSpace;
+    swapchainCreateInfo.minImageCount         = surfaceTraits.swapChainImageCount;
+    swapchainCreateInfo.imageFormat           = surfaceTraits.swapChainDefinition.attachment.format;
+    swapchainCreateInfo.imageColorSpace       = surfaceTraits.swapChainImageColorSpace;
     swapchainCreateInfo.imageExtent           = swapChainSize;
-    swapchainCreateInfo.imageArrayLayers      = surfaceTraits.imageArrayLayers;
-    swapchainCreateInfo.imageUsage            = resource.resourceType->attachment.imageUsage;
+    swapchainCreateInfo.imageArrayLayers      = surfaceTraits.swapChainDefinition.attachment.attachmentSize.arrayLayers;
+    swapchainCreateInfo.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     swapchainCreateInfo.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
     swapchainCreateInfo.queueFamilyIndexCount = 0;
     swapchainCreateInfo.pQueueFamilyIndices   = nullptr;
@@ -285,50 +371,9 @@ void Surface::createSwapChain()
   std::vector<VkImage> images(imageCount);
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
   for (uint32_t i = 0; i < imageCount; i++)
-    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], resource.resourceType->attachment.format, resource.resourceType->attachment.attachmentSize));
+    swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], surfaceTraits.swapChainDefinition.attachment.format, surfaceTraits.swapChainDefinition.attachment.attachmentSize));
   prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
   presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
-}
-
-bool Surface::checkWorkflow()
-{
-  auto deviceSh = device.lock();
-  renderWorkflow->compile(renderWorkflowCompiler);
-  if (workflowResults.get() != renderWorkflow->workflowResults.get())
-  {
-    if (workflowResults != nullptr)
-    {
-      for (uint32_t i = 0; i < workflowResults->queueTraits.size(); ++i)
-      {
-        timeStatistics->unregisterChannels(TSS_GROUP_PRIMARY_BUFFERS + i);
-        timeStatistics->unregisterGroup(TSS_GROUP_PRIMARY_BUFFERS + i);
-      }
-    }
-
-    workflowResults = renderWorkflow->workflowResults;
-
-    for (uint32_t i = 0; i < workflowResults->queueTraits.size(); ++i)
-    {
-      std::wstringstream ostr;
-      ostr << " (" << i << ")";
-      timeStatistics->registerGroup(TSS_GROUP_PRIMARY_BUFFERS + i, L"Primary buffers" + ostr.str());
-
-      timeStatistics->registerChannel(20 + 10 * i + 0, TSS_GROUP_PRIMARY_BUFFERS + i, L"validatePrimaryNodes" + ostr.str(),       glm::vec4(0.0f, 0.0f, 0.0f, 0.5f));
-      timeStatistics->registerChannel(20 + 10 * i + 1, TSS_GROUP_PRIMARY_BUFFERS + i, L"validatePrimaryDescriptors" + ostr.str(), glm::vec4(1.0f, 1.0f, 0.0f, 0.5f));
-      timeStatistics->registerChannel(20 + 10 * i + 2, TSS_GROUP_PRIMARY_BUFFERS + i, L"buildPrimaryCommandBuffer" + ostr.str(),  glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
-    }
-
-
-    // invalidate basic command buffers
-    if (prepareCommandBuffer.get() != nullptr)
-      prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
-    if(presentCommandBuffer.get() != nullptr)
-      presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
-    for (auto& pcb : primaryCommandBuffers)
-      pcb->invalidate(std::numeric_limits<uint32_t>::max());
-    return true;
-  }
-  return false;
 }
 
 void Surface::beginFrame()
@@ -339,15 +384,15 @@ void Surface::beginFrame()
 
   if (swapChain == VK_NULL_HANDLE)
   {
-    createSwapChain();
+    recreateSwapChain();
     resized = true;
   }
 
-  VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
+  VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &swapChainImageIndex);
   if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
   {
     // recreate swapchain
-    createSwapChain();
+    recreateSwapChain();
     resized = true;
     // try to acquire images again - throw error for every reason other than VK_SUCCESS
     result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
@@ -358,86 +403,94 @@ void Surface::beginFrame()
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
 
-void Surface::validateWorkflow()
+void Surface::validateRenderGraphs()
 {
-  RenderContext renderContext(this, workflowResults->presentationQueueIndex);
-  if (checkWorkflow() || resized)
+  RenderContext renderContext(this, presentationQueueIndex);
+  auto v = viewer.lock();
+  if (resized)
   {
-    for (auto& frameBuffer : workflowResults->frameBuffers)
+    for (auto& rgData : renderGraphData)
     {
-      frameBuffer->prepareMemoryImages(renderContext, swapChainImages);
-      frameBuffer->invalidate(renderContext);
+      auto renderGraphName = std::get<0>(rgData);
+      auto executable = v->getRenderGraphExecutable(renderGraphName);
+      renderContext.setRenderGraphExecutable(executable);
+      for (auto& frameBuffer : executable->frameBuffers)
+      {
+        frameBuffer->prepareMemoryImages(renderContext, swapChainImages);
+        frameBuffer->invalidate(renderContext);
+      }
     }
   }
-  for (auto& frameBuffer : workflowResults->frameBuffers)
-    frameBuffer->validate(renderContext);
-
-  // create/update render passes and compute passes for current surface
-  for (auto& command : workflowResults->commands[workflowResults->presentationQueueIndex])
-    command->validate(renderContext);
+  for (auto& rgData : renderGraphData)
+  {
+    auto renderGraphName = std::get<0>(rgData);
+    auto executable = v->getRenderGraphExecutable(renderGraphName);
+    for (auto& frameBuffer : executable->frameBuffers)
+      frameBuffer->validate(renderContext);
+    // create/update render passes and compute passes for current surface
+    renderContext.setRenderGraphExecutable(executable);
+    for (auto& commandSeq : executable->commands)
+      for (auto& command : commandSeq)
+        command->validate(renderContext);
+  }
 
   // at the beginning of render we must transform frame buffer images into appropriate image layouts
+  VkImageLayout swapChainImageFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   prepareCommandBuffer->setActiveIndex(swapChainImageIndex);
   if (!prepareCommandBuffer->isValid())
   {
     prepareCommandBuffer->cmdBegin();
     std::vector<PipelineBarrier> prepareBarriers;
     VkPipelineStageFlags dstStageFlags = 0;
-    for ( const auto& iLayout : workflowResults->initialImageLayouts )
+    for (auto& rgData : renderGraphData)
     {
-      VkImageLayout  imageLayout;
-      AttachmentType attachmentType;
-      VkImageAspectFlags aspectMask;
-      std::tie(imageLayout, attachmentType, aspectMask) = iLayout.second;
-
-      if (imageLayout == VK_IMAGE_LAYOUT_UNDEFINED )
-        continue;
-
-      VkImageLayout oldLayout;
-      VkAccessFlags srcAccessFlags,dstAccessFlags;
-      switch (attachmentType)
+      auto renderGraphName = std::get<0>(rgData);
+      auto executable = v->getRenderGraphExecutable(renderGraphName);
+      for (auto& memImage : executable->memoryImages)
       {
-      case atSurface:
-        srcAccessFlags = 0;
-        dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        break;
-      case atColor:
-        srcAccessFlags = 0;
-        dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
-        dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        break;
-      case atDepth:
-      case atDepthStencil:
-      case atStencil:
-        srcAccessFlags = 0;
-        dstAccessFlags = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
-        dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        break;
-      default:
-        srcAccessFlags = 0;
-        dstAccessFlags = 0;
-        oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
-        dstStageFlags |= 0;
-        break;
-      }
-      auto it = workflowResults->registeredImageViews.find(iLayout.first);
-      if (it != end(workflowResults->registeredImageViews))
-      {
-        VkImage image = it->second->getHandleImage(renderContext);
+        auto ait = executable->imageInfo.find(memImage.first);
+        if (ait == end(executable->imageInfo))
+          continue;
+        if (ait->second.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED)
+          continue;
+        VkAccessFlags srcAccessFlags, dstAccessFlags;
+        switch (ait->second.attachmentDefinition.attachmentType)
+        {
+        case atColor:
+          srcAccessFlags = 0;
+          dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+          dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+          break;
+        case atDepth:
+        case atDepthStencil:
+        case atStencil:
+          srcAccessFlags = 0;
+          dstAccessFlags = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+          dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+          break;
+        default:
+          srcAccessFlags = 0;
+          dstAccessFlags = 0;
+          dstStageFlags |= 0;
+          break;
+        }
+
+        Image* image = memImage.second->getImage(renderContext);
+        if (image == nullptr)
+          continue;
+        VkImage vkImage = image->getHandleImage();
+        if (ait->second.isSwapchainImage)
+          swapChainImageFinalLayout = ait->second.finalLayout;
         prepareBarriers.emplace_back(PipelineBarrier
         (
           srcAccessFlags,
           dstAccessFlags,
           VK_QUEUE_FAMILY_IGNORED,
           VK_QUEUE_FAMILY_IGNORED,
-          image,
-          it->second->memoryImage->getFullImageRange().getSubresource(),
-          oldLayout,
-          imageLayout
+          vkImage,
+          memImage.second->getFullImageRange().getSubresource(),
+          ait->second.layoutOutside,
+          ait->second.initialLayout
         ));
       }
     }
@@ -450,6 +503,7 @@ void Surface::validateWorkflow()
   if (!presentCommandBuffer->isValid())
   {
     presentCommandBuffer->cmdBegin();
+
     PipelineBarrier presentBarrier
     (
       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
@@ -458,7 +512,7 @@ void Surface::validateWorkflow()
       VK_QUEUE_FAMILY_IGNORED,
       swapChainImages[swapChainImageIndex]->getHandleImage(),
       { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS },
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      swapChainImageFinalLayout,
       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     );
     presentCommandBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT, presentBarrier);
@@ -468,10 +522,11 @@ void Surface::validateWorkflow()
 
 void Surface::setCommandBufferIndices()
 {
-  for (uint32_t i = 0; i < primaryCommandBuffers.size(); ++i)
-    primaryCommandBuffers[i]->setActiveIndex(swapChainImageIndex);
+  for (auto& pcb : primaryCommandBuffers)
+    for (auto& pcbx : pcb.second)
+      pcbx->setActiveIndex(swapChainImageIndex);
 
-  RenderContext renderContext(this, workflowResults->presentationQueueIndex);
+  RenderContext renderContext(this, presentationQueueIndex);
   for (uint32_t i = 0; i < secondaryCommandBufferNodes.size(); ++i)
   {
     auto commandBuffer = secondaryCommandBufferNodes[i]->getSecondaryBuffer(renderContext);
@@ -480,47 +535,88 @@ void Surface::setCommandBufferIndices()
   }
 }
 
-void Surface::validatePrimaryNodes(uint32_t queueNumber)
+void Surface::validatePrimaryNodes(uint32_t queueIndex)
 {
-  RenderContext renderContext(this, workflowResults->presentationQueueIndex);
-  ValidateNodeVisitor validateNodeVisitor(renderContext, true);
-  for (auto& command : workflowResults->commands[queueNumber])
-    command->applyRenderContextVisitor(validateNodeVisitor);
-}
-
-void Surface::validatePrimaryDescriptors(uint32_t queueNumber)
-{
-  RenderContext renderContext(this, workflowResults->presentationQueueIndex);
-  ValidateDescriptorVisitor validateDescriptorVisitor(renderContext, true);
-  for (auto& command : workflowResults->commands[queueNumber])
-    command->applyRenderContextVisitor(validateDescriptorVisitor);
-}
-
-void Surface::buildPrimaryCommandBuffer(uint32_t queueNumber)
-{
-  RenderContext renderContext(this, workflowResults->presentationQueueIndex);
-  primaryCommandBuffers[queueNumber]->setActiveIndex(swapChainImageIndex);
-  if (!primaryCommandBuffers[queueNumber]->isValid())
+  ValidateNodeVisitor validateNodeVisitor(RenderContext(this, presentationQueueIndex), true);
+  auto v = viewer.lock();
+  for (auto& rgData : renderGraphData)
   {
-    BuildCommandBufferVisitor cbVisitor(renderContext, primaryCommandBuffers[queueNumber].get(), true);
+    auto renderGraphName = std::get<0>(rgData);
+    auto executable = v->getRenderGraphExecutable(renderGraphName);
+    validateNodeVisitor.renderContext.setRenderGraphExecutable(executable);
+    auto qit = renderGraphQueueIndices.find(renderGraphName);
+    for (uint32_t i=0; i<qit->second.size(); ++i)
+    {
+      if (qit->second[i] == queueIndex)
+      {
+        for (auto& command : executable->commands[i])
+          command->applyRenderContextVisitor(validateNodeVisitor);
+      }
+    }
+  }
+}
 
-    primaryCommandBuffers[queueNumber]->cmdBegin();
+void Surface::validatePrimaryDescriptors(uint32_t queueIndex)
+{
+  ValidateDescriptorVisitor validateDescriptorVisitor(RenderContext(this, presentationQueueIndex), true);
+  auto v = viewer.lock();
+  for (auto& rgData : renderGraphData)
+  {
+    auto renderGraphName = std::get<0>(rgData);
+    auto executable = v->getRenderGraphExecutable(renderGraphName);
+    validateDescriptorVisitor.renderContext.setRenderGraphExecutable(executable);
+    auto qit = renderGraphQueueIndices.find(renderGraphName);
+    for (uint32_t i = 0; i<qit->second.size(); ++i)
+    {
+      if (qit->second[i] == queueIndex)
+      {
+        for (auto& command : executable->commands[i])
+          command->applyRenderContextVisitor(validateDescriptorVisitor);
+      }
+    }
+  }
+}
 
-    for (auto& command : workflowResults->commands[queueNumber])
-      command->buildCommandBuffer(cbVisitor);
-
-    primaryCommandBuffers[queueNumber]->cmdEnd();
+void Surface::buildPrimaryCommandBuffer(uint32_t queueIndex)
+{
+  RenderContext renderContext(this, presentationQueueIndex);
+  auto v = viewer.lock();
+  for (auto& rgData : renderGraphData)
+  {
+    auto renderGraphName = std::get<0>(rgData);
+    auto executable      = v->getRenderGraphExecutable(renderGraphName);
+    auto qit             = renderGraphQueueIndices.find(renderGraphName);
+    auto pcbit           = primaryCommandBuffers.find(renderGraphName);
+    renderContext.setRenderGraphExecutable(executable);
+    for (uint32_t i = 0; i<qit->second.size(); ++i)
+    {
+      if (qit->second[i] == queueIndex)
+      {
+        pcbit->second[i]->setActiveIndex(swapChainImageIndex);
+        pcbit->second[i]->cmdBegin();
+        BuildCommandBufferVisitor cbVisitor(renderContext, pcbit->second[i].get(), true);
+        for (auto& command : executable->commands[i])
+          command->buildCommandBuffer(cbVisitor);
+        pcbit->second[i]->cmdEnd();
+      }
+    }
   }
 }
 
 void Surface::validateSecondaryNodes()
 {
   // find all secondary buffer nodes and place its data in a Surface owned vector ( is it thread friendly ?)
-  RenderContext renderContext(this, workflowResults->presentationQueueIndex);
-  FindSecondaryCommandBuffersVisitor fscbVisitor(renderContext);
-  for (uint32_t i = 0; i < workflowResults->commands.size(); ++i)
-    for (auto& command : workflowResults->commands[i])
-      command->applyRenderContextVisitor(fscbVisitor);
+  FindSecondaryCommandBuffersVisitor fscbVisitor(RenderContext(this, presentationQueueIndex));
+  auto v = viewer.lock();
+  for (auto& rgData : renderGraphData)
+  {
+    auto renderGraphName = std::get<0>(rgData);
+    auto executable      = v->getRenderGraphExecutable(renderGraphName);
+    fscbVisitor.renderContext.setRenderGraphExecutable(executable);
+    for ( auto& commandSeq : executable->commands)
+      for (auto& command : commandSeq)
+        command->applyRenderContextVisitor(fscbVisitor);
+  }
 
   secondaryCommandBufferNodes        = fscbVisitor.nodes;
   secondaryCommandBufferRenderPasses = fscbVisitor.renderPasses;
@@ -533,7 +629,7 @@ void Surface::validateSecondaryNodes()
       {
         for (size_t i = r.begin(); i != r.end(); ++i)
         {
-          RenderContext renderContext(this, workflowResults->presentationQueueIndex);
+          RenderContext renderContext(this, presentationQueueIndex);
           renderContext.commandPool = secondaryCommandBufferNodes[i]->getSecondaryCommandPool(renderContext);
           ValidateNodeVisitor validateNodeVisitor(renderContext, false);
           secondaryCommandBufferNodes[i]->accept(validateNodeVisitor);
@@ -551,7 +647,7 @@ void Surface::validateSecondaryDescriptors()
       {
         for (size_t i = r.begin(); i != r.end(); ++i)
         {
-          RenderContext renderContext(this, workflowResults->presentationQueueIndex);
+          RenderContext renderContext(this, presentationQueueIndex);
           renderContext.commandPool = secondaryCommandBufferNodes[i]->getSecondaryCommandPool(renderContext);
           ValidateDescriptorVisitor validateDescriptorVisitor(renderContext, false);
           secondaryCommandBufferNodes[i]->accept(validateDescriptorVisitor);
@@ -569,7 +665,7 @@ void Surface::buildSecondaryCommandBuffers()
       {
         for (size_t i = r.begin(); i != r.end(); ++i)
         {
-          RenderContext renderContext(this, workflowResults->presentationQueueIndex);
+          RenderContext renderContext(this, presentationQueueIndex);
           auto commandBuffer = secondaryCommandBufferNodes[i]->getSecondaryBuffer(renderContext);
           CHECK_LOG_THROW(commandBuffer == nullptr, "Secondary buffer not defined for node " << secondaryCommandBufferNodes[i]->getName());
           commandBuffer->setActiveIndex(swapChainImageIndex);
@@ -598,21 +694,45 @@ void Surface::buildSecondaryCommandBuffers()
 
 void Surface::draw()
 {
-  prepareCommandBuffer->queueSubmit(queues[workflowResults->presentationQueueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, frameBufferReadySemaphores, VK_NULL_HANDLE );
+  prepareCommandBuffer->queueSubmit(queues[presentationQueueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, attachmentsLayoutCompletedSemaphores, VK_NULL_HANDLE );
 
-  for (uint32_t i = 0; i < queues.size(); ++i)
+  std::vector<std::vector<CommandBuffer*>> commandBuffersToSubmit;
+  auto v = viewer.lock();
+  // for each queue - collect all primary command buffers in appropriate order
+  for (uint32_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
   {
-    // submit command buffer to each queue with a semaphore signaling ent of work (renderCompleteSemaphores[i])
-    primaryCommandBuffers[i]->queueSubmit(queues[i]->queue, { frameBufferReadySemaphores[i] }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { renderCompleteSemaphores[i] }, VK_NULL_HANDLE);
+    commandBuffersToSubmit.push_back(std::vector<CommandBuffer*>());
+    for (auto& rgData : renderGraphData)
+    {
+      auto renderGraphName = std::get<0>(rgData);
+      auto executable = v->getRenderGraphExecutable(renderGraphName);
+      auto qit = renderGraphQueueIndices.find(renderGraphName);
+      auto pcbit = primaryCommandBuffers.find(renderGraphName);
+      for (uint32_t i = 0; i<qit->second.size(); ++i)
+        if (qit->second[i] == queueIndex)
+          commandBuffersToSubmit.back().push_back(pcbit->second[i].get());
+    }
+  }
+  // send command buffers to queues:
+  // - all buffers must wait for attachmentsLayoutCompletedSemaphores[queueIndex]
+  // - which one must signal ending ?
+  for (uint32_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
+  {
+    for (unsigned int i = 0; i < commandBuffersToSubmit[queueIndex].size(); ++i)
+      commandBuffersToSubmit[queueIndex][i]->queueSubmit(queues[queueIndex]->queue, { attachmentsLayoutCompletedSemaphores[queueIndex] }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { queueSubmissionCompletedSemaphores[queueIndex][i] }, VK_NULL_HANDLE);
   }
 }
 
 void Surface::endFrame()
 {
-  // wait for all queues to finish work ( using renderCompleteSemaphores ), then submit command buffer converting output image to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR layout
+  // wait for all command buffers in all queues to finish work ( using queueSubmissionCompletedSemaphores ), then submit command buffer converting output image to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR layout
+  // start from linearizing queueSubmissionCompletedSemaphores
+  std::vector<VkSemaphore> allSubmissionCompletedSemaphores;
+  for (const auto& semSq : queueSubmissionCompletedSemaphores)
+    std::copy(begin(semSq), end(semSq), std::back_inserter(allSubmissionCompletedSemaphores));
   std::vector<VkPipelineStageFlags> waitStages;
-  waitStages.resize(renderCompleteSemaphores.size(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-  presentCommandBuffer->queueSubmit(queues[workflowResults->presentationQueueIndex]->queue, renderCompleteSemaphores, waitStages, { renderFinishedSemaphore }, waitFences[swapChainImageIndex]);
+  waitStages.resize(allSubmissionCompletedSemaphores.size(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+  presentCommandBuffer->queueSubmit(queues[presentationQueueIndex]->queue, allSubmissionCompletedSemaphores, waitStages, { renderFinishedSemaphore }, waitFences[swapChainImageIndex]);
 
   // present output image when its layout is transformed into VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
   VkPresentInfoKHR presentInfo{};
@@ -622,7 +742,7 @@ void Surface::endFrame()
     presentInfo.pImageIndices      = &swapChainImageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
-  VkResult result = vkQueuePresentKHR(queues[workflowResults->presentationQueueIndex]->queue, &presentInfo);
+  VkResult result = vkQueuePresentKHR(queues[presentationQueueIndex]->queue, &presentInfo);
 
   if ((result != VK_ERROR_OUT_OF_DATE_KHR) && (result != VK_SUBOPTIMAL_KHR))
     VK_CHECK_LOG_THROW(result, "failed vkQueuePresentKHR");
@@ -634,15 +754,37 @@ void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)
     return;
   if (swapChainSize.width != newWidth && swapChainSize.height != newHeight)
   {
-    createSwapChain();
+    recreateSwapChain();
     resized = true;
   }
 }
 
-void Surface::setRenderWorkflow(std::shared_ptr<RenderWorkflow> workflow, std::shared_ptr<RenderWorkflowCompiler> compiler)
+void Surface::addRenderGraph(const std::string& name, bool active)
 {
-  renderWorkflow         = workflow;
-  renderWorkflowCompiler = compiler;
+  CHECK_LOG_THROW(isRealized(), "Cannot add new render graphs after surface realization");
+  renderGraphData.push_back(std::make_tuple(name, active));
+}
+
+std::vector<uint32_t> Surface::getQueueIndices(const std::string renderGraphName) const
+{
+  auto it = renderGraphQueueIndices.find(renderGraphName);
+  CHECK_LOG_THROW(it == end(renderGraphQueueIndices), "There is no render graph with name : " << renderGraphName);
+  return it->second;
+}
+
+uint32_t Surface::getNumQueues() const
+{
+  return queues.size();
+}
+
+Queue* Surface::getQueue(uint32_t index) const
+{
+  return queues.at(index).get();
+}
+
+std::shared_ptr<CommandPool> Surface::getCommandPool(uint32_t index) const
+{
+  return commandPools.at(index);
 }
 
 void Surface::setID(std::shared_ptr<Viewer> v, uint32_t newID) 
@@ -651,39 +793,12 @@ void Surface::setID(std::shared_ptr<Viewer> v, uint32_t newID)
   id = newID; 
 }
 
-
-std::shared_ptr<MemoryBuffer> Surface::getRegisteredMemoryBuffer(const std::string& name)
-{
-  CHECK_LOG_THROW(workflowResults == nullptr, "workflow not compiled");
-  auto it = workflowResults->registeredMemoryBuffers.find(name);
-  if (it != end(workflowResults->registeredMemoryBuffers))
-    return it->second;
-  return nullptr;
-}
-
-std::shared_ptr<MemoryImage> Surface::getRegisteredMemoryImage(const std::string& name)
-{
-  CHECK_LOG_THROW(workflowResults == nullptr, "workflow not compiled");
-  auto it = workflowResults->registeredMemoryImages.find(name);
-  if (it != end(workflowResults->registeredMemoryImages))
-    return it->second;
-  return nullptr;
-}
-
-std::shared_ptr<ImageView> Surface::getRegisteredImageView(const std::string& name)
-{
-  CHECK_LOG_THROW(workflowResults == nullptr, "workflow not compiled");
-  auto it = workflowResults->registeredImageViews.find(name);
-  if (it != end(workflowResults->registeredImageViews))
-    return it->second;
-  return nullptr;
-}
-
 void Surface::onEventSurfaceRenderStart()
 {
   if (eventSurfaceRenderStart != nullptr)
     eventSurfaceRenderStart(shared_from_this());
 }
+
 void Surface::onEventSurfaceRenderFinish()
 {
   if (eventSurfaceRenderFinish != nullptr)
@@ -698,10 +813,10 @@ void Surface::onEventSurfacePrepareStatistics(TimeStatistics* viewerStatistics)
 
 std::shared_ptr<CommandPool> Surface::getPresentationCommandPool()
 {
-  return commandPools[workflowResults->presentationQueueIndex];
+  return commandPools[presentationQueueIndex];
 }
 
 std::shared_ptr<Queue> Surface::getPresentationQueue()
 {
-  return queues[workflowResults->presentationQueueIndex];
+  return queues[presentationQueueIndex];
 }

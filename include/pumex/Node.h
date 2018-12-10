@@ -37,7 +37,7 @@ class NodeVisitor;
 class DescriptorSet;
 class RenderContext;
 
-// base class for directed acyclic graph, that is connected to render operations in a workflow
+// base class for directed acyclic graph, that is connected to render operations in a render graph
 class PUMEX_EXPORT Node : public CommandBufferSource
 {
 public:

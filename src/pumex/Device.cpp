@@ -31,16 +31,6 @@
 
 using namespace pumex;
 
-QueueTraits::QueueTraits(VkQueueFlags h, VkQueueFlags nh, float p)
-  : mustHave{ h }, mustNotHave{ nh }, priority(p)
-{
-}
-
-Queue::Queue(const QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
-  : traits(t), familyIndex(f), index(i), queue(vq), available(true)
-{
-}
-
 Device::Device(std::shared_ptr<Viewer> v, std::shared_ptr<PhysicalDevice> d, const std::vector<std::string>& re )
   : viewer{ v }, physical{ d }, device{ VK_NULL_HANDLE }
 {
@@ -124,7 +114,7 @@ void Device::realize()
     deviceCreateInfo.pQueueCreateInfos    = deviceQueues.data();
     deviceCreateInfo.pEnabledFeatures     = &physicalDevice->features;
 
-  if (viewer.lock()->viewerTraits.useDebugLayers() && physicalDevice->deviceExtensionImplemented(VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
+  if (viewer.lock()->getViewerTraits().useDebugLayers() && physicalDevice->deviceExtensionImplemented(VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
   {
     enabledDeviceExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
     enableDebugMarkers = true;

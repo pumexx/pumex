@@ -33,7 +33,7 @@
 #include <QtCore/QLoggingCategory>
 
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
-// The whole render workflow consists of only one render operation
+// The whole render graph consists of only one render operation
 
 const uint32_t MAX_BONES = 511;
 
@@ -289,26 +289,26 @@ int main( int argc, char * argv[] )
   VkPresentModeKHR presentMode  = args::get(presentationMode);
   uint32_t updateFrequency      = std::max(1U, args::get(updatesPerSecond));
 
+  // We need to prepare ViewerTraits object. It stores all basic configuration for Vulkan instance ( Viewer class )
+  std::vector<std::string> instanceExtensions;
+  std::vector<std::string> requestDebugLayers;
+  if (enableDebugging)
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+  pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, updateFrequency };
+  viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+
   std::shared_ptr<pumex::Viewer> viewer;
   try
   {
-    // We need to prepare ViewerTraits object. It stores all basic configuration for Vulkan instance ( Viewer class )
-    std::vector<std::string> instanceExtensions;
-    std::vector<std::string> requestDebugLayers;
-    if (enableDebugging)
-      requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-    pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, updateFrequency };
-    viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
-
-    // Viewer object is created
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
+    // alocate 16 MB for frame buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     // now is the time to create devices, windows and surfaces.
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
-    // alocate 16 MB for frame buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // alocate 1 MB for uniform and storage buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
@@ -322,22 +322,20 @@ int main( int argc, char * argv[] )
     pumex::QWindowPumex*        pumexWindow = new pumex::QWindowPumex;
     std::shared_ptr<MainWindow> mainWindow = std::make_shared<MainWindow>(pumexWindow);
     // then we create a surface in this window
-    pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = pumexWindow->getWindowQT()->createSurface(device, surfaceTraits);
 
-    // render workflow will use one queue with below defined traits
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
+    pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
-    pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
 
-    std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", frameBufferAllocator, queueTraits);
-      workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,     fullScreenSize, pumex::atDepth,   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false);
-      workflow->addResourceType("surface",       VK_FORMAT_B8G8R8A8_UNORM, fullScreenSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,         true);
+    pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
-    // workflow will only have one operation that has two output attachments : depth buffer and swapchain image
-    workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
-      workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      workflow->addAttachmentOutput(      "rendering", "surface",       "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("viewer_render_graph");
+    renderGraph->addRenderOperation(rendering);
 
     // vertex semantic defines how a single vertex in an asset will look like
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
@@ -356,7 +354,7 @@ int main( int argc, char * argv[] )
     // our render operation named "rendering" must have scenegraph attached
     auto renderRoot = std::make_shared<pumex::Group>();
     renderRoot->setName("renderRoot");
-    workflow->setRenderOperationNode("rendering", renderRoot);
+    renderGraph->setRenderOperationNode("rendering", renderRoot);
 
     // If render operation is defined as graphics operation ( pumex::RenderOperation::Graphics ) then scene graph must have :
     // - at least one graphics pipeline
@@ -447,7 +445,6 @@ int main( int argc, char * argv[] )
     viewer->addInputEventHandler(bcamHandler);
     applicationData->setCameraHandler(bcamHandler);
 
-    std::shared_ptr<pumex::SingleQueueWorkflowCompiler> workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
     // We must connect update graph that works independently from render graph
     tbb::flow::continue_node< tbb::flow::continue_msg > update(viewer->updateGraph, [=](tbb::flow::continue_msg)
     {
@@ -459,8 +456,10 @@ int main( int argc, char * argv[] )
     if (enableDebugging)
       QLoggingCategory::setFilterRules(QStringLiteral("qt.vulkan=true"));
 
-    // each surface may have its own workflow and a compiler that transforms workflow into Vulkan usable entity
-    surface->setRenderWorkflow(workflow, workflowCompiler);
+    // each surface may have its own render graph and a compiler that transforms render graph into Vulkan usable entity
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f, pumex::qaExclusive } };
+    viewer->compileRenderGraph(renderGraph, queueTraits);
+    surface->addRenderGraph(renderGraph->name, true);
     // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
     viewer->setEventRenderStart(std::bind(&ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1));
     surface->setEventSurfaceRenderStart(std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1));
@@ -493,7 +492,7 @@ int main( int argc, char * argv[] )
 #endif
     LOG_ERROR << "Unknown error" << std::endl;
   }
-  // here are all windows, surfaces, devices, workflows and scene graphs destroyed
+  // here are all windows, surfaces, devices, render graphs and scene graphs destroyed
   viewer->cleanup();
   FLUSH_LOG;
   return 0;

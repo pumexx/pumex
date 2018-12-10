@@ -32,38 +32,6 @@
 
 using namespace pumex;
 
-ImageSubresourceRange::ImageSubresourceRange()
-  : aspectMask{ VK_IMAGE_ASPECT_COLOR_BIT }, baseMipLevel{ 0 }, levelCount{ VK_REMAINING_MIP_LEVELS }, baseArrayLayer{ 0 }, layerCount{ VK_REMAINING_ARRAY_LAYERS }
-{
-}
-
-ImageSubresourceRange::ImageSubresourceRange(VkImageAspectFlags am, uint32_t m0, uint32_t mc, uint32_t a0, uint32_t ac)
-  : aspectMask{ am }, baseMipLevel{ m0 }, levelCount{ mc }, baseArrayLayer{ a0 }, layerCount{ ac }
-{
-}
-
-VkImageSubresourceRange ImageSubresourceRange::getSubresource() const
-{
-  VkImageSubresourceRange result;
-    result.aspectMask     = aspectMask;
-    result.baseMipLevel   = baseMipLevel;
-    result.levelCount     = levelCount;
-    result.baseArrayLayer = baseArrayLayer;
-    result.layerCount     = layerCount;
-  return result;
-}
-
-bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) const
-{
-  // check layers
-  if ((baseArrayLayer > subRange.baseArrayLayer) || (baseArrayLayer + layerCount < subRange.baseArrayLayer + subRange.layerCount))
-    return false;
-  // check mip levels
-  if ((baseMipLevel > subRange.baseMipLevel) || (baseMipLevel + levelCount < subRange.baseMipLevel + subRange.levelCount))
-    return false;
-  return true;
-}
-
 struct SetImageTraitsOperation : public MemoryImage::Operation
 {
   SetImageTraitsOperation(MemoryImage* o, const ImageTraits& t, VkImageAspectFlags am, uint32_t ac)
@@ -469,7 +437,7 @@ void MemoryImage::validate(const RenderContext& renderContext)
         texop->updated[activeIndex] = true;
       }
     }
-    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.queue, submit);
+    renderContext.device->endSingleTimeCommands(cmdBuffer, renderContext.vkQueue, submit);
     for (auto& texop : pddit->second.commonData.imageOperations)
       texop->releaseResources(renderContext);
     // if all operations are done for each index - remove them from list
@@ -634,7 +602,7 @@ VkImageView ImageView::getImageView(const RenderContext& renderContext) const
   std::lock_guard<std::mutex> lock(mutex);
   auto keyValue = getKeyID(renderContext, memoryImage->getPerObjectBehaviour());
   auto pddit = perObjectData.find(keyValue);
-  if (pddit == perObjectData.end())
+  if (pddit == end(perObjectData))
     return VK_NULL_HANDLE;
   uint32_t activeIndex = renderContext.activeIndex % activeCount;
   return pddit->second.data[activeIndex].imageView;

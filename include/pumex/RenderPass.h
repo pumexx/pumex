@@ -31,13 +31,12 @@
 #include <pumex/PerObjectData.h>
 #include <pumex/Command.h>
 #include <pumex/MemoryObjectBarrier.h>
+#include <pumex/RenderGraph.h>
 
 namespace pumex
 {
 
 class  Resource;
-class  WorkflowResource;
-class  RenderOperation;
 class  RenderContextVisitor;
 class  BuildCommandBufferVisitor;
 class  FrameBuffer;
@@ -166,8 +165,9 @@ public:
   virtual RenderSubPass* asRenderSubPass() = 0;
   virtual ComputePass*   asComputePass() = 0;
 
-  CommandType commandType;
-  std::shared_ptr<RenderOperation> operation;
+  CommandType                     commandType;
+  RenderOperation                 operation;
+  std::map<std::string, uint32_t> entries;
   std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersBeforeOp;
   std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersAfterOp;
 };

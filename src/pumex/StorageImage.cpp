@@ -23,7 +23,7 @@
 #include <pumex/StorageImage.h>
 #include <pumex/MemoryImage.h>
 #include <pumex/RenderContext.h>
-#include <pumex/RenderWorkflow.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
 
@@ -55,8 +55,8 @@ void StorageImage::validate(const RenderContext& renderContext)
   std::lock_guard<std::mutex> lock(mutex);
   if (!resourceName.empty())
   {
-    auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
-    imageView          = renderContext.surface->getRegisteredImageView(resourceAlias);
+    imageView = renderContext.renderGraphExecutable->getImageView(renderContext.renderOperation->name, resourceName);
+    CHECK_LOG_THROW(imageView.get() == nullptr, "StorageImage::validate : unknown entry " << resourceName);
     registered         = false;
   }
   if (!registered)

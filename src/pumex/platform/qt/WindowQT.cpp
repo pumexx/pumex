@@ -108,7 +108,7 @@ std::shared_ptr<Surface> WindowQT::createSurface(std::shared_ptr<Device> device,
   VkSurfaceKHR vkSurface = QVulkanInstance::surfaceForWindow(owner);
   // surfaces used by QT are owned by QT and therefore are also destroyed by QT. We must inform Surface class not to call vkDestroySurfaceKHR() when QT window is used
   SurfaceTraits st = surfaceTraits;
-  st.destroySurfaceDuringCleanup = false;
+  st.destroySurfaceOnCleanup = false;
   std::shared_ptr<Surface> result = std::make_shared<Surface>(device, shared_from_this(), vkSurface, st);
   viewer->addSurface(result);
 

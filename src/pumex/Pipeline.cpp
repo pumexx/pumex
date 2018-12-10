@@ -158,7 +158,7 @@ VkPipeline Pipeline::getHandlePipeline(const RenderContext& renderContext) const
   std::lock_guard<std::mutex> lock(mutex);
   auto keyValue = getKeyID(renderContext, pbPerDevice);
   auto pddit = perDeviceData.find(keyValue);
-  if (pddit == perDeviceData.end())
+  if (pddit == cend(perDeviceData))
     return VK_NULL_HANDLE;
   return pddit->second.data[renderContext.activeIndex % activeCount].pipeline;
 }

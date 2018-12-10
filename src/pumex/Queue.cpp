@@ -20,30 +20,16 @@
 // SOFTWARE.
 //
 
-#include <pumex/RenderContext.h>
-#include <pumex/Device.h>
-#include <pumex/Surface.h>
-#include <pumex/Command.h>
-#include <pumex/FrameBuffer.h>
-#include <pumex/RenderPass.h>
-#include <pumex/RenderGraph.h>
+#include <pumex/Queue.h>
 
 using namespace pumex;
 
-RenderContext::RenderContext(Surface* s, uint32_t queueNumber)
-  : surface { s }, vkSurface{ s->surface }, commandPool{ s->getCommandPool(queueNumber) }, queue{s->getQueue(queueNumber)}, vkQueue{ s->getQueue(queueNumber)->queue },
-    device{ s->device.lock().get() }, vkDevice{ device->device }, descriptorPool{ device->getDescriptorPool().get() },
-    activeIndex{ s->getImageIndex() }, imageCount{ s->getImageCount() }
+QueueTraits::QueueTraits(VkQueueFlags h, VkQueueFlags nh, float p, QueueAssignment qa)
+  : mustHave{ h }, mustNotHave{ nh }, priority{ p }, assignment{ qa }
 {
 }
 
-void RenderContext::setRenderOperation(RenderOperation* ro)
+Queue::Queue(const QueueTraits& t, uint32_t f, uint32_t i, VkQueue vq)
+  : traits(t), familyIndex(f), index(i), queue(vq), available(true)
 {
-  renderOperation = ro;
-  if (ro != nullptr)
-  {
-    currentBindPoint = (ro->operationType == opGraphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
-  }
-  else
-    currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 }

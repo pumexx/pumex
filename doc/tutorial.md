@@ -2,7 +2,7 @@
 
 In this document we will walk through creation of simple application similar to *pumexviewer* example.
 
-The goal of our tutorial application is to load a 3D model provided in a command line and render it without textures. Application creates only one logical device, one surface and one window for rendering.
+The goal of our tutorial application is to load a 3D model provided in a command line and render it without textures. Application creates only one logical device, one surface, one window and one render graph ( with single render operation ) for rendering.
 
 Resulting application structure is presented on the diagram below :
 
@@ -49,6 +49,14 @@ viewer = std::make_shared<pumex::Viewer>(viewerTraits);
 
 **pumex::Viewer** object created a *VkInstance* and collected information about available physical devices in its constructor.
 
+**pumex::Viewer** manages memory for all frame buffers used in all surfaces. We must set the **pumex::DeviceMemoryAllocator** for that. In our example 16 MB of memory will be enough for that job:
+
+```C++
+std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
+viewer->setFrameBufferAllocator(frameBufferAllocator);
+```
+
 Now we must create a logical device ( **pumex::Device** corresponding to *VkDevice* ). We will use physical device with index 0 to create our logical device ( well, I hope we have at least one GPU able to use Vulkan API :) ). Our device must be able to use swapchain images, so appropriate device extension must be declared :
 
 ```C++
@@ -56,7 +64,7 @@ std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_
 auto device = viewer->addDevice(0, requestDeviceExtensions);
 ```
 
-Our next goal after device creation is creation of a window. Creation of windows and surfaces is done separately in Pumex, so that in a future we will be able to connect Pumex created surface to external window provided by the user ( e.g. QT window ) :
+Our next goal after device creation is creation of a window. Creation of windows and surfaces is done separately in Pumex, so that we can create different kinds of windows ( windows native for specified operating system, or QT windows for example ). In our case we are creating native window ( Win32 on Windows OS, or XCB on Linux OS ) :
 
 ```C++
 std::string windowName = "Pumex viewer : ";
@@ -70,71 +78,62 @@ We can see that our window will be created on screen number 0, with specified po
 
 Next step is a surface creation ( **pumex::Surface** corresponding to *VkSurface* ). To create a surface - **pumex::SurfaceTraits** structure must be provided. **pumex::SurfaceTraits** must define following elements :
 
-- imageCount - quantity of images that swapchain must provide
+- **pumex::ResourceDefinition** object describing format and number of array layers. There exists handy function *pumex::SWAPCHAIN_DEFINITION()* which does it. Function takes VkFormat and number of array layers ( usually 1 ) as parameters.
+- imageCount - quantity of images that swapchain must provide ( usually 3 )
 - color space of these images
-- number of layers in these images ( usually 1 )
 - swapchainPresentMode - a method of presenting image by swapchain ( fifo, mailbox, etc. ). We collected that value from command line parameters
 - image transformation
 - how the alpha will be treated
 
 Our new **pumex::Surface** will be using earlier created device to do its work. And it will be shown on earlier created  window :
 
-```C++
-pumex::SurfaceTraits surfaceTraits{ 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, 1, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+```c++
+pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM, 1);
+
+pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
 
 std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 ```
 
-Device layer is done at this point. Now we start to prepare a render workflow. During its work render workflow is responsible for allocation of memory used by framebuffers. There exists a special class to make these allocations possible : **pumex::DeviceMemoryAllocator**. It will allocate memory for render workflow images from a 16 MB pool of local GPU memory.
 
-Render workflow must have a VkQueue to work on. Currently using only one queue is implemented, but when it will be ready - we will be able to use more queues in parallel. The queue is defined by **pumex::QueueTraits** structure :
 
-```C++
-auto frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+Device layer is done at this point. Now we start to prepare a render graph. Render graph consists of render operations ( graph nodes ) and render transitions ( graph edges ). Render operation represents some amount of work that is performed by Vulkan, while transitions represent some data ( attachments, images or buffers ) where results of operation is stored. Render operations may have arbitrary number of inputs and outputs - outputs of one operation are connected to inputs of consecutive operations. 
 
-std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f } };
-
-std::shared_ptr<pumex::RenderWorkflow> workflow = std::make_shared<pumex::RenderWorkflow>("viewer_workflow", frameBufferAllocator, queueTraits);
-```
-
-Inputs and outputs of workflow operations must have its types defined before we may use it. In our example there will be only one operation ( named *"rendering"* ), that has two outputs : depth buffer and a swapchain image. Both of them will have the same size corresponding to surface size. We declare all that data as shown below :
+In our tutorial we have one operation named "rendering" and it has two outputs : depth buffer and swapchain image. Each operation entry ( input or output ) must have its type defined. Both of our outputs will have the same size corresponding to surface size. We declare all that data as shown below:
 
 ```C++
-pumex::ImageSize fullScreenSize{ pumex::ImageSize::SurfaceDependent, glm::vec2(1.0f,1.0f) };
+pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
-workflow->addResourceType("depth_samples", VK_FORMAT_D32_SFLOAT,    fullScreenSize, pumex::atDepth, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false);
-
-workflow->addResourceType("surface", VK_FORMAT_B8G8R8A8_UNORM, fullScreenSize, pumex::atSurface, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, true);
+pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
 ```
 
-Our render operation is a graphics operation that uses outputs with above defined types. For each output we must also define :
 
-- image layout in which the image will be during operation
-- what should be done to output image before operation starts ( load data, clear data to specified value, don't care about incoming data ). In our case we will clear the depth buffer to 1.0f and a swapchain image will be cleared with gray color ( [0.3, 0.3, 0.3, 1.0 ]).
+
+Now we are ready to create our rendering operation :
 
 ```C++
-workflow->addRenderOperation("rendering", pumex::RenderOperation::Graphics);
+pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
 
-workflow->addAttachmentDepthOutput( "rendering", "depth_samples", "depth", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+rendering.setAttachmentDepthOutput("depth", depthSamples,  pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-workflow->addAttachmentOutput( "rendering", "surface", "color", pumex::ImageSubresourceRange(), pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 ```
 
-Render workflow is ready. Let's connect it to a surface.
+When our render operation is defined - we are ready to define render graph itself :
 
 ```C++
-auto workflowCompiler = std::make_shared<pumex::SingleQueueWorkflowCompiler>();
-
-surface->setRenderWorkflow(workflow, workflowCompiler);
+ std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("viewer_render_graph");
+ 
+renderGraph->addRenderOperation(rendering);
 ```
 
-Workflow compiler is an object that processes abstract render workflow into appropriate Vulkan objects.
+Render graph will be later compiled and registered in a viewer and added to a surface. 
 
 We must now build a scene graph that will be connected to the one and only render operation that we declared. To do this - we create a **pumex::Group** node that will serve as a root node of our scene graph:
 
 ```C++
 auto renderRoot = std::make_shared<pumex::Group>();
-workflow->setRenderOperationNode("rendering", renderRoot);
+renderGraph->setRenderOperationNode("rendering", renderRoot);
 ```
 
 Scene graph must deliver three things required to render anything :
@@ -265,6 +264,16 @@ descriptorSet->setDescriptor(1, positionUbo);
 assetNode->setDescriptorSet(0, descriptorSet);
 ```
 
+Now comes the time for compiling a render graph and connecting it to a surface. During render graph compilation the compiler must know specification of the queues on which the render graph will be performed ( queue traits ):
+
+```C++
+std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f, pumex::qaExclusive } };
+
+viewer->compileRenderGraph(renderGraph, queueTraits);
+
+surface->addRenderGraph(renderGraph->name, true);
+```
+
 Application structure as defined on a diagram placed at the begining of the tutorial is ready to work. There are only few important things left.
 
 We will start from viewer and surface render events. Pumex library defines following set of render events ( not to be mistaken with input events - these happen in update stage, not render stage ) :
@@ -312,9 +321,9 @@ viewer->cleanup();
 return 0;
 ```
 
-*Viewer::run()* method collects information about all *VkQueue* objects required by all render workflows, then uses this information to realize **pumex::Device**s ( that's the moment when these devices are created ) and **pumex::Surface**s ( they're created at this moment as well ). After *VkDevice* and *VkSurface* creation - run() method starts separate render thread and performs updates in main thread. Both render thread and update thread perform its work until user requests exit from application.
+*Viewer::run()* method collects information about all *VkQueue* objects required by all render graphs, then uses this information to realize **pumex::Device**s ( that's the moment when these devices are created ) and **pumex::Surface**s ( they're created at this moment as well ). After *VkDevice* and *VkSurface* creation - run() method starts separate render thread and performs updates in main thread. Both render thread and update thread perform its work until user requests exit from application.
 
-At that moment Viewer::cleanup() method is called to remove all objects created in our tutorial ( surfaces, devices, windows, Vulkan instance, render workflows, scene graphs, etc. ).
+At that moment Viewer::cleanup() method is called to remove all objects created in our tutorial ( surfaces, devices, windows, Vulkan instance, render graphs, scene graphs, etc. ).
 
 
 

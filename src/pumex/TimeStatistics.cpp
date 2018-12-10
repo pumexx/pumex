@@ -142,6 +142,14 @@ void TimeStatistics::unregisterChannels(uint32_t groupID)
     unregisterChannel(channelID);
 }
 
+bool TimeStatistics::hasGroup(uint32_t groupID) const
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = groups.find(groupID);
+  return it != end(groups);
+}
+
+
 std::vector<uint32_t> TimeStatistics::getGroupChannelIDs(uint32_t groupID)
 {
   std::lock_guard<std::mutex> lock(mutex);
@@ -160,6 +168,13 @@ const TimeStatisticsChannel& TimeStatistics::getChannel(uint32_t channelID)
   auto it = channelIndices.find(channelID);
   CHECK_LOG_THROW(it == end(channelIndices), "Statistics channel does not exist : " << channelID);
   return channels[it->second];
+}
+
+bool TimeStatistics::hasChannel(uint32_t channelID) const
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  auto it = channelIndices.find(channelID);
+  return it != end(channelIndices);
 }
 
 void TimeStatistics::setValues(uint32_t channelID, double valueBegin, double valueDuration)

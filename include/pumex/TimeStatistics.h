@@ -76,8 +76,11 @@ public:
   inline bool                                    hasFlags(uint32_t flag) const;
 
   inline const std::map<uint32_t, std::wstring>& getGroups() const;
+  bool                                           hasGroup(uint32_t groupID) const;
   std::vector<uint32_t>                          getGroupChannelIDs(uint32_t groupID);
   const TimeStatisticsChannel&                   getChannel(uint32_t channelID);
+  bool                                           hasChannel(uint32_t channelID) const;
+
 
   void                                          setValues(uint32_t channelID, double valueBegin, double valueDuration);
   void resetMinMaxValues();

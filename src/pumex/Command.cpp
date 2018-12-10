@@ -224,8 +224,23 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
   std::vector<VkBufferMemoryBarrier> bufferBarriers;
   std::vector<VkImageMemoryBarrier>  imageBarriers;
 
+  auto queueIndices = renderContext.surface->getQueueIndices(renderContext.renderGraphExecutable->name);
   for (const auto& b : barriers)
   {
+    uint32_t srcQueueIndex = queueIndices[b.srcQueueIndex];
+    uint32_t dstQueueIndex = queueIndices[b.dstQueueIndex];
+    uint32_t srcQueueFamilyIndex, dstQueueFamilyIndex;
+    if (srcQueueIndex != dstQueueIndex)
+    {
+      srcQueueFamilyIndex = renderContext.surface->getQueue(srcQueueIndex)->familyIndex;
+      dstQueueFamilyIndex = renderContext.surface->getQueue(srcQueueIndex)->familyIndex;
+    }
+    else
+    {
+      srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    }
+
     switch (b.objectType)
     {
     case MemoryObject::moBuffer:
@@ -236,8 +251,8 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         bufferBarrier.pNext               = nullptr;
         bufferBarrier.srcAccessMask       = b.srcAccessMask;
         bufferBarrier.dstAccessMask       = b.dstAccessMask;
-        bufferBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
-        bufferBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
+        bufferBarrier.srcQueueFamilyIndex = srcQueueFamilyIndex;
+        bufferBarrier.dstQueueFamilyIndex = dstQueueFamilyIndex;
         bufferBarrier.buffer              = memoryBuffer->getHandleBuffer(renderContext);
         bufferBarrier.offset              = b.bufferRange.offset;
         bufferBarrier.size                = b.bufferRange.range;
@@ -252,8 +267,8 @@ void CommandBuffer::cmdPipelineBarrier(const RenderContext& renderContext, const
         imageBarrier.pNext               = nullptr;
         imageBarrier.srcAccessMask       = b.srcAccessMask;
         imageBarrier.dstAccessMask       = b.dstAccessMask;
-        imageBarrier.srcQueueFamilyIndex = b.srcQueueFamilyIndex;
-        imageBarrier.dstQueueFamilyIndex = b.dstQueueFamilyIndex;
+        imageBarrier.srcQueueFamilyIndex = srcQueueFamilyIndex;
+        imageBarrier.dstQueueFamilyIndex = dstQueueFamilyIndex;
         imageBarrier.oldLayout           = b.oldLayout;
         imageBarrier.newLayout           = b.newLayout;
         imageBarrier.image               = memoryImage->getImage(renderContext)->getHandleImage();

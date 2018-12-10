@@ -25,17 +25,17 @@
 using namespace pumex;
 
 MemoryObjectBarrier::MemoryObjectBarrier()
-: objectType(MemoryObject::moUndefined), srcAccessMask{ 0 }, dstAccessMask{ 0 }, srcQueueFamilyIndex{ 0 }, dstQueueFamilyIndex{ 0 }
+: objectType(MemoryObject::moUndefined), srcAccessMask{ 0 }, dstAccessMask{ 0 }, srcQueueIndex{ 0 }, dstQueueIndex{ 0 }
 {
 }
 
-MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, std::shared_ptr<MemoryObject> mo, VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
-  : objectType(MemoryObject::moImage), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, memoryObject{ mo }, oldLayout{ ol }, newLayout{ nl }, imageRange{ ir }, bufferRange{}
+MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqi, uint32_t dqi, std::shared_ptr<MemoryObject> mo, VkImageLayout ol, VkImageLayout nl, const ImageSubresourceRange& ir)
+  : objectType(MemoryObject::moImage), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueIndex{ sqi }, dstQueueIndex{ dqi }, memoryObject{ mo }, oldLayout{ ol }, newLayout{ nl }, imageRange{ ir }, bufferRange{}
 {
 }
 
-MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqfi, uint32_t dqfi, std::shared_ptr<MemoryObject> mo, const BufferSubresourceRange& br)
-  : objectType(MemoryObject::moBuffer), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueFamilyIndex{ sqfi }, dstQueueFamilyIndex{ dqfi }, memoryObject{ mo }, oldLayout{ VK_IMAGE_LAYOUT_UNDEFINED }, newLayout{ VK_IMAGE_LAYOUT_UNDEFINED }, imageRange{}, bufferRange{ br }
+MemoryObjectBarrier::MemoryObjectBarrier(VkAccessFlags sam, VkAccessFlags dam, uint32_t sqi, uint32_t dqi, std::shared_ptr<MemoryObject> mo, const BufferSubresourceRange& br)
+  : objectType(MemoryObject::moBuffer), srcAccessMask{ sam }, dstAccessMask{ dam }, srcQueueIndex{ sqi }, dstQueueIndex{ dqi }, memoryObject{ mo }, oldLayout{ VK_IMAGE_LAYOUT_UNDEFINED }, newLayout{ VK_IMAGE_LAYOUT_UNDEFINED }, imageRange{}, bufferRange{ br }
 {
 }
 

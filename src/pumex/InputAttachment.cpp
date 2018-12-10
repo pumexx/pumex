@@ -24,6 +24,7 @@
 #include <pumex/Sampler.h>
 #include <pumex/MemoryImage.h>
 #include <pumex/RenderContext.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/Surface.h>
 #include <pumex/FrameBuffer.h>
 
@@ -56,8 +57,8 @@ void InputAttachment::validate(const RenderContext& renderContext)
   if (sampler != nullptr)
     sampler->validate(renderContext);
 
-  auto resourceAlias = renderContext.surface->workflowResults->resourceAlias.at(resourceName);
-  imageView          = renderContext.surface->getRegisteredImageView(resourceAlias);
+  imageView = renderContext.renderGraphExecutable->getImageView(renderContext.renderOperation->name, resourceName);
+  CHECK_LOG_THROW(imageView.get() == nullptr, "InputAttachment::validate : unknown entry " << resourceName);
   registered         = false;
 
   if (!registered)
