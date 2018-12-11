@@ -326,7 +326,7 @@ int main( int argc, char * argv[] )
       lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), "resolve" );
 
     pumex::RenderOperation multiview("multiview", pumex::opGraphics, fullScreenSize, 0x0);
-      multiview.addImageInput("color", color,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      multiview.addImageInput("color", color,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT);
       multiview.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpDontCare());
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");

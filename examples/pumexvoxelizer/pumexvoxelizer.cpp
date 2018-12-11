@@ -69,7 +69,7 @@ struct VoxelizerApplicationData
 
     // build 3D texture
     pumex::ImageSize volumeSize{ pumex::isAbsolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
-    pumex::ImageTraits   volumeImageTraits( VK_FORMAT_B8G8R8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_GENERAL, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
+    pumex::ImageTraits   volumeImageTraits( VK_FORMAT_B8G8R8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
     volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
 
     pumex::BoundingBox bbox;
@@ -284,10 +284,10 @@ int main( int argc, char * argv[] )
     pumex::ResourceDefinition image_3d(VK_FORMAT_B8G8R8A8_UNORM, volumeSize3D, pumex::atColor, "image_3d");
 
     pumex::RenderOperation voxelization("voxelization", pumex::opGraphics, volumeSize2D);
-      voxelization.addImageOutput("outVoxels", image_3d, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL);
+      voxelization.addImageOutput("outVoxels", image_3d, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT);
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.addImageInput("inVoxels",                  image_3d,            pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL);
+      rendering.addImageInput("inVoxels",                  image_3d,            pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT);
       rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 

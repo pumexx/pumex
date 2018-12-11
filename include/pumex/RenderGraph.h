@@ -142,7 +142,7 @@ class PUMEX_EXPORT RenderOperationEntry
 {
 public:
   RenderOperationEntry() = default;
-  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, const std::string& resolveSourceEntryName );
+  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, const std::string& resolveSourceEntryName );
   explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags);
 
   OperationEntryType     entryType;
@@ -152,6 +152,7 @@ public:
 
   ImageSubresourceRange  imageRange;                                         // used by images
   VkImageLayout          layout        = VK_IMAGE_LAYOUT_UNDEFINED;          // used by attachments and images ( attachments have this value set automaticaly )
+  VkImageUsageFlags      imageUsage    = 0;                                  // addidtional imageUsage for image inputs/outputs
 
   BufferSubresourceRange bufferRange; // used by buffers
   VkPipelineStageFlags   pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; // used by buffers
@@ -170,8 +171,8 @@ public:
   void                  setAttachmentDepthInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange());
   void                  setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange());
 
-  void                  addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED);
-  void                  addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED);
+  void                  addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0 );
+  void                  addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0 );
 
   void                  addBufferInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_READ_BIT);
   void                  addBufferOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_READ_BIT);

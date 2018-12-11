@@ -354,14 +354,14 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
         imageInfo.insert({ transition.get().id(), RenderGraphImageInfo(
           transition.get().entry().resourceDefinition.attachment,
           transition.get().externalMemoryObjectName(),
-          getAttachmentUsage(transition.get().entry().layout),
+          getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage ,
           transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
           transition.get().entry().layout,
           transition.get().entry().layout,
           transition.get().entryName() == SWAPCHAIN_NAME ) });
       else // accumulate image usage
       {
-        it->second.imageUsage |= getAttachmentUsage(transition.get().entry().layout);
+        it->second.imageUsage |= getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage;
         it->second.finalLayout = transition.get().entry().layout;
       }
     }
@@ -464,7 +464,7 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     VkImageAspectFlags aspectMask = getAspectMask(image.second.attachmentDefinition.attachmentType);
     auto imageIt = executable->memoryImages.insert({ image.first, std::make_shared<MemoryImage>(imageTraits, executable->frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) }).first;
 
-    ImageSubresourceRange imageRange(aspectMask, 0, image.second.attachmentDefinition.attachmentSize.samples, 0, image.second.attachmentDefinition.attachmentSize.arrayLayers);
+    ImageSubresourceRange imageRange(aspectMask, 0, image.second.attachmentDefinition.attachmentSize.mipLevels, 0, image.second.attachmentDefinition.attachmentSize.arrayLayers);
     VkImageViewType imageViewType = (image.second.attachmentDefinition.attachmentSize.arrayLayers > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
     executable->memoryImageViews.insert({ image.first, std::make_shared<ImageView>(imageIt->second, imageRange, imageViewType) });
   }
@@ -654,7 +654,7 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
         bool usedBefore = false;
         for (auto& outTransition : resOutTransitions)
         {
-          if (std::find_if(begin(partialOrdering), thisOperation, [&outTransition](const RenderOperation& op) { return op.name == outTransition.get().operationName(); }) != end(partialOrdering))
+          if (std::find_if(begin(partialOrdering), thisOperation, [&outTransition](const RenderOperation& op) { return op.name == outTransition.get().operationName(); }) != thisOperation)
           {
             usedBefore = true;
             break;
@@ -906,6 +906,21 @@ void getPipelineStageMasks(const ResourceTransition& generatingTransition, const
   default:
     srcStageMask = 0; break;
   }
+  switch (generatingTransition.operation().operationType)
+  {
+  case opGraphics:
+    srcStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT | VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT | VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX | VK_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV | VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV | VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;// | VK_PIPELINE_STAGE_FRAGMENT_DENSITY_PROCESS_BIT_EXT;
+    break;
+  case opCompute:
+    srcStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT | VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV;
+    break;
+  // transfer not implemented yet
+  //case opTransfer:
+  //  srcStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+  //  break;
+  default: break;
+  }
+
 
   switch (consumingTransition.entry().entryType)
   {
@@ -935,6 +950,21 @@ void getPipelineStageMasks(const ResourceTransition& generatingTransition, const
   default:
     dstStageMask = 0; break;
   }
+  switch (consumingTransition.operation().operationType)
+  {
+  case opGraphics:
+    dstStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT | VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT | VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX | VK_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV | VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV | VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;// | VK_PIPELINE_STAGE_FRAGMENT_DENSITY_PROCESS_BIT_EXT;
+    break;
+  case opCompute:
+    dstStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT | VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV;
+    break;
+  // transfer not implemented yet
+  //case opTransfer:
+  //  dstStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+  //  break;
+  default: break;
+  }
+
 }
 
 void getAccessMasks(const ResourceTransition& generatingTransition, const ResourceTransition& consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask)

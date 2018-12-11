@@ -296,7 +296,7 @@ int main( int argc, char * argv[] )
     pumex::RenderOperation zPrepass("zPrepass", pumex::opGraphics, fullScreenSizeMultisampled);
       zPrepass.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-    pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, fullScreenSizeMultisampled, 0x3U);
+    pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, fullScreenSizeMultisampled);
       gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
       gbuffer.addAttachmentOutput("normals",    vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
       gbuffer.addAttachmentOutput("albedo",     colorSamples, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
@@ -306,7 +306,7 @@ int main( int argc, char * argv[] )
     else
       gbuffer.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
-    pumex::RenderOperation lighting("lighting", pumex::opGraphics, fullScreenSizeMultisampled, 0x3U);
+    pumex::RenderOperation lighting("lighting", pumex::opGraphics, fullScreenSizeMultisampled);
       lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
       lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
       lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));

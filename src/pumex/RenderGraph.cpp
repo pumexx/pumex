@@ -21,6 +21,7 @@
 //
 
 #include <pumex/RenderGraph.h>
+#include <algorithm>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
@@ -51,9 +52,8 @@ ResourceDefinition::ResourceDefinition(const std::string& n)
   CHECK_LOG_THROW(name.empty(), "ResourceDefinition : all buffers must have a name defined");
 }
 
-// const ImageSubresourceRange& ir, VkImageLayout il, 
-RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const LoadOp& lop, const ImageSubresourceRange& ir, VkImageLayout il, const std::string& rse)
-  : entryType{ et }, resourceDefinition{ rd }, loadOp{ lop }, imageRange{ ir }, resolveSourceEntryName{ rse }
+RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const LoadOp& lop, const ImageSubresourceRange& ir, VkImageLayout il, VkImageUsageFlags iu, const std::string& rse)
+  : entryType{ et }, resourceDefinition{ rd }, loadOp{ lop }, imageRange{ ir }, imageUsage{ iu }, resolveSourceEntryName{ rse }
 {
   switch (entryType)
   {
@@ -85,7 +85,7 @@ void RenderOperation::addAttachmentInput(const std::string& entryName, const Res
   CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << ":" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment input is not an image : " << name << ":" << entryName);
   CHECK_LOG_THROW(resourceDefinition.attachment.attachmentSize != attachmentSize, "RenderOperation : Attachment must have the same size as its operation : " << name << ":" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, std::string() } });
+  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, 0, std::string() } });
   //valid = false;
 }
 
@@ -94,7 +94,7 @@ void RenderOperation::addAttachmentOutput(const std::string& entryName, const Re
   CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << ":" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment output is not an image : " << name << ":" << entryName);
   CHECK_LOG_THROW(resourceDefinition.attachment.attachmentSize != attachmentSize, "RenderOperation : Attachment must have the same size as its operation : " << name << ":" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, std::string() } });
+  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, 0, std::string() } });
   //valid = false;
 }
 
@@ -111,7 +111,7 @@ void RenderOperation::addAttachmentResolveOutput(const std::string& entryName, c
   CHECK_LOG_THROW(sourceEntry == end(entries), "RenderOperation : Resolve source entry does not exist : " << name << ":" << entryName << "(" <<sourceEntryName << ")" );
   CHECK_LOG_THROW(sourceEntry->second.resourceDefinition.metaType != rmtImage, "RenderOperation : Resolve source entry is not an image : " << name << ":" << entryName << "(" << sourceEntryName << ")");
 
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentResolveOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, sourceEntryName } });
+  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentResolveOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, 0, sourceEntryName } });
   //valid = false;
 }
 
@@ -125,7 +125,7 @@ void RenderOperation::setAttachmentDepthInput(const std::string& entryName, cons
     resourceDefinition.attachment.attachmentType != atStencil, "RenderOperation : Attachment type must be atDepth, atDepthStencil or atStencil : " << name << ":" << entryName);
   auto redundant = std::find_if(begin(entries), end(entries), [](std::pair<const std::string,RenderOperationEntry>& entry) { return (entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput); });
   CHECK_LOG_THROW(redundant!= end(entries), "RenderOperation : There must be only one depth input or output : " << name << ":" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, std::string() } });
+  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, 0, std::string() } });
   //valid = false;
 }
 
@@ -139,25 +139,25 @@ void RenderOperation::setAttachmentDepthOutput(const std::string& entryName, con
     resourceDefinition.attachment.attachmentType != atStencil, "RenderOperation : Attachmenmt type must be atDepth, atDepthStencil or atStencil : " << name << ":" << entryName);
   auto redundant = std::find_if(begin(entries), end(entries), [](std::pair<const std::string, RenderOperationEntry>& entry) { return (entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput); });
   CHECK_LOG_THROW(redundant != end(entries), "RenderOperation : There must be only one depth input or output : " << name << ":" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, std::string() } });
+  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, 0,  std::string() } });
   //valid = false;
 }
 
-void RenderOperation::addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout)
+void RenderOperation::addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage )
 {
   CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << ":" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as image input is not an image : " << name << ":" << entryName);
 
-  entries.insert({ entryName, RenderOperationEntry{ opeImageInput, resourceDefinition, loadOp, imageRange, layout, std::string() } });
+  entries.insert({ entryName, RenderOperationEntry{ opeImageInput, resourceDefinition, loadOp, imageRange, layout, imageUsage, std::string() } });
   //valid = false;
 }
 
-void RenderOperation::addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout)
+void RenderOperation::addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage )
 {
   CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << ":" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as image output is not an image : " << name << ":" << entryName);
 
-  entries.insert({ entryName, RenderOperationEntry{ opeImageOutput, resourceDefinition, loadOp, imageRange, layout, std::string() } });
+  entries.insert({ entryName, RenderOperationEntry{ opeImageOutput, resourceDefinition, loadOp, imageRange, layout, imageUsage, std::string() } });
   //valid = false;
 }
 
