@@ -66,8 +66,8 @@ RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const Resource
   }
 }
 
-RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags)
-  : entryType{ et }, resourceDefinition{ rd }
+RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const BufferSubresourceRange& br, VkPipelineStageFlags ps, VkAccessFlags af)
+  : entryType{ et }, resourceDefinition{ rd }, bufferRange{ br }, pipelineStage{ ps }, accessFlags{ af }
 {
 }
 
