@@ -49,15 +49,14 @@ class RenderGraphImageInfo
 {
 public:
   RenderGraphImageInfo() = default;
-  RenderGraphImageInfo(const AttachmentDefinition& attachmentDefinition, const std::string& externalMemoryImageName, VkImageUsageFlags imageUsage, VkImageLayout layoutOutside, VkImageLayout initialLayout, VkImageLayout finalLayout, bool isSwapchainImage );
+  RenderGraphImageInfo(const AttachmentDefinition& attachmentDefinition, const std::string& externalMemoryImageName, VkImageUsageFlags imageUsage, bool isSwapchainImage );
 
-  AttachmentDefinition attachmentDefinition;
-  std::string          externalMemoryImageName;
-  VkImageUsageFlags    imageUsage       = 0;
-  VkImageLayout        layoutOutside    = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkImageLayout        initialLayout    = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkImageLayout        finalLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
-  bool                 isSwapchainImage = false;
+  AttachmentDefinition       attachmentDefinition;
+  std::string                externalMemoryImageName;
+  std::vector<VkImageLayout> layouts;
+  std::vector<uint32_t>      operationParticipants;
+  VkImageUsageFlags          imageUsage       = 0;
+  bool                       isSwapchainImage = false;
 };
 
 class PUMEX_EXPORT RenderGraphExecutable
@@ -74,9 +73,10 @@ public:
   std::map<uint32_t, std::shared_ptr<MemoryImage>>         memoryImages;
   std::map<uint32_t, std::shared_ptr<ImageView>>           memoryImageViews;
   std::map<uint32_t, std::shared_ptr<MemoryBuffer>>        memoryBuffers;
+  std::vector<std::shared_ptr<FrameBuffer>>                frameBuffers;
   std::map<uint32_t, uint32_t>                             memoryObjectAliases;
   std::map<uint32_t, RenderGraphImageInfo>                 imageInfo;
-  std::vector<std::shared_ptr<FrameBuffer>>                frameBuffers;
+  std::map<std::string, uint32_t>                          operationIndices; // works on image imageInfo.layouts and imageInfo.operationParticipants
 
   void                           setExternalMemoryObjects(const RenderGraph& renderGraph, const ExternalMemoryObjects& memoryObjects);
   std::shared_ptr<MemoryImage>   getMemoryImage(const std::string& operationName, const std::string entryName) const;
@@ -87,6 +87,9 @@ public:
   std::shared_ptr<MemoryImage>   getMemoryImage(uint32_t transitionID) const;
   std::shared_ptr<MemoryBuffer>  getMemoryBuffer(uint32_t transitionID) const;
   std::shared_ptr<ImageView>     getImageView(uint32_t transitionID) const;
+
+  VkImageLayout                  getImageLayout(const std::string& opName, uint32_t transitionID, int32_t indexAdd) const;
+  const std::vector<uint32_t>&   getOperationParticipants(uint32_t transitionID) const;
 };
 	
 }

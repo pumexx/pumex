@@ -39,8 +39,8 @@ void ExternalMemoryObjects::addMemoryObject(const std::string& name, const Resou
   }
 }
 
-RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, VkImageLayout ol, VkImageLayout il, VkImageLayout fl, bool iscim )
-  : attachmentDefinition{ ad }, externalMemoryImageName{ im }, imageUsage{ iu }, layoutOutside{ ol }, initialLayout{ il }, finalLayout{ fl }, isSwapchainImage { iscim }
+RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, bool iscim )
+  : attachmentDefinition{ ad }, externalMemoryImageName{ im }, imageUsage{ iu }, isSwapchainImage { iscim }
 {
 }
 
@@ -191,4 +191,18 @@ std::shared_ptr<ImageView> RenderGraphExecutable::getImageView(uint32_t transiti
   if (mit == end(memoryImageViews))
     return std::shared_ptr<ImageView>();
   return mit->second;
+}
+
+VkImageLayout RenderGraphExecutable::getImageLayout(const std::string& opName, uint32_t transitionID, int32_t indexAdd) const
+{
+  auto opit = operationIndices.find(opName);
+  CHECK_LOG_THROW(opit == end(operationIndices), " Operation does not exist : " << opName);
+  auto attachmentID = memoryObjectAliases.at(transitionID);
+  return imageInfo.at(attachmentID).layouts.at(opit->second + indexAdd);
+}
+
+const std::vector<uint32_t>& RenderGraphExecutable::getOperationParticipants(uint32_t transitionID ) const
+{
+  auto attachmentID = memoryObjectAliases.at(transitionID);
+  return imageInfo.at(attachmentID).operationParticipants;
 }

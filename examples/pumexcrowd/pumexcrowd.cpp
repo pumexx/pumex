@@ -681,12 +681,12 @@ int main(int argc, char * argv[])
     pumex::ResourceDefinition indirectDraw("indirectDraw");
 
     pumex::RenderOperation crowdCompute("crowd_compute", pumex::opCompute);
-      crowdCompute.addBufferOutput("indirect_results",     indirectResults, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-      crowdCompute.addBufferOutput("indirect_draw",        indirectDraw,    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      crowdCompute.addBufferOutput("indirect_results_out", indirectResults, pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+      crowdCompute.addBufferOutput("indirect_draw_out",    indirectDraw,    pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.addBufferInput("indirect_results",         indirectResults,     pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-      rendering.addBufferInput("indirect_draw",            indirectDraw,        pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput("indirect_results_in",      indirectResults,     pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+      rendering.addBufferInput("indirect_draw_in",         indirectDraw,        pumex::BufferSubresourceRange(), VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
       rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
@@ -694,8 +694,8 @@ int main(int argc, char * argv[])
       renderGraph->addRenderOperation(crowdCompute);
       renderGraph->addRenderOperation(rendering);
 
-    renderGraph->addResourceTransition("crowd_compute", "indirect_results", "rendering", "indirect_results", "indirect_results_buffer");
-    renderGraph->addResourceTransition("crowd_compute", "indirect_draw",    "rendering", "indirect_draw",    "indirect_draw_buffer");
+    renderGraph->addResourceTransition("crowd_compute", "indirect_results_out", "rendering", "indirect_results_in", "indirect_results_buffer");
+    renderGraph->addResourceTransition("crowd_compute", "indirect_draw_out",    "rendering", "indirect_draw_in",    "indirect_draw_buffer");
 
     // alocate 12 MB for uniform and storage buffers
     auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
@@ -780,8 +780,8 @@ int main(int argc, char * argv[])
     filterDescriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(skeletalAssetBuffer->getLodBuffer(MAIN_RENDER_MASK)));
     filterDescriptorSet->setDescriptor(3, positionSbo);
     filterDescriptorSet->setDescriptor(4, instanceSbo);
-    filterDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK)));
-    filterDescriptorSet->setDescriptor(6, resultsSbo);
+    filterDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>("indirect_draw_out"));
+    filterDescriptorSet->setDescriptor(6, std::make_shared<pumex::StorageBuffer>("indirect_results_out"));
     dispatchNode->setDescriptorSet(0, filterDescriptorSet);
 
     //    timeStampQueryPool = std::make_shared<pumex::QueryPool>(VK_QUERY_TYPE_TIMESTAMP,4 * MAX_SURFACES);
@@ -836,7 +836,7 @@ int main(int argc, char * argv[])
     instancedRenderDescriptorSet->setDescriptor(0, cameraUbo);
     instancedRenderDescriptorSet->setDescriptor(1, positionSbo);
     instancedRenderDescriptorSet->setDescriptor(2, instanceSbo);
-    instancedRenderDescriptorSet->setDescriptor(3, resultsSbo);
+    instancedRenderDescriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>("indirect_results_in"));
     instancedRenderDescriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
     instancedRenderDescriptorSet->setDescriptor(5, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
     instancedRenderDescriptorSet->setDescriptor(6, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));

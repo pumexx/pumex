@@ -169,7 +169,6 @@ protected:
   std::map<std::string, std::vector<uint32_t>>  renderGraphQueueIndices;
   std::map<std::string, std::vector<std::shared_ptr<CommandBuffer>>> primaryCommandBuffers;
 
-  std::shared_ptr<CommandBuffer>                prepareCommandBuffer;
   std::shared_ptr<CommandBuffer>                presentCommandBuffer;
   std::vector<VkFence>                          waitFences;
 

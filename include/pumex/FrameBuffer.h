@@ -58,7 +58,7 @@ public:
   void                               prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                               reset(Surface* surface);
   std::map<uint32_t, uint32_t>       getAttachmentOrder() const;
-  std::vector<AttachmentDescription> getAttachmentDescription() const;
+  std::vector<AttachmentDescription> getEmptyAttachmentDescriptions() const;
   VkFramebuffer                      getHandleFrameBuffer(const RenderContext& renderContext) const;
 
 protected:

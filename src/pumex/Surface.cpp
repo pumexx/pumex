@@ -253,7 +253,6 @@ void Surface::realize()
   }
 
   // define basic command buffers required to render a frame
-  prepareCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[presentationQueueIndex], surfaceTraits.swapChainImageCount);
   presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[presentationQueueIndex], surfaceTraits.swapChainImageCount);
 
   // create all semaphores required to render a frame
@@ -314,7 +313,6 @@ void Surface::cleanup()
     }
     primaryCommandBuffers.clear();
     presentCommandBuffer = nullptr;
-    prepareCommandBuffer = nullptr;
     commandPools.clear();
     for(auto q : queues )
       device.lock()->releaseQueue(q);
@@ -372,7 +370,6 @@ void Surface::recreateSwapChain()
   VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
   for (uint32_t i = 0; i < imageCount; i++)
     swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], surfaceTraits.swapChainDefinition.attachment.format, surfaceTraits.swapChainDefinition.attachment.attachmentSize));
-  prepareCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
   presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
 }
 
@@ -434,71 +431,25 @@ void Surface::validateRenderGraphs()
         command->validate(renderContext);
   }
 
-  // at the beginning of render we must transform frame buffer images into appropriate image layouts
+  // find last layout used by swapchain
   VkImageLayout swapChainImageFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  prepareCommandBuffer->setActiveIndex(swapChainImageIndex);
-  if (!prepareCommandBuffer->isValid())
+  for (auto& rgData : renderGraphData)
   {
-    prepareCommandBuffer->cmdBegin();
-    std::vector<PipelineBarrier> prepareBarriers;
-    VkPipelineStageFlags dstStageFlags = 0;
-    for (auto& rgData : renderGraphData)
+    auto renderGraphName = std::get<0>(rgData);
+    auto executable = v->getRenderGraphExecutable(renderGraphName);
+    for (auto& memImage : executable->memoryImages)
     {
-      auto renderGraphName = std::get<0>(rgData);
-      auto executable = v->getRenderGraphExecutable(renderGraphName);
-      for (auto& memImage : executable->memoryImages)
+      auto ait = executable->imageInfo.find(memImage.first);
+      if (ait == end(executable->imageInfo))
+        continue;
+      if (ait->second.isSwapchainImage)
       {
-        auto ait = executable->imageInfo.find(memImage.first);
-        if (ait == end(executable->imageInfo))
-          continue;
-        if (ait->second.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED)
-          continue;
-        VkAccessFlags srcAccessFlags, dstAccessFlags;
-        switch (ait->second.attachmentDefinition.attachmentType)
-        {
-        case atColor:
-          srcAccessFlags = 0;
-          dstAccessFlags = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-          dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-          break;
-        case atDepth:
-        case atDepthStencil:
-        case atStencil:
-          srcAccessFlags = 0;
-          dstAccessFlags = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-          dstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-          break;
-        default:
-          srcAccessFlags = 0;
-          dstAccessFlags = 0;
-          dstStageFlags |= 0;
-          break;
-        }
-
-        Image* image = memImage.second->getImage(renderContext);
-        if (image == nullptr)
-          continue;
-        VkImage vkImage = image->getHandleImage();
-        if (ait->second.isSwapchainImage)
-          swapChainImageFinalLayout = ait->second.finalLayout;
-        prepareBarriers.emplace_back(PipelineBarrier
-        (
-          srcAccessFlags,
-          dstAccessFlags,
-          VK_QUEUE_FAMILY_IGNORED,
-          VK_QUEUE_FAMILY_IGNORED,
-          vkImage,
-          memImage.second->getFullImageRange().getSubresource(),
-          ait->second.layoutOutside,
-          ait->second.initialLayout
-        ));
+        auto beforeLast = rbegin(ait->second.layouts);
+        beforeLast++;
+        swapChainImageFinalLayout = *beforeLast;
       }
     }
-    if(!prepareBarriers.empty())
-      prepareCommandBuffer->cmdPipelineBarrier(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, dstStageFlags, VK_DEPENDENCY_BY_REGION_BIT, prepareBarriers);
-    prepareCommandBuffer->cmdEnd();
   }
-
   presentCommandBuffer->setActiveIndex(swapChainImageIndex);
   if (!presentCommandBuffer->isValid())
   {
@@ -694,8 +645,6 @@ void Surface::buildSecondaryCommandBuffers()
 
 void Surface::draw()
 {
-  prepareCommandBuffer->queueSubmit(queues[presentationQueueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, attachmentsLayoutCompletedSemaphores, VK_NULL_HANDLE );
-
   std::vector<std::vector<CommandBuffer*>> commandBuffersToSubmit;
   auto v = viewer.lock();
   // for each queue - collect all primary command buffers in appropriate order
@@ -719,7 +668,7 @@ void Surface::draw()
   for (uint32_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
   {
     for (unsigned int i = 0; i < commandBuffersToSubmit[queueIndex].size(); ++i)
-      commandBuffersToSubmit[queueIndex][i]->queueSubmit(queues[queueIndex]->queue, { attachmentsLayoutCompletedSemaphores[queueIndex] }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { queueSubmissionCompletedSemaphores[queueIndex][i] }, VK_NULL_HANDLE);
+      commandBuffersToSubmit[queueIndex][i]->queueSubmit(queues[queueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { queueSubmissionCompletedSemaphores[queueIndex][i] }, VK_NULL_HANDLE);
   }
 }
 
@@ -742,7 +691,7 @@ void Surface::endFrame()
     presentInfo.pImageIndices      = &swapChainImageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
-  VkResult result = vkQueuePresentKHR(queues[presentationQueueIndex]->queue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(queues[presentationQueueIndex]->queue, &presentInfo);
 
   if ((result != VK_ERROR_OUT_OF_DATE_KHR) && (result != VK_SUBOPTIMAL_KHR))
     VK_CHECK_LOG_THROW(result, "failed vkQueuePresentKHR");

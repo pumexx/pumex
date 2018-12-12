@@ -130,7 +130,7 @@ void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::v
         imageSize.type = isAbsolute;
         imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
       }
-      ImageTraits imageTraits(iiit->second.attachmentDefinition.format, imageSize, iiit->second.imageUsage, false, iiit->second.layoutOutside, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      ImageTraits imageTraits(iiit->second.attachmentDefinition.format, imageSize, iiit->second.imageUsage, false, iiit->second.layouts.front(), 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
       memoryImage.second->setImageTraits(renderContext.surface, imageTraits);
     }
   }
@@ -162,7 +162,7 @@ std::map<uint32_t, uint32_t> FrameBuffer::getAttachmentOrder() const
   return results;
 }
 
-std::vector<AttachmentDescription> FrameBuffer::getAttachmentDescription() const
+std::vector<AttachmentDescription> FrameBuffer::getEmptyAttachmentDescriptions() const
 {
   std::vector<AttachmentDescription> results;
   for( const auto& iinfo : imageInfo )

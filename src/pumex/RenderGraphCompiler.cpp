@@ -341,8 +341,11 @@ std::vector<uint32_t> recursiveLongestPath(const std::vector<std::pair<uint32_t,
 void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, const std::vector<std::reference_wrapper<const RenderOperation>>& partialOrdering, std::shared_ptr<RenderGraphExecutable> executable)
 {
   std::map<uint32_t, RenderGraphImageInfo> imageInfo;
+  std::map<std::string, uint32_t> operationIndices;
+  uint32_t operationIndex = 1;
   for( auto& op : partialOrdering)
   {
+    operationIndices.insert({ op.get().name, operationIndex });
     // operations are ordered. Create vector with all sorted image transitions ( input transitions before output transitions )
     auto opTransitions  = renderGraph.getOperationIO(op.get().name, opeAllAttachmentInputs | opeImageInput);
     auto outTransitions = renderGraph.getOperationIO(op.get().name, opeAllAttachmentOutputs | opeImageOutput);
@@ -351,20 +354,32 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     {
       auto it = imageInfo.find(transition.get().id());
       if (it == end(imageInfo)) // if image is not in the imageInfo already - add it to vector, save its initial layout, guess layout before graph
-        imageInfo.insert({ transition.get().id(), RenderGraphImageInfo(
+      {
+        RenderGraphImageInfo newInfo(
           transition.get().entry().resourceDefinition.attachment,
           transition.get().externalMemoryObjectName(),
-          getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage ,
-          transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-          transition.get().entry().layout,
-          transition.get().entry().layout,
-          transition.get().entryName() == SWAPCHAIN_NAME ) });
+          getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage,
+          transition.get().entryName() == SWAPCHAIN_NAME);
+        newInfo.layouts.resize(operationIndex, transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL);
+        newInfo.layouts.push_back(transition.get().entry().layout);
+        newInfo.operationParticipants.resize(operationIndex, 0);
+        newInfo.operationParticipants.push_back(transition.get().id());
+        imageInfo.insert({ transition.get().id(), newInfo });
+      }
       else // accumulate image usage
       {
         it->second.imageUsage |= getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage;
-        it->second.finalLayout = transition.get().entry().layout;
+        it->second.layouts.push_back(transition.get().entry().layout);
       }
     }
+    // fill up values for not used transitions
+    for (auto& iinfo : imageInfo)
+    {
+      VkImageLayout lastLayout = iinfo.second.layouts.back();
+      iinfo.second.layouts.resize(operationIndex + 1, lastLayout);
+      iinfo.second.operationParticipants.resize(operationIndex + 1, 0);
+    }
+    operationIndex++;
   }
 
   // Image may be reused by next transition when :
@@ -373,13 +388,18 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
   // - it is not external memory object ( manually provided by user during graph construction )
   // - all previous operations using reused image are directly reachable from operations that generate new image
   std::vector<std::pair<uint32_t, uint32_t>> potentialAliases;
-  for (const auto& followingImage : imageInfo)
+  for (auto& followingImage : imageInfo)
   {
-    // cannot alias with a swapchain
-    if( followingImage.second.isSwapchainImage )
-      continue;
-    // cannot alias external image
-    if ( !followingImage.second.externalMemoryImageName.empty() )
+    // we will add additional layout to image info - the same as te last one for all images except for swapchain image - this one gets VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    VkImageLayout lastLayout = followingImage.second.isSwapchainImage ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : followingImage.second.layouts.back();
+    followingImage.second.layouts.push_back(lastLayout);
+    followingImage.second.operationParticipants.push_back(0);
+    // image cannot alias :
+    // - itself
+    // - a swapchain
+    // - an external image
+    // - when attachment is different on a second image
+    if( followingImage.second.isSwapchainImage || !followingImage.second.externalMemoryImageName.empty() )
       continue;
     auto allGeneratingTransitions = renderGraph.getTransitionIO(followingImage.first, opeAllOutputs);
 
@@ -392,19 +412,9 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
 
     for (const auto& precedingImage : imageInfo)
     {
-      // cannot alias itself
-      if (followingImage.first == precedingImage.first)
+      if (precedingImage.first == followingImage.first || precedingImage.second.isSwapchainImage || !precedingImage.second.externalMemoryImageName.empty() || precedingImage.second.attachmentDefinition != followingImage.second.attachmentDefinition )
         continue;
-      // cannot alias with a swapchain
-      if (precedingImage.second.isSwapchainImage )
-        continue;
-      // cannot alias external image
-      if (!precedingImage.second.externalMemoryImageName.empty())
-        continue;
-      // cannot alias when attachment is different
-      if ( followingImage.second.attachmentDefinition != precedingImage.second.attachmentDefinition)
-        continue;
-      // if all transitions are reachable from attachmentNext
+      // if all transitions are reachable from followingImage
       auto transitions = renderGraph.getTransitionIO(precedingImage.first, opeAllInputsOutputs);
       if (std::all_of(begin(transitions), end(transitions), [&allPreviousOperations](const ResourceTransition& tr) { return allPreviousOperations.find(tr.operation()) != end(allPreviousOperations);  }))
         potentialAliases.push_back({ precedingImage.first, followingImage.first });
@@ -427,17 +437,23 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
       auto target = longestPath.back();
       longestPath.pop_back();
       imageAliases.insert({ target, target });
-      bool init = true;
+      auto newLayouts        = imageInfo[target].layouts;
+      auto newOpParticipants = imageInfo[target].operationParticipants;
+      auto participantIter   = std::find(begin(newOpParticipants), end(newOpParticipants), 1);
       for (auto& p : longestPath)
       {
         imageAliases.insert({ p, target });
         // update image usage on target
         imageInfo[target].imageUsage = imageInfo[target].imageUsage | imageInfo[p].imageUsage;
-        // if it's first attachment aliasing target, then set initial layout of the target to first attachment's value
-        if (init)
-          imageInfo[target].initialLayout = imageInfo[p].initialLayout;
-        init = false;
+        // merge layouts and operation participation
+        auto endIndex = std::distance(begin(newOpParticipants), participantIter);
+        std::copy(begin(imageInfo[p].layouts), begin(imageInfo[p].layouts) + endIndex, begin(newLayouts));
+        std::copy(begin(imageInfo[p].operationParticipants), begin(imageInfo[p].operationParticipants) + endIndex, begin(newOpParticipants));
+        participantIter = std::find(begin(newOpParticipants), end(newOpParticipants), 1);
       }
+      imageInfo[target].layouts               = newLayouts;
+      imageInfo[target].operationParticipants = newOpParticipants;
+
     }
     else break; // there are no more aliases
   }
@@ -454,12 +470,13 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
   std::copy_if(begin(imageInfo), end(imageInfo), std::inserter(executable->imageInfo, end(executable->imageInfo)), [&imageAliases](const std::pair<uint32_t, RenderGraphImageInfo>& p0)
     { return std::count_if(begin(imageAliases), end(imageAliases), [&p0](const std::pair<uint32_t, uint32_t>& p1)
       { return p0.first == p1.second && p1.first != p1.second; }) == 0; });
+  executable->operationIndices = operationIndices;
 
   for (const auto& image : executable->imageInfo)
   {
     if (!image.second.externalMemoryImageName.empty()) // set only the internal images. External images should be set already
       continue;
-    ImageTraits imageTraits(image.second.attachmentDefinition.format, image.second.attachmentDefinition.attachmentSize, image.second.imageUsage, false, image.second.layoutOutside, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+    ImageTraits imageTraits(image.second.attachmentDefinition.format, image.second.attachmentDefinition.attachmentSize, image.second.imageUsage, false, image.second.layouts.front(), 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
     SwapChainImageBehaviour scib = (image.second.isSwapchainImage) ? swForEachImage : swOnce;
     VkImageAspectFlags aspectMask = getAspectMask(image.second.attachmentDefinition.attachmentType);
     auto imageIt = executable->memoryImages.insert({ image.first, std::make_shared<MemoryImage>(imageTraits, executable->frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) }).first;
@@ -489,7 +506,7 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
     }
   }
 
-  // build framebuffers
+  // build framebuffers for each render pass
   for (auto& renderPass : renderPasses)
   {
     ImageSize frameBufferSize = renderPass->subPasses[0].lock()->operation.attachmentSize;
@@ -525,7 +542,6 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
         auto vit = executable->memoryImageViews.find(transitionID);
         CHECK_LOG_THROW(vit == end(executable->memoryImageViews), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied");
         frameBufferImageViews.insert({ transitionID, vit->second });
-
       }
     }
     auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, renderPass, frameBufferImageInfo, frameBufferMemoryImages, frameBufferImageViews);
@@ -533,29 +549,44 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
 
     // build attachments, clear values and image layouts
     std::map<uint32_t,uint32_t>        attachmentOrder = frameBuffer->getAttachmentOrder();
-    std::vector<AttachmentDescription> attachments     = frameBuffer->getAttachmentDescription();
+    std::vector<AttachmentDescription> attachments     = frameBuffer->getEmptyAttachmentDescriptions();
+    std::vector<char>                  initialLayoutsInitialized(attachments.size(), false);
     std::vector<VkClearValue>          clearValues(attachments.size(), makeColorClearValue(glm::vec4(0.0f)));
     std::vector<char>                  clearValuesInitialized(attachments.size(), false);
 
     // find all information about attachments and clear values
     for (auto& sb : renderPass->subPasses)
     {
-      auto subPass   = sb.lock();
-      // fill attachment information with render subpass specifics ( initial layout, final layout, load op, clear values )
-      auto transitions = renderGraph.getOperationIO(subPass->operation.name, opeAllAttachments);
-      for (auto& transition : transitions)
-      {
-        auto attachmentID = executable->memoryObjectAliases.at(transition.get().id());
-        uint32_t attIndex = attachmentOrder.at(attachmentID);
+      auto subPass            = sb.lock();
+      bool lastSubpass        = ((subPass->subpassIndex + 1) == renderPass->subPasses.size());
+      auto transitions        = renderGraph.getOperationIO(subPass->operation.name, opeAllAttachments | opeAllImages);
+      auto resolveTransitions = renderGraph.getOperationIO(subPass->operation.name, opeAttachmentResolveOutput);
 
-        if (attachments[attIndex].initialLayout == VK_IMAGE_LAYOUT_UNDEFINED)
-          attachments[attIndex].initialLayout  = transition.get().entry().layout;
-        attachments[attIndex].finalLayout      = transition.get().entry().layout;
+      std::vector<AttachmentReference> ia, oa, ra;
+      AttachmentReference              dsa{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
+      std::set<uint32_t>               attachmentUsed;
+
+      // fill attachment information with render subpass specifics ( initial layout, final layout, load op, clear values )
+      for (const auto& transition : transitions)
+      {
+        uint32_t attachmentID = executable->memoryObjectAliases.at(transition.get().id());
+        auto orderIt = attachmentOrder.find(attachmentID);
+        if (orderIt == end(attachmentOrder))
+          continue;
+        uint32_t attIndex = orderIt->second;
+        attachmentUsed.insert(attachmentID);
+
+        if (!initialLayoutsInitialized[attIndex])
+        {
+          attachments[attIndex].initialLayout = executable->getImageLayout(subPass->operation.name, attachmentID, -1);
+          initialLayoutsInitialized[attIndex] = true;
+        }
+        attachments[attIndex].finalLayout = executable->getImageLayout(subPass->operation.name, attachmentID, 0);
+
         AttachmentType at                      = transition.get().entry().resourceDefinition.attachment.attachmentType;
         bool colorDepthAttachment              = (at == atColor) || (at == atDepth) || (at == atDepthStencil);
         bool stencilAttachment                 = (at == atDepthStencil) || (at == atStencil);
         bool stencilDepthAttachment            = (at == atDepth) || (at == atDepthStencil) || (at == atStencil);
-        
         if (attachments[attIndex].loadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
           attachments[attIndex].loadOp = colorDepthAttachment ? static_cast<VkAttachmentLoadOp>(transition.get().entry().loadOp.loadType) : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         if (attachments[attIndex].stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
@@ -569,115 +600,55 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
             clearValues[attIndex] = makeColorClearValue(transition.get().entry().loadOp.clearColor);
           clearValuesInitialized[attIndex] = true;
         }
-      }
-    }
 
-    // build subpass definitions
-    for (auto& sb : renderPass->subPasses)
-    {
-      auto subPass = sb.lock();
-      VkPipelineBindPoint              bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-      std::vector<AttachmentReference> ia;
-      std::vector<AttachmentReference> oa;
-      std::vector<AttachmentReference> ra;
-      AttachmentReference              dsa;
-      std::vector<uint32_t>            pa;
-
-      auto inputAttachments   = renderGraph.getOperationIO(subPass->operation.name, opeAttachmentInput);
-      auto outputAttachments  = renderGraph.getOperationIO(subPass->operation.name, opeAttachmentOutput);
-      auto resolveAttachments = renderGraph.getOperationIO(subPass->operation.name, opeAttachmentResolveOutput);
-      auto depthAttachments   = renderGraph.getOperationIO(subPass->operation.name, opeAttachmentDepthInput | opeAttachmentDepthOutput);
-
-      for (auto& inputAttachment : inputAttachments)
-        ia.push_back({ attachmentOrder.at(executable->memoryObjectAliases.at(inputAttachment.get().id())), inputAttachment.get().entry().layout });
-      
-      for (auto& outputAttachment : outputAttachments)
-      {
-        oa.push_back({ attachmentOrder.at(executable->memoryObjectAliases.at(outputAttachment.get().id())), outputAttachment.get().entry().layout });
-
-        if (!resolveAttachments.empty())
+        auto opParticipants            = executable->getOperationParticipants(transition.get().id());
+        uint32_t operationIndex        = executable->operationIndices.at(subPass->operation.name);
+        bool usedLater                 = std::find(begin(opParticipants) + operationIndex + 1, end(opParticipants), transition.get().id()) != end(opParticipants);
+        bool isSwapchain               = transition.get().entryName() == SWAPCHAIN_NAME;
+        if (lastSubpass && (usedLater || isSwapchain))
         {
-          auto it = std::find_if(begin(resolveAttachments), end(resolveAttachments), [&outputAttachment](const ResourceTransition& rt) -> bool { return rt.entry().resolveSourceEntryName == outputAttachment.get().entryName(); });
-          if (it != end(resolveAttachments))
+          if (colorDepthAttachment) attachments[attIndex].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+          if (stencilAttachment)    attachments[attIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+        }
+
+        if(transition.get().entry().entryType == opeAttachmentInput)
+          ia.push_back({ attIndex, transition.get().entry().layout });
+        if (transition.get().entry().entryType == opeAttachmentOutput)
+        {
+          oa.push_back({ attIndex, transition.get().entry().layout });
+          auto it = std::find_if(begin(resolveTransitions), end(resolveTransitions), [&transition](const ResourceTransition& rt) -> bool { return rt.entry().resolveSourceEntryName == transition.get().entryName(); });
+          if (it != end(resolveTransitions))
             ra.push_back({ attachmentOrder.at(executable->memoryObjectAliases.at(it->get().id())), it->get().entry().layout });
           else
             ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
         }
-        else
-          ra.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
+        if ( ( transition.get().entry().entryType & (opeAttachmentDepthInput | opeAttachmentDepthOutput) ) != 0)
+          dsa = { attIndex, transition.get().entry().layout };
       }
-      if (!depthAttachments.empty())
-        dsa = { attachmentOrder.at(executable->memoryObjectAliases.at(depthAttachments[0].get().id())), depthAttachments[0].get().entry().layout };
-      else
-        dsa = { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
 
-      SubpassDescription subPassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, ia, oa, ra, dsa, pa, 0, subPass->operation.multiViewMask);
-
-      // OK, so we have a subpass definition - the one thing that's missing is information about preserved attachments ( in a subpass ) and attachments that must be saved ( in a render pass )
-      auto inTransitions  = renderGraph.getOperationIO(subPass->operation.name, opeAllAttachmentInputs);
-      auto outTransitions = renderGraph.getOperationIO(subPass->operation.name, opeAllAttachmentOutputs);
-      auto thisOperation = std::find_if(begin(partialOrdering), end(partialOrdering), [&subPass](const RenderOperation& op) { return op.name == subPass->operation.name; });
-      bool lastSubpass    = ((subPass->subpassIndex + 1) == renderPass->subPasses.size());
-
-      // check which resources are used in a subpass
-      std::set<uint32_t> attachmentsUsedInSubpass;
-      for (auto& inTransition : inTransitions)
-        attachmentsUsedInSubpass.insert(inTransition.get().id());
-      for (auto& outTransition : outTransitions)
-        attachmentsUsedInSubpass.insert(outTransition.get().id());
-      // for each unused attachment : it must be preserved when
-      // - it is swapchain image
-      // - it was used before
-      // - it is used later in a subpass or outside
-      for (auto transition : renderGraph.transitions)
+      // check all available attachments if they need to be preserved
+      uint32_t operationIndex = executable->operationIndices.at(subPass->operation.name);
+      std::vector<uint32_t> pa;
+      for (uint32_t attIndex=0; attIndex<attachments.size(); ++attIndex)
       {
-        if (transition.entry().resourceDefinition.metaType != rmtImage)
+        // if attachment was used in this subpass, then it does not need to be preserved
+        if (attachmentUsed.find(attachments[attIndex].imageDefinitionIndex) != end(attachmentUsed))
           continue;
-        // skip transition if it's not used in a framebuffer at all
-        auto aoit = attachmentOrder.find(executable->memoryObjectAliases.at(transition.id()));
-        if (aoit == end(attachmentOrder))
-          continue;
-        uint32_t attIndex = aoit->second;
-
-        auto resOutTransitions = renderGraph.getTransitionIO(transition.id(), opeAllAttachmentOutputs);
-        auto resInTransitions  = renderGraph.getTransitionIO(transition.id(), opeAllAttachmentInputs);
-
-        bool usedLater = false;
-        for (auto& inTransition : resInTransitions)
+        // find all transitions using this attachment
+        for (const auto& transition : renderGraph.transitions)
         {
-          if (std::find_if(thisOperation + 1, end(partialOrdering), [&inTransition](const RenderOperation& op) { return op.name == inTransition.get().operationName(); })  != end(partialOrdering))
-          {
-            usedLater = true;
-            break;
-          }
-        }
-        bool usedBefore = false;
-        for (auto& outTransition : resOutTransitions)
-        {
-          if (std::find_if(begin(partialOrdering), thisOperation, [&outTransition](const RenderOperation& op) { return op.name == outTransition.get().operationName(); }) != thisOperation)
-          {
-            usedBefore = true;
-            break;
-          }
-        }
-        bool isSwapchain  = transition.entryName() == SWAPCHAIN_NAME;
-        bool usedNow      = attachmentsUsedInSubpass.find(transition.id()) != end(attachmentsUsedInSubpass) || attachmentsUsedInSubpass.find(executable->memoryObjectAliases.at(transition.id())) != end(attachmentsUsedInSubpass);
-        bool preserve     = usedBefore && !usedNow && (usedLater || isSwapchain);
-        bool save         = lastSubpass && (usedLater || isSwapchain);
-
-        if (preserve)
-          subPassDescription.preserveAttachments.push_back(attIndex);
-        if (save)
-        {
-          AttachmentType at = transition.entry().resourceDefinition.attachment.attachmentType;
-          bool colorDepthAttachment = (at == atColor) || (at == atDepth) || (at == atDepthStencil);
-          bool stencilAttachment    = (at == atDepthStencil) || (at == atStencil);
-
-          if (colorDepthAttachment) attachments[attIndex].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-          if (stencilAttachment)    attachments[attIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+          uint32_t attachmentID = executable->memoryObjectAliases.at(transition.id());
+          if (attachmentID != attachments[attIndex].imageDefinitionIndex)
+            continue;
+          auto opParticipants = executable->getOperationParticipants(transition.id());
+          bool usedBefore     = std::find(begin(opParticipants), begin(opParticipants) + operationIndex, transition.id()) != (begin(opParticipants) + operationIndex);
+          bool usedLater      = std::find(begin(opParticipants) + operationIndex + 1, end(opParticipants), transition.id()) != end(opParticipants);
+          bool isSwapchain    = transition.entryName() == SWAPCHAIN_NAME;
+          if(usedBefore && (usedLater || isSwapchain))
+            pa.push_back(attIndex);
         }
       }
-      subPass->setSubpassDescription(subPassDescription);
+      subPass->setSubpassDescription(SubpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, ia, oa, ra, dsa, pa, 0, subPass->operation.multiViewMask));
     }
     renderPass->setRenderPassData(frameBuffer, attachments, clearValues);
   }
