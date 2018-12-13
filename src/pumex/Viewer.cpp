@@ -482,7 +482,8 @@ void Viewer::compileRenderGraph(std::shared_ptr<RenderGraph> renderGraph, const 
 std::shared_ptr<RenderGraphExecutable> Viewer::getRenderGraphExecutable(const std::string& name) const
 {
   auto it = renderGraphs.find(name);
-  CHECK_LOG_THROW(it == end(renderGraphs), "Viewer does not have registered render graph : " << name);
+  if(it == end(renderGraphs))
+      return std::shared_ptr<RenderGraphExecutable>();
   return it->second;
 }
 

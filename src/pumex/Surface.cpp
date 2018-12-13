@@ -281,6 +281,8 @@ void Surface::cleanup()
     for (auto& rgData : renderGraphData)
     {
       auto executable = v->getRenderGraphExecutable(std::get<0>(rgData));
+      if(executable == nullptr)
+        continue;
       for (auto& frameBuffer : executable->frameBuffers)
         frameBuffer->reset(this);
     }
@@ -402,6 +404,8 @@ void Surface::validateRenderGraphs()
     {
       auto renderGraphName = std::get<0>(rgData);
       auto executable = v->getRenderGraphExecutable(renderGraphName);
+      if(executable == nullptr)
+        continue;
       renderContext.setRenderGraphExecutable(executable);
       for (auto& frameBuffer : executable->frameBuffers)
       {
@@ -414,6 +418,8 @@ void Surface::validateRenderGraphs()
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable = v->getRenderGraphExecutable(renderGraphName);
+    if(executable == nullptr)
+      continue;
     for (auto& frameBuffer : executable->frameBuffers)
       frameBuffer->validate(renderContext);
     // create/update render passes and compute passes for current surface
@@ -429,6 +435,8 @@ void Surface::validateRenderGraphs()
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable = v->getRenderGraphExecutable(renderGraphName);
+    if(executable == nullptr)
+      continue;
     for (auto& memImage : executable->memoryImages)
     {
       auto ait = executable->imageInfo.find(memImage.first);
@@ -486,6 +494,8 @@ void Surface::validatePrimaryNodes(uint32_t queueIndex)
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable = v->getRenderGraphExecutable(renderGraphName);
+    if(executable == nullptr)
+      continue;
     validateNodeVisitor.renderContext.setRenderGraphExecutable(executable);
     auto qit = renderGraphQueueIndices.find(renderGraphName);
     for (uint32_t i=0; i<qit->second.size(); ++i)
@@ -507,6 +517,8 @@ void Surface::validatePrimaryDescriptors(uint32_t queueIndex)
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable = v->getRenderGraphExecutable(renderGraphName);
+    if(executable == nullptr)
+      continue;
     validateDescriptorVisitor.renderContext.setRenderGraphExecutable(executable);
     auto qit = renderGraphQueueIndices.find(renderGraphName);
     for (uint32_t i = 0; i<qit->second.size(); ++i)
@@ -528,6 +540,8 @@ void Surface::buildPrimaryCommandBuffer(uint32_t queueIndex)
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable      = v->getRenderGraphExecutable(renderGraphName);
+    if(executable == nullptr)
+      continue;
     auto qit             = renderGraphQueueIndices.find(renderGraphName);
     auto pcbit           = primaryCommandBuffers.find(renderGraphName);
     renderContext.setRenderGraphExecutable(executable);
@@ -555,6 +569,8 @@ void Surface::validateSecondaryNodes()
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable      = v->getRenderGraphExecutable(renderGraphName);
+    if(executable == nullptr)
+      continue;
     fscbVisitor.renderContext.setRenderGraphExecutable(executable);
     for ( auto& commandSeq : executable->commands)
       for (auto& command : commandSeq)
@@ -650,7 +666,9 @@ void Surface::draw()
     {
       auto renderGraphName = std::get<0>(renderGraphData[rgIndex]);
       auto executable = v->getRenderGraphExecutable(renderGraphName);
-      auto qit   = renderGraphQueueIndices.find(renderGraphName);
+      if(executable == nullptr)
+        continue;
+      auto qit = renderGraphQueueIndices.find(renderGraphName);
       auto pcbit = primaryCommandBuffers.find(renderGraphName);
       auto qcbit = queueSubmissionCompletedSemaphores.find(renderGraphName);
       for (uint32_t i = 0; i < qit->second.size(); ++i)
