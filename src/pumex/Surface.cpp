@@ -135,7 +135,6 @@ void Surface::collectQueueTraits()
     d->addRequestedQueue(qt);
 }
 
-
 void Surface::realize()
 {
   if (isRealized())
@@ -210,30 +209,26 @@ void Surface::realize()
     commandPool->validate(deviceSh.get());
     commandPools.push_back(commandPool);
 
-    // Create a semaphore used to synchronize command submission
-    // Ensures that the image is not presented until all commands have been sumbitted and executed
-    VkSemaphore semaphore0;
-    VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore0), "Could not create frameBufferReady semaphore");
-    attachmentsLayoutCompletedSemaphores.emplace_back(semaphore0);
-
-    queueSubmissionCompletedSemaphores.emplace_back(std::vector<VkSemaphore>());
   }
 
   for (uint32_t i = 0; i < renderGraphData.size(); ++i)
   {
+
     // for all command sequences - figure out which queues they use, add command buffers for them
     auto renderGraphName = std::get<0>(renderGraphData[i]);
     auto queueIndices = renderGraphQueueIndices.find(renderGraphName);
     CHECK_LOG_THROW(queueIndices == end(renderGraphQueueIndices), "Missing renderGraphQueueIndices for render graph : " << renderGraphName);
+
     auto pcbit = primaryCommandBuffers.insert({ renderGraphName,std::vector<std::shared_ptr<CommandBuffer>>() }).first;
+    auto qcbit = queueSubmissionCompletedSemaphores.insert({ renderGraphName, std::vector<VkSemaphore>() }).first;
     for (auto& queueIndex : queueIndices->second)
     {
       auto commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[queueIndex], surfaceTraits.swapChainImageCount);
       pcbit->second.push_back(commandBuffer);
 
-      VkSemaphore semaphore1;
-      VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore1), "Could not create render complete semaphore");
-      queueSubmissionCompletedSemaphores[queueIndex].emplace_back(semaphore1);
+      VkSemaphore semaphore;
+      VK_CHECK_LOG_THROW(vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &semaphore), "Could not create render complete semaphore");
+      qcbit->second.push_back(semaphore);
     }
     // register time statistics for all render graphs
     for (uint32_t j = 0; j < queueIndices->second.size(); ++j)
@@ -294,13 +289,10 @@ void Surface::cleanup()
       vkDestroyFence(dev, fence, nullptr);
     waitFences.clear();
 
-    for (auto& semSq : queueSubmissionCompletedSemaphores)
-      for (auto sem : semSq)
+    for (auto& semaphores : queueSubmissionCompletedSemaphores)
+      for (auto sem : semaphores.second)
         vkDestroySemaphore(dev, sem, nullptr);
     queueSubmissionCompletedSemaphores.clear();
-    for (auto sem : attachmentsLayoutCompletedSemaphores)
-      vkDestroySemaphore(dev, sem, nullptr);
-    attachmentsLayoutCompletedSemaphores.clear();
     if (renderFinishedSemaphore != VK_NULL_HANDLE)
     {
       vkDestroySemaphore(dev, renderFinishedSemaphore, nullptr);
@@ -646,44 +638,49 @@ void Surface::buildSecondaryCommandBuffers()
 void Surface::draw()
 {
   std::vector<std::vector<CommandBuffer*>> commandBuffersToSubmit;
+  std::vector<std::vector<VkSemaphore>>    semaphoresToSubmit;
+  std::vector<VkSemaphore>                 submissionCompletedSemaphores;
   auto v = viewer.lock();
-  // for each queue - collect all primary command buffers in appropriate order
+  // for each queue - collect all primary command buffers and "submission completed" semaphores in appropriate order
   for (uint32_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
   {
     commandBuffersToSubmit.push_back(std::vector<CommandBuffer*>());
-    for (auto& rgData : renderGraphData)
+    semaphoresToSubmit.push_back(std::vector<VkSemaphore>());
+    for (uint32_t rgIndex = 0; rgIndex<renderGraphData.size(); ++rgIndex)
     {
-      auto renderGraphName = std::get<0>(rgData);
+      auto renderGraphName = std::get<0>(renderGraphData[rgIndex]);
       auto executable = v->getRenderGraphExecutable(renderGraphName);
-      auto qit = renderGraphQueueIndices.find(renderGraphName);
+      auto qit   = renderGraphQueueIndices.find(renderGraphName);
       auto pcbit = primaryCommandBuffers.find(renderGraphName);
-      for (uint32_t i = 0; i<qit->second.size(); ++i)
+      auto qcbit = queueSubmissionCompletedSemaphores.find(renderGraphName);
+      for (uint32_t i = 0; i < qit->second.size(); ++i)
+      {
         if (qit->second[i] == queueIndex)
+        {
           commandBuffersToSubmit.back().push_back(pcbit->second[i].get());
+          semaphoresToSubmit.back().push_back(qcbit->second[i]);
+          submissionCompletedSemaphores.push_back(qcbit->second[i]);
+        }
+      }
     }
   }
   // send command buffers to queues:
-  // - all buffers must wait for attachmentsLayoutCompletedSemaphores[queueIndex]
-  // - which one must signal ending ?
+  // - all buffers must wait for imageAvailableSemaphore
+  // - each command buffer submission ends with signaling appropriate semaphore
   for (uint32_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
   {
     for (unsigned int i = 0; i < commandBuffersToSubmit[queueIndex].size(); ++i)
-      commandBuffersToSubmit[queueIndex][i]->queueSubmit(queues[queueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { queueSubmissionCompletedSemaphores[queueIndex][i] }, VK_NULL_HANDLE);
+      commandBuffersToSubmit[queueIndex][i]->queueSubmit(queues[queueIndex]->queue, { imageAvailableSemaphore }, { VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT }, { semaphoresToSubmit[queueIndex][i] }, VK_NULL_HANDLE);
   }
+  // send to rendering a command buffer that transforms swapchain image layout into VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+  std::vector<VkPipelineStageFlags> waitStages;
+  waitStages.resize(submissionCompletedSemaphores.size(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+  presentCommandBuffer->queueSubmit(queues[presentationQueueIndex]->queue, submissionCompletedSemaphores, waitStages, { renderFinishedSemaphore }, waitFences[swapChainImageIndex]);
 }
 
 void Surface::endFrame()
 {
-  // wait for all command buffers in all queues to finish work ( using queueSubmissionCompletedSemaphores ), then submit command buffer converting output image to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR layout
-  // start from linearizing queueSubmissionCompletedSemaphores
-  std::vector<VkSemaphore> allSubmissionCompletedSemaphores;
-  for (const auto& semSq : queueSubmissionCompletedSemaphores)
-    std::copy(begin(semSq), end(semSq), std::back_inserter(allSubmissionCompletedSemaphores));
-  std::vector<VkPipelineStageFlags> waitStages;
-  waitStages.resize(allSubmissionCompletedSemaphores.size(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-  presentCommandBuffer->queueSubmit(queues[presentationQueueIndex]->queue, allSubmissionCompletedSemaphores, waitStages, { renderFinishedSemaphore }, waitFences[swapChainImageIndex]);
-
-  // present output image when its layout is transformed into VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+  // present output image after its layout is transformed into VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
   VkPresentInfoKHR presentInfo{};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.swapchainCount     = 1;
@@ -695,6 +692,7 @@ void Surface::endFrame()
 
   if ((result != VK_ERROR_OUT_OF_DATE_KHR) && (result != VK_SUBOPTIMAL_KHR))
     VK_CHECK_LOG_THROW(result, "failed vkQueuePresentKHR");
+  window->endFrame();
 }
 
 void Surface::resizeSurface(uint32_t newWidth, uint32_t newHeight)

@@ -168,6 +168,7 @@ protected:
   std::vector<std::tuple<std::string, bool>>    renderGraphData;
   std::map<std::string, std::vector<uint32_t>>  renderGraphQueueIndices;
   std::map<std::string, std::vector<std::shared_ptr<CommandBuffer>>> primaryCommandBuffers;
+  std::map<std::string, std::vector<VkSemaphore>> queueSubmissionCompletedSemaphores;
 
   std::shared_ptr<CommandBuffer>                presentCommandBuffer;
   std::vector<VkFence>                          waitFences;
@@ -177,8 +178,6 @@ protected:
   std::vector<uint32_t>                         secondaryCommandBufferSubPasses;
 
   VkSemaphore                                   imageAvailableSemaphore      = VK_NULL_HANDLE;
-  std::vector<VkSemaphore>                      attachmentsLayoutCompletedSemaphores;
-  std::vector<std::vector<VkSemaphore>>         queueSubmissionCompletedSemaphores;
   VkSemaphore                                   renderFinishedSemaphore      = VK_NULL_HANDLE;
 
   std::function<void(std::shared_ptr<Surface>)> eventSurfaceRenderStart;

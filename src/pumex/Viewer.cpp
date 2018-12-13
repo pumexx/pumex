@@ -470,10 +470,13 @@ Surface* Viewer::getSurface(uint32_t id)
 
 void Viewer::compileRenderGraph(std::shared_ptr<RenderGraph> renderGraph, const std::vector<QueueTraits>& qt)
 {
+//  auto tickStart = HPClock::now();
   renderGraph->addMissingResourceTransitions();
   std::shared_ptr<RenderGraphExecutable> executable = renderGraphCompiler->compile(*renderGraph, *externalMemoryObjects, qt, frameBufferAllocator);
   renderGraphs.insert({ renderGraph->name, executable });
   queueTraits.insert({ renderGraph->name, qt });
+//  auto tickEnd = HPClock::now();
+//  LOG_ERROR << "Compilation of render graph " << renderGraph->name << " took " << 1000.0f * inSeconds(tickEnd - tickStart) << " ms " <<std::endl;
 }
 
 std::shared_ptr<RenderGraphExecutable> Viewer::getRenderGraphExecutable(const std::string& name) const
@@ -872,7 +875,6 @@ void Viewer::buildExecutionFlowGraph()
         tickStart = HPClock::now();
 
       surface->endFrame();
-      surface->window->endFrame();
 
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {
