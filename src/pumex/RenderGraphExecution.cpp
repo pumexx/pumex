@@ -31,12 +31,6 @@ void ExternalMemoryObjects::addMemoryObject(const std::string& name, const Resou
   CHECK_LOG_THROW(it != end(memoryObjects), "ExternalMemoryObjects : memory object with that name already defined : " << name);
   memoryObjects.insert({ name, memoryObject });
   resourceDefinitions.insert({ name,resourceDefinition });
-  if (memoryObject->getType() == MemoryObject::moImage)
-  {
-    auto memoryImage = std::dynamic_pointer_cast<MemoryImage>(memoryObject);
-    auto imageView = std::make_shared<ImageView>(memoryImage, memoryImage->getFullImageRange(), imageViewType);
-    imageViews.insert({ name, imageView });
-  }
 }
 
 RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, bool iscim )
@@ -65,18 +59,11 @@ void RenderGraphExecutable::setExternalMemoryObjects(const RenderGraph& renderGr
         switch (mit.second->getType())
         {
         case MemoryObject::moBuffer:
-        {
           memoryBuffers.insert({ transition.id(), std::dynamic_pointer_cast<MemoryBuffer>(mit.second) });
           break;
-        }
         case MemoryObject::moImage:
-        {
           memoryImages.insert({ transition.id(), std::dynamic_pointer_cast<MemoryImage>(mit.second) });
-          auto vit = memoryObjects.imageViews.find(mit.first);
-          if (vit != end(memoryObjects.imageViews))
-            memoryImageViews.insert({ transition.id(), vit->second });
           break;
-        }
         default:
           break;
         }
@@ -129,16 +116,15 @@ std::shared_ptr<ImageView> RenderGraphExecutable::getImageView(const std::string
     {
       if (command->operation.name == operationName)
       {
-        auto it = command->entries.find(entryName);
-        if (it == end(command->entries))
+        auto it = command->imageViews.find(entryName);
+        if (it == end(command->imageViews))
           return std::shared_ptr<ImageView>();
-        return getImageView(it->second);
+        return it->second;
       }
     }
   }
   return std::shared_ptr<ImageView>();
 }
-
 
 std::shared_ptr<MemoryObject> RenderGraphExecutable::getMemoryObject(uint32_t transitionID) const
 {
@@ -178,18 +164,6 @@ std::shared_ptr<MemoryBuffer> RenderGraphExecutable::getMemoryBuffer(uint32_t tr
   auto mit = memoryBuffers.find(ait->second);
   if (mit == end(memoryBuffers))
     return std::shared_ptr<MemoryBuffer>();
-  return mit->second;
-}
-
-std::shared_ptr<ImageView> RenderGraphExecutable::getImageView(uint32_t transitionID) const
-{
-  auto ait = memoryObjectAliases.find(transitionID);
-  if (ait == end(memoryObjectAliases))
-    return std::shared_ptr<ImageView>();
-
-  auto mit = memoryImageViews.find(ait->second);
-  if (mit == end(memoryImageViews))
-    return std::shared_ptr<ImageView>();
   return mit->second;
 }
 

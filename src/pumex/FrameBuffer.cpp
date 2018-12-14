@@ -32,8 +32,8 @@
 
 using namespace pumex;
 
-FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::map<uint32_t, RenderGraphImageInfo>& ii, const std::map<uint32_t, std::shared_ptr<MemoryImage>>& mi, const std::map<uint32_t, std::shared_ptr<ImageView>>& iv)
-  : frameBufferSize{ is }, renderPass{ rp }, imageInfo{ ii }, memoryImages{ mi }, imageViews{ iv }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::map<uint32_t, RenderGraphImageInfo>& ii, const std::map<uint32_t, std::shared_ptr<ImageView>>& iv)
+  : frameBufferSize{ is }, renderPass{ rp }, imageInfo{ ii }, imageViews{ iv }, activeCount{ 1 }
 {
 }
 
@@ -111,30 +111,43 @@ void FrameBuffer::invalidate(const RenderContext& renderContext)
   pddit->second.invalidate();
 }
 
-void FrameBuffer::prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
+void FrameBuffer::resize(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  for (auto& memoryImage : memoryImages)
+  std::vector<MemoryImage*>                                          memImages;
+  std::vector<std::map<uint32_t, RenderGraphImageInfo>::iterator>    iinfo;
+  for (auto& imageView : imageViews)
   {
-    auto iiit = imageInfo.find(memoryImage.first);
-    CHECK_LOG_THROW(iiit==end(imageInfo), "Missing imageInfo : " << memoryImage.first);
-    if(iiit->second.isSwapchainImage)
+    // get the memory image. If it is processed already - skip it
+    MemoryImage* memImage = imageView.second->memoryImage.get();
+    auto existingImageIt = std::find(begin(memImages), end(memImages), memImage);
+    if (existingImageIt != end(memImages))
+      continue;
+    // find the image info for this image
+    auto iiit = imageInfo.find(imageView.first);
+    CHECK_LOG_THROW(iiit == end(imageInfo), "Missing imageInfo : " << imageView.first);
+    // add image and its data to appropriate vectors
+    memImages.push_back(memImage);
+    iinfo.push_back(iiit);
+  }
+  for(uint32_t i=0; i<memImages.size(); ++i)
+  {
+    if(!iinfo[i]->second.isSwapchainImage)
     {
-      memoryImage.second->setImages(renderContext.surface, swapChainImages);
-    }
-    else
-    {
-      ImageSize imageSize = iiit->second.attachmentDefinition.attachmentSize;
+      ImageSize imageSize = iinfo[i]->second.attachmentDefinition.attachmentSize;
       if (imageSize.type == isSurfaceDependent)
       {
         imageSize.type = isAbsolute;
         imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
       }
-      ImageTraits imageTraits(iiit->second.attachmentDefinition.format, imageSize, iiit->second.imageUsage, false, iiit->second.layouts.front(), 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-      memoryImage.second->setImageTraits(renderContext.surface, imageTraits);
+      ImageTraits imageTraits(iinfo[i]->second.attachmentDefinition.format, imageSize, iinfo[i]->second.imageUsage, false, iinfo[i]->second.layouts.front(), 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      memImages[i]->setImageTraits(renderContext.surface, imageTraits);
     }
+    else
+      memImages[i]->setImages(renderContext.surface, swapChainImages);
   }
   auto rp = renderPass.lock();
+  invalidate(renderContext);
   rp->invalidate(renderContext);
 }
 
@@ -150,14 +163,13 @@ void FrameBuffer::reset(Surface* surface)
     pddit->second.data[i].frameBuffer = VK_NULL_HANDLE;
   }
   imageViews.clear();
-  memoryImages.clear();
 }
 
 std::map<uint32_t, uint32_t> FrameBuffer::getAttachmentOrder() const
 {
   std::map<uint32_t, uint32_t> results;
   uint32_t i = 0;
-  for (auto& x : memoryImages)
+  for (auto& x : imageViews)
     results.insert({ x.first, i++ });
   return results;
 }

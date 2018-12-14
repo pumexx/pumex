@@ -97,7 +97,7 @@ std::vector<std::reference_wrapper<const RenderOperation>> DefaultRenderGraphCom
 std::vector<std::vector<std::reference_wrapper<const RenderOperation>>> DefaultRenderGraphCompiler::scheduleOperations(const RenderGraph& renderGraph, const std::vector<std::reference_wrapper<const RenderOperation>>& partialOrdering, const std::vector<QueueTraits>& queueTraits)
 {
   // calculate transition cost 
-  std::map<uint32_t, float>    transitionCost;
+  std::map<uint32_t, float> transitionCost;
   for (const auto& transition : renderGraph.transitions)
   {
     auto it = transitionCost.find(transition.id());
@@ -480,21 +480,44 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     SwapChainImageBehaviour scib = (image.second.isSwapchainImage) ? swForEachImage : swOnce;
     VkImageAspectFlags aspectMask = getAspectMask(image.second.attachmentDefinition.attachmentType);
     auto imageIt = executable->memoryImages.insert({ image.first, std::make_shared<MemoryImage>(imageTraits, executable->frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) }).first;
-
-    ImageSubresourceRange imageRange(aspectMask, 0, image.second.attachmentDefinition.attachmentSize.mipLevels, 0, image.second.attachmentDefinition.attachmentSize.arrayLayers);
-    VkImageViewType imageViewType = (image.second.attachmentDefinition.attachmentSize.arrayLayers > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
-    executable->memoryImageViews.insert({ image.first, std::make_shared<ImageView>(imageIt->second, imageRange, imageViewType) });
   }
 }
 
 void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGraph& renderGraph, const std::vector<std::reference_wrapper<const RenderOperation>>& partialOrdering, std::shared_ptr<RenderGraphExecutable> executable)
 {
-  // find all render passes
+  // build all image views - for render subpasses and compute subpasses, additionally create all render passes
   std::vector<std::shared_ptr<RenderPass>> renderPasses;
   for (int j = 0; j<executable->commands.size(); ++j)
   {
     for (uint32_t i = 0; i<executable->commands[j].size(); ++i)
     {
+      auto renderCommand = executable->commands[j][i];
+      for (const auto& entry : renderCommand->entries)
+      {
+        // check if such transition exists
+        auto aliasIt = executable->memoryObjectAliases.find(entry.second);
+        if (aliasIt == end(executable->memoryObjectAliases))
+          continue;
+        uint32_t transitionID = aliasIt->second;
+        const auto& opEntry = renderCommand->operation.entries[entry.first];
+        // for images and attachments - create imageViews
+        if ((opEntry.entryType & (opeAllAttachments | opeAllImages)) != 0)
+        {
+          auto miit = executable->memoryImages.find(transitionID);
+          CHECK_LOG_THROW(miit == end(executable->memoryImages), "Not all memory images have been supplied");
+
+          VkImageViewType imageViewType = (opEntry.resourceDefinition.attachment.attachmentSize.arrayLayers > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+          renderCommand->imageViews.insert({ entry.first, std::make_shared<ImageView>(miit->second, opEntry.imageRange, imageViewType) });
+        }
+        else if (opEntry.bufferFormat != VK_FORMAT_UNDEFINED)// for buffers - add buffer views, but only if buffer format was defined, Only texel buffers use buffer views
+        {
+          auto miit = executable->memoryBuffers.find(transitionID);
+          CHECK_LOG_THROW(miit == end(executable->memoryBuffers), "Not all memory buffers have been supplied");
+
+          renderCommand->bufferViews.insert({ entry.first, std::make_shared<BufferView>(miit->second, opEntry.bufferRange, opEntry.bufferFormat) });
+        }
+      }
+
       if (executable->commands[j][i]->commandType != RenderCommand::ctRenderSubPass)
         continue;
       auto subpass = std::dynamic_pointer_cast<RenderSubPass>(executable->commands[j][i]);
@@ -511,7 +534,6 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
   {
     ImageSize frameBufferSize = renderPass->subPasses[0].lock()->operation.attachmentSize;
     std::map<uint32_t, RenderGraphImageInfo>          frameBufferImageInfo;
-    std::map<uint32_t, std::shared_ptr<MemoryImage>>  frameBufferMemoryImages;
     std::map<uint32_t, std::shared_ptr<ImageView>>    frameBufferImageViews;
     for (auto sb : renderPass->subPasses)
     {
@@ -535,16 +557,12 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
           continue;
         frameBufferImageInfo.insert({ transitionID, iiit->second });
 
-        auto miit = executable->memoryImages.find(transitionID);
-        CHECK_LOG_THROW(miit == end(executable->memoryImages), "Not all memory images have been supplied");
-        frameBufferMemoryImages.insert({ transitionID, miit->second });
-
-        auto vit = executable->memoryImageViews.find(transitionID);
-        CHECK_LOG_THROW(vit == end(executable->memoryImageViews), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied");
+        auto vit = subpass->imageViews.find(entry.first);
+        CHECK_LOG_THROW(vit == end(subpass->imageViews), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied : " << subpass->operation.name << "->"<< entry.first);
         frameBufferImageViews.insert({ transitionID, vit->second });
       }
     }
-    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, renderPass, frameBufferImageInfo, frameBufferMemoryImages, frameBufferImageViews);
+    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, renderPass, frameBufferImageInfo, frameBufferImageViews);
     executable->frameBuffers.push_back(frameBuffer);
 
     // build attachments, clear values and image layouts

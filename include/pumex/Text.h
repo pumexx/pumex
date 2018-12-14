@@ -28,7 +28,15 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <glm/glm.hpp>
+#if defined(GLM_ENABLE_EXPERIMENTAL) // hack around redundant GLM_ENABLE_EXPERIMENTAL defined in type.hpp
+  #undef GLM_ENABLE_EXPERIMENTAL
+  #define GLM_ENABLE_EXPERIMENTAL_HACK
+#endif
 #include <gli/texture2d.hpp>
+#if defined(GLM_ENABLE_EXPERIMENTAL_HACK)
+  #define GLM_ENABLE_EXPERIMENTAL
+  #undef GLM_ENABLE_EXPERIMENTAL_HACK
+#endif
 #include <pumex/Export.h>
 #include <pumex/DrawNode.h>
 

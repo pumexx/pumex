@@ -165,9 +165,11 @@ public:
   virtual RenderSubPass* asRenderSubPass() = 0;
   virtual ComputePass*   asComputePass() = 0;
 
-  CommandType                     commandType;
-  RenderOperation                 operation;
-  std::map<std::string, uint32_t> entries;
+  CommandType                                                          commandType;
+  RenderOperation                                                      operation;
+  std::map<std::string, uint32_t>                                      entries;
+  std::map<std::string, std::shared_ptr<ImageView>>                    imageViews;
+  std::map<std::string, std::shared_ptr<BufferView>>                   bufferViews;
   std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersBeforeOp;
   std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersAfterOp;
 };

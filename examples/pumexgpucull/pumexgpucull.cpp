@@ -25,7 +25,15 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#if defined(GLM_ENABLE_EXPERIMENTAL) // hack around redundant GLM_ENABLE_EXPERIMENTAL defined in type.hpp
+  #undef GLM_ENABLE_EXPERIMENTAL
+  #define GLM_ENABLE_EXPERIMENTAL_HACK
+#endif
 #include <gli/gli.hpp>
+#if defined(GLM_ENABLE_EXPERIMENTAL_HACK)
+  #define GLM_ENABLE_EXPERIMENTAL
+  #undef GLM_ENABLE_EXPERIMENTAL_HACK
+#endif
 #include <tbb/tbb.h>
 #include <pumex/Pumex.h>
 #include <pumex/AssetLoaderAssimp.h>

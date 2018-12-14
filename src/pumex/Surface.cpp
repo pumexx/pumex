@@ -408,10 +408,7 @@ void Surface::validateRenderGraphs()
         continue;
       renderContext.setRenderGraphExecutable(executable);
       for (auto& frameBuffer : executable->frameBuffers)
-      {
-        frameBuffer->prepareMemoryImages(renderContext, swapChainImages);
-        frameBuffer->invalidate(renderContext);
-      }
+        frameBuffer->resize(renderContext, swapChainImages);
     }
   }
   for (auto& rgData : renderGraphData)

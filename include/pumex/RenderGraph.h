@@ -26,7 +26,15 @@
 #include <map>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+#if defined(GLM_ENABLE_EXPERIMENTAL) // hack around redundant GLM_ENABLE_EXPERIMENTAL defined in type.hpp
+  #undef GLM_ENABLE_EXPERIMENTAL
+  #define GLM_ENABLE_EXPERIMENTAL_HACK
+#endif
 #include <gli/texture.hpp>
+#if defined(GLM_ENABLE_EXPERIMENTAL_HACK)
+  #define GLM_ENABLE_EXPERIMENTAL
+  #undef GLM_ENABLE_EXPERIMENTAL_HACK
+#endif
 #include <pumex/Export.h>
 #include <pumex/ResourceRange.h>
 
@@ -100,8 +108,6 @@ const OperationEntryTypeFlags opeAllOutputs           = opeAttachmentOutput | op
 
 const OperationEntryTypeFlags opeAllInputsOutputs     = opeAllInputs | opeAllOutputs;
 
-//imageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT }, 
-
 class PUMEX_EXPORT AttachmentDefinition
 {
 public:
@@ -143,7 +149,7 @@ class PUMEX_EXPORT RenderOperationEntry
 public:
   RenderOperationEntry() = default;
   explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, const std::string& resolveSourceEntryName );
-  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags);
+  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags, VkFormat bufferFormat = VK_FORMAT_UNDEFINED);
 
   OperationEntryType     entryType;
   ResourceDefinition     resourceDefinition;
@@ -154,9 +160,10 @@ public:
   VkImageLayout          layout        = VK_IMAGE_LAYOUT_UNDEFINED;          // used by attachments and images ( attachments have this value set automaticaly )
   VkImageUsageFlags      imageUsage    = 0;                                  // addidtional imageUsage for image inputs/outputs
 
-  BufferSubresourceRange bufferRange; // used by buffers
+  BufferSubresourceRange bufferRange;                                        // used by buffers
   VkPipelineStageFlags   pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; // used by buffers
   VkAccessFlags          accessFlags   = VK_ACCESS_MEMORY_READ_BIT;          // used by buffers
+  VkFormat               bufferFormat  = VK_FORMAT_UNDEFINED;                // used by texel buffers probably
 };
 
 class PUMEX_EXPORT RenderOperation
@@ -217,6 +224,17 @@ protected:
   std::string                                                 externalMemoryObjectName_;
 };
 
+class ResourceTransitionDescription
+{
+public:
+  ResourceTransitionDescription(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry);
+
+  std::string generatingOperation;
+  std::string generatingEntry;
+  std::string consumingOperation;
+  std::string consumingEntry;
+};
+
 class PUMEX_EXPORT RenderGraph : public std::enable_shared_from_this<RenderGraph>
 {
 public:
@@ -230,8 +248,13 @@ public:
 
   void                                                          addRenderOperation(const RenderOperation& op);
   // add resource transition between two operations
+  void                                                          addResourceTransition(const ResourceTransitionDescription& resTran, const std::string& externalMemoryObjectName = std::string());
+  // handy function for adding resource transition between two operations
   void                                                          addResourceTransition(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry, const std::string& externalMemoryObjectName = std::string() );
-  // add resource transition between operation and external memor object ( if memory object is not defined, then this is fictional transition )
+  // add one transition that has many generating operations, but only one resource will be used ( all generating transitions must have disjunctive subresource ranges )
+  void                                                          addResourceTransition(const std::vector<ResourceTransitionDescription>& resTrans, const std::string& externalMemoryObjectName = std::string());
+
+  // add resource transition between operation and external memory object ( if memory object is not defined, then this is "empty" transition )
   void                                                          addResourceTransition(const std::string& opName, const std::string& entryName, const std::string& externalMemoryObjectName = std::string());
   // add missing resource transitions. MUST be called before graph compilation
   void                                                          addMissingResourceTransitions();

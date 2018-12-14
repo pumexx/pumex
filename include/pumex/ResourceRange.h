@@ -71,11 +71,13 @@ struct PUMEX_EXPORT BufferSubresourceRange
   VkDeviceSize range;
 };
 
+PUMEX_EXPORT bool rangeOverlaps(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs);
+
 // struct defining subresource range for image
 struct PUMEX_EXPORT ImageSubresourceRange
 {
   ImageSubresourceRange();
-  ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount, uint32_t baseArrayLayer, uint32_t layerCount);
+  ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel=0, uint32_t levelCount=1, uint32_t baseArrayLayer=0, uint32_t layerCount=1);
 
   VkImageSubresourceRange getSubresource() const;
   bool contains(const ImageSubresourceRange& subRange) const;
@@ -86,6 +88,8 @@ struct PUMEX_EXPORT ImageSubresourceRange
   uint32_t              baseArrayLayer;
   uint32_t              layerCount;
 };
+
+PUMEX_EXPORT bool rangeOverlaps(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
 
 // inlines
 bool operator==(const ImageSize& lhs, const ImageSize& rhs)

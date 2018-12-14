@@ -38,8 +38,9 @@ bool BufferSubresourceRange::contains(const BufferSubresourceRange& subRange) co
   return (offset <= subRange.offset) && (offset + range >= subRange.offset + subRange.range);
 }
 
+// VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS
 ImageSubresourceRange::ImageSubresourceRange()
-  : aspectMask{ VK_IMAGE_ASPECT_COLOR_BIT }, baseMipLevel{ 0 }, levelCount{ VK_REMAINING_MIP_LEVELS }, baseArrayLayer{ 0 }, layerCount{ VK_REMAINING_ARRAY_LAYERS }
+  : aspectMask{ VK_IMAGE_ASPECT_COLOR_BIT }, baseMipLevel{ 0 }, levelCount{ 1 }, baseArrayLayer{ 0 }, layerCount{ 1 }
 {
 }
 
@@ -61,11 +62,24 @@ VkImageSubresourceRange ImageSubresourceRange::getSubresource() const
 
 bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) const
 {
-  // check layers
-  if ((baseArrayLayer > subRange.baseArrayLayer) || (baseArrayLayer + layerCount < subRange.baseArrayLayer + subRange.layerCount))
-    return false;
-  // check mip levels
-  if ((baseMipLevel > subRange.baseMipLevel) || (baseMipLevel + levelCount < subRange.baseMipLevel + subRange.levelCount))
-    return false;
-  return true;
+  bool mipmapContains = (baseMipLevel <= subRange.baseMipLevel) && (baseMipLevel + levelCount >= subRange.baseMipLevel + subRange.levelCount);
+  bool arrayContains  = (baseArrayLayer <= subRange.baseArrayLayer) && (baseArrayLayer + layerCount >= subRange.baseArrayLayer + subRange.layerCount);
+  return mipmapContains && arrayContains;
+}
+
+namespace pumex
+{
+
+  bool rangeOverlaps(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs)
+  {
+    return (lhs.offset < rhs.offset) ? (lhs.offset + lhs.range > rhs.offset) : (rhs.offset + rhs.range > lhs.offset);
+  }
+
+  bool rangeOverlaps(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs)
+  {
+    bool mipmapOverlaps = (lhs.baseMipLevel < rhs.baseMipLevel) ? (lhs.baseMipLevel + lhs.levelCount > rhs.baseMipLevel) : (rhs.baseMipLevel + rhs.levelCount > lhs.baseMipLevel);
+    bool arrayOverlaps  = (lhs.baseArrayLayer < rhs.baseArrayLayer) ? (lhs.baseArrayLayer + lhs.layerCount > rhs.baseArrayLayer) : (rhs.baseArrayLayer + rhs.layerCount > lhs.baseArrayLayer);
+    return mipmapOverlaps && arrayOverlaps;
+  }
+
 }

@@ -26,7 +26,6 @@
 #include <set>
 #include <mutex>
 #include <vulkan/vulkan.h>
-#include <gli/texture.hpp>
 #include <pumex/Export.h>
 #include <pumex/RenderGraphExecution.h>
 #include <pumex/PerObjectData.h>
@@ -46,7 +45,7 @@ class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
   FrameBuffer()                              = delete;
-  explicit FrameBuffer(const ImageSize& frameBufferSize, std::shared_ptr<RenderPass> renderPass, const std::map<uint32_t, RenderGraphImageInfo>& imageInfo, const std::map<uint32_t, std::shared_ptr<MemoryImage>>& memoryImages, const std::map<uint32_t, std::shared_ptr<ImageView>>& ImageViews);
+  explicit FrameBuffer(const ImageSize& frameBufferSize, std::shared_ptr<RenderPass> renderPass, const std::map<uint32_t, RenderGraphImageInfo>& imageInfo, const std::map<uint32_t, std::shared_ptr<ImageView>>& imageViews);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   FrameBuffer(FrameBuffer&&)                 = delete;
@@ -55,7 +54,7 @@ public:
 
   void                               validate(const RenderContext& renderContext);
   void                               invalidate(const RenderContext& renderContext);
-  void                               prepareMemoryImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
+  void                               resize(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                               reset(Surface* surface);
   std::map<uint32_t, uint32_t>       getAttachmentOrder() const;
   std::vector<AttachmentDescription> getEmptyAttachmentDescriptions() const;
@@ -76,7 +75,6 @@ protected:
   ImageSize                                         frameBufferSize;
   std::weak_ptr<RenderPass>                         renderPass;
   std::map<uint32_t, RenderGraphImageInfo>          imageInfo;
-  std::map<uint32_t, std::shared_ptr<MemoryImage>>  memoryImages;
   std::map<uint32_t, std::shared_ptr<ImageView>>    imageViews;
   mutable std::mutex                                mutex;
   uint32_t                                          activeCount;

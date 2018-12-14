@@ -41,7 +41,6 @@ public:
   void addMemoryObject(const std::string& name, const ResourceDefinition& resourceDefinition, std::shared_ptr<MemoryObject> memoryObject, VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_2D);
 
   std::map<std::string, std::shared_ptr<MemoryObject>> memoryObjects;
-  std::map<std::string, std::shared_ptr<ImageView>>    imageViews;
   std::map<std::string, ResourceDefinition>            resourceDefinitions;
 };
 
@@ -71,7 +70,6 @@ public:
   std::shared_ptr<DeviceMemoryAllocator>                   frameBufferAllocator;
 
   std::map<uint32_t, std::shared_ptr<MemoryImage>>         memoryImages;
-  std::map<uint32_t, std::shared_ptr<ImageView>>           memoryImageViews;
   std::map<uint32_t, std::shared_ptr<MemoryBuffer>>        memoryBuffers;
   std::vector<std::shared_ptr<FrameBuffer>>                frameBuffers;
   std::map<uint32_t, uint32_t>                             memoryObjectAliases;
@@ -86,7 +84,6 @@ public:
   std::shared_ptr<MemoryObject>  getMemoryObject(uint32_t transitionID) const;
   std::shared_ptr<MemoryImage>   getMemoryImage(uint32_t transitionID) const;
   std::shared_ptr<MemoryBuffer>  getMemoryBuffer(uint32_t transitionID) const;
-  std::shared_ptr<ImageView>     getImageView(uint32_t transitionID) const;
 
   VkImageLayout                  getImageLayout(const std::string& opName, uint32_t transitionID, int32_t indexAdd) const;
   const std::vector<uint32_t>&   getOperationParticipants(uint32_t transitionID) const;
