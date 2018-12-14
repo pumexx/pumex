@@ -147,7 +147,6 @@ void FrameBuffer::resize(const RenderContext& renderContext, std::vector<std::sh
       memImages[i]->setImages(renderContext.surface, swapChainImages);
   }
   auto rp = renderPass.lock();
-  invalidate(renderContext);
   rp->invalidate(renderContext);
 }
 
