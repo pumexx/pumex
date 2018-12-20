@@ -1236,7 +1236,7 @@ struct GpuCullApplicationData
 
 int main(int argc, char * argv[])
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
 
   args::ArgumentParser                         parser("pumex example : instanced rendering for static and dynamic objects");
   args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });

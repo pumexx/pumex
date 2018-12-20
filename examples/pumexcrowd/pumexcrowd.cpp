@@ -595,7 +595,7 @@ struct CrowdApplicationData
 
 int main(int argc, char * argv[])
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
 
   args::ArgumentParser                         parser("pumex example : multithreaded crowd rendering on more than one window");
   args::HelpFlag                               help(parser, "help", "display this help menu", {'h', "help"});

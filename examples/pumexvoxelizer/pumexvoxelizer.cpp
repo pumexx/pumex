@@ -183,7 +183,7 @@ struct VoxelizerApplicationData
 
 int main( int argc, char * argv[] )
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
 
   args::ArgumentParser                         parser("pumex example : model voxelization and rendering");
   args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
@@ -284,10 +284,10 @@ int main( int argc, char * argv[] )
     pumex::ResourceDefinition image_3d(VK_FORMAT_B8G8R8A8_UNORM, volumeSize3D, pumex::atColor, "image_3d");
 
     pumex::RenderOperation voxelization("voxelization", pumex::opGraphics, volumeSize2D);
-      voxelization.addImageOutput("outVoxels", image_3d, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT);
+      voxelization.addImageOutput("outVoxels", image_3d, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT, 0, VK_IMAGE_VIEW_TYPE_3D);
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.addImageInput("inVoxels",                  image_3d,            pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT);
+      rendering.addImageInput("inVoxels",                  image_3d,            pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT, 0, VK_IMAGE_VIEW_TYPE_3D);
       rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 

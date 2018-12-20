@@ -253,7 +253,7 @@ public:
 
 int main( int argc, char * argv[] )
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
   QApplication application(argc, argv);
 
   // process command line using args library
@@ -331,7 +331,7 @@ int main( int argc, char * argv[] )
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("viewer_render_graph");

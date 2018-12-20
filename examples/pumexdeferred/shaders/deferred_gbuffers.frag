@@ -51,7 +51,7 @@ void main()
 
   vec3 N    = normalize(inNormal);
   vec3 T    = normalize(inTangent);
-  vec3 B    = -cross(N, T);
+  vec3 B    = cross(T, N);
   mat3 TBN  = mat3(T, B, N);
   outNormal = texture( sampler2D( normalSamplers[ materialData[materialID].normalTextureIndex ], samp ), inUV ).xyz;
   outNormal = outNormal * 2.0 - vec3(1.0);

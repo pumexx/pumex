@@ -32,9 +32,10 @@
 
 using namespace pumex;
 
-FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::map<uint32_t, RenderGraphImageInfo>& ii, const std::map<uint32_t, std::shared_ptr<ImageView>>& iv)
-  : frameBufferSize{ is }, renderPass{ rp }, imageInfo{ ii }, imageViews{ iv }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::vector<std::shared_ptr<ImageView>>& iv, const std::vector<RenderGraphImageInfo>& ii)
+  : frameBufferSize{ is }, renderPass{ rp }, imageViews{ iv }, imageInfo{ ii }, activeCount{ 1 }
 {
+  CHECK_LOG_THROW(imageViews.size() != imageInfo.size(), "Wrong data for framebuffer creation");
 }
 
 FrameBuffer::~FrameBuffer()
@@ -69,12 +70,12 @@ void FrameBuffer::validate(const RenderContext& renderContext)
     vkDestroyFramebuffer(renderContext.vkDevice, pddit->second.data[activeIndex].frameBuffer, nullptr);
 
   for (auto& imageView : imageViews)
-    imageView.second->validate(renderContext);
+    imageView->validate(renderContext);
 
   // create frame buffer images ( render pass attachments ), skip images marked as swap chain images ( as they're created already )
   std::vector<VkImageView> iViews;
   for (auto& imageView : imageViews)
-    iViews.push_back(imageView.second->getImageView(renderContext));
+    iViews.push_back(imageView->getImageView(renderContext));
 
   // find framebuffer size from first image definition
   VkExtent2D extent;
@@ -114,33 +115,32 @@ void FrameBuffer::invalidate(const RenderContext& renderContext)
 void FrameBuffer::resize(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  std::vector<MemoryImage*>                                          memImages;
-  std::vector<std::map<uint32_t, RenderGraphImageInfo>::iterator>    iinfo;
-  for (auto& imageView : imageViews)
+  std::vector<MemoryImage*>                                   memImages;
+  std::vector<std::vector<RenderGraphImageInfo>::iterator>    iinfo;
+  for (uint32_t i = 0; i< imageViews.size(); ++i)
   {
-    // get the memory image. If it is processed already - skip it
-    MemoryImage* memImage = imageView.second->memoryImage.get();
+    // get the memory image. If it is added to memImages already - skip it
+    MemoryImage* memImage = imageViews[i]->memoryImage.get();
     auto existingImageIt = std::find(begin(memImages), end(memImages), memImage);
     if (existingImageIt != end(memImages))
       continue;
     // find the image info for this image
-    auto iiit = imageInfo.find(imageView.first);
-    CHECK_LOG_THROW(iiit == end(imageInfo), "Missing imageInfo : " << imageView.first);
+    auto iiit = begin(imageInfo) + i;
     // add image and its data to appropriate vectors
     memImages.push_back(memImage);
     iinfo.push_back(iiit);
   }
   for(uint32_t i=0; i<memImages.size(); ++i)
   {
-    if(!iinfo[i]->second.isSwapchainImage)
+    if(!iinfo[i]->isSwapchainImage)
     {
-      ImageSize imageSize = iinfo[i]->second.attachmentDefinition.attachmentSize;
+      ImageSize imageSize = iinfo[i]->attachmentDefinition.attachmentSize;
       if (imageSize.type == isSurfaceDependent)
       {
         imageSize.type = isAbsolute;
         imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
       }
-      ImageTraits imageTraits(iinfo[i]->second.attachmentDefinition.format, imageSize, iinfo[i]->second.imageUsage, false, iinfo[i]->second.layouts.front(), 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+      ImageTraits imageTraits(iinfo[i]->attachmentDefinition.format, imageSize, iinfo[i]->imageUsage, false, iinfo[i]->initialLayout, iinfo[i]->imageCreate, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
       memImages[i]->setImageTraits(renderContext.surface, imageTraits);
     }
     else
@@ -162,37 +162,6 @@ void FrameBuffer::reset(Surface* surface)
     pddit->second.data[i].frameBuffer = VK_NULL_HANDLE;
   }
   imageViews.clear();
-}
-
-std::map<uint32_t, uint32_t> FrameBuffer::getAttachmentOrder() const
-{
-  std::map<uint32_t, uint32_t> results;
-  uint32_t i = 0;
-  for (auto& x : imageViews)
-    results.insert({ x.first, i++ });
-  return results;
-}
-
-std::vector<AttachmentDescription> FrameBuffer::getEmptyAttachmentDescriptions() const
-{
-  std::vector<AttachmentDescription> results;
-  for( const auto& iinfo : imageInfo )
-  {
-    const AttachmentDefinition& attachmentDefinition = iinfo.second.attachmentDefinition;
-    results.push_back( AttachmentDescription(
-      iinfo.first,
-      attachmentDefinition.format,
-      makeSamples(attachmentDefinition.attachmentSize),
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      VK_IMAGE_LAYOUT_UNDEFINED,
-      VK_IMAGE_LAYOUT_UNDEFINED,
-      0
-    ));
-  }
-  return results;
 }
 
 VkFramebuffer FrameBuffer::getHandleFrameBuffer(const RenderContext& renderContext) const

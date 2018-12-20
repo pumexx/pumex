@@ -237,6 +237,24 @@ RenderCommand::RenderCommand(RenderCommand::CommandType ct)
 {
 }
 
+std::shared_ptr<ImageView> RenderCommand::getImageViewByEntryName(const std::string& entryName) const
+{
+  auto it = entries.find(entryName);
+  CHECK_LOG_THROW(it == end(entries), "No ImageView name = " << entryName);
+  auto it2 = imageViews.find(it->second);
+  CHECK_LOG_THROW(it2 == end(imageViews), "No ImageView name = " << entryName << " id = " << it->second);
+  return it2->second;
+}
+
+std::shared_ptr<BufferView> RenderCommand::getBufferViewByEntryName(const std::string& entryName) const
+{
+  auto it = entries.find(entryName);
+  CHECK_LOG_THROW(it == end(entries), "No BufferView name = " << entryName);
+  auto it2 = bufferViews.find(it->second);
+  CHECK_LOG_THROW(it2 == end(bufferViews), "No BufferView name = " << entryName << " id = " << it->second);
+  return it2->second;
+}
+
 RenderSubPass::RenderSubPass()
   : RenderCommand(RenderCommand::ctRenderSubPass)
 {

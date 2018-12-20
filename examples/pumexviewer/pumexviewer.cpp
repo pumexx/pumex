@@ -137,7 +137,7 @@ struct ViewerApplicationData
 
 int main( int argc, char * argv[] )
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
 
   // process command line using args library
   args::ArgumentParser                         parser("pumex example : minimal 3D model viewer without textures");
@@ -229,7 +229,7 @@ int main( int argc, char * argv[] )
     // alocate 1 MB for uniform and storage buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 8 MB memory for font textures
     std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // create common descriptor pool
@@ -240,7 +240,7 @@ int main( int argc, char * argv[] )
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("viewer_render_graph");

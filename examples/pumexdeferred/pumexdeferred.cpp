@@ -195,7 +195,7 @@ struct DeferredApplicationData
 
 int main( int argc, char * argv[] )
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
 
   std::unordered_map<std::string, uint32_t> availableSamplesPerPixel
   {
@@ -294,7 +294,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");
 
     pumex::RenderOperation zPrepass("zPrepass", pumex::opGraphics, fullScreenSizeMultisampled);
-      zPrepass.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      zPrepass.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
 
     pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, fullScreenSizeMultisampled);
       gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
@@ -302,18 +302,18 @@ int main( int argc, char * argv[] )
       gbuffer.addAttachmentOutput("albedo",     colorSamples, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
       gbuffer.addAttachmentOutput("pbr",        colorSamples, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
     if (!skipDepthPrepass)
-      gbuffer.setAttachmentDepthInput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      gbuffer.setAttachmentDepthInput("depth", depthSamples, pumex::loadOpDontCare());
     else
       gbuffer.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
 
     pumex::RenderOperation lighting("lighting", pumex::opGraphics, fullScreenSizeMultisampled);
-      lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
-      lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
-      lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
-      lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-      lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+      lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpDontCare());
+      lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpDontCare());
+      lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpDontCare());
+      lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpDontCare());
+      lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpDontCare());
       lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare());
-      lighting.addAttachmentResolveOutput(pumex::SWAPCHAIN_NAME, swapchainDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), "resolve" );
+      lighting.addAttachmentResolveOutput(pumex::SWAPCHAIN_NAME, swapchainDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), 0, true, "resolve" );
 
     if (!skipDepthPrepass)
       renderGraph->addRenderOperation(zPrepass);

@@ -442,11 +442,14 @@ void Surface::validateRenderGraphs()
       auto ait = executable->imageInfo.find(memImage.first);
       if (ait == end(executable->imageInfo))
         continue;
+      // if it's swapchain image - find last layout that is not VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR nor VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
       if (ait->second.isSwapchainImage)
       {
-        auto beforeLast = rbegin(ait->second.layouts);
-        beforeLast++;
-        swapChainImageFinalLayout = *beforeLast;
+        // FIXME : We are looking only for one mipmap and one layer. Is it OK ?
+        auto allLayouts = executable->getImageLayouts(memImage.first, ImageSubresourceRange());
+        auto lit = std::find_if(rbegin(allLayouts), rend(allLayouts), [](const VkImageLayout& layout) { return layout != VK_IMAGE_LAYOUT_PRESENT_SRC_KHR && layout != VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR; });
+        if (lit != rend(allLayouts))
+          swapChainImageFinalLayout = *lit;
       }
     }
   }

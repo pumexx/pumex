@@ -58,6 +58,8 @@ struct PUMEX_EXPORT ImageSize
 
 inline bool operator==(const ImageSize& lhs, const ImageSize& rhs);
 inline bool operator!=(const ImageSize& lhs, const ImageSize& rhs);
+inline bool compareImageSizeSkipArrays(const ImageSize& lhs, const ImageSize& rhs);
+
 
 // struct defining subresource range for buffer
 struct PUMEX_EXPORT BufferSubresourceRange
@@ -92,6 +94,7 @@ struct PUMEX_EXPORT ImageSubresourceRange
 PUMEX_EXPORT bool rangeOverlaps(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
 
 // inlines
+
 bool operator==(const ImageSize& lhs, const ImageSize& rhs)
 {
   return lhs.type == rhs.type && lhs.size == rhs.size && lhs.arrayLayers == rhs.arrayLayers && lhs.mipLevels == rhs.mipLevels;
@@ -100,6 +103,11 @@ bool operator==(const ImageSize& lhs, const ImageSize& rhs)
 bool operator!=(const ImageSize& lhs, const ImageSize& rhs)
 {
   return lhs.type != rhs.type || lhs.size != rhs.size || lhs.arrayLayers != rhs.arrayLayers || lhs.mipLevels != rhs.mipLevels;
+}
+
+bool compareImageSizeSkipArrays(const ImageSize& lhs, const ImageSize& rhs)
+{
+  return lhs.type == rhs.type && lhs.size == rhs.size && lhs.mipLevels == rhs.mipLevels;
 }
 
 

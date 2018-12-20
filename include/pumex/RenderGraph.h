@@ -148,22 +148,25 @@ class PUMEX_EXPORT RenderOperationEntry
 {
 public:
   RenderOperationEntry() = default;
-  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, const std::string& resolveSourceEntryName );
+  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, VkImageViewType imageViewType, const std::string& resolveSourceEntryName, bool storeAttachment);
   explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags, VkFormat bufferFormat = VK_FORMAT_UNDEFINED);
 
   OperationEntryType     entryType;
   ResourceDefinition     resourceDefinition;
-  LoadOp                 loadOp;                                             // for images and attachments
-  std::string            resolveSourceEntryName;                             // for resolve attachments
+  LoadOp                 loadOp;                                               // for images and attachments
+  std::string            resolveSourceEntryName;                               // for resolve attachments
+  bool                   storeAttachment = false;                              // ensure that output attachment is stored
 
-  ImageSubresourceRange  imageRange;                                         // used by images
-  VkImageLayout          layout        = VK_IMAGE_LAYOUT_UNDEFINED;          // used by attachments and images ( attachments have this value set automaticaly )
-  VkImageUsageFlags      imageUsage    = 0;                                  // addidtional imageUsage for image inputs/outputs
+  ImageSubresourceRange  imageRange;                                           // used by images
+  VkImageLayout          layout          = VK_IMAGE_LAYOUT_UNDEFINED;          // used by attachments and images ( attachments have this value set automaticaly )
+  VkImageUsageFlags      imageUsage      = 0;                                  // addidtional imageUsage for image inputs/outputs
+  VkImageCreateFlags     imageCreate     = 0;                                  // additional image creation flags
+  VkImageViewType        imageViewType   = VK_IMAGE_VIEW_TYPE_MAX_ENUM;        // manual imageViewType. Will be ignored and chosen automatically if == VK_IMAGE_VIEW_TYPE_MAX_ENUM
 
-  BufferSubresourceRange bufferRange;                                        // used by buffers
-  VkPipelineStageFlags   pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; // used by buffers
-  VkAccessFlags          accessFlags   = VK_ACCESS_MEMORY_READ_BIT;          // used by buffers
-  VkFormat               bufferFormat  = VK_FORMAT_UNDEFINED;                // used by texel buffers probably
+  BufferSubresourceRange bufferRange;                                          // used by buffers
+  VkPipelineStageFlags   pipelineStage   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; // used by buffers
+  VkAccessFlags          accessFlags     = VK_ACCESS_MEMORY_READ_BIT;          // used by buffers
+  VkFormat               bufferFormat    = VK_FORMAT_UNDEFINED;                // used by texel buffers probably
 };
 
 class PUMEX_EXPORT RenderOperation
@@ -172,14 +175,14 @@ public:
   RenderOperation();
   RenderOperation(const std::string& name, OperationType operationType = opGraphics, const ImageSize& attachmentSize = ImageSize{ isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 }, uint32_t multiViewMask = 0x0);
 
-  void                  addAttachmentInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange());
-  void                  addAttachmentOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange());
-  void                  addAttachmentResolveOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), const std::string& sourceEntryName = "");
-  void                  setAttachmentDepthInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange());
-  void                  setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange());
+  void                  addAttachmentInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageCreateFlags imageCreate = 0);
+  void                  addAttachmentOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageCreateFlags imageCreate = 0, bool storeAttachment = false);
+  void                  addAttachmentResolveOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageCreateFlags imageCreate = 0, bool storeAttachment = false, const std::string& sourceEntryName = "");
+  void                  setAttachmentDepthInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VkImageCreateFlags imageCreate = 0);
+  void                  setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VkImageCreateFlags imageCreate = 0, bool storeAttachment = false);
 
-  void                  addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0 );
-  void                  addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0 );
+  void                  addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM);
+  void                  addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM);
 
   void                  addBufferInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_READ_BIT);
   void                  addBufferOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_READ_BIT);
@@ -205,9 +208,10 @@ class PUMEX_EXPORT ResourceTransition
 {
 public:
   ResourceTransition() = delete;
-  explicit ResourceTransition(uint32_t id, const std::map<std::string, RenderOperation>::const_iterator& operation, const std::map<std::string, RenderOperationEntry>::const_iterator& entry, const std::string& externalMemoryObjectName);
+  explicit ResourceTransition(uint32_t rteid, uint32_t tid, const std::map<std::string, RenderOperation>::const_iterator& operation, const std::map<std::string, RenderOperationEntry>::const_iterator& entry, const std::string& externalMemoryObjectName);
 
-  inline uint32_t                    id() const;
+  inline uint32_t                    rteid() const; // identifies specific ResourceTransition connected to specific entry
+  inline uint32_t                    tid() const;  // identifies potential resource ( amny ResourceTransitions may have the same tid
   inline const RenderOperation&      operation() const;
   inline const RenderOperationEntry& entry() const;
   inline const std::string&          operationName() const;
@@ -218,13 +222,14 @@ public:
   inline void                        setExternalMemoryObjectName(const std::string& externalMemoryObjectName);
 
 protected:
-  uint32_t                                                    id_;
+  uint32_t                                                    rteid_;
+  uint32_t                                                    tid_;
   std::map<std::string, RenderOperation>::const_iterator      operation_;
   std::map<std::string, RenderOperationEntry>::const_iterator entry_;
   std::string                                                 externalMemoryObjectName_;
 };
 
-class ResourceTransitionDescription
+class PUMEX_EXPORT ResourceTransitionDescription
 {
 public:
   ResourceTransitionDescription(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry);
@@ -253,10 +258,9 @@ public:
   void                                                          addResourceTransition(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry, const std::string& externalMemoryObjectName = std::string() );
   // add one transition that has many generating operations, but only one resource will be used ( all generating transitions must have disjunctive subresource ranges )
   void                                                          addResourceTransition(const std::vector<ResourceTransitionDescription>& resTrans, const std::string& externalMemoryObjectName = std::string());
-
   // add resource transition between operation and external memory object ( if memory object is not defined, then this is "empty" transition )
   void                                                          addResourceTransition(const std::string& opName, const std::string& entryName, const std::string& externalMemoryObjectName = std::string());
-  // add missing resource transitions. MUST be called before graph compilation
+  // add missing resource transitions ("empty"). MUST be called before graph compilation
   void                                                          addMissingResourceTransitions();
 
   std::vector<std::string>                                      getRenderOperationNames() const;
@@ -268,6 +272,7 @@ public:
 
   std::vector<std::reference_wrapper<const ResourceTransition>> getOperationIO(const std::string& opName, OperationEntryTypeFlags entryTypes) const;
   std::vector<std::reference_wrapper<const ResourceTransition>> getTransitionIO(uint32_t transitionID, OperationEntryTypeFlags entryTypes) const;
+  std::reference_wrapper<const ResourceTransition>              getTransition(uint32_t rteid) const;
 
   std::string                                                   name;
   std::map<std::string, RenderOperation>                        operations;
@@ -275,6 +280,8 @@ public:
 protected:
   uint32_t                                                      generateTransitionID();
   uint32_t                                                      nextTransitionID = 1;
+  uint32_t                                                      generateTransitionEntryID();
+  uint32_t                                                      nextTransitionEntryID = 1;
 
   bool                                                          valid = false;
 };
@@ -318,7 +325,8 @@ bool operator==(const ResourceDefinition& lhs, const ResourceDefinition& rhs)
 
 bool operator<(const RenderOperation& lhs, const RenderOperation& rhs) { return lhs.name < rhs.name; }
 
-uint32_t                                                          ResourceTransition::id() const                       { return id_; }
+uint32_t                                                          ResourceTransition::rteid() const                    { return rteid_; }
+uint32_t                                                          ResourceTransition::tid() const                      { return tid_; }
 const RenderOperation&                                            ResourceTransition::operation() const                { return operation_->second; }
 const RenderOperationEntry&                                       ResourceTransition::entry() const                    { return entry_->second; }
 const std::string&                                                ResourceTransition::operationName() const            { return operation_->first; }

@@ -247,27 +247,35 @@ uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_
   case VertexSemantic::Position:
     if (positionOffset.size() > channel)
       return positionOffset[channel];
+    break;
   case VertexSemantic::Normal:
     if (normalOffset.size() > channel)
       return normalOffset[channel];
+    break;
   case VertexSemantic::TexCoord:
     if (texCoordOffset.size() > channel)
       return texCoordOffset[channel];
+    break;
   case VertexSemantic::Color:
     if (colorOffset.size() > channel)
       return colorOffset[channel];
+    break;
   case VertexSemantic::Tangent:
     if (tangentOffset.size() > channel)
       return tangentOffset[channel];
+    break;
   case VertexSemantic::Bitangent:
     if (bitangentOffset.size() > channel)
       return bitangentOffset[channel];
+    break;
   case VertexSemantic::BoneIndex:
     if (boneIndexOffset.size() > channel)
       return boneIndexOffset[channel];
+    break;
   case VertexSemantic::BoneWeight:
     if (boneWeightOffset.size() > channel)
       return boneWeightOffset[channel];
+    break;
   }
   return std::numeric_limits<uint32_t>::max();
 }

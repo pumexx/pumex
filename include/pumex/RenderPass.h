@@ -158,18 +158,21 @@ public:
   enum CommandType { ctRenderSubPass, ctComputePass };
   RenderCommand(CommandType commandType);
 
-  virtual void validate(const RenderContext& renderContext) = 0;
-  virtual void applyRenderContextVisitor(RenderContextVisitor& visitor) = 0;
-  virtual void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
+  virtual void                validate(const RenderContext& renderContext) = 0;
+  virtual void                applyRenderContextVisitor(RenderContextVisitor& visitor) = 0;
+  virtual void                buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) = 0;
 
-  virtual RenderSubPass* asRenderSubPass() = 0;
-  virtual ComputePass*   asComputePass() = 0;
+  std::shared_ptr<ImageView>  getImageViewByEntryName(const std::string& entryName) const;
+  std::shared_ptr<BufferView> getBufferViewByEntryName(const std::string& entryName) const;
+
+  virtual RenderSubPass*      asRenderSubPass() = 0;
+  virtual ComputePass*        asComputePass() = 0;
 
   CommandType                                                          commandType;
   RenderOperation                                                      operation;
   std::map<std::string, uint32_t>                                      entries;
-  std::map<std::string, std::shared_ptr<ImageView>>                    imageViews;
-  std::map<std::string, std::shared_ptr<BufferView>>                   bufferViews;
+  std::map<uint32_t, std::shared_ptr<ImageView>>                       imageViews;
+  std::map<uint32_t, std::shared_ptr<BufferView>>                      bufferViews;
   std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersBeforeOp;
   std::map<MemoryObjectBarrierGroup, std::vector<MemoryObjectBarrier>> barriersAfterOp;
 };
