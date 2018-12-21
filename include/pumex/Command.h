@@ -125,6 +125,7 @@ public:
   void            cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const;
 
   void            cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const;
+  void            cmdBlitImage(Image& srcImage, VkImageLayout srcImageLayout, Image& dstImage, VkImageLayout dstImageLayout, const std::vector<VkImageBlit>& imageBlits, VkFilter filter) const;
   void            cmdClearColorImage(const Image& image, VkImageLayout imageLayout, VkClearValue color, std::vector<VkImageSubresourceRange> subresourceRanges);
   void            cmdClearDepthStencilImage(const Image& image, VkImageLayout imageLayout, VkClearValue depthStencil, std::vector<VkImageSubresourceRange> subresourceRanges);
 

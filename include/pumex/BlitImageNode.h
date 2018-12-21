@@ -20,64 +20,27 @@
 // SOFTWARE.
 //
 
-#include <pumex/NodeVisitor.h>
-#include <pumex/Pipeline.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/DrawNode.h>
-#include <pumex/DispatchNode.h>
+#pragma once
+#include <pumex/Export.h>
 #include <pumex/CopyNode.h>
 
-using namespace pumex;
-
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+namespace pumex
 {
-}
 
-void NodeVisitor::traverse(Node& node)
-{
-  if ( traversalMode == Parents)
-    node.ascend(*this);
-  else if ( traversalMode != None)
-    node.traverse(*this);
-}
+// node that performs vkCmdBlitImage() operations
 
-void NodeVisitor::apply(Node& node)
+class PUMEX_EXPORT BlitImageNode : public CopyNode
 {
-  traverse(node);
-}
+public:
+  BlitImageNode(const ImageCopyData& srcImage, const ImageCopyData& dstImage, VkFilter filter);
 
-void NodeVisitor::apply(Group& node)
-{
-  apply(static_cast<Node&>(node));
-}
+  void validate(const RenderContext& renderContext) override;
 
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
+  void cmdCopy(const RenderContext& renderContext, CommandBuffer* commandBuffer) override;
+protected:
+  ImageCopyData srcImage;
+  ImageCopyData dstImage;
+  VkFilter      filter;
+};
 
-void NodeVisitor::apply(ComputePipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferNode& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(DrawNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(DispatchNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(CopyNode& node)
-{
-  apply(static_cast<Node&>(node));
 }

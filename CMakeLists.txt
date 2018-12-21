@@ -57,10 +57,12 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBufferNode.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetLoaderAssimp.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetNode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/BlitImageNode.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/BoundingBox.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Camera.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/CombinedImageSampler.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Command.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/CopyNode.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Descriptor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Device.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/DeviceMemoryAllocator.h
@@ -138,10 +140,12 @@ list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBufferNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetLoaderAssimp.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/BlitImageNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/BoundingBox.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Camera.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/CombinedImageSampler.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Command.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/CopyNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Descriptor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/DeviceMemoryAllocator.cpp

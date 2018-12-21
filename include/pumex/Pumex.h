@@ -33,6 +33,7 @@
 #include <pumex/Window.h>
 #include <pumex/Surface.h>
 #include <pumex/RenderGraph.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/Node.h>
 #include <pumex/NodeVisitor.h>
 #include <pumex/DeviceMemoryAllocator.h>
@@ -58,6 +59,7 @@
 #include <pumex/AssetBufferNode.h>
 #include <pumex/MaterialSet.h>
 #include <pumex/DispatchNode.h>
+#include <pumex/BlitImageNode.h>
 #include <pumex/Text.h>
 #include <pumex/Camera.h>
 #include <pumex/Kinematic.h>

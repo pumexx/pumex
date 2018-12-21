@@ -27,7 +27,7 @@
 #include <pumex/AssetBufferNode.h>
 #include <pumex/DispatchNode.h>
 #include <pumex/DrawNode.h>
-
+#include <pumex/CopyNode.h>
 using namespace pumex;
 
 RenderContextVisitor::RenderContextVisitor(TraversalMode tm, const RenderContext& rc)
@@ -175,6 +175,19 @@ void BuildCommandBufferVisitor::apply(AssetBufferNode& node)
   renderContext.setCurrentRenderMask(previousRM);
 }
 
+void BuildCommandBufferVisitor::apply(DrawNode& node)
+{
+  if (buildingPrimary && node.hasSecondaryBuffer())
+  {
+    commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
+    return;
+  }
+  applyDescriptorSets(node);
+  commandBuffer->addSource(&node);
+  node.cmdDraw(renderContext, commandBuffer);
+  traverse(node);
+}
+
 void BuildCommandBufferVisitor::apply(DispatchNode& node)
 {
   if (buildingPrimary && node.hasSecondaryBuffer())
@@ -188,16 +201,15 @@ void BuildCommandBufferVisitor::apply(DispatchNode& node)
   traverse(node);
 }
 
-void BuildCommandBufferVisitor::apply(DrawNode& node)
+void BuildCommandBufferVisitor::apply(CopyNode& node)
 {
   if (buildingPrimary && node.hasSecondaryBuffer())
   {
     commandBuffer->executeCommandBuffer(renderContext, node.getSecondaryBuffer(renderContext).get());
     return;
   }
-  applyDescriptorSets(node);
   commandBuffer->addSource(&node);
-  node.cmdDraw(renderContext, commandBuffer);
+  node.cmdCopy(renderContext, commandBuffer);
   traverse(node);
 }
 

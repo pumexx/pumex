@@ -18,9 +18,9 @@ layout (binding = 0) uniform CameraUbo
   vec4 params;
 } camera;
 
-layout (binding = 3) uniform samplerCube irradianceMap;
-layout (binding = 4) uniform samplerCube prefilteredEnvironmentMap;
-layout (binding = 5) uniform sampler2D   brdfMap;
+layout (binding = 2) uniform samplerCube irradianceMap;
+layout (binding = 3) uniform samplerCube prefilteredEnvironmentMap;
+layout (binding = 4) uniform sampler2D   brdfMap;
 
 layout (location = 0) out vec4 outFragColor;
 
@@ -125,13 +125,11 @@ vec3 toneMappingReinhardNaive(vec3 rgbColor)
   return rgbColor / ( rgbColor + vec3(1.0) );
 }
 
-
-
 void main()
 {
-  vec3  albedo           = vec3( 0.2, 0.2, 0.8 );// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
-  float metallic         = 0.0; //texture(metallicMap, texCoord).r;
-  float roughness        = 0.8; //texture(roughnessMap, texCoord).r;
+  vec3  albedo           = vec3( 0.5, 0.5, 0.5 );// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
+  float metallic         = 1.0; //texture(metallicMap, texCoord).r;
+  float roughness        = 0.9; //texture(roughnessMap, texCoord).r;
   
   mat3  TBN              = mat3(normalize(inTangent),normalize(inBitangent),normalize(inNormal));
   vec3  texNormal        = vec3(0.5, 0.5, 1.0);   //texture(normalMap, texCoord).rgb;
@@ -139,7 +137,7 @@ void main()
   vec3  N                = TBN * texNormal;
   
   vec3  V                = normalize( -inEcPosition  );
-  float NdotV            = clamp(dot(N, V), 1e-5, 1.0);  
+  float NdotV            = clamp(dot(N, V), 1e-5, 1.0);
 
   vec3  F0               = mix(vec3(0.04), albedo, metallic);
   
@@ -211,4 +209,5 @@ void main()
   
   // gamma correction
   finalColor             = pow(finalColor, vec3(1.0/2.2));
+  outFragColor           = vec4(finalColor,1.0);
 }

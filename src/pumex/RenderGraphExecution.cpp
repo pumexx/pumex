@@ -33,8 +33,8 @@ void ExternalMemoryObjects::addMemoryObject(const std::string& name, const Resou
   resourceDefinitions.insert({ name,resourceDefinition });
 }
 
-RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, VkImageCreateFlags ic, bool iscim, VkImageLayout il)
-  : attachmentDefinition{ ad }, externalMemoryImageName{ im }, imageUsage{ iu }, imageCreate{ ic }, isSwapchainImage{ iscim }, initialLayout{ il }
+RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, VkImageCreateFlags ic, VkImageViewType ivt, bool iscim, VkImageLayout il)
+  : attachmentDefinition{ ad }, externalMemoryImageName{ im }, imageUsage{ iu }, imageCreate{ ic }, imageViewType{ ivt }, isSwapchainImage{ iscim }, initialLayout{ il }
 {
 }
 
@@ -52,13 +52,39 @@ RenderGraphExecutable::RenderGraphExecutable()
 {
 }
 
+void RenderGraphExecutable::resizeImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
+{
+  for (auto& memImage : memoryImages)
+  {
+    auto iiit = imageInfo.find(memImage.first);
+    if (iiit == end(imageInfo))
+      continue;
+    if (!iiit->second.isSwapchainImage)
+    {
+      const RenderGraphImageInfo& info = iiit->second;
+      ImageSize imageSize = info.attachmentDefinition.attachmentSize;
+      auto imageType      = vulkanImageTypeFromImageSize(imageSize);
+      if (imageSize.type == isSurfaceDependent)
+      {
+        imageSize.type = isAbsolute;
+        imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
+      }
+      ImageTraits imageTraits(info.attachmentDefinition.format, imageSize, info.imageUsage, false, info.initialLayout, info.imageCreate, imageType, VK_SHARING_MODE_EXCLUSIVE);
+      memImage.second->setImageTraits(renderContext.surface, imageTraits);
+    }
+    else
+      memImage.second->setImages(renderContext.surface, swapChainImages);
+  }
+}
+
+
 void RenderGraphExecutable::setExternalMemoryObjects(const RenderGraph& renderGraph, const ExternalMemoryObjects& memoryObjects)
 {
   // copy RenderGraph associated resources to RenderGraphResults registered resources
   for (auto& mit : memoryObjects.memoryObjects)
   {
     std::set<uint32_t> visitedIDs;
-    for (const auto& transition : renderGraph.transitions)
+    for (const auto& transition : renderGraph.getTransitions())
     {
       if (visitedIDs.find(transition.tid()) != end(visitedIDs))
         continue;
@@ -125,7 +151,6 @@ std::shared_ptr<BufferView> RenderGraphExecutable::getBufferView(const std::stri
         return command->getBufferViewByEntryName(entryName);
   return std::shared_ptr<BufferView>();
 }
-
 
 std::shared_ptr<MemoryObject> RenderGraphExecutable::getMemoryObject(uint32_t transitionID) const
 {

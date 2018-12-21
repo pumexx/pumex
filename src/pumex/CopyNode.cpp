@@ -20,64 +20,37 @@
 // SOFTWARE.
 //
 
-#include <pumex/NodeVisitor.h>
-#include <pumex/Pipeline.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/DrawNode.h>
-#include <pumex/DispatchNode.h>
 #include <pumex/CopyNode.h>
+#include <pumex/NodeVisitor.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+void CopyNode::accept(NodeVisitor& visitor)
+{
+  if (visitor.getMask() && mask)
+  {
+    visitor.push(this);
+    visitor.apply(*this);
+    visitor.pop();
+  }
+}
+
+ImageCopyRegion::ImageCopyRegion(const ImageSubresourceRange& ir, const glm::ivec3& off0, const glm::ivec3& off1)
+  : imageRange{ ir }, offset0{ off0 }, offset1{ off1 }
 {
 }
 
-void NodeVisitor::traverse(Node& node)
+ImageCopyData::ImageCopyData(const std::string& name, VkImageLayout il, const std::vector<ImageCopyRegion>& regs)
+  : imageName{ name }, layout{ il }, regions( regs )
 {
-  if ( traversalMode == Parents)
-    node.ascend(*this);
-  else if ( traversalMode != None)
-    node.traverse(*this);
+  CHECK_LOG_THROW(name.empty(), "ImageCopyData : Name was not defined");
+  CHECK_LOG_THROW(regs.empty(), "ImageCopyData : No regions to copy");
 }
 
-void NodeVisitor::apply(Node& node)
+ImageCopyData::ImageCopyData(std::shared_ptr<MemoryImage> mi, VkImageLayout il, const std::vector<ImageCopyRegion>& regs)
+  : memoryImage{ mi }, layout{ il }, regions(regs)
 {
-  traverse(node);
-}
-
-void NodeVisitor::apply(Group& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(ComputePipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(AssetBufferNode& node)
-{
-  apply(static_cast<Group&>(node));
-}
-
-void NodeVisitor::apply(DrawNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(DispatchNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(CopyNode& node)
-{
-  apply(static_cast<Node&>(node));
+  CHECK_LOG_THROW(mi==nullptr,  "ImageCopyData : Memory image was not defined");
+  CHECK_LOG_THROW(regs.empty(), "ImageCopyData : No regions to copy");
 }

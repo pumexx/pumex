@@ -98,10 +98,9 @@ std::vector<std::vector<std::reference_wrapper<const RenderOperation>>> DefaultR
 {
   // calculate transition cost 
   std::map<uint32_t, float> transitionCost;
-  for (const auto& transition : renderGraph.transitions)
+  for (const auto& transition : renderGraph.getTransitions())
   {
-    auto it = transitionCost.find(transition.tid());
-    if (it != end(transitionCost))
+    if (transitionCost.find(transition.tid()) != end(transitionCost))
       continue;
     ImageSize     is = transition.operation().attachmentSize;
     OperationType ot = transition.operation().operationType;
@@ -110,9 +109,9 @@ std::vector<std::vector<std::reference_wrapper<const RenderOperation>>> DefaultR
     for (auto other : others)
     {
       float cost = 0.0f;
-      if (transition.operation().operationType != ot)
+      if (other.get().operation().operationType != ot)
         cost += 0.1f;
-      if (transition.operation().attachmentSize != is)
+      if (other.get().operation().attachmentSize != is)
         cost += 0.1f;
       totalCost = std::max(cost, totalCost);
     }
@@ -121,14 +120,14 @@ std::vector<std::vector<std::reference_wrapper<const RenderOperation>>> DefaultR
 
   // calculate operation cost
   std::map<std::string, float> operationCost;
-  for (const auto& opit : renderGraph.operations)
+  for (const auto& op : renderGraph.getOperations())
   {
     float totalCost = 0.0001f;
-    if (opit.second.attachmentSize.type == isSurfaceDependent)
-      totalCost += std::max(opit.second.attachmentSize.size.x, opit.second.attachmentSize.size.y) * 0.1f;
+    if (op.attachmentSize.type == isSurfaceDependent)
+      totalCost += std::max(op.attachmentSize.size.x, op.attachmentSize.size.y) * 0.1f;
     else
       totalCost += 0.01f;
-    operationCost.insert( { opit.first, 1.0f } );
+    operationCost.insert( { op.name, totalCost } );
   }
 
   // Scheduling algorithm inspired by "Scheduling Algorithms for Allocating Directed Task Graphs for Multiprocessors" by Yu-Kwong Kwok and Ishfaq Ahmad
@@ -267,7 +266,7 @@ void DefaultRenderGraphCompiler::buildCommandSequences(const RenderGraph& render
         if (lastOperationSize != operation.get().attachmentSize || lastRenderPass.get() == nullptr)
           lastRenderPass = std::make_shared<RenderPass>();
 
-        std::shared_ptr<RenderSubPass> renderSubPass = std::make_shared<RenderSubPass>();
+        auto renderSubPass = std::make_shared<RenderSubPass>();
         renderSubPass->operation = operation;
         auto opTransitions = renderGraph.getOperationIO(operation.get().name, opeAllInputsOutputs);
         for (auto transition : opTransitions)
@@ -282,13 +281,26 @@ void DefaultRenderGraphCompiler::buildCommandSequences(const RenderGraph& render
       {
         lastRenderPass = nullptr;
 
-        std::shared_ptr<ComputePass> computePass = std::make_shared<ComputePass>();
+        auto computePass = std::make_shared<ComputePass>();
         computePass->operation = operation;
         auto opTransitions = renderGraph.getOperationIO(operation.get().name, opeAllInputsOutputs);
         for (auto transition : opTransitions)
           computePass->entries.insert({ transition.get().entryName(), transition.get().rteid() });
 
         commands.push_back(computePass);
+        break;
+      }
+      case opTransfer:
+      {
+        lastRenderPass = nullptr;
+
+        auto transferPass = std::make_shared<TransferPass>();
+        transferPass->operation = operation;
+        auto opTransitions = renderGraph.getOperationIO(operation.get().name, opeAllInputsOutputs);
+        for (auto transition : opTransitions)
+          transferPass->entries.insert({ transition.get().entryName(), transition.get().rteid() });
+
+        commands.push_back(transferPass);
         break;
       }
       default:
@@ -369,6 +381,7 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
           transition.get().externalMemoryObjectName(),
           getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage,
           transition.get().entry().imageCreate,
+          transition.get().entry().imageViewType,
           transition.get().entryName() == SWAPCHAIN_NAME,
           transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL);
         it = imageInfo.insert({ transition.get().tid(), newInfo }).first;
@@ -441,7 +454,7 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     else break; // there are no more aliases
   }
   // add null aliases for all transitions that have no alias ( including buffers - buffers cannot be aliased, but maybe one day, who knows... )
-  for (auto& transition : renderGraph.transitions )
+  for (const auto& transition : renderGraph.getTransitions() )
   {
     auto it = imageAliases.find(transition.tid());
     if (it == end(imageAliases))
@@ -459,7 +472,8 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
   {
     if (!image.second.externalMemoryImageName.empty()) // set only the internal images. External images should be set already
       continue;
-    ImageTraits imageTraits(image.second.attachmentDefinition.format, image.second.attachmentDefinition.attachmentSize, image.second.imageUsage, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
+    auto imageType = vulkanImageTypeFromImageSize(image.second.attachmentDefinition.attachmentSize);
+    ImageTraits imageTraits(image.second.attachmentDefinition.format, image.second.attachmentDefinition.attachmentSize, image.second.imageUsage, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, imageType, VK_SHARING_MODE_EXCLUSIVE);
     SwapChainImageBehaviour scib = (image.second.isSwapchainImage) ? swForEachImage : swOnce;
     VkImageAspectFlags aspectMask = getAspectMask(image.second.attachmentDefinition.attachmentType);
     auto imageIt = executable->memoryImages.insert({ image.first, std::make_shared<MemoryImage>(imageTraits, executable->frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) }).first;
@@ -640,7 +654,6 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
     ImageSize frameBufferSize = renderPass->subPasses[0].lock()->operation.attachmentSize;
     // ImageView, RenderGraphImageInfo
     std::vector<std::shared_ptr<ImageView>> frameBufferImageViews;
-    std::vector<RenderGraphImageInfo>       frameBufferImageInfo;
     std::vector<AttachmentDescription>      frameBufferAttachments;
 
     for (auto sb : renderPass->subPasses)
@@ -658,13 +671,13 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
           continue;
         uint32_t objectID = aliasIt->second;
 
-        auto iiit = executable->imageInfo.find(objectID);
-        CHECK_LOG_THROW(iiit == end(executable->imageInfo), "FrameBuffer::FrameBuffer() : not all memory images have been supplied : " << subpass->operation.name << "->" << entry.first);
 
         auto vit = subpass->imageViews.find(entry.second);
         CHECK_LOG_THROW(vit == end(subpass->imageViews), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied : " << subpass->operation.name << "->"<< entry.first);
         frameBufferImageViews.push_back(vit->second);
-        frameBufferImageInfo.push_back(iiit->second);
+
+        auto iiit = executable->imageInfo.find(objectID);
+        CHECK_LOG_THROW(iiit == end(executable->imageInfo), "FrameBuffer::FrameBuffer() : not all memory images have been supplied : " << subpass->operation.name << "->" << entry.first);
         frameBufferAttachments.push_back(AttachmentDescription(
           entry.second,
           iiit->second.attachmentDefinition.format,
@@ -679,7 +692,7 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
         ));
       }
     }
-    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, renderPass, frameBufferImageViews, frameBufferImageInfo);
+    auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, renderPass, frameBufferImageViews);
     executable->frameBuffers.push_back(frameBuffer);
 
     // build attachments, clear values and image layouts
@@ -800,12 +813,6 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
     LOG_INFO << "\n";
     auto fbs = renderPass->frameBuffer->getFrameBufferSize();
     LOG_INFO << "FrameBuffer size, " << fbs.type << ", "<< fbs.size.x << ", " << fbs.size.y << ", " << fbs.size.z << ", " << fbs.arrayLayers << ", " << fbs.mipLevels << ", " << fbs.samples << "\n";
-    LOG_INFO << "externalMemoryImageName, attachmentType, format, size type, x, y, z, arrayLayers, mipLevels, samples\n";
-    for (const auto& image : renderPass->frameBuffer->getImageInfo())
-    {
-      LOG_INFO << (image.externalMemoryImageName.empty() ? std::string("<internal>") : image.externalMemoryImageName) << ", " << image.attachmentDefinition.attachmentType << ", " << image.attachmentDefinition.format << ", " << image.attachmentDefinition.attachmentSize.type << ", " << image.attachmentDefinition.attachmentSize.size.x << ", " << image.attachmentDefinition.attachmentSize.size.y << ", " << image.attachmentDefinition.attachmentSize.size.z << ", ";
-      LOG_INFO << image.attachmentDefinition.attachmentSize.arrayLayers << ", " << image.attachmentDefinition.attachmentSize.mipLevels << ", " << image.attachmentDefinition.attachmentSize.samples << "\n";
-    }
   }
   LOG_INFO << std::endl;
 }
@@ -830,7 +837,7 @@ void DefaultRenderGraphCompiler::buildPipelineBarriers(const RenderGraph& render
   }
 
   std::set<uint32_t> visitedTransitions;
-  for (const auto& transition : renderGraph.transitions)
+  for (const auto& transition : renderGraph.getTransitions())
   {
     // we are dealing with all transitions with the same tid at once
     if (visitedTransitions.find(transition.tid()) != end(visitedTransitions))
@@ -933,9 +940,9 @@ void DefaultRenderGraphCompiler::buildPipelineBarriers(const RenderGraph& render
   {
     for (auto& comm : comSeq)
     {
-      auto subpass = comm->asRenderSubPass();
-      if ( subpass == nullptr)
+      if (comm->commandType != RenderCommand::ctRenderSubPass)
         continue;
+      auto subpass = std::dynamic_pointer_cast<RenderSubPass>(comm);
       auto renderPass = subpass->renderPass.get();
       if (visitedRenderPasses.find(renderPass) != end(visitedRenderPasses))
         continue;
@@ -1120,10 +1127,9 @@ void getPipelineStageMasks(const ResourceTransition& generatingTransition, const
     srcStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT | VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX;
     // missing for now :  | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV    
     break;
-  // transfer not implemented yet
-  //case opTransfer:
-  //  srcStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-  //  break;
+  case opTransfer:
+    srcStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    break;
   default: break;
   }
 
@@ -1166,10 +1172,9 @@ void getPipelineStageMasks(const ResourceTransition& generatingTransition, const
     dstStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT | VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX;
     // missing for now :  | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV    
     break;
-  // transfer not implemented yet
-  //case opTransfer:
-  //  dstStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-  //  break;
+  case opTransfer:
+    dstStageMask &= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    break;
   default: break;
   }
 

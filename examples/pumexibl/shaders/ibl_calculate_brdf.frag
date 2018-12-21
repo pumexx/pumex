@@ -8,7 +8,7 @@ layout (location = 0) in vec2 inUV;
 layout (location = 0) out vec4 outFragColor;
 
 const float PI          = 3.14159265359;
-const uint SAMPLE_COUNT = 1024u;
+const uint SAMPLE_COUNT = 256u;
 
 // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 // efficient VanDerCorpus calculation.

@@ -31,7 +31,7 @@
 // pumexibl presents how to render to mipmaps and array layers and how to use Image Based Lighting
 
 const uint32_t MAX_BONES = 511;
-const uint32_t PREFILTERED_ENVIRONMENT_MIPMAPS = 6;
+const uint32_t PREFILTERED_ENVIRONMENT_MIPMAPS = 8;
 
 struct PositionData
 {
@@ -134,6 +134,16 @@ struct ViewerApplicationData
   std::shared_ptr<pumex::Buffer<PositionData>>  positionBuffer;
   std::shared_ptr<pumex::BasicCameraHandler>    camHandler;
 };
+
+struct PrefilteredEnvironmentParams
+{
+  PrefilteredEnvironmentParams(float roughness, float resolution)
+    : params(roughness, resolution, 0.0, 0.0)
+  {
+  }
+  glm::vec4 params;
+};
+
 
 int main( int argc, char * argv[] )
 {
@@ -245,54 +255,62 @@ int main( int argc, char * argv[] )
 
     std::shared_ptr<pumex::RenderGraph> prepareIblRenderGraph = std::make_shared<pumex::RenderGraph>("prepare_ibl_render_graph");
 
-    pumex::ImageSize           environmentCubeMapSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, 1, 1 };
+    uint32_t                   mipLevelNum = 1 + floor(log2(1024.0f));
+    pumex::ImageSize           environmentCubeMapNoMipSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, 1, 1 };
+    pumex::ImageSize           environmentCubeMapSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, mipLevelNum, 1 };
     pumex::ImageSize           irradianceCubeMapSize{ pumex::isAbsolute, glm::vec2(32.0f,32.0f), 6, 1, 1 };
     pumex::ImageSize           prefilteredEnvironmentCubeMapSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, PREFILTERED_ENVIRONMENT_MIPMAPS, 1 };
     pumex::ImageSize           brdfTextureSize{ pumex::isAbsolute, glm::vec2(512.0f,512.0f), 1, 1, 1 };
     pumex::ImageSize           cubeMapRenderSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 1, 1, 1 };
     pumex::ImageSize           irradianceRenderSize{ pumex::isAbsolute, glm::vec2(32.0f,32.0f), 1, 1, 1 };
 
-    pumex::ResourceDefinition  environmentCubeMapDefinition{ VK_FORMAT_R32G32B32_SFLOAT, environmentCubeMapSize, pumex::atColor };
-    pumex::ResourceDefinition  irradianceCubeMapDefinition{ VK_FORMAT_R32G32B32_SFLOAT, irradianceCubeMapSize, pumex::atColor };
-    pumex::ResourceDefinition  prefilteredEnvironmentCubeMapDefinition{ VK_FORMAT_R32G32B32_SFLOAT, prefilteredEnvironmentCubeMapSize, pumex::atColor };
-    pumex::ResourceDefinition  brdfDefinition{ VK_FORMAT_R32G32B32_SFLOAT, brdfTextureSize, pumex::atColor };
+    pumex::ResourceDefinition  environmentCubeMapNoMipDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, environmentCubeMapNoMipSize, pumex::atColor };
+    pumex::ResourceDefinition  environmentCubeMapDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, environmentCubeMapSize, pumex::atColor };
+    pumex::ResourceDefinition  irradianceCubeMapDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, irradianceCubeMapSize, pumex::atColor };
+    pumex::ResourceDefinition  prefilteredEnvironmentCubeMapDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, prefilteredEnvironmentCubeMapSize, pumex::atColor };
+    pumex::ResourceDefinition  brdfDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, brdfTextureSize, pumex::atColor };
 
     pumex::LoadOp cubeMapClear = pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
-    // first batch of operations converts equirectangular map to a cubemap
-    for(uint32_t i=0; i<6; ++i)
+    // first batch of operations converts equirectangular map to a cubemap ( without mipmaps )
+    for(uint32_t i = 0; i < 6; ++i)
     {
       std::stringstream str;
       str<<"eqr_"<<i;
       pumex::RenderOperation cubeMapRender(str.str(), pumex::opGraphics, cubeMapRenderSize);
-        cubeMapRender.addAttachmentOutput("face", environmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+        cubeMapRender.addAttachmentOutput("face", environmentCubeMapNoMipDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
       prepareIblRenderGraph->addRenderOperation(cubeMapRender);
     }
 
-    // second batch of operations creates diffuse irradiance map
-    for (uint32_t i = 0; i<6; ++i)
+    // second batch of operations creates mipmaps for earlier created cubmap
+    pumex::RenderOperation cubeMapMipMaps("eqrm", pumex::opTransfer, cubeMapRenderSize);
+      cubeMapMipMaps.addImageInput("cubemap_nomipmaps", environmentCubeMapNoMipDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
+      cubeMapMipMaps.addImageOutput("cubemap_mipmapped", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
+    prepareIblRenderGraph->addRenderOperation(cubeMapMipMaps);
+
+    // third batch of operations creates diffuse irradiance map
+    for (uint32_t i = 0; i < 6; ++i)
     {
       std::stringstream str;
       str << "irr_" << i;
       pumex::RenderOperation irradianceRender(str.str(), pumex::opGraphics, irradianceRenderSize);
-        irradianceRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
+        irradianceRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
         irradianceRender.addAttachmentOutput("face", irradianceCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
       prepareIblRenderGraph->addRenderOperation(irradianceRender);
     }
 
-    // third batch of operations creates prefiltered environment map for specular IBL reflections
+    // fourth batch of operations creates prefiltered environment map for specular IBL reflections
     // here we are rendering not only to cubemap faces, but also to its mipmaps
     for (uint32_t j = 0; j < PREFILTERED_ENVIRONMENT_MIPMAPS; ++j)
     {
-      for (uint32_t i = 0; i<6; ++i)
+      for (uint32_t i = 0; i < 6; ++i)
       {
         std::stringstream str;
-        str << "per_" << i << "_" << j;
+        str << "per_" << j << "_" << i;
 
-        uint32_t jj = pow(2, j);
-        pumex::ImageSize prefilteredEnvironmentRenderSize{ pumex::isAbsolute, glm::vec2(1024.0f/jj, 1024.0f / jj), 1, 1, 1 };
+        pumex::ImageSize prefilteredEnvironmentRenderSize{ pumex::isAbsolute, glm::vec2(1024 >> j, 1024 >> j), 1, 1, 1 };
         pumex::RenderOperation prefilteredRender(str.str(), pumex::opGraphics, prefilteredEnvironmentRenderSize);
-          prefilteredRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
+          prefilteredRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
           prefilteredRender.addAttachmentOutput("face_mip", prefilteredEnvironmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
         prepareIblRenderGraph->addRenderOperation(prefilteredRender);
       }
@@ -316,40 +334,38 @@ int main( int argc, char * argv[] )
     prepareIblRenderGraph->addRenderOperation(rendering);
 
     // operations are ready - time to add all required transitions between operations
-    std::vector<pumex::ResourceTransitionDescription> transitions_1_2_3;
-    std::vector<pumex::ResourceTransitionDescription> transitions_2_final;
+    std::vector<pumex::ResourceTransitionDescription> transitions_cubemap_nomip;
     for (uint32_t i = 0; i < 6; ++i)
     {
       std::stringstream opGen;
       opGen << "eqr_" << i;
-      for (uint32_t j = 0; j < 6; ++j)
-      {
-        std::stringstream opCon;
-        opCon << "irr_" << j;
-        transitions_1_2_3.push_back({ opGen.str(), "face", opCon.str(), "cubemap_in" });
-        transitions_2_final.push_back({ opCon.str(), "face", "rendering", "irradiance_map" });
-      }
+      transitions_cubemap_nomip.push_back({ opGen.str(), "face", "eqrm", "cubemap_nomipmaps" });
+    }
+    std::vector<pumex::ResourceTransitionDescription> transitions_cubemap_mip;
+    std::vector<pumex::ResourceTransitionDescription> transitions_2_final;
+    for (uint32_t j = 0; j < 6; ++j)
+    {
+      std::stringstream opCon;
+      opCon << "irr_" << j;
+      transitions_cubemap_mip.push_back({ "eqrm", "cubemap_mipmapped", opCon.str(), "cubemap_in" });
+      transitions_2_final.push_back({ opCon.str(), "face", "rendering", "irradiance_map" });
     }
 
     // transitions between first batch and third batch
     std::vector<pumex::ResourceTransitionDescription> transitions_3_final;
-    for (uint32_t i = 0; i<6; ++i)
+    for (uint32_t j = 0; j < PREFILTERED_ENVIRONMENT_MIPMAPS; ++j)
     {
-      std::stringstream opGen;
-      opGen << "eqr_" << i;
-      for (uint32_t k = 0; k < PREFILTERED_ENVIRONMENT_MIPMAPS; ++k)
+      for (uint32_t i = 0; i < 6; ++i)
       {
-        for (uint32_t j = 0; j < 6; ++j)
-        {
-          std::stringstream opCon;
-          opCon << "per_" << j << "_" << k;
-          transitions_1_2_3.push_back({ opGen.str(), "face", opCon.str(), "cubemap_in" });
-          transitions_3_final.push_back({ opCon.str(), "face_mip", "rendering", "prefiltered_environment_map" });
-        }
+        std::stringstream opCon;
+        opCon << "per_" << j << "_" << i;
+        transitions_cubemap_mip.push_back({ "eqrm", "cubemap_mipmapped", opCon.str(), "cubemap_in" });
+        transitions_3_final.push_back({ opCon.str(), "face_mip", "rendering", "prefiltered_environment_map" });
       }
     }
 
-    prepareIblRenderGraph->addResourceTransition(transitions_1_2_3);
+    prepareIblRenderGraph->addResourceTransition(transitions_cubemap_nomip);
+    prepareIblRenderGraph->addResourceTransition(transitions_cubemap_mip);
     prepareIblRenderGraph->addResourceTransition(transitions_2_final);
     prepareIblRenderGraph->addResourceTransition(transitions_3_final);
     prepareIblRenderGraph->addResourceTransition("brdf", "brdf_out", "rendering", "brdf_map");
@@ -442,11 +458,30 @@ int main( int argc, char * argv[] )
       eqrPipeline->addChild(sphereAssetNode);
     }
 
-    // pipeline layout, descriptor set layout and shaders for second batch of operations ( calculating diffuse irradiance )
+    // scenegraphs for second batch of operations - creating mipmaps for a cubemap
+    auto eqrmRoot = std::make_shared<pumex::Group>();
+    eqrmRoot->setName("eqrm_root");
+    prepareIblRenderGraph->setRenderOperationNode("eqrm", eqrmRoot);
+
+    pumex::ImageCopyData srcImage("cubemap_nomipmaps", VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(1024,1024,1) } });
+    pumex::ImageCopyData dstImage("cubemap_mipmapped", VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(1024,1024,1) } });
+    eqrmRoot->addChild(std::make_shared<pumex::BlitImageNode>(srcImage, dstImage, VK_FILTER_LINEAR));
+
+    for (uint32_t j = 0; j < mipLevelNum-1; ++j)
+    {
+      uint32_t srcMipSize = 1024 >> j;
+      uint32_t dstMipSize = 1024 >> (j+1);
+
+      pumex::ImageCopyData srcImage( "cubemap_mipmapped" , VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(srcMipSize,srcMipSize,1)   } } );
+      pumex::ImageCopyData dstImage( "cubemap_mipmapped" , VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j+1, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(dstMipSize,dstMipSize,1) } } );
+      eqrmRoot->addChild(std::make_shared<pumex::BlitImageNode>(srcImage, dstImage, VK_FILTER_LINEAR));
+    }
+
+    // pipeline layout, descriptor set layout and shaders for third batch of operations ( calculating diffuse irradiance )
     std::vector<pumex::DescriptorSetLayoutBinding> irrLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
-    { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto irrDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(irrLayoutBindings);
     auto irrPipelineLayout = std::make_shared<pumex::PipelineLayout>();
@@ -457,7 +492,7 @@ int main( int argc, char * argv[] )
 
     auto irrCubeMapSampler = std::make_shared<pumex::CombinedImageSampler>("cubemap_in", sampler);
 
-    // scenegraphs for second batch of operations ( diffuse irradiance )
+    // scenegraphs for third batch of operations ( diffuse irradiance )
     for (uint32_t i = 0; i < 6; ++i)
     {
       std::stringstream str;
@@ -495,7 +530,7 @@ int main( int argc, char * argv[] )
       irrPipeline->addChild(sphereAssetNode);
     }
 
-    // pipeline layout and descriptor set layout for third batch of operations ( calculating prefiltered environment map for specular higlights )
+    // pipeline layout and descriptor set layout for fourth batch of operations ( calculating prefiltered environment map for specular higlights )
     std::vector<pumex::DescriptorSetLayoutBinding> perLayoutBindings =
     {
       { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
@@ -514,8 +549,8 @@ int main( int argc, char * argv[] )
     std::vector<std::shared_ptr<pumex::UniformBuffer>> roughnessUbos;
     for (uint32_t j = 0; j < PREFILTERED_ENVIRONMENT_MIPMAPS; ++j)
     {
-      auto roughness = std::make_shared<float>(0.0f);
-      auto roughnessBuffer = std::make_shared<pumex::Buffer<float>>(roughness, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
+      auto roughnessParams = std::make_shared<PrefilteredEnvironmentParams>(static_cast<float>(j) / static_cast<float>(PREFILTERED_ENVIRONMENT_MIPMAPS-1), 1024.0f);
+      auto roughnessBuffer = std::make_shared<pumex::Buffer<PrefilteredEnvironmentParams>>(roughnessParams, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
       roughnessUbos.push_back( std::make_shared<pumex::UniformBuffer>(roughnessBuffer) );
     }
 
@@ -525,7 +560,7 @@ int main( int argc, char * argv[] )
       for (uint32_t i = 0; i < 6; ++i)
       {
         std::stringstream str;
-        str << "per_" << i << "_" << j;
+        str << "per_" << j << "_" << i;
 
         auto perRoot = std::make_shared<pumex::Group>();
         perRoot->setName(str.str() + "_root");
@@ -693,7 +728,7 @@ int main( int argc, char * argv[] )
     applicationData->setCameraHandler(bcamHandler);
 
     // connect render graph to a surface
-    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT, 0, 0.75f, pumex::qaExclusive } };
+    std::vector<pumex::QueueTraits> queueTraits{ { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT, 0, 0.75f, pumex::qaExclusive } };
     viewer->compileRenderGraph(prepareIblRenderGraph, queueTraits);
     surface->addRenderGraph(prepareIblRenderGraph->name, true);
 

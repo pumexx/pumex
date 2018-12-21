@@ -342,16 +342,6 @@ void RenderSubPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor
   commandVisitor.renderContext.setFrameBuffer(nullptr);
 }
 
-RenderSubPass* RenderSubPass::asRenderSubPass()
-{
-  return this;
-}
-
-ComputePass* RenderSubPass::asComputePass()
-{
-  return nullptr;
-}
-
 ComputePass::ComputePass()
   : RenderCommand(RenderCommand::ctComputePass)
 {
@@ -363,8 +353,6 @@ void ComputePass::validate(const RenderContext& renderContext)
 
 void ComputePass::applyRenderContextVisitor(RenderContextVisitor& visitor)
 {
-//  if (!operation->node->hasSecondaryBuffer())
-//    return;
   visitor.renderContext.setRenderOperation(&operation);
 
   operation.node->accept(visitor);
@@ -391,12 +379,40 @@ void ComputePass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
   commandVisitor.renderContext.setRenderOperation(nullptr);
 }
 
-RenderSubPass* ComputePass::asRenderSubPass()
+TransferPass::TransferPass()
+  : RenderCommand(RenderCommand::ctTransferPass)
+
 {
-  return nullptr;
 }
 
-ComputePass* ComputePass::asComputePass()
+void TransferPass::validate(const RenderContext& renderContext)
 {
-  return this;
+}
+
+void TransferPass::applyRenderContextVisitor(RenderContextVisitor& visitor)
+{
+  visitor.renderContext.setRenderOperation(&operation);
+
+  operation.node->accept(visitor);
+
+  visitor.renderContext.setRenderOperation(nullptr);
+}
+
+void TransferPass::buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor)
+{
+  commandVisitor.renderContext.setRenderOperation(&operation);
+
+  for (auto& barrierGroup : barriersBeforeOp)
+    commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
+
+  VkSubpassContents subpassContents = operation.node->hasSecondaryBuffer() ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : VK_SUBPASS_CONTENTS_INLINE;
+  if (subpassContents == VK_SUBPASS_CONTENTS_INLINE)
+    operation.node->accept(commandVisitor);
+  else
+    commandVisitor.commandBuffer->executeCommandBuffer(commandVisitor.renderContext, operation.node->getSecondaryBuffer(commandVisitor.renderContext).get());
+
+  for (auto& barrierGroup : barriersAfterOp)
+    commandVisitor.commandBuffer->cmdPipelineBarrier(commandVisitor.renderContext, barrierGroup.first, barrierGroup.second);
+
+  commandVisitor.renderContext.setRenderOperation(nullptr);
 }

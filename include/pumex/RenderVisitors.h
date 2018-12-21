@@ -100,8 +100,9 @@ public:
   void apply(GraphicsPipeline& node) override;
   void apply(ComputePipeline& node) override;
   void apply(AssetBufferNode& node) override;
-  void apply(DispatchNode& node) override;
   void apply(DrawNode& node) override;
+  void apply(DispatchNode& node) override;
+  void apply(CopyNode& node) override;
 
   void applyDescriptorSets(Node& node);
 

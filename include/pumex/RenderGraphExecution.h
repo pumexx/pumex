@@ -48,12 +48,13 @@ class RenderGraphImageInfo
 {
 public:
   RenderGraphImageInfo() = default;
-  RenderGraphImageInfo(const AttachmentDefinition& attachmentDefinition, const std::string& externalMemoryImageName, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, bool isSwapchainImage, VkImageLayout initialLayout);
+  RenderGraphImageInfo(const AttachmentDefinition& attachmentDefinition, const std::string& externalMemoryImageName, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, VkImageViewType imageViewType, bool isSwapchainImage, VkImageLayout initialLayout);
 
   AttachmentDefinition       attachmentDefinition;
   std::string                externalMemoryImageName;
   VkImageUsageFlags          imageUsage       = 0;
   VkImageCreateFlags         imageCreate      = 0;
+  VkImageViewType            imageViewType    = VK_IMAGE_VIEW_TYPE_MAX_ENUM;
   bool                       isSwapchainImage = false;
   VkImageLayout              initialLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
 };
@@ -104,6 +105,8 @@ public:
   std::vector<RenderGraphImageViewInfo>                    imageViewInfo;
   std::vector<RenderGraphBufferViewInfo>                   bufferViewInfo;
   std::map<std::string, uint32_t>                          operationIndices; // works on image imageInfo.layouts and imageInfo.operationParticipants
+
+  void resizeImages(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
 
   void                           setExternalMemoryObjects(const RenderGraph& renderGraph, const ExternalMemoryObjects& memoryObjects);
   std::shared_ptr<MemoryImage>   getMemoryImage(const std::string& operationName, const std::string entryName) const;

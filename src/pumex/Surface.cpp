@@ -28,6 +28,7 @@
 #include <pumex/RenderPass.h>
 #include <pumex/RenderVisitors.h>
 #include <pumex/FrameBuffer.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/MemoryImage.h>
 #include <pumex/utils/Log.h>
 #include <pumex/TimeStatistics.h>
@@ -406,24 +407,26 @@ void Surface::validateRenderGraphs()
       auto executable = v->getRenderGraphExecutable(renderGraphName);
       if(executable == nullptr)
         continue;
-      renderContext.setRenderGraphExecutable(executable);
+      executable->resizeImages(renderContext, swapChainImages);
       for (auto& frameBuffer : executable->frameBuffers)
       {
-        frameBuffer->resize(renderContext, swapChainImages);
+        auto rp = frameBuffer->getRenderPass().lock();
+        rp->invalidate(renderContext);
         frameBuffer->invalidate(renderContext);
       }
     }
   }
+
   for (auto& rgData : renderGraphData)
   {
     auto renderGraphName = std::get<0>(rgData);
     auto executable = v->getRenderGraphExecutable(renderGraphName);
     if(executable == nullptr)
       continue;
+    renderContext.setRenderGraphExecutable(executable);
     for (auto& frameBuffer : executable->frameBuffers)
       frameBuffer->validate(renderContext);
     // create/update render passes and compute passes for current surface
-    renderContext.setRenderGraphExecutable(executable);
     for (auto& commandSeq : executable->commands)
       for (auto& command : commandSeq)
         command->validate(renderContext);

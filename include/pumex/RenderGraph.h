@@ -83,7 +83,7 @@ inline StoreOp storeOpDontCare();
 
 enum AttachmentType   { atUndefined, atColor, atDepth, atDepthStencil, atStencil };
 enum ResourceMetaType { rmtUndefined, rmtImage, rmtBuffer };
-enum OperationType    { opGraphics = VK_QUEUE_GRAPHICS_BIT, opCompute = VK_QUEUE_COMPUTE_BIT };
+enum OperationType    { opGraphics = VK_QUEUE_GRAPHICS_BIT, opCompute = VK_QUEUE_COMPUTE_BIT, opTransfer = VK_QUEUE_TRANSFER_BIT };
 enum OperationEntryType
 {
   opeAttachmentInput         = 1,
@@ -208,7 +208,7 @@ class PUMEX_EXPORT ResourceTransition
 {
 public:
   ResourceTransition() = delete;
-  explicit ResourceTransition(uint32_t rteid, uint32_t tid, const std::map<std::string, RenderOperation>::const_iterator& operation, const std::map<std::string, RenderOperationEntry>::const_iterator& entry, const std::string& externalMemoryObjectName);
+  explicit ResourceTransition(uint32_t rteid, uint32_t tid, const std::vector<RenderOperation>::const_iterator& operation, const std::map<std::string, RenderOperationEntry>::const_iterator& entry, const std::string& externalMemoryObjectName);
 
   inline uint32_t                    rteid() const; // identifies specific ResourceTransition connected to specific entry
   inline uint32_t                    tid() const;  // identifies potential resource ( amny ResourceTransitions may have the same tid
@@ -217,14 +217,14 @@ public:
   inline const std::string&          operationName() const;
   inline const std::string&          entryName() const;
   inline const std::string&          externalMemoryObjectName() const;
-  inline const std::map<std::string, RenderOperation>::const_iterator      operationIter() const;
+  inline const std::vector<RenderOperation>::const_iterator                operationIter() const;
   inline const std::map<std::string, RenderOperationEntry>::const_iterator entryIter() const;
   inline void                        setExternalMemoryObjectName(const std::string& externalMemoryObjectName);
 
 protected:
   uint32_t                                                    rteid_;
   uint32_t                                                    tid_;
-  std::map<std::string, RenderOperation>::const_iterator      operation_;
+  std::vector<RenderOperation>::const_iterator                operation_;
   std::map<std::string, RenderOperationEntry>::const_iterator entry_;
   std::string                                                 externalMemoryObjectName_;
 };
@@ -274,10 +274,14 @@ public:
   std::vector<std::reference_wrapper<const ResourceTransition>> getTransitionIO(uint32_t transitionID, OperationEntryTypeFlags entryTypes) const;
   std::reference_wrapper<const ResourceTransition>              getTransition(uint32_t rteid) const;
 
+  inline const std::vector<RenderOperation>&                    getOperations() const;
+  inline const std::vector<ResourceTransition>&                 getTransitions() const;
+
   std::string                                                   name;
-  std::map<std::string, RenderOperation>                        operations;
-  std::vector<ResourceTransition>                               transitions;
 protected:
+  std::vector<RenderOperation>                                  operations;
+  std::vector<ResourceTransition>                               transitions;
+
   uint32_t                                                      generateTransitionID();
   uint32_t                                                      nextTransitionID = 1;
   uint32_t                                                      generateTransitionEntryID();
@@ -327,14 +331,17 @@ bool operator<(const RenderOperation& lhs, const RenderOperation& rhs) { return 
 
 uint32_t                                                          ResourceTransition::rteid() const                    { return rteid_; }
 uint32_t                                                          ResourceTransition::tid() const                      { return tid_; }
-const RenderOperation&                                            ResourceTransition::operation() const                { return operation_->second; }
+const RenderOperation&                                            ResourceTransition::operation() const                { return *operation_; }
 const RenderOperationEntry&                                       ResourceTransition::entry() const                    { return entry_->second; }
-const std::string&                                                ResourceTransition::operationName() const            { return operation_->first; }
+const std::string&                                                ResourceTransition::operationName() const            { return operation_->name; }
 const std::string&                                                ResourceTransition::entryName() const                { return entry_->first; }
 const std::string&                                                ResourceTransition::externalMemoryObjectName() const { return externalMemoryObjectName_; }
-const std::map<std::string, RenderOperation>::const_iterator      ResourceTransition::operationIter() const            { return operation_; }
+const std::vector<RenderOperation>::const_iterator                ResourceTransition::operationIter() const            { return operation_; }
 const std::map<std::string, RenderOperationEntry>::const_iterator ResourceTransition::entryIter() const                { return entry_; }
 void                                          ResourceTransition::setExternalMemoryObjectName(const std::string& emon) { externalMemoryObjectName_ = emon; }
+
+const std::vector<RenderOperation>&                    RenderGraph::getOperations() const { return operations; }
+const std::vector<ResourceTransition>&                 RenderGraph::getTransitions() const { return transitions; }
 
 
 

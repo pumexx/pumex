@@ -20,6 +20,7 @@
 // SOFTWARE.
 //
 #include <pumex/ResourceRange.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
@@ -60,6 +61,17 @@ VkImageSubresourceRange ImageSubresourceRange::getSubresource() const
   return result;
 }
 
+VkImageSubresourceLayers ImageSubresourceRange::getSubresourceLayers() const
+{
+  CHECK_LOG_THROW(levelCount != 1, "Cannot create VkImageSubresourceLayers when levelCount != 1");
+  VkImageSubresourceLayers result;
+    result.aspectMask     = aspectMask;
+    result.mipLevel       = baseMipLevel;
+    result.baseArrayLayer = baseArrayLayer;
+    result.layerCount     = layerCount;
+  return result;
+}
+
 bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) const
 {
   bool mipmapContains = (baseMipLevel <= subRange.baseMipLevel) && (baseMipLevel + levelCount >= subRange.baseMipLevel + subRange.levelCount);
@@ -80,6 +92,15 @@ namespace pumex
     bool mipmapOverlaps = (lhs.baseMipLevel < rhs.baseMipLevel) ? (lhs.baseMipLevel + lhs.levelCount > rhs.baseMipLevel) : (rhs.baseMipLevel + rhs.levelCount > lhs.baseMipLevel);
     bool arrayOverlaps  = (lhs.baseArrayLayer < rhs.baseArrayLayer) ? (lhs.baseArrayLayer + lhs.layerCount > rhs.baseArrayLayer) : (rhs.baseArrayLayer + rhs.layerCount > lhs.baseArrayLayer);
     return mipmapOverlaps && arrayOverlaps;
+  }
+
+  VkImageType vulkanImageTypeFromImageSize(const ImageSize& is)
+  {
+    if (is.size.z > 1)
+      return VK_IMAGE_TYPE_3D;
+    if (is.type == isSurfaceDependent || is.size.y > 1)
+      return VK_IMAGE_TYPE_2D;
+    return VK_IMAGE_TYPE_1D;
   }
 
 }

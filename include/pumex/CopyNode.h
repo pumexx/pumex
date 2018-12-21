@@ -20,64 +20,46 @@
 // SOFTWARE.
 //
 
-#include <pumex/NodeVisitor.h>
-#include <pumex/Pipeline.h>
-#include <pumex/AssetBufferNode.h>
-#include <pumex/DrawNode.h>
-#include <pumex/DispatchNode.h>
-#include <pumex/CopyNode.h>
+#pragma once
+#include <string>
+#include <vulkan/vulkan.h>
+#include <pumex/Export.h>
+#include <pumex/Node.h>
+#include <pumex/ResourceRange.h>
 
-using namespace pumex;
-
-NodeVisitor::NodeVisitor(TraversalMode tm)
-  : traversalMode{ tm }
+namespace pumex
 {
-}
 
-void NodeVisitor::traverse(Node& node)
-{
-  if ( traversalMode == Parents)
-    node.ascend(*this);
-  else if ( traversalMode != None)
-    node.traverse(*this);
-}
+// This Node class is predecessor to all classes that copy images and/or buffers
 
-void NodeVisitor::apply(Node& node)
-{
-  traverse(node);
-}
+class MemoryImage;
+class MemoryBuffer;
 
-void NodeVisitor::apply(Group& node)
+class PUMEX_EXPORT CopyNode : public Node
 {
-  apply(static_cast<Node&>(node));
-}
+public:
+  void accept(NodeVisitor& visitor) override;
 
-void NodeVisitor::apply(GraphicsPipeline& node)
-{
-  apply(static_cast<Group&>(node));
-}
+  virtual void cmdCopy(const RenderContext& renderContext, CommandBuffer* commandBuffer) = 0;
+};
 
-void NodeVisitor::apply(ComputePipeline& node)
+struct PUMEX_EXPORT ImageCopyRegion
 {
-  apply(static_cast<Group&>(node));
-}
+  ImageCopyRegion(const ImageSubresourceRange& imageRange, const glm::ivec3& offset0, const glm::ivec3& offset1);
+  ImageSubresourceRange imageRange;
+  glm::ivec3 offset0;
+  glm::ivec3 offset1;
+};
 
-void NodeVisitor::apply(AssetBufferNode& node)
+struct PUMEX_EXPORT ImageCopyData
 {
-  apply(static_cast<Group&>(node));
-}
+  ImageCopyData(const std::string& imageName, VkImageLayout layout, const std::vector<ImageCopyRegion>& regions);
+  ImageCopyData(std::shared_ptr<MemoryImage> memoryImage, VkImageLayout layout, const std::vector<ImageCopyRegion>& regions);
 
-void NodeVisitor::apply(DrawNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
+  std::string                  imageName;
+  std::shared_ptr<MemoryImage> memoryImage;
+  VkImageLayout                layout;
+  std::vector<ImageCopyRegion> regions;
+};
 
-void NodeVisitor::apply(DispatchNode& node)
-{
-  apply(static_cast<Node&>(node));
-}
-
-void NodeVisitor::apply(CopyNode& node)
-{
-  apply(static_cast<Node&>(node));
 }

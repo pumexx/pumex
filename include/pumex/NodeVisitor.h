@@ -30,8 +30,9 @@ namespace pumex
 class GraphicsPipeline;
 class ComputePipeline;
 class AssetBufferNode;
-class DispatchNode;
 class DrawNode;
+class DispatchNode;
+class CopyNode;
 
 // Node visitor is a class allowing user to visit direct acyclic graphs
 class PUMEX_EXPORT NodeVisitor
@@ -54,8 +55,9 @@ public:
   virtual void apply(GraphicsPipeline& node);
   virtual void apply(ComputePipeline& node);
   virtual void apply(AssetBufferNode& node);
-  virtual void apply(DispatchNode& node);
   virtual void apply(DrawNode& node);
+  virtual void apply(DispatchNode& node);
+  virtual void apply(CopyNode& node);
 
 protected:
   uint32_t           mask = 0xFFFFFFFF;

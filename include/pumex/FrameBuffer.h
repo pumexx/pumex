@@ -27,7 +27,7 @@
 #include <mutex>
 #include <vulkan/vulkan.h>
 #include <pumex/Export.h>
-#include <pumex/RenderGraphExecution.h>
+#include <pumex/Command.h>
 #include <pumex/PerObjectData.h>
 #include <pumex/Image.h>
 
@@ -45,7 +45,7 @@ class PUMEX_EXPORT FrameBuffer : public CommandBufferSource
 {
 public:
   FrameBuffer()                              = delete;
-  explicit FrameBuffer(const ImageSize& frameBufferSize, std::shared_ptr<RenderPass> renderPass, const std::vector<std::shared_ptr<ImageView>>& imageViews, const std::vector<RenderGraphImageInfo>& imageInfo);
+  explicit FrameBuffer(const ImageSize& frameBufferSize, std::shared_ptr<RenderPass> renderPass, const std::vector<std::shared_ptr<ImageView>>& imageViews);
   FrameBuffer(const FrameBuffer&)            = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
   FrameBuffer(FrameBuffer&&)                 = delete;
@@ -54,12 +54,11 @@ public:
 
   void                               validate(const RenderContext& renderContext);
   void                               invalidate(const RenderContext& renderContext);
-  void                               resize(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages);
   void                               reset(Surface* surface);
   VkFramebuffer                      getHandleFrameBuffer(const RenderContext& renderContext) const;
 
-  inline const std::vector<RenderGraphImageInfo>& getImageInfo() const;
-  inline ImageSize                                getFrameBufferSize() const;
+  inline ImageSize                   getFrameBufferSize() const;
+  inline std::weak_ptr<RenderPass>   getRenderPass() const;
 
 protected:
   struct FrameBufferInternal
@@ -76,13 +75,12 @@ protected:
   ImageSize                                  frameBufferSize;
   std::weak_ptr<RenderPass>                  renderPass;
   std::vector<std::shared_ptr<ImageView>>    imageViews;
-  std::vector<RenderGraphImageInfo>          imageInfo;
   mutable std::mutex                         mutex;
   uint32_t                                   activeCount;
 };
 
-const std::vector<RenderGraphImageInfo>& FrameBuffer::getImageInfo() const { return imageInfo;  }
-ImageSize                                FrameBuffer::getFrameBufferSize() const { return frameBufferSize; }
+ImageSize                    FrameBuffer::getFrameBufferSize() const { return frameBufferSize; }
+std::weak_ptr<RenderPass>    FrameBuffer::getRenderPass() const { return renderPass; }
 
 
 }

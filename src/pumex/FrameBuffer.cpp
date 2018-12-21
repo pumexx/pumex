@@ -32,10 +32,9 @@
 
 using namespace pumex;
 
-FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::vector<std::shared_ptr<ImageView>>& iv, const std::vector<RenderGraphImageInfo>& ii)
-  : frameBufferSize{ is }, renderPass{ rp }, imageViews{ iv }, imageInfo{ ii }, activeCount{ 1 }
+FrameBuffer::FrameBuffer(const ImageSize& is, std::shared_ptr<RenderPass> rp, const std::vector<std::shared_ptr<ImageView>>& iv)
+  : frameBufferSize{ is }, renderPass{ rp }, imageViews{ iv }, activeCount{ 1 }
 {
-  CHECK_LOG_THROW(imageViews.size() != imageInfo.size(), "Wrong data for framebuffer creation");
 }
 
 FrameBuffer::~FrameBuffer()
@@ -110,44 +109,6 @@ void FrameBuffer::invalidate(const RenderContext& renderContext)
   if (pddit == end(perObjectData))
     pddit = perObjectData.insert({ renderContext.vkSurface, FrameBufferData(renderContext.vkDevice, renderContext.vkSurface, activeCount, swForEachImage) }).first;
   pddit->second.invalidate();
-}
-
-void FrameBuffer::resize(const RenderContext& renderContext, std::vector<std::shared_ptr<Image>>& swapChainImages)
-{
-  std::lock_guard<std::mutex> lock(mutex);
-  std::vector<MemoryImage*>                                   memImages;
-  std::vector<std::vector<RenderGraphImageInfo>::iterator>    iinfo;
-  for (uint32_t i = 0; i< imageViews.size(); ++i)
-  {
-    // get the memory image. If it is added to memImages already - skip it
-    MemoryImage* memImage = imageViews[i]->memoryImage.get();
-    auto existingImageIt = std::find(begin(memImages), end(memImages), memImage);
-    if (existingImageIt != end(memImages))
-      continue;
-    // find the image info for this image
-    auto iiit = begin(imageInfo) + i;
-    // add image and its data to appropriate vectors
-    memImages.push_back(memImage);
-    iinfo.push_back(iiit);
-  }
-  for(uint32_t i=0; i<memImages.size(); ++i)
-  {
-    if(!iinfo[i]->isSwapchainImage)
-    {
-      ImageSize imageSize = iinfo[i]->attachmentDefinition.attachmentSize;
-      if (imageSize.type == isSurfaceDependent)
-      {
-        imageSize.type = isAbsolute;
-        imageSize.size *= glm::vec3(renderContext.surface->swapChainSize.width, renderContext.surface->swapChainSize.height, 1);
-      }
-      ImageTraits imageTraits(iinfo[i]->attachmentDefinition.format, imageSize, iinfo[i]->imageUsage, false, iinfo[i]->initialLayout, iinfo[i]->imageCreate, VK_IMAGE_TYPE_2D, VK_SHARING_MODE_EXCLUSIVE);
-      memImages[i]->setImageTraits(renderContext.surface, imageTraits);
-    }
-    else
-      memImages[i]->setImages(renderContext.surface, swapChainImages);
-  }
-  auto rp = renderPass.lock();
-  rp->invalidate(renderContext);
 }
 
 void FrameBuffer::reset(Surface* surface)

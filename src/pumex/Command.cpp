@@ -21,6 +21,7 @@
 //
 
 #include <pumex/Command.h>
+#include <pumex/RenderGraphExecution.h>
 #include <pumex/RenderPass.h>
 #include <pumex/RenderContext.h>
 #include <pumex/FrameBuffer.h>
@@ -349,6 +350,11 @@ void CommandBuffer::cmdDispatch(uint32_t x, uint32_t y, uint32_t z) const
 void CommandBuffer::cmdCopyBufferToImage(VkBuffer srcBuffer, const Image& image, VkImageLayout dstImageLayout, const std::vector<VkBufferImageCopy>& regions) const
 {
   vkCmdCopyBufferToImage(commandBuffer[activeIndex], srcBuffer, image.getHandleImage(), dstImageLayout, regions.size(), regions.data());
+}
+
+void CommandBuffer::cmdBlitImage(Image& srcImage, VkImageLayout srcImageLayout, Image& dstImage, VkImageLayout dstImageLayout, const std::vector<VkImageBlit>& imageBlits, VkFilter filter) const
+{
+  vkCmdBlitImage(commandBuffer[activeIndex], srcImage.getHandleImage(), srcImageLayout, dstImage.getHandleImage(), dstImageLayout, imageBlits.size(), imageBlits.data(), filter);
 }
 
 void CommandBuffer::cmdClearColorImage(const Image& image, VkImageLayout imageLayout, VkClearValue color, std::vector<VkImageSubresourceRange> subresourceRanges)

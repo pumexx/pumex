@@ -31,7 +31,6 @@ namespace pumex
 
 enum ImageSizeType { isUndefined, isAbsolute, isSurfaceDependent };
 
-
 // struct defining size of Image
 struct PUMEX_EXPORT ImageSize
 {
@@ -58,8 +57,8 @@ struct PUMEX_EXPORT ImageSize
 
 inline bool operator==(const ImageSize& lhs, const ImageSize& rhs);
 inline bool operator!=(const ImageSize& lhs, const ImageSize& rhs);
-inline bool compareImageSizeSkipArrays(const ImageSize& lhs, const ImageSize& rhs);
 
+PUMEX_EXPORT VkImageType vulkanImageTypeFromImageSize(const ImageSize& is);
 
 // struct defining subresource range for buffer
 struct PUMEX_EXPORT BufferSubresourceRange
@@ -81,7 +80,9 @@ struct PUMEX_EXPORT ImageSubresourceRange
   ImageSubresourceRange();
   ImageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t baseMipLevel=0, uint32_t levelCount=1, uint32_t baseArrayLayer=0, uint32_t layerCount=1);
 
-  VkImageSubresourceRange getSubresource() const;
+  VkImageSubresourceRange  getSubresource() const;
+  VkImageSubresourceLayers getSubresourceLayers() const;
+
   bool contains(const ImageSubresourceRange& subRange) const;
 
   VkImageAspectFlags    aspectMask;
@@ -90,6 +91,9 @@ struct PUMEX_EXPORT ImageSubresourceRange
   uint32_t              baseArrayLayer;
   uint32_t              layerCount;
 };
+
+inline bool compareRenderOperationSizeWithImageSize(const ImageSize& operationSize, const ImageSize& imageSize, const ImageSubresourceRange& imageRange );
+
 
 PUMEX_EXPORT bool rangeOverlaps(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
 
@@ -105,9 +109,9 @@ bool operator!=(const ImageSize& lhs, const ImageSize& rhs)
   return lhs.type != rhs.type || lhs.size != rhs.size || lhs.arrayLayers != rhs.arrayLayers || lhs.mipLevels != rhs.mipLevels;
 }
 
-bool compareImageSizeSkipArrays(const ImageSize& lhs, const ImageSize& rhs)
+bool compareRenderOperationSizeWithImageSize(const ImageSize& operationSize, const ImageSize& imageSize, const ImageSubresourceRange& imageRange)
 {
-  return lhs.type == rhs.type && lhs.size == rhs.size && lhs.mipLevels == rhs.mipLevels;
+  return operationSize.type == imageSize.type && operationSize.size.x == ( static_cast<uint32_t>(imageSize.size.x) >> imageRange.baseMipLevel ) && operationSize.size.y == (static_cast<uint32_t>(imageSize.size.y) >> imageRange.baseMipLevel ) ;
 }
 
 

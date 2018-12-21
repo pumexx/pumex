@@ -149,13 +149,11 @@ protected:
   uint32_t                                     activeCount;
 };
 
-class ComputePass;
-
 // really - I don't have idea how to name this crucial class :(
 class PUMEX_EXPORT RenderCommand : public CommandBufferSource
 {
 public:
-  enum CommandType { ctRenderSubPass, ctComputePass };
+  enum CommandType { ctRenderSubPass, ctComputePass, ctTransferPass };
   RenderCommand(CommandType commandType);
 
   virtual void                validate(const RenderContext& renderContext) = 0;
@@ -164,9 +162,6 @@ public:
 
   std::shared_ptr<ImageView>  getImageViewByEntryName(const std::string& entryName) const;
   std::shared_ptr<BufferView> getBufferViewByEntryName(const std::string& entryName) const;
-
-  virtual RenderSubPass*      asRenderSubPass() = 0;
-  virtual ComputePass*        asComputePass() = 0;
 
   CommandType                                                          commandType;
   RenderOperation                                                      operation;
@@ -190,10 +185,6 @@ public:
   void applyRenderContextVisitor(RenderContextVisitor& visitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
-  RenderSubPass* asRenderSubPass() override;
-  ComputePass*   asComputePass() override;
-
-
   std::shared_ptr<RenderPass>      renderPass;
   uint32_t                         subpassIndex;
   SubpassDescription               definition;
@@ -209,8 +200,17 @@ public:
   void applyRenderContextVisitor(RenderContextVisitor& visitor) override;
   void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
 
-  RenderSubPass* asRenderSubPass() override;
-  ComputePass*   asComputePass() override;
 };
+
+class PUMEX_EXPORT TransferPass : public RenderCommand
+{
+public:
+  explicit TransferPass();
+
+  void validate(const RenderContext& renderContext) override;
+  void applyRenderContextVisitor(RenderContextVisitor& visitor) override;
+  void buildCommandBuffer(BuildCommandBufferVisitor& commandVisitor) override;
+};
+
 
 }

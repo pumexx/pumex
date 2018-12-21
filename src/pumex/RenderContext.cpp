@@ -42,7 +42,16 @@ void RenderContext::setRenderOperation(RenderOperation* ro)
   renderOperation = ro;
   if (ro != nullptr)
   {
-    currentBindPoint = (ro->operationType == opGraphics) ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
+    switch (ro->operationType)
+    {
+    case opGraphics:
+    case opTransfer:
+      currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+      break;
+    case opCompute:
+      currentBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+      break;
+    }
   }
   else
     currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
