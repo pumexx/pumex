@@ -329,6 +329,7 @@ int main( int argc, char * argv[] )
       rendering.addImageInput("irradiance_map",              irradianceCubeMapDefinition,             pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
       rendering.addImageInput("prefiltered_environment_map", prefilteredEnvironmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, PREFILTERED_ENVIRONMENT_MIPMAPS, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
       rendering.addImageInput("brdf_map",                    brdfDefinition,                          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, VK_IMAGE_VIEW_TYPE_2D);
+      rendering.addImageInput("environment_map",             environmentCubeMapNoMipDefinition,       pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
       rendering.setAttachmentDepthOutput("depth",            depthSamples,                            pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME,   swapChainDefinition,                     pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
     prepareIblRenderGraph->addRenderOperation(rendering);
@@ -340,6 +341,7 @@ int main( int argc, char * argv[] )
       std::stringstream opGen;
       opGen << "eqr_" << i;
       transitions_cubemap_nomip.push_back({ opGen.str(), "face", "eqrm", "cubemap_nomipmaps" });
+      transitions_cubemap_nomip.push_back({ opGen.str(), "face", "rendering", "environment_map" });
     }
     std::vector<pumex::ResourceTransitionDescription> transitions_cubemap_mip;
     std::vector<pumex::ResourceTransitionDescription> transitions_2_final;
@@ -692,6 +694,42 @@ int main( int argc, char * argv[] )
     assetNode->setName("assetNode");
     pipeline->addChild(assetNode);
 
+    // background rendering
+
+    std::vector<pumex::DescriptorSetLayoutBinding> bkLayoutBindings =
+    {
+      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
+      { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+    };
+    auto bkDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(bkLayoutBindings);
+
+    // building pipeline layout
+    auto bkPipelineLayout = std::make_shared<pumex::PipelineLayout>();
+    bkPipelineLayout->descriptorSetLayouts.push_back(bkDescriptorSetLayout);
+
+    auto bkPipeline = std::make_shared<pumex::GraphicsPipeline>(pipelineCache, bkPipelineLayout);
+    // loading vertex and fragment shader
+    bkPipeline->shaderStages =
+    {
+      { VK_SHADER_STAGE_VERTEX_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/ibl_background.vert.spv"), "main" },
+      { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<pumex::ShaderModule>(viewer, "shaders/ibl_background.frag.spv"), "main" }
+    };
+    // vertex input - we will use the same vertex semantic that the loaded model has
+    bkPipeline->vertexInput =
+    {
+      { 0, VK_VERTEX_INPUT_RATE_VERTEX, sphereAsset->geometries[0].semantic }
+    };
+    bkPipeline->blendAttachments =
+    {
+      { VK_FALSE, 0xF }
+    };
+    bkPipeline->cullMode         = VK_CULL_MODE_NONE;
+    bkPipeline->depthCompareOp   = VK_COMPARE_OP_LESS_OR_EQUAL;
+    bkPipeline->depthWriteEnable = VK_FALSE;
+    renderRoot->addChild(bkPipeline);
+
+    bkPipeline->addChild(sphereAssetNode);
+
     // Application data class stores all information required to update rendering ( animation state, camera position, etc )
     std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator);
 
@@ -708,6 +746,7 @@ int main( int argc, char * argv[] )
     auto irradianceCubeMapSampler      = std::make_shared<pumex::CombinedImageSampler>("irradiance_map", sampler);
     auto prefEnvironmentCubeMapSampler = std::make_shared<pumex::CombinedImageSampler>("prefiltered_environment_map", sampler);
     auto brdfSampler                   = std::make_shared<pumex::CombinedImageSampler>("brdf_map", sampler);
+    auto environmentCubeMapSampler     = std::make_shared<pumex::CombinedImageSampler>("environment_map", sampler);
 
     auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, descriptorSetLayout);
       descriptorSet->setDescriptor(0, cameraUbo);
@@ -716,6 +755,12 @@ int main( int argc, char * argv[] )
       descriptorSet->setDescriptor(3, prefEnvironmentCubeMapSampler);
       descriptorSet->setDescriptor(4, brdfSampler);
       pipeline->setDescriptorSet(0, descriptorSet);
+
+    auto bkDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, bkDescriptorSetLayout);
+      bkDescriptorSet->setDescriptor(0, cameraUbo);
+      bkDescriptorSet->setDescriptor(1, environmentCubeMapSampler);
+      bkPipeline->setDescriptorSet(0, bkDescriptorSet);
+
 
     // lets add object that calculates time statistics and is able to render it
     std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer);

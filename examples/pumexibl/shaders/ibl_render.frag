@@ -127,9 +127,9 @@ vec3 toneMappingReinhardNaive(vec3 rgbColor)
 
 void main()
 {
-  vec3  albedo           = vec3( 0.5, 0.5, 0.5 );// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
-  float metallic         = 1.0; //texture(metallicMap, texCoord).r;
-  float roughness        = 0.9; //texture(roughnessMap, texCoord).r;
+  vec3  albedo           = vec3( 0.2, 0.2, 0.2 );// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
+  float metallic         = 0.0; //texture(metallicMap, texCoord).r;
+  float roughness        = 1.0; //texture(roughnessMap, texCoord).r;
   
   mat3  TBN              = mat3(normalize(inTangent),normalize(inBitangent),normalize(inNormal));
   vec3  texNormal        = vec3(0.5, 0.5, 1.0);   //texture(normalMap, texCoord).rgb;
@@ -194,13 +194,13 @@ void main()
   vec3  diffuse          = irradiance * albedo;
 
   vec3  R                = viewInverse3*reflect(-V, N);
-  vec3  prefilteredColor = textureLod(prefilteredEnvironmentMap, R,  roughness * textureQueryLevels(prefilteredEnvironmentMap)).rgb;
+  vec3  prefilteredColor = textureLod(prefilteredEnvironmentMap, R,  roughness * (textureQueryLevels(prefilteredEnvironmentMap)-1)).rgb;
   vec2  brdf             = texture(brdfMap, vec2(NdotV, roughness)).rg;
   vec3  specular_ibl     = prefilteredColor * (kS_ibl * brdf.x + brdf.y);
   vec3  ambient          = (kD_ibl * diffuse + specular_ibl);// * ao;  
 
-  finalColor             = finalColor + ambient;
-//  finalColor             = ambient;
+//  finalColor             = finalColor + ambient;
+  finalColor             = ambient;
 
   // tone mapping
   //finalColor             = toneMappingACESFitted(finalColor);

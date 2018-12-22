@@ -1,4 +1,6 @@
 set( PUMEXIBL_SHADER_NAMES
+  shaders/ibl_background.vert
+  shaders/ibl_background.frag
   shaders/ibl_equirectangular_to_cubemap.vert
   shaders/ibl_equirectangular_to_cubemap.frag
   shaders/ibl_calculate_diffuse_irradiance.vert
