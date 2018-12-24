@@ -42,14 +42,14 @@ void main()
   boneTransform     += object.bones[int(inBoneIndex[2])] * inBoneWeight[2];
   boneTransform     += object.bones[int(inBoneIndex[3])] * inBoneWeight[3];
   mat4 modelMatrix  = object.position * boneTransform;
+  mat4 mvMatrix     = camera.viewMatrix * modelMatrix;
+  vec4 ecPos4       = mvMatrix * vec4(inPos.xyz, 1.0);
+  gl_Position       = camera.projectionMatrix * ecPos4;
+  outEcPosition     = ecPos4.xyz / ecPos4.w;
 
-  vec4 ecPos4      = camera.viewMatrix * modelMatrix * vec4(inPos.xyz, 1.0);
-  gl_Position      = camera.projectionMatrix * ecPos4;
-  outEcPosition    = ecPos4.xyz / ecPos4.w;
-
-  mat3 normalMatrix = mat3(inverse(transpose(modelMatrix)));
-  outNormal        = normalMatrix * inNormal;
-  outTangent       = normalMatrix * inTangent;
-  outBitangent     = cross(outNormal, outTangent);
-  outUV            = inUV;
+  mat3 normalMatrix = mat3(inverse(transpose(mvMatrix)));
+  outNormal         = normalMatrix * inNormal;
+  outTangent        = normalMatrix * inTangent;
+  outBitangent      = cross(outNormal, outTangent);
+  outUV             = inUV;
 }

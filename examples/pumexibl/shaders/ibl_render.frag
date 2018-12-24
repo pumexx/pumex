@@ -127,15 +127,15 @@ vec3 toneMappingReinhardNaive(vec3 rgbColor)
 
 void main()
 {
-  vec3  albedo           = vec3( 0.2, 0.2, 0.2 );// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
-  float metallic         = 0.0; //texture(metallicMap, texCoord).r;
-  float roughness        = 1.0; //texture(roughnessMap, texCoord).r;
+  vec3  albedo           = vec3(0.91,0.68,0.19);// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
+  float metallic         = 1.0; //texture(metallicMap, texCoord).r;
+  float roughness        = 0.0; //texture(roughnessMap, texCoord).r;
   
   mat3  TBN              = mat3(normalize(inTangent),normalize(inBitangent),normalize(inNormal));
   vec3  texNormal        = vec3(0.5, 0.5, 1.0);   //texture(normalMap, texCoord).rgb;
   texNormal              = normalize(texNormal * 2.0 - vec3(1.0));   
   vec3  N                = TBN * texNormal;
-  
+
   vec3  V                = normalize( -inEcPosition  );
   float NdotV            = clamp(dot(N, V), 1e-5, 1.0);
 
@@ -175,7 +175,7 @@ void main()
   vec3  nominator        = D * G * F;
   float denominator      = 4 * NdotV * NdotL;
   vec3  specular         = nominator / denominator;
-  
+
   vec3  kS               = F;
   vec3  kD               = vec3(1.0) - kS;
   kD                     *= 1.0 - metallic;	 
@@ -192,15 +192,15 @@ void main()
   kD_ibl                *= 1.0 - metallic; 
   vec3  irradiance       = texture(irradianceMap, viewInverse3*N ).rgb;
   vec3  diffuse          = irradiance * albedo;
-
-  vec3  R                = viewInverse3*reflect(-V, N);
+  vec3  R                = viewInverse3 * reflect(-V, N);
   vec3  prefilteredColor = textureLod(prefilteredEnvironmentMap, R,  roughness * (textureQueryLevels(prefilteredEnvironmentMap)-1)).rgb;
+
   vec2  brdf             = texture(brdfMap, vec2(NdotV, roughness)).rg;
   vec3  specular_ibl     = prefilteredColor * (kS_ibl * brdf.x + brdf.y);
   vec3  ambient          = (kD_ibl * diffuse + specular_ibl);// * ao;  
 
-//  finalColor             = finalColor + ambient;
-  finalColor             = ambient;
+  finalColor             = finalColor + ambient;
+//  finalColor             = ambient;
 
   // tone mapping
   //finalColor             = toneMappingACESFitted(finalColor);

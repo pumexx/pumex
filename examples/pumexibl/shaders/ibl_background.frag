@@ -71,7 +71,7 @@ vec3 toneMappingReinhardNaive(vec3 rgbColor)
 void main()
 {
     vec3 normPos  = normalize(inPos);
-    vec3 color    = pow(texture(environmentCube, normPos).rgb, vec3(2.2));
+    vec3 color    = texture(environmentCube, normPos).rgb;
 //  color         = toneMappingACESFitted(color);
     color         = toneMappingACESFilm(color);
 //  color         = toneMappingReinhard(color);

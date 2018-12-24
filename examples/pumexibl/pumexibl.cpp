@@ -156,7 +156,7 @@ int main( int argc, char * argv[] )
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
-  args::ValueFlag<std::string>                 equirectangularImageName(parser, "equirectangular_image", "equirectangular image filename", { 'i' }, "ibl/syferfontein_0d_clear_2k.dds");
+  args::ValueFlag<std::string>                 equirectangularImageName(parser, "equirectangular_image", "equirectangular image filename", { 'i' }, "ibl/syferfontein_0d_clear_2k.ktx");
   args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
   args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
   try
@@ -249,7 +249,7 @@ int main( int argc, char * argv[] )
     // allocate 64 MB for vertex and index buffers
     std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 32 MB memory for font textures and environment texture
-    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 128 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
