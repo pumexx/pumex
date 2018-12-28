@@ -36,6 +36,7 @@
 #include <pumex/Export.h>
 #include <pumex/HPClock.h>
 #include <pumex/Queue.h>
+#include <pumex/Asset.h>
 
 namespace filesystem = std::experimental::filesystem;
 
@@ -58,10 +59,7 @@ class Window;
 class Surface;
 class TimeStatistics;
 class InputEventHandler;
-class Asset;
-class AssetLoader;
 class TextureLoader;
-struct VertexSemantic;
 
 const uint32_t TSV_STAT_UPDATE                = 1;
 const uint32_t TSV_STAT_RENDER                = 2;

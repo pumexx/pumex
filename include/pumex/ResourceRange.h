@@ -21,6 +21,7 @@
 //
 
 #pragma once
+#include <cmath>
 #include <vulkan/vulkan.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
