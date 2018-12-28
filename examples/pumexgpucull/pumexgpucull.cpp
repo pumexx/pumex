@@ -36,7 +36,6 @@
 #endif
 #include <tbb/tbb.h>
 #include <pumex/Pumex.h>
-#include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
 #include <args.hxx>
 

@@ -24,7 +24,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <pumex/Pumex.h>
-#include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
 #include <args.hxx>
 
@@ -217,19 +216,15 @@ int main( int argc, char * argv[] )
     std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::Tangent, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
 
     // we load an asset using Assimp asset loader
-    pumex::AssetLoaderAssimp loader;
-    loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace);
-    std::shared_ptr<pumex::Asset> asset(loader.load(viewer, modelFileName, false, requiredSemantic));
+    std::shared_ptr<pumex::Asset> asset = viewer->loadAsset(modelFileName, false, requiredSemantic);
 
     if (!animationFileName.empty() )
     {
-      std::shared_ptr<pumex::Asset> animAsset(loader.load(viewer, animationFileName, true, requiredSemantic));
+      std::shared_ptr<pumex::Asset> animAsset = viewer->loadAsset(animationFileName, true, requiredSemantic);
       asset->animations = animAsset->animations;
     }
 
-    auto fullEquirectangularFileName = viewer->getAbsoluteFilePath(equirectangularFileName);
-    CHECK_LOG_THROW(fullEquirectangularFileName.empty(), "Cannot find equirectangular texture : " << equirectangularFileName);
-    auto equirectangularTexture = std::make_shared<gli::texture>(gli::load(fullEquirectangularFileName));
+    auto equirectangularTexture = viewer->loadTexture(equirectangularFileName,false);
     CHECK_LOG_THROW(equirectangularTexture == nullptr, "Cannot load equirectangular texture : " << equirectangularFileName);
 
     // now is the time to create devices, windows and surfaces.

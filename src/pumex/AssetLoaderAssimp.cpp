@@ -29,6 +29,7 @@
 using namespace pumex;
 
 AssetLoaderAssimp::AssetLoaderAssimp()
+  : AssetLoader{ {"fbx", "dae", "gltf", "glb", "3ds", "obj", "ply", "dxf", "lwo", "stl", "bvh" } }
 {
 }
 
@@ -77,12 +78,10 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
     mat.properties.insert({ std::string(key), glm::vec4(value, 0.0f, 0.0f, 0.0f) });
 }
 
-std::shared_ptr<Asset> AssetLoaderAssimp::load(std::shared_ptr<Viewer> viewer, const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
+std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
-  auto fullFileName = viewer->getAbsoluteFilePath(fileName);
-  CHECK_LOG_THROW(fullFileName.empty(), "Cannot find model file " << fileName);
-  const aiScene* scene = Importer.ReadFile(fullFileName.c_str(), importFlags);
-  CHECK_LOG_THROW(scene == nullptr, "Cannot load model file : " << fullFileName)
+  const aiScene* scene = Importer.ReadFile(fileName.c_str(), importFlags);
+  CHECK_LOG_THROW(scene == nullptr, "Cannot load model file : " << fileName)
 
   //creating asset
   std::shared_ptr<Asset> asset = std::make_shared<Asset>();

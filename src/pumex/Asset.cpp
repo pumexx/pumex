@@ -341,6 +341,11 @@ glm::vec4 Material::getProperty(const std::string& name, glm::vec4 defaultValue)
     return defaultValue;
 }
 
+AssetLoader::AssetLoader(const std::vector<std::string>& fileExtensions)
+  : supportedExtensions( fileExtensions )
+{
+}
+
 void copyAndConvertVertices(std::vector<float>& targetBuffer, const std::vector<VertexSemantic>& targetSemantic, const std::vector<float>& sourceBuffer, const std::vector<VertexSemantic>& sourceSemantic)
 {
   // check if semantics are the same ( fast path )

@@ -122,7 +122,20 @@ PUMEX_EXPORT VkComponentMapping vulkanComponentMappingFromGliComponentMapping(co
 class PUMEX_EXPORT TextureLoader
 {
 public:
-  virtual std::shared_ptr<gli::texture> load(const std::string& fileName) = 0;
+  TextureLoader()                                = delete;
+  explicit TextureLoader(const std::vector<std::string>& supportedExtensions);
+  TextureLoader(const TextureLoader&)            = delete;
+  TextureLoader& operator=(const TextureLoader&) = delete;
+  TextureLoader(TextureLoader&&)                 = delete;
+  TextureLoader& operator=(TextureLoader&&)      = delete;
+
+  inline const std::vector<std::string>& getSupportedExtensions() const;
+  virtual std::shared_ptr<gli::texture>  load(const std::string& fileName, bool buildMipMaps) = 0;
+protected:
+  std::vector<std::string> supportedExtensions;
 };
+
+const std::vector<std::string>& TextureLoader::getSupportedExtensions() const { return supportedExtensions; }
+
 
 }

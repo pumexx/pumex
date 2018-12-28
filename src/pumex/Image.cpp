@@ -194,6 +194,11 @@ void Image::unmapMemory()
   vkUnmapMemory(device, memoryBlock.memory);
 }
 
+TextureLoader::TextureLoader(const std::vector<std::string>& fileExtensions)
+  : supportedExtensions( fileExtensions )
+{
+}
+
 namespace pumex
 {
 

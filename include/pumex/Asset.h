@@ -237,8 +237,20 @@ public:
 class PUMEX_EXPORT AssetLoader
 {
 public:
-  virtual std::shared_ptr<Asset> load(std::shared_ptr<Viewer> viewer, const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
+  AssetLoader() = delete;
+  explicit AssetLoader(const std::vector<std::string>& supportedExtensions);
+  AssetLoader(const AssetLoader&) = delete;
+  AssetLoader& operator=(const AssetLoader&) = delete;
+  AssetLoader(AssetLoader&&) = delete;
+  AssetLoader& operator=(AssetLoader&&) = delete;
+
+  inline const std::vector<std::string>& getSupportedExtensions() const;
+  virtual std::shared_ptr<Asset> load(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) = 0;
+protected:
+  std::vector<std::string> supportedExtensions;
 };
+
+const std::vector<std::string>& AssetLoader::getSupportedExtensions() const { return supportedExtensions; }
 
 uint32_t VertexAccumulator::getOffset(VertexSemantic::Type semanticType, uint32_t channel) const
 {

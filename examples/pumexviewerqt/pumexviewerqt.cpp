@@ -25,7 +25,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <args.hxx>
 #include <pumex/Pumex.h>
-#include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
 #include "MainWindow.h"
 #include <pumex/platform/qt/WindowQT.h>
@@ -163,7 +162,7 @@ public:
     std::shared_ptr<pumex::Asset> loadedAsset;
     try
     {
-      loadedAsset = loader.load(viewer, modelFileName, false, semantic);
+      loadedAsset = viewer->loadAsset(modelFileName, false, semantic);
     }
     catch (std::exception& e)
     {
@@ -182,7 +181,7 @@ public:
     std::shared_ptr<pumex::Asset> loadedAsset;
     try
     {
-      loadedAsset = loader.load(viewer, modelFileName, false, semantic);
+      loadedAsset = viewer->loadAsset(modelFileName, false, semantic);
     }
     catch (std::exception& e)
     {
@@ -248,7 +247,6 @@ public:
   std::shared_ptr<pumex::Buffer<PositionData>>  positionBuffer;
   std::shared_ptr<pumex::BasicCameraHandler>    camHandler;
   pumex::ActionQueue                            actions;
-  pumex::AssetLoaderAssimp                      loader;
 };
 
 int main( int argc, char * argv[] )

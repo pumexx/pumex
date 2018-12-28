@@ -38,7 +38,6 @@
 #endif
 #include <tbb/tbb.h>
 #include <pumex/Pumex.h>
-#include <pumex/AssetLoaderAssimp.h>
 #include <args.hxx>
 
 
@@ -275,12 +274,10 @@ struct CrowdApplicationData
   {
     skeletalAssetBuffer = assetBuffer;
 
-    pumex::AssetLoaderAssimp      loader;
-
     // We assume that animations use the same skeleton as skeletal models
     for (auto& animDef : animationDefinitions)
     {
-      std::shared_ptr<pumex::Asset> asset(loader.load(viewer, std::get<0>(animDef), true));
+      std::shared_ptr<pumex::Asset> asset = viewer->loadAsset(std::get<0>(animDef), true);
       animations.push_back(asset->animations[0]);
     }
 
@@ -298,7 +295,7 @@ struct CrowdApplicationData
       {
         if (fileNames[j].empty())
           continue;
-        std::shared_ptr<pumex::Asset> asset(loader.load(viewer, fileNames[j],false,vertexSemantic));
+        std::shared_ptr<pumex::Asset> asset = viewer->loadAsset(fileNames[j],false,vertexSemantic);
         if( j == 0 )
         {
           skeletons.push_back(asset->skeleton);

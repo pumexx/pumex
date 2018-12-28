@@ -24,7 +24,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <pumex/Pumex.h>
-#include <pumex/AssetLoaderAssimp.h>
 #include <pumex/utils/Shapes.h>
 #include <args.hxx>
 
@@ -414,9 +413,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
-    pumex::AssetLoaderAssimp loader;
-    loader.setImportFlags(loader.getImportFlags() | aiProcess_CalcTangentSpace );
-    std::shared_ptr<pumex::Asset> asset(loader.load(viewer, "sponza/sponza.dae", false, requiredSemantic));
+    std::shared_ptr<pumex::Asset> asset = viewer->loadAsset("sponza/sponza.dae", false, requiredSemantic);
 
     pumex::BoundingBox bbox = pumex::calculateBoundingBox(*asset, 1);
 

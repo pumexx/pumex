@@ -7,6 +7,7 @@ message( STATUS "Building PUMEX library version ${PUMEX_VERSION_MAJOR}.${PUMEX_V
 
 option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
 option( PUMEX_BUILD_QT                   "Build Pumex with QT support" OFF )
+option( PUMEX_BUILD_TEXTURE_LOADERS      "Build Pumex with PNG, JPG, etc support" ON )
 if(WIN32)
   option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
@@ -14,6 +15,8 @@ if(WIN32)
   option( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP   "Download Assimp library"    ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE "Download Freetype2 library" ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ZLIB     "Download ZLIB library"      ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_PNG      "Download LibPNG library"    ON )
 else()
   option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
@@ -21,6 +24,8 @@ else()
   option( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP   "Download Assimp library"    OFF )
   option( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE "Download Freetype2 library" OFF )
   option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       OFF )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ZLIB     "Download ZLIB library"      OFF )
+  option( PUMEX_DOWNLOAD_EXTERNAL_PNG      "Download LibPNG library"    OFF )
 endif()
 
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" )
@@ -131,6 +136,12 @@ if(PUMEX_BUILD_QT)
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/qt/WindowQT.h
   )
 endif()
+if(PUMEX_BUILD_TEXTURE_LOADERS)
+  list( APPEND PUMEXLIB_HEADERS_QT
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderPNG.h
+  )
+endif()
+
 
 set( PUMEXLIB_SOURCES )
 set( PUMEXLIB_SOURCES_QT )
@@ -206,6 +217,11 @@ endif()
 if(PUMEX_BUILD_QT)
   list( APPEND PUMEXLIB_SOURCES_QT
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/qt/WindowQT.cpp
+  )
+endif()
+if(PUMEX_BUILD_TEXTURE_LOADERS)
+  list( APPEND PUMEXLIB_SOURCES_QT
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderPNG.cpp
   )
 endif()
 

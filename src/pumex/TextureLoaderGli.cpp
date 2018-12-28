@@ -33,7 +33,12 @@
 
 using namespace pumex;
 
-std::shared_ptr<gli::texture> TextureLoaderGli::load(const std::string& fileName)
+TextureLoaderGli::TextureLoaderGli()
+  : TextureLoader{ {"dds", "ktx"} }
+{
+}
+
+std::shared_ptr<gli::texture> TextureLoaderGli::load(const std::string& fileName, bool buildMipMaps)
 {
   return std::make_shared<gli::texture>( gli::load(fileName) );
 }

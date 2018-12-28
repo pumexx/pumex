@@ -31,6 +31,11 @@
 #include <pumex/RenderGraphCompiler.h>
 #include <pumex/TimeStatistics.h>
 #include <pumex/InputEvent.h>
+#include <pumex/Asset.h>
+#include <pumex/Image.h>
+#include <pumex/AssetLoaderAssimp.h>
+#include <pumex/TextureLoaderGli.h>
+#include <pumex/TextureLoaderPNG.h>
 #include <pumex/Version.h>
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
@@ -141,6 +146,15 @@ Viewer::Viewer(const ViewerTraits& vt)
 //  LOG_INFO << "Default directories :" << std::endl;
 //  for(auto& d : defaultDirectories)
 //    LOG_INFO << d << std::endl;
+
+  // collect asset and texture loaders
+  auto assimpLoader = std::make_shared<AssetLoaderAssimp>();
+  assimpLoader->setImportFlags(assimpLoader->getImportFlags() | aiProcess_CalcTangentSpace);
+  assetLoaders.push_back(assimpLoader);
+
+  textureLoaders.push_back(std::make_shared<TextureLoaderGli>());
+  // FIXME - these loaders may not be compiled by default
+  textureLoaders.push_back(std::make_shared<TextureLoaderPNG>());
 
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
@@ -536,6 +550,48 @@ std::string Viewer::getAbsoluteFilePath(const std::string& relativeFilePath) con
       return targetPath.string();
   }
   return std::string();
+}
+
+std::shared_ptr<Asset> Viewer::loadAsset(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic) const
+{
+  auto fullFileName = getAbsoluteFilePath(fileName);
+  CHECK_LOG_THROW(fullFileName.empty(), "Cannot find asset file " << fileName);
+
+  // find loader that will load this asset - loader is matched by file extension
+  auto index = fullFileName.find_last_of('.');
+  CHECK_LOG_THROW(index == std::string::npos, "File does not have an extension " << fileName);
+  auto extension = fullFileName.substr(index + 1);
+
+  for (auto& loader : assetLoaders)
+  {
+    const auto& exts = loader->getSupportedExtensions();
+    if (std::find(begin(exts), end(exts), extension) == end(exts))
+      continue;
+    return loader->load(fullFileName, animationOnly, requiredSemantic);
+  }
+  LOG_WARNING << "Cannot find loader for asset " << fileName << std::endl;
+  return std::shared_ptr<Asset>();
+}
+
+std::shared_ptr<gli::texture> Viewer::loadTexture(const std::string& fileName, bool buildMipMaps) const
+{
+  auto fullFileName = getAbsoluteFilePath(fileName);
+  CHECK_LOG_THROW(fullFileName.empty(), "Cannot find texture file " << fileName);
+
+  // find loader that will load this texture - loader is matched by file extension
+  auto index = fullFileName.find_last_of('.');
+  CHECK_LOG_THROW(index == std::string::npos, "File does not have an extension " << fileName);
+  auto extension = fullFileName.substr(index + 1);
+
+  for (auto& loader : textureLoaders)
+  {
+    const auto& exts = loader->getSupportedExtensions();
+    if (std::find(begin(exts), end(exts), extension) == end(exts))
+      continue;
+    return loader->load(fullFileName, buildMipMaps);
+  }
+  LOG_WARNING << "Cannot find loader for texture " << fileName << std::endl;
+  return std::shared_ptr<gli::texture>();
 }
 
 bool Viewer::instanceExtensionImplemented(const char* extensionName) const

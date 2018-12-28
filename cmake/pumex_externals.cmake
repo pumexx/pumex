@@ -228,3 +228,76 @@ if(PUMEX_BUILD_QT)
   list( APPEND PUMEXLIB_LIBRARIES Qt5::Core Qt5::Gui )
 endif()
 
+# additional texture loaders consist of ZLIB, LIBPNG
+if(PUMEX_BUILD_TEXTURE_LOADERS)
+  if(PUMEX_DOWNLOAD_EXTERNAL_ZLIB)
+    set( ZLIB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/zlib )
+    set( ZLIB_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/zlib )
+    ExternalProject_Add( zlib-external
+      PREFIX "${ZLIB_BUILD_DIR}"
+      BINARY_DIR "${ZLIB_BUILD_DIR}/build"
+      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/zlib"
+      GIT_REPOSITORY "https://github.com/madler/zlib.git"
+      GIT_TAG "v1.2.11"
+      SOURCE_DIR "${ZLIB_SOURCE_DIR}"
+      UPDATE_COMMAND ""
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d
+      UPDATE_DISCONNECTED TRUE
+    )
+    ExternalProject_Add_Step( zlib-external zlib-copy-intermediate
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+      DEPENDEES install
+    )
+    if(WIN32)
+      set( ZLIB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/zlib.lib )
+      set( ZLIB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/zlibd.lib )
+    else()
+      set( ZLIB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/zlib.so )
+      set( ZLIB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/zlibd.so )
+    endif()
+    set( ZLIB_LIBRARIES optimized "${ZLIB_LIBRARY_RELEASE}" debug "${ZLIB_LIBRARY_DEBUG}" )
+    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${ZLIB_SOURCE_DIR}/include )
+    list( APPEND PUMEXLIB_LIBRARIES ${ZLIB_LIBRARIES} )
+    list( APPEND PUMEXLIB_EXTERNALS zlib-external )
+  else()
+    find_package( ZLIB REQUIRED )
+    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${ZLIB_INCLUDE_DIRS} )
+    list( APPEND PUMEXLIB_LIBRARIES ${ZLIB_LIBRARIES} )
+  endif()
+  
+  if(PUMEX_DOWNLOAD_EXTERNAL_PNG)
+    set( PNG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/libpng )
+    set( PNG_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/libpng )
+    ExternalProject_Add( libpng-external
+      PREFIX "${PNG_BUILD_DIR}"
+      BINARY_DIR "${PNG_BUILD_DIR}/build"
+      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/libpng"
+      GIT_REPOSITORY "git://git.code.sf.net/p/libpng/code"
+      GIT_TAG "v1.6.36"
+      SOURCE_DIR "${PNG_SOURCE_DIR}"
+      UPDATE_COMMAND ""
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d
+      UPDATE_DISCONNECTED TRUE
+    )
+    ExternalProject_Add_Step( libpng-external libpng-copy-intermediate
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+      DEPENDEES install
+    )
+    if(WIN32)
+      set( PNG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16.lib )
+      set( PNG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16d.lib )
+    else()
+      set( PNG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16.so )
+      set( PNG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16d.so )
+    endif()
+    set( PNG_LIBRARIES optimized "${PNG_LIBRARY_RELEASE}" debug "${PNG_LIBRARY_DEBUG}" )
+    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${PNG_BUILD_DIR}/include )
+    list( APPEND PUMEXLIB_LIBRARIES ${PNG_LIBRARIES} )
+    list( APPEND PUMEXLIB_EXTERNALS libpng-external )
+  else()
+    find_package( PNG REQUIRED )
+    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${PNG_INCLUDE_DIRS} )
+    list( APPEND PUMEXLIB_LIBRARIES ${PNG_LIBRARIES} )
+  endif()
+  
+endif()

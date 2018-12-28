@@ -39,6 +39,11 @@
 
 namespace filesystem = std::experimental::filesystem;
 
+namespace gli
+{
+  class texture;
+}
+
 namespace pumex
 {
 
@@ -53,6 +58,10 @@ class Window;
 class Surface;
 class TimeStatistics;
 class InputEventHandler;
+class Asset;
+class AssetLoader;
+class TextureLoader;
+struct VertexSemantic;
 
 const uint32_t TSV_STAT_UPDATE                = 1;
 const uint32_t TSV_STAT_RENDER                = 2;
@@ -148,6 +157,8 @@ public:
 
   void                                          addDefaultDirectory( const filesystem::path & directory);
   std::string                                   getAbsoluteFilePath( const std::string& relativeFilePath ) const;
+  std::shared_ptr<Asset>                        loadAsset(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) const;
+  std::shared_ptr<gli::texture>                 loadTexture(const std::string& fileName, bool buildMipMaps = true) const;
 
   bool                                          instanceExtensionImplemented(const char* extensionName) const;
   bool                                          instanceExtensionEnabled(const char* extensionName) const;
@@ -184,6 +195,9 @@ protected:
   ViewerTraits                                                            viewerTraits;
 
   std::vector<filesystem::path>                                           defaultDirectories;
+  std::vector<std::shared_ptr<AssetLoader>>                               assetLoaders;
+  std::vector<std::shared_ptr<TextureLoader>>                             textureLoaders;
+
   std::vector<std::shared_ptr<PhysicalDevice>>                            physicalDevices;
   std::unordered_map<uint32_t, std::shared_ptr<Device>>                   devices;
   std::unordered_map<uint32_t, std::shared_ptr<Surface>>                  surfaces;
