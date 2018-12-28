@@ -61,6 +61,10 @@ void RenderGraphExecutable::resizeImages(const RenderContext& renderContext, std
       continue;
     if (!iiit->second.isSwapchainImage)
     {
+      // if memory image uses the same trais on every object ( surface, device ) then it cannot change size for particular surface / device
+      // Such image must have size set during creation ( look for MemoryImage constructors ) and it should not be defined as isSurfaceDependent
+      if (memImage.second->usesSameTraitsPerObject())
+        continue;
       const RenderGraphImageInfo& info = iiit->second;
       ImageSize imageSize = info.attachmentDefinition.attachmentSize;
       auto imageType      = vulkanImageTypeFromImageSize(imageSize);

@@ -646,7 +646,7 @@ int main(int argc, char * argv[])
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
     // allocate 24 MB for frame buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("frameBuffer", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 24 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     std::vector<pumex::WindowTraits> windowTraits;
@@ -703,13 +703,13 @@ int main(int argc, char * argv[])
     renderGraph->addResourceTransition("crowd_compute", "indirect_draw_out",    "rendering", "indirect_draw_in",    "indirect_draw_buffer");
 
     // alocate 12 MB for uniform and storage buffers
-    auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("buffers", VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // alocate 12 MB for buffers that are only GPU visible
-    auto localBuffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    auto localBuffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("gpubuffers", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
-    auto verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    auto verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("vertices", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 80 MB memory for 24 compressed textures and for font textures
-    auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    auto texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("textures", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 80 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 

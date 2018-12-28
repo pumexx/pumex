@@ -8,6 +8,7 @@ layout (location = 1) in vec3 inNormal;
 layout (location = 2) in vec3 inTangent;
 layout (location = 3) in vec3 inBitangent;
 layout (location = 4) in vec2 inUV;
+layout (location = 5) flat in uint materialID;
 
 layout (binding = 0) uniform CameraUbo
 {
@@ -18,9 +19,26 @@ layout (binding = 0) uniform CameraUbo
   vec4 params;
 } camera;
 
-layout (binding = 2) uniform samplerCube irradianceMap;
-layout (binding = 3) uniform samplerCube prefilteredEnvironmentMap;
-layout (binding = 4) uniform sampler2D   brdfMap;
+struct MaterialDataPBR
+{
+  uint  diffuseTextureIndex;
+  uint  roughnessMetallicTextureIndex;
+  uint  normalTextureIndex;
+  uint  std430pad;
+};
+
+layout (std430,binding = 4) readonly buffer MaterialDataSbo
+{
+  MaterialDataPBR materialData[];
+};
+
+layout (binding = 5) uniform sampler2D diffuseSamplers[64];
+layout (binding = 6) uniform sampler2D roughnessMetallicSamplers[64];
+layout (binding = 7) uniform sampler2D normalSamplers[64];
+
+layout (binding = 8) uniform samplerCube irradianceMap;
+layout (binding = 9) uniform samplerCube prefilteredEnvironmentMap;
+layout (binding = 10) uniform sampler2D   brdfMap;
 
 layout (location = 0) out vec4 outFragColor;
 
@@ -127,12 +145,13 @@ vec3 toneMappingReinhardNaive(vec3 rgbColor)
 
 void main()
 {
-  vec3  albedo           = vec3(0.91,0.68,0.19);// pow(texture(albedoMap, texCoord).rgb, vec3(2.2)).rgb;
-  float metallic         = 1.0; //texture(metallicMap, texCoord).r;
-  float roughness        = 0.0; //texture(roughnessMap, texCoord).r;
+  vec3 albedo            = pow( texture( diffuseSamplers[ materialData[materialID].diffuseTextureIndex ], inUV ).rgb, vec3(2.2));
+  vec3 metrog            = texture( roughnessMetallicSamplers[ materialData[materialID].roughnessMetallicTextureIndex ], inUV).rgb;
+  float metallic         = metrog.x;
+  float roughness        = metrog.y;
   
   mat3  TBN              = mat3(normalize(inTangent),normalize(inBitangent),normalize(inNormal));
-  vec3  texNormal        = vec3(0.5, 0.5, 1.0);   //texture(normalMap, texCoord).rgb;
+  vec3  texNormal        = texture( normalSamplers[ materialData[materialID].normalTextureIndex ], inUV ).rgb;
   texNormal              = normalize(texNormal * 2.0 - vec3(1.0));   
   vec3  N                = TBN * texNormal;
 

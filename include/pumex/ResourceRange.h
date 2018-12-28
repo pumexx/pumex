@@ -111,8 +111,7 @@ bool operator!=(const ImageSize& lhs, const ImageSize& rhs)
 
 bool compareRenderOperationSizeWithImageSize(const ImageSize& operationSize, const ImageSize& imageSize, const ImageSubresourceRange& imageRange)
 {
-  return operationSize.type == imageSize.type && operationSize.size.x == ( static_cast<uint32_t>(imageSize.size.x) >> imageRange.baseMipLevel ) && operationSize.size.y == (static_cast<uint32_t>(imageSize.size.y) >> imageRange.baseMipLevel ) ;
+  return operationSize.type == imageSize.type && operationSize.size.x == ( imageSize.size.x / pow(2,imageRange.baseMipLevel) ) && operationSize.size.y == ( imageSize.size.y / pow(2,imageRange.baseMipLevel) ) ;
 }
-
 
 }

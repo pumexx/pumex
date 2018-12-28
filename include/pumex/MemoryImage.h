@@ -79,6 +79,7 @@ public:
   inline VkImageAspectFlags                     getAspectMask() const;
   inline const PerObjectBehaviour&              getPerObjectBehaviour() const;
   inline const SwapChainImageBehaviour&         getSwapChainImageBehaviour() const;
+  inline bool                                   usesSameTraitsPerObject() const;
   inline std::shared_ptr<DeviceMemoryAllocator> getAllocator() const;
   inline std::shared_ptr<gli::texture>          getTexture() const;
 
@@ -206,6 +207,7 @@ const ImageTraits&                     MemoryImage::getImageTraits() const      
 VkImageAspectFlags                     MemoryImage::getAspectMask() const              { return aspectMask; }
 const PerObjectBehaviour&              MemoryImage::getPerObjectBehaviour() const      { return perObjectBehaviour; }
 const SwapChainImageBehaviour&         MemoryImage::getSwapChainImageBehaviour() const { return swapChainImageBehaviour; }
+bool                                   MemoryImage::usesSameTraitsPerObject() const    { return sameTraitsPerObject; }
 std::shared_ptr<DeviceMemoryAllocator> MemoryImage::getAllocator() const               { return allocator; }
 std::shared_ptr<gli::texture>          MemoryImage::getTexture() const                 { return texture; }
 

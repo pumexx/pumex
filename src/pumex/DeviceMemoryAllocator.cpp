@@ -47,12 +47,12 @@ AllocationStrategy::~AllocationStrategy()
 {
 }
 
-DeviceMemoryAllocator::DeviceMemoryAllocator(VkMemoryPropertyFlags pf, VkDeviceSize s, EnumStrategy st)
-  : propertyFlags{ pf }, size{ s }
+DeviceMemoryAllocator::DeviceMemoryAllocator(const std::string& n, VkMemoryPropertyFlags pf, VkDeviceSize s, EnumStrategy st)
+  : name{ n }, propertyFlags{ pf }, size{ s }
 {
   switch (st)
   {
-  case FIRST_FIT: allocationStrategy = std::make_unique<FirstFitAllocationStrategy>(); break;
+  case FIRST_FIT: allocationStrategy = std::make_unique<FirstFitAllocationStrategy>(this); break;
   }
 }
 
@@ -74,7 +74,7 @@ DeviceMemoryBlock DeviceMemoryAllocator::allocate(Device* device, VkMemoryRequir
       memAlloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
       memAlloc.allocationSize  = size;
       memAlloc.memoryTypeIndex = device->physical.lock()->getMemoryType(memoryRequirements.memoryTypeBits, propertyFlags);
-    VK_CHECK_LOG_THROW(vkAllocateMemory(device->device, &memAlloc, nullptr, &pddit->second.storageMemory), "Cannot allocate memory in DeviceMemoryAllocator");
+    VK_CHECK_LOG_THROW(vkAllocateMemory(device->device, &memAlloc, nullptr, &pddit->second.storageMemory), "Cannot allocate memory in DeviceMemoryAllocator: " << name);
     pddit->second.freeBlocks.push_front(FreeBlock(0, size));
   }
   return allocationStrategy->allocate(pddit->second.storageMemory, pddit->second.freeBlocks, memoryRequirements);
@@ -84,7 +84,7 @@ void DeviceMemoryAllocator::deallocate(VkDevice device, const DeviceMemoryBlock&
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device);
-  CHECK_LOG_THROW(pddit == end(perDeviceData), "Cannot deallocate memory - device memory was never allocated");
+  CHECK_LOG_THROW(pddit == end(perDeviceData), "Cannot deallocate memory - device memory was never allocated: " << name);
   allocationStrategy->deallocate(pddit->second.freeBlocks, block);
 }
 
@@ -94,9 +94,9 @@ void DeviceMemoryAllocator::copyToDeviceMemory(Device* device, VkDeviceSize offs
     return;
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == end(perDeviceData), "DeviceMemoryAllocator::copyToDeviceMemory() : cannot copy to memory that not have been allocated yet");
+  CHECK_LOG_THROW(pddit == end(perDeviceData), "DeviceMemoryAllocator::copyToDeviceMemory() : cannot copy to memory that not have been allocated yet: " << name);
   uint8_t *pData;
-  VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, offset, size, 0, (void **)&pData), "Cannot map memory");
+  VK_CHECK_LOG_THROW(vkMapMemory(device->device, pddit->second.storageMemory, offset, size, 0, (void **)&pData), "Cannot map memory: " << name);
   std::memcpy(pData, data, size);
   vkUnmapMemory(device->device, pddit->second.storageMemory);
 }
@@ -105,12 +105,14 @@ void DeviceMemoryAllocator::bindBufferMemory(Device* device, VkBuffer buffer, Vk
 {
   std::lock_guard<std::mutex> lock(mutex);
   auto pddit = perDeviceData.find(device->device);
-  CHECK_LOG_THROW(pddit == end(perDeviceData), "DeviceMemoryAllocator::bindBufferMemory() : cannot bind memory that not have been allocated yet");
-  VK_CHECK_LOG_THROW(vkBindBufferMemory(device->device, buffer, pddit->second.storageMemory, offset), "Cannot bind memory to buffer");
+  CHECK_LOG_THROW(pddit == end(perDeviceData), "DeviceMemoryAllocator::bindBufferMemory() : cannot bind memory that not have been allocated yet: " << name);
+  VK_CHECK_LOG_THROW(vkBindBufferMemory(device->device, buffer, pddit->second.storageMemory, offset), "Cannot bind memory to buffer: " << name);
 }
 
-FirstFitAllocationStrategy::FirstFitAllocationStrategy()
+FirstFitAllocationStrategy::FirstFitAllocationStrategy(DeviceMemoryAllocator* o)
+  : owner{ o }
 {
+  CHECK_LOG_THROW(owner == nullptr, "Owner not defined for FirstFitAllocationStrategy");
 }
 
 FirstFitAllocationStrategy::~FirstFitAllocationStrategy()
@@ -128,7 +130,7 @@ DeviceMemoryBlock FirstFitAllocationStrategy::allocate(VkDeviceMemory storageMem
     if (it->size >= memoryRequirements.size + additionalSize)
       break;
   }
-  CHECK_LOG_THROW(it == end(freeBlocks), "memory allocation failed : " << memoryRequirements.size);
+  CHECK_LOG_THROW(it == end(freeBlocks), "memory allocation failed : " << memoryRequirements.size << " in " << owner->getName());
 
   DeviceMemoryBlock block(storageMemory, it->offset, it->offset + additionalSize, memoryRequirements.size, memoryRequirements.size + additionalSize);
   it->offset += memoryRequirements.size + additionalSize;

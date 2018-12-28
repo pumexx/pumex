@@ -145,7 +145,7 @@ int main( int argc, char * argv[] )
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
-  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
+  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename", "people/wmale1_lod0.dae");
   args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
   try
   {
@@ -171,12 +171,6 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  if (!modelNameArg)
-  {
-    LOG_ERROR << "Model filename is not defined" << std::endl;
-    FLUSH_LOG;
-    return 1;
-  }
   VkPresentModeKHR presentMode  = args::get(presentationMode);
   uint32_t updateFrequency      = std::max(1U, args::get(updatesPerSecond));
   std::string modelFileName     = args::get(modelNameArg);
@@ -197,7 +191,7 @@ int main( int argc, char * argv[] )
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
     // alocate 16 MB for frame buffers and create viewer
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("frameBuffer", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 16 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     viewer->setFrameBufferAllocator(frameBufferAllocator);
 
     // vertex semantic defines how a single vertex in an asset will look like
@@ -226,11 +220,11 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
     // alocate 1 MB for uniform and storage buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("buffers", VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 64 MB for vertex and index buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("vertices", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // allocate 8 MB memory for font textures
-    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("textures", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 

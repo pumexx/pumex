@@ -70,7 +70,7 @@ class PUMEX_EXPORT DeviceMemoryAllocator
 public:
   enum EnumStrategy { FIRST_FIT };
   DeviceMemoryAllocator()                                        = delete;
-  explicit DeviceMemoryAllocator(VkMemoryPropertyFlags propertyFlags, VkDeviceSize size, EnumStrategy strategy);
+  explicit DeviceMemoryAllocator(const std::string& name, VkMemoryPropertyFlags propertyFlags, VkDeviceSize size, EnumStrategy strategy);
   DeviceMemoryAllocator(const DeviceMemoryAllocator&)            = delete;
   DeviceMemoryAllocator& operator=(const DeviceMemoryAllocator&) = delete;
   DeviceMemoryAllocator(DeviceMemoryAllocator&&)                 = delete;
@@ -87,6 +87,7 @@ public:
 
   inline VkMemoryPropertyFlags getMemoryPropertyFlags() const;
   inline VkDeviceSize          getMemorySize() const;
+  inline const std::string&    getName() const;
 
 protected:
   struct PerDeviceData
@@ -98,6 +99,7 @@ protected:
     std::list<FreeBlock> freeBlocks;
   };
   mutable std::mutex                          mutex;
+  std::string                                 name;
   std::unordered_map<VkDevice, PerDeviceData> perDeviceData;
   VkMemoryPropertyFlags                       propertyFlags;
   VkDeviceSize                                size;
@@ -106,15 +108,18 @@ protected:
 
 VkMemoryPropertyFlags DeviceMemoryAllocator::getMemoryPropertyFlags() const { return propertyFlags; }
 VkDeviceSize          DeviceMemoryAllocator::getMemorySize() const { return size; }
+const std::string&    DeviceMemoryAllocator::getName() const { return name; }
 
 class PUMEX_EXPORT FirstFitAllocationStrategy : public AllocationStrategy
 {
 public:
-  FirstFitAllocationStrategy();
+  FirstFitAllocationStrategy(DeviceMemoryAllocator* owner);
   virtual ~FirstFitAllocationStrategy();
 
   DeviceMemoryBlock allocate(VkDeviceMemory storageMemory, std::list<FreeBlock>& freeBlocks, VkMemoryRequirements memoryRequirements) override;
   void              deallocate(std::list<FreeBlock>& freeBlocks, const DeviceMemoryBlock& block) override;
+protected:
+  DeviceMemoryAllocator * owner;
 };
 
 // OK, last time I read a book about C++ templates about seven years ago, so this code may look ugly in 2017

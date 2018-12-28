@@ -29,7 +29,11 @@
 
 // pumexibl presents how to render to mipmaps and array layers and how to use Image Based Lighting
 
+const uint32_t MODEL_ID = 1;
 const uint32_t MAX_BONES = 511;
+const uint32_t IBL_CUBEMAP_SIZE = 512;
+const uint32_t IBL_IRRADIANCE_SIZE = 32;
+const uint32_t IBL_BRDF_SIZE    = 256;
 const uint32_t PREFILTERED_ENVIRONMENT_MIPMAPS = 8;
 
 struct PositionData
@@ -44,6 +48,29 @@ struct PositionData
   glm::mat4 position;
   glm::mat4 bones[MAX_BONES];
 };
+
+struct MaterialDataPBR
+{
+  uint32_t  diffuseTextureIndex           = 0;
+  uint32_t  roughnessMetallicTextureIndex = 0;
+  uint32_t  normalTextureIndex            = 0;
+  uint32_t  std430pad0                    = 0;
+
+  // two functions that define material parameters according to data from an asset's material
+  void registerProperties(const pumex::Material& material)
+  {
+  }
+  void registerTextures(const std::map<pumex::TextureSemantic::Type, uint32_t>& textureIndices)
+  {
+    auto it = textureIndices.find(pumex::TextureSemantic::Diffuse);
+    diffuseTextureIndex = (it == end(textureIndices)) ? 0 : it->second;
+    it = textureIndices.find(pumex::TextureSemantic::LightMap);
+    roughnessMetallicTextureIndex = (it == end(textureIndices)) ? 0 : it->second;
+    it = textureIndices.find(pumex::TextureSemantic::Normals);
+    normalTextureIndex = (it == end(textureIndices)) ? 0 : it->second;
+  }
+};
+
 
 struct ViewerApplicationData
 {
@@ -146,7 +173,7 @@ struct PrefilteredEnvironmentParams
 
 int main( int argc, char * argv[] )
 {
-  SET_LOG_INFO;
+  SET_LOG_WARNING;
 
   // process command line using args library
   args::ArgumentParser                         parser("pumex example : Image Based Lighting and Physically Based Rendering");
@@ -156,7 +183,7 @@ int main( int argc, char * argv[] )
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::ValueFlag<std::string>                 equirectangularImageName(parser, "equirectangular_image", "equirectangular image filename", { 'i' }, "ibl/syferfontein_0d_clear_2k.ktx");
-  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
+  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename", "ibl/SciFiHelmet.gltf");
   args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
   try
   {
@@ -182,12 +209,6 @@ int main( int argc, char * argv[] )
     FLUSH_LOG;
     return 1;
   }
-  if (!modelNameArg)
-  {
-    LOG_ERROR << "Model filename is not defined" << std::endl;
-    FLUSH_LOG;
-    return 1;
-  }
   VkPresentModeKHR presentMode        = args::get(presentationMode);
   uint32_t updateFrequency            = std::max(1U, args::get(updatesPerSecond));
   std::string equirectangularFileName = args::get(equirectangularImageName);
@@ -209,20 +230,41 @@ int main( int argc, char * argv[] )
   {
     viewer = std::make_shared<pumex::Viewer>(viewerTraits);
     // alocate 256 MB for frame buffers and create viewer
-    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    std::shared_ptr<pumex::DeviceMemoryAllocator> frameBufferAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("frameBuffer", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     viewer->setFrameBufferAllocator(frameBufferAllocator);
 
+    // alocate 1 MB for uniform and storage buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("buffers", VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 64 MB for vertex and index buffers
+    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("vertices", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+    // allocate 32 MB memory for font textures and environment texture
+    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("textures", VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 256 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
+
     // vertex semantic defines how a single vertex in an asset will look like
-    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::Tangent, 3 },{ pumex::VertexSemantic::TexCoord, 2 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+    std::vector<pumex::VertexSemantic> requiredSemantic = { { pumex::VertexSemantic::Position, 3 },{ pumex::VertexSemantic::Normal, 3 },{ pumex::VertexSemantic::Tangent, 3 },{ pumex::VertexSemantic::TexCoord, 3 },{ pumex::VertexSemantic::BoneWeight, 4 },{ pumex::VertexSemantic::BoneIndex, 4 } };
+
+    // texture semantic and material data
+    auto sampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
+    std::vector<pumex::TextureSemantic> textureSemantic = { { pumex::TextureSemantic::Diffuse, 0 },{ pumex::TextureSemantic::Unknown, 1 },{ pumex::TextureSemantic::Normals, 2 } };
+    auto textureRegistry  = std::make_shared<pumex::TextureRegistryArrayOfTextures>(buffersAllocator, texturesAllocator);
+    textureRegistry->setCombinedImageSampler(0, sampler);
+    textureRegistry->setCombinedImageSampler(1, sampler);
+    textureRegistry->setCombinedImageSampler(2, sampler);
+    auto materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialDataPBR>>(buffersAllocator);
+    auto materialSet      = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
     // we load an asset using Assimp asset loader
     std::shared_ptr<pumex::Asset> asset = viewer->loadAsset(modelFileName, false, requiredSemantic);
+    // FIXME - temporary fix for GLTF models where +Z == front
+    asset->skeleton.bones[0].localTransformation = glm::rotate(asset->skeleton.bones[0].localTransformation, glm::pi<float>() * 0.5f, glm::vec3(1.0, 0.0, 0.0));
 
     if (!animationFileName.empty() )
     {
       std::shared_ptr<pumex::Asset> animAsset = viewer->loadAsset(animationFileName, true, requiredSemantic);
       asset->animations = animAsset->animations;
     }
+    materialSet->registerMaterials(MODEL_ID, asset);
+    materialSet->endRegisterMaterials();
 
     auto equirectangularTexture = viewer->loadTexture(equirectangularFileName,false);
     CHECK_LOG_THROW(equirectangularTexture == nullptr, "Cannot load equirectangular texture : " << equirectangularFileName);
@@ -239,25 +281,19 @@ int main( int argc, char * argv[] )
     pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
-    // alocate 1 MB for uniform and storage buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 8 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 64 MB for vertex and index buffers
-    std::shared_ptr<pumex::DeviceMemoryAllocator> verticesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 64 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
-    // allocate 32 MB memory for font textures and environment texture
-    std::shared_ptr<pumex::DeviceMemoryAllocator> texturesAllocator = std::make_shared<pumex::DeviceMemoryAllocator>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 128 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
     // create common descriptor pool
     std::shared_ptr<pumex::DescriptorPool> descriptorPool = std::make_shared<pumex::DescriptorPool>();
 
     std::shared_ptr<pumex::RenderGraph> prepareIblRenderGraph = std::make_shared<pumex::RenderGraph>("prepare_ibl_render_graph");
 
-    uint32_t                   mipLevelNum = 1 + floor(log2(1024.0f));
-    pumex::ImageSize           environmentCubeMapNoMipSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, 1, 1 };
-    pumex::ImageSize           environmentCubeMapSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, mipLevelNum, 1 };
-    pumex::ImageSize           irradianceCubeMapSize{ pumex::isAbsolute, glm::vec2(32.0f,32.0f), 6, 1, 1 };
-    pumex::ImageSize           prefilteredEnvironmentCubeMapSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 6, PREFILTERED_ENVIRONMENT_MIPMAPS, 1 };
-    pumex::ImageSize           brdfTextureSize{ pumex::isAbsolute, glm::vec2(512.0f,512.0f), 1, 1, 1 };
-    pumex::ImageSize           cubeMapRenderSize{ pumex::isAbsolute, glm::vec2(1024.0f,1024.0f), 1, 1, 1 };
-    pumex::ImageSize           irradianceRenderSize{ pumex::isAbsolute, glm::vec2(32.0f,32.0f), 1, 1, 1 };
+    uint32_t                   mipLevelNum = 1 + floor(log2(IBL_CUBEMAP_SIZE));
+    pumex::ImageSize           environmentCubeMapNoMipSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE,IBL_CUBEMAP_SIZE), 6, 1, 1 };
+    pumex::ImageSize           environmentCubeMapSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE,IBL_CUBEMAP_SIZE), 6, mipLevelNum, 1 };
+    pumex::ImageSize           irradianceCubeMapSize{ pumex::isAbsolute, glm::vec2(IBL_IRRADIANCE_SIZE,IBL_IRRADIANCE_SIZE), 6, 1, 1 };
+    pumex::ImageSize           prefilteredEnvironmentCubeMapSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE,IBL_CUBEMAP_SIZE), 6, PREFILTERED_ENVIRONMENT_MIPMAPS, 1 };
+    pumex::ImageSize           brdfTextureSize{ pumex::isAbsolute, glm::vec2(IBL_BRDF_SIZE,IBL_BRDF_SIZE), 1, 1, 1 };
+    pumex::ImageSize           cubeMapRenderSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE,IBL_CUBEMAP_SIZE), 1, 1, 1 };
+    pumex::ImageSize           irradianceRenderSize{ pumex::isAbsolute, glm::vec2(IBL_IRRADIANCE_SIZE,IBL_IRRADIANCE_SIZE), 1, 1, 1 };
 
     pumex::ResourceDefinition  environmentCubeMapNoMipDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, environmentCubeMapNoMipSize, pumex::atColor };
     pumex::ResourceDefinition  environmentCubeMapDefinition{ VK_FORMAT_R16G16B16A16_SFLOAT, environmentCubeMapSize, pumex::atColor };
@@ -303,7 +339,7 @@ int main( int argc, char * argv[] )
         std::stringstream str;
         str << "per_" << j << "_" << i;
 
-        pumex::ImageSize prefilteredEnvironmentRenderSize{ pumex::isAbsolute, glm::vec2(1024 >> j, 1024 >> j), 1, 1, 1 };
+        pumex::ImageSize prefilteredEnvironmentRenderSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE >> j, IBL_CUBEMAP_SIZE >> j), 1, 1, 1 };
         pumex::RenderOperation prefilteredRender(str.str(), pumex::opGraphics, prefilteredEnvironmentRenderSize);
           prefilteredRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
           prefilteredRender.addAttachmentOutput("face_mip", prefilteredEnvironmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
@@ -390,7 +426,6 @@ int main( int argc, char * argv[] )
     // building sampler for input equirectangular image
     auto equirectangularImage     = std::make_shared<pumex::MemoryImage>(equirectangularTexture, texturesAllocator);
     auto equirectangularImageView = std::make_shared<pumex::ImageView>(equirectangularImage, equirectangularImage->getFullImageRange(), VK_IMAGE_VIEW_TYPE_2D );
-    auto sampler                  = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
     auto equirectangularSampler   = std::make_shared<pumex::CombinedImageSampler>(equirectangularImageView, sampler);
 
     pumex::Geometry sphereGeometry;
@@ -460,14 +495,14 @@ int main( int argc, char * argv[] )
     eqrmRoot->setName("eqrm_root");
     prepareIblRenderGraph->setRenderOperationNode("eqrm", eqrmRoot);
 
-    pumex::ImageCopyData srcImage("cubemap_nomipmaps", VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(1024,1024,1) } });
-    pumex::ImageCopyData dstImage("cubemap_mipmapped", VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(1024,1024,1) } });
+    pumex::ImageCopyData srcImage("cubemap_nomipmaps", VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(IBL_CUBEMAP_SIZE,IBL_CUBEMAP_SIZE,1) } });
+    pumex::ImageCopyData dstImage("cubemap_mipmapped", VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(IBL_CUBEMAP_SIZE,IBL_CUBEMAP_SIZE,1) } });
     eqrmRoot->addChild(std::make_shared<pumex::BlitImageNode>(srcImage, dstImage, VK_FILTER_LINEAR));
 
     for (uint32_t j = 0; j < mipLevelNum-1; ++j)
     {
-      uint32_t srcMipSize = 1024 >> j;
-      uint32_t dstMipSize = 1024 >> (j+1);
+      uint32_t srcMipSize = IBL_CUBEMAP_SIZE >> j;
+      uint32_t dstMipSize = IBL_CUBEMAP_SIZE >> (j+1);
 
       pumex::ImageCopyData srcImage( "cubemap_mipmapped" , VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(srcMipSize,srcMipSize,1)   } } );
       pumex::ImageCopyData dstImage( "cubemap_mipmapped" , VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, { { pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j+1, 1, 0, 6), glm::ivec3(0,0,0), glm::ivec3(dstMipSize,dstMipSize,1) } } );
@@ -546,7 +581,7 @@ int main( int argc, char * argv[] )
     std::vector<std::shared_ptr<pumex::UniformBuffer>> roughnessUbos;
     for (uint32_t j = 0; j < PREFILTERED_ENVIRONMENT_MIPMAPS; ++j)
     {
-      auto roughnessParams = std::make_shared<PrefilteredEnvironmentParams>(static_cast<float>(j) / static_cast<float>(PREFILTERED_ENVIRONMENT_MIPMAPS-1), 1024.0f);
+      auto roughnessParams = std::make_shared<PrefilteredEnvironmentParams>(static_cast<float>(j) / static_cast<float>(PREFILTERED_ENVIRONMENT_MIPMAPS-1), static_cast<float>(IBL_CUBEMAP_SIZE));
       auto roughnessBuffer = std::make_shared<pumex::Buffer<PrefilteredEnvironmentParams>>(roughnessParams, buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerDevice, pumex::swOnce);
       roughnessUbos.push_back( std::make_shared<pumex::UniformBuffer>(roughnessBuffer) );
     }
@@ -654,11 +689,17 @@ int main( int argc, char * argv[] )
     // Shaders will use two uniform buffers ( both in vertex shader )
     std::vector<pumex::DescriptorSetLayoutBinding> layoutBindings =
     {
-      { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
-      { 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+      { 0, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 1, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
+      { 2, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
+      { 3, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         VK_SHADER_STAGE_VERTEX_BIT },
+      { 4, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 5, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 6, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 64, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 8, 1,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 9, 1,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 10, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };
     auto descriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(layoutBindings);
 
@@ -746,9 +787,15 @@ int main( int argc, char * argv[] )
     auto descriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, descriptorSetLayout);
       descriptorSet->setDescriptor(0, cameraUbo);
       descriptorSet->setDescriptor(1, positionUbo);
-      descriptorSet->setDescriptor(2, irradianceCubeMapSampler);
-      descriptorSet->setDescriptor(3, prefEnvironmentCubeMapSampler);
-      descriptorSet->setDescriptor(4, brdfSampler);
+      descriptorSet->setDescriptor(2, std::make_shared<pumex::StorageBuffer>(materialSet->typeDefinitionBuffer));
+      descriptorSet->setDescriptor(3, std::make_shared<pumex::StorageBuffer>(materialSet->materialVariantBuffer));
+      descriptorSet->setDescriptor(4, std::make_shared<pumex::StorageBuffer>(materialRegistry->materialDefinitionBuffer));
+      descriptorSet->setDescriptor(5, textureRegistry->getResources(0));
+      descriptorSet->setDescriptor(6, textureRegistry->getResources(1));
+      descriptorSet->setDescriptor(7, textureRegistry->getResources(2));
+      descriptorSet->setDescriptor(8, irradianceCubeMapSampler);
+      descriptorSet->setDescriptor(9, prefEnvironmentCubeMapSampler);
+      descriptorSet->setDescriptor(10, brdfSampler);
       pipeline->setDescriptorSet(0, descriptorSet);
 
     auto bkDescriptorSet = std::make_shared<pumex::DescriptorSet>(descriptorPool, bkDescriptorSetLayout);
