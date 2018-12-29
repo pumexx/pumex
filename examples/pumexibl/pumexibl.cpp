@@ -184,7 +184,7 @@ int main( int argc, char * argv[] )
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::ValueFlag<std::string>                 equirectangularImageName(parser, "equirectangular_image", "equirectangular image filename", { 'i' }, "ibl/syferfontein_0d_clear_2k.ktx");
   args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename", "ibl/SciFiHelmet.gltf");
-  args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
+  args::Positional<std::string>                animationNameArg(parser, "animation", "3D animation");
   try
   {
     parser.ParseCLI(argc, argv);

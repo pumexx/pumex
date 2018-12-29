@@ -3,7 +3,7 @@
 The purpose of the **Pumex** library is to create an efficient and universal rendering engine using **Vulkan API** that has following properties :
 
 - enables **multithreaded rendering on many windows** ( or many screens ) at once, may use many graphics cards in a single application
-- uses **render graph** for rendering
+- uses **render graph** allowing for complete customization of a renderer ( **Pumex** is not tied up to any particular rendering method, like deferred rendering, direct plus rendering, etc. In fact the user is able to implement any of these methods himself )
 - decouples rendering stage from update stage and enables **update step with constant time rate** independent from rendering time rate
 - uses modern C++ ( C++11 to C++17 ) but not overuses its features if it's not necessary
 - works on many platforms ( at the moment Pumex supports rendering inside native windows on  **Windows** and **Linux** operating systems and optionally - inside **QT** windows. **Android port is planned** ).
@@ -119,7 +119,7 @@ Application that renders a crowd of 500 animated people on one or more windows.
 
 Application presents :
 
-- how to utilize **compute operation** in a render worklow.
+- how to utilize **compute operation** in a render graph.
 - how to use output storage buffer from compute operation as input indirect buffer in a following render operation
 
 - how to use instanced rendering nodes like **pumex::AssetBufferFilterNode** and **pumex::AssetBuffer**
@@ -183,7 +183,7 @@ Command line parameters enable us to use one of predefined window configurations
 
 ### pumexdeferred
 
-Application that makes deferred rendering with multisampling in one window. The number of samples per pixel may be configured from command line ( see parameters below ). Available values of samples per pixel include : 1, 2, 4, 8.
+Application that implements deferred rendering with multisampling in one window. The number of samples per pixel may be configured from command line ( see parameters below ). Available values of samples per pixel include : 1, 2, 4, 8.
 
 By default application uses depth prepass rendering, but you are able to switch it off using command line parameters ( see below ).
 
@@ -214,11 +214,29 @@ Shaders used in that example realize **physically based rendering** inspired by 
 
 
 
+### pumexibl
+
+Application presenting **image based lighting** with models able to render using **physically based rendering** methods ( example model seen on a screenshot below was acquired from [glTF Sample Models repository managed by Khronos](https://github.com/KhronosGroup/glTF-Sample-Models) ). 
+
+From technical standpoint - this example shows how to render to many cubemap layers and to texture mipmaps using render graph. Also shows how to generate texture mipmaps using transfer operations ( *vkCmdBlitImage* is called under the hood to generate missing mipmaps ).
+
+![pumexibl example](doc/images/ibl.png "pumexibl example")
+
+Additional command line parameters :
+
+```
+  -i [texture_name]                 provide equirectangular texture that will be
+                                    transformed into cubemaps required to implement
+                                    IBL.
+  model                             3D model filename
+  animation                         3D animation filename
+```
+
 ### pumexviewer
 
 Minimal pumex application that renders single non-textured 3D model **provided by the user in command line** along with its bounding box. You may render any model as long as Assimp library is able to load it and sum of model's vertex and index size is less than 64 MB.
 
-Application presents simplest possible render worklow with only one render operation.
+Application presents simplest possible render graph with only one render operation.
 
 ![pumexviewer example](doc/images/viewer.png "pumexviewer example")
 
@@ -226,7 +244,7 @@ Additional command line parameters :
 
 ```
   model                             3D model filename
-  animation                         3D model with animation
+  animation                         3D animation filename
 ```
 
 Examples of use ( command line ) :
@@ -270,7 +288,7 @@ Additional command line parameters :
 
 ```
   model                             3D model filename
-  animation                         3D model with animation
+  animation                         3D animation filename
 ```
 
 Examples of use ( command line ) :
@@ -347,11 +365,13 @@ Elements that are required to build and install Pumex on Windows :
   - [Assimp](https://github.com/assimp/assimp)
   - [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/)
   - [Freetype2](https://www.freetype.org/)
+  - [libpng](http://www.libpng.org/pub/png/libpng.html)
+  - [zlib](https://zlib.net/)
   - [QT5 GUI library](https://www.qt.io/) - optionally - if you are planning to build Pumex with support for rendering inside QT windows. Important notice: newest versions of QT library ( QT 5.12 ) have Vulkan support disabled by default, so you need to recompile QT from sources with **Vulkan SDK** present in your system. Have fun.
 
 You can install above mentioned libraries using this command ( excluding QT ) :
 
-```sudo apt-get install libassimp-dev libtbb-dev libfreetype6-dev```
+```sudo apt-get install libassimp-dev libtbb-dev libfreetype6-dev libpng-dev```
 
 Other libraries will be downloaded during first build ( [glm](http://glm.g-truc.net), [gli](http://gli.g-truc.net) and [args](https://github.com/Taywee/args) )
 
@@ -398,7 +418,8 @@ Pumex renderer is dependent on a following set of libraries :
 * [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/) - adds modern multithreading infrastructure ( tbb::parallel_for(), tbb::flow::graph )
 * [Freetype2](https://www.freetype.org/) - for rendering freetype fonts to a texture
 * [GLM](http://glm.g-truc.net) - provides math classes and functions that are similar to their GLSL counterparts ( matrices, vectors, etc. )
-* [GLI](http://gli.g-truc.net) - provides classes and functions to load, write and manipulate textures ( currently DDS and KTX texture formats are loaded / written )
+* [GLI](http://gli.g-truc.net) - provides classes and functions to load, write and manipulate textures ( may load DDS, KTX and KMG texture files )
+* [libpng](http://www.libpng.org/pub/png/libpng.html) and [zlib](https://zlib.net/) - provides possibility to load PNG textures
 * [args](https://github.com/Taywee/args)  - small header-only library for command line parsing.
 * [QT5 GUI library](https://www.qt.io/) - well known GUI library for C++. This is **optional** dependence if you want to render inside QT windows. 
 
@@ -416,7 +437,7 @@ On Windows all mandatory dependencies are downloaded and built on first Pumex li
 - iOS port through [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
 - implement async compute that may be run during update phase
 - scene graphs should only render what is visible ( that's why pumexgpucull example is slower than osggpucull example now ). Should it be mandatory or optional ?
-- more texture loaders ( at the moment only dds and ktx texture files are available )
+- more texture loaders ( at the moment only dds, ktx, kmg and png texture files are able to load )
 - asynchronous loading of models and textures
 - new examples presenting things like :
   - different types of shadows
@@ -432,5 +453,5 @@ On Windows all mandatory dependencies are downloaded and built on first Pumex li
 
 
 
-**Remark** : Pumex is a "work in progress" which means that some elements are not implemented yet ( like push constants for example ) and some may not work properly on every combination of hardware / operating system. Pumex API is subject to change.
+**Remark** : Pumex is a "work in progress" which means that some elements of Vulkan API are not implemented yet and some may not work properly on every combination of hardware / operating system. Pumex API is subject to change.
 

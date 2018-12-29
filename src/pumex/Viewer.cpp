@@ -35,8 +35,10 @@
 #include <pumex/Image.h>
 #include <pumex/AssetLoaderAssimp.h>
 #include <pumex/TextureLoaderGli.h>
-#include <pumex/TextureLoaderPNG.h>
 #include <pumex/Version.h>
+#if defined(PUMEX_BUILD_TEXTURE_LOADERS)
+  #include <pumex/TextureLoaderPNG.h>
+#endif
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
 #endif
@@ -153,9 +155,10 @@ Viewer::Viewer(const ViewerTraits& vt)
   assetLoaders.push_back(assimpLoader);
 
   textureLoaders.push_back(std::make_shared<TextureLoaderGli>());
-  // FIXME - these loaders may not be compiled by default
+  // load optional texture loaders
+#if defined(PUMEX_BUILD_TEXTURE_LOADERS)
   textureLoaders.push_back(std::make_shared<TextureLoaderPNG>());
-
+#endif
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );
 #if defined(VK_USE_PLATFORM_WIN32_KHR)

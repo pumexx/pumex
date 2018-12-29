@@ -259,6 +259,10 @@ elseif(UNIX AND NOT APPLE)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
 endif()
 
+if(PUMEX_BUILD_TEXTURE_LOADERS)
+  target_compile_definitions( pumexlib PRIVATE PUMEX_BUILD_TEXTURE_LOADERS )
+endif()
+
 add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
 set_target_properties( pumexlib PROPERTIES 
   VERSION   ${PUMEX_VERSION} 

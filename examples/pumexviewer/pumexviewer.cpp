@@ -146,7 +146,7 @@ int main( int argc, char * argv[] )
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename", "people/wmale1_lod0.dae");
-  args::Positional<std::string>                animationNameArg(parser, "animation", "3D model with animation");
+  args::Positional<std::string>                animationNameArg(parser, "animation", "3D animation");
   try
   {
     parser.ParseCLI(argc, argv);
