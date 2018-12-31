@@ -161,7 +161,7 @@ std::shared_ptr<gli::texture> TextureLoaderPNG::load(const std::string& fileName
   png_bytep* rows                  = new png_bytep[height];
   png_bytep imageStart              = static_cast<png_bytep>(level0.data());
   for (uint32_t i=0; i<height; ++i)
-    rows[height - i - 1] = imageStart + i * lineSize;
+    rows[i] = imageStart + (height-i-1) * lineSize;
   png_read_image(pngPtr, rows);
   delete[] rows;
   png_read_end(pngPtr, endInfoPtr);

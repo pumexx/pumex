@@ -300,4 +300,39 @@ if(PUMEX_BUILD_TEXTURE_LOADERS)
     list( APPEND PUMEXLIB_LIBRARIES ${PNG_LIBRARIES} )
   endif()
   
+  if(PUMEX_DOWNLOAD_EXTERNAL_JPEG)
+    set( JPEG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg )
+    set( JPEG_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/libjpeg )
+    ExternalProject_Add( libjpeg-external
+      PREFIX "${JPEG_BUILD_DIR}"
+      BINARY_DIR "${JPEG_BUILD_DIR}/build"
+      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/libjpeg"
+      GIT_REPOSITORY "https://github.com/LuaDist/libjpeg.git"
+      PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg_fix/jmorecfg.h" "${JPEG_SOURCE_DIR}/jmorecfg.h"
+      SOURCE_DIR "${JPEG_SOURCE_DIR}"
+      UPDATE_COMMAND ""
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d
+      UPDATE_DISCONNECTED TRUE
+    )
+    ExternalProject_Add_Step( libjpeg-external libjpeg-copy-intermediate
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+      DEPENDEES install
+    )
+    if(WIN32)
+      set( JPEG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/jpeg.lib )
+      set( JPEG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/jpegd.lib )
+    else()
+      set( JPEG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libjpeg.so )
+      set( JPEG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libjpegd.so )
+    endif()
+    set( JPEG_LIBRARIES optimized "${JPEG_LIBRARY_RELEASE}" debug "${JPEG_LIBRARY_DEBUG}" )
+    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${JPEG_BUILD_DIR}/include )
+    list( APPEND PUMEXLIB_LIBRARIES ${JPEG_LIBRARIES} )
+    list( APPEND PUMEXLIB_EXTERNALS libjpeg-external )
+  else()
+    find_package( JPEG REQUIRED )
+    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${JPEG_INCLUDE_DIRS} )
+    list( APPEND PUMEXLIB_LIBRARIES ${JPEG_LIBRARIES} )
+  endif()
+  
 endif()

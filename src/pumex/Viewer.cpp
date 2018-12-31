@@ -38,6 +38,7 @@
 #include <pumex/Version.h>
 #if defined(PUMEX_BUILD_TEXTURE_LOADERS)
   #include <pumex/TextureLoaderPNG.h>
+  #include <pumex/TextureLoaderJPEG.h>
 #endif
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   #include <pumex/platform/win32/WindowWin32.h>
@@ -158,6 +159,7 @@ Viewer::Viewer(const ViewerTraits& vt)
   // load optional texture loaders
 #if defined(PUMEX_BUILD_TEXTURE_LOADERS)
   textureLoaders.push_back(std::make_shared<TextureLoaderPNG>());
+  textureLoaders.push_back(std::make_shared<TextureLoaderJPEG>());
 #endif
   // create vulkan instance with required extensions
   enabledInstanceExtensions.push_back( VK_KHR_SURFACE_EXTENSION_NAME );

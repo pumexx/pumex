@@ -7,7 +7,7 @@ message( STATUS "Building PUMEX library version ${PUMEX_VERSION_MAJOR}.${PUMEX_V
 
 option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
 option( PUMEX_BUILD_QT                   "Build Pumex with QT support" OFF )
-option( PUMEX_BUILD_TEXTURE_LOADERS      "Build Pumex with PNG, JPG, etc support" ON )
+option( PUMEX_BUILD_TEXTURE_LOADERS      "Build Pumex with PNG, JPEG, etc support" ON )
 if(WIN32)
   option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
@@ -17,6 +17,7 @@ if(WIN32)
   option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_ZLIB     "Download ZLIB library"      ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_PNG      "Download LibPNG library"    ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_JPEG     "Download LibJPEG library"   ON )
 else()
   option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
@@ -26,6 +27,7 @@ else()
   option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       OFF )
   option( PUMEX_DOWNLOAD_EXTERNAL_ZLIB     "Download ZLIB library"      OFF )
   option( PUMEX_DOWNLOAD_EXTERNAL_PNG      "Download LibPNG library"    OFF )
+  option( PUMEX_DOWNLOAD_EXTERNAL_JPEG     "Download LibJPEG library"   OFF )
 endif()
 
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" )
@@ -137,8 +139,9 @@ if(PUMEX_BUILD_QT)
   )
 endif()
 if(PUMEX_BUILD_TEXTURE_LOADERS)
-  list( APPEND PUMEXLIB_HEADERS_QT
+  list( APPEND PUMEXLIB_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderPNG.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderJPEG.h
   )
 endif()
 
@@ -220,8 +223,9 @@ if(PUMEX_BUILD_QT)
   )
 endif()
 if(PUMEX_BUILD_TEXTURE_LOADERS)
-  list( APPEND PUMEXLIB_SOURCES_QT
+  list( APPEND PUMEXLIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderPNG.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderJPEG.cpp
   )
 endif()
 

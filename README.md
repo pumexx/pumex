@@ -365,13 +365,14 @@ Elements that are required to build and install Pumex on Windows :
   - [Assimp](https://github.com/assimp/assimp)
   - [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/)
   - [Freetype2](https://www.freetype.org/)
+  - [libjpeg](https://github.com/LuaDist/libjpeg)
   - [libpng](http://www.libpng.org/pub/png/libpng.html)
   - [zlib](https://zlib.net/)
   - [QT5 GUI library](https://www.qt.io/) - optionally - if you are planning to build Pumex with support for rendering inside QT windows. Important notice: newest versions of QT library ( QT 5.12 ) have Vulkan support disabled by default, so you need to recompile QT from sources with **Vulkan SDK** present in your system. Have fun.
 
 You can install above mentioned libraries using this command ( excluding QT ) :
 
-```sudo apt-get install libassimp-dev libtbb-dev libfreetype6-dev libpng-dev```
+```sudo apt-get install libassimp-dev libtbb-dev libfreetype6-dev libjpeg-dev libpng-dev```
 
 Other libraries will be downloaded during first build ( [glm](http://glm.g-truc.net), [gli](http://gli.g-truc.net) and [args](https://github.com/Taywee/args) )
 
@@ -419,6 +420,7 @@ Pumex renderer is dependent on a following set of libraries :
 * [Freetype2](https://www.freetype.org/) - for rendering freetype fonts to a texture
 * [GLM](http://glm.g-truc.net) - provides math classes and functions that are similar to their GLSL counterparts ( matrices, vectors, etc. )
 * [GLI](http://gli.g-truc.net) - provides classes and functions to load, write and manipulate textures ( may load DDS, KTX and KMG texture files )
+* [libjpeg](https://github.com/LuaDist/libjpeg) - provides possibility to load JPEG textures
 * [libpng](http://www.libpng.org/pub/png/libpng.html) and [zlib](https://zlib.net/) - provides possibility to load PNG textures
 * [args](https://github.com/Taywee/args)  - small header-only library for command line parsing.
 * [QT5 GUI library](https://www.qt.io/) - well known GUI library for C++. This is **optional** dependence if you want to render inside QT windows. 
@@ -437,7 +439,7 @@ On Windows all mandatory dependencies are downloaded and built on first Pumex li
 - iOS port through [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
 - implement async compute that may be run during update phase
 - scene graphs should only render what is visible ( that's why pumexgpucull example is slower than osggpucull example now ). Should it be mandatory or optional ?
-- more texture loaders ( at the moment only dds, ktx, kmg and png texture files are able to load )
+- more texture loaders ( at the moment only dds, ktx, kmg, png and jpeg texture files are able to load )
 - asynchronous loading of models and textures
 - new examples presenting things like :
   - different types of shadows
