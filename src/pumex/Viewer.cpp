@@ -567,7 +567,7 @@ std::shared_ptr<Asset> Viewer::loadAsset(const std::string& fileName, bool anima
   auto index = fullFileName.find_last_of('.');
   CHECK_LOG_THROW(index == std::string::npos, "File does not have an extension " << fileName);
   auto extension = fullFileName.substr(index + 1);
-  std::transform(begin(extension), end(extension), begin(extension), std::tolower);
+  std::transform(begin(extension), end(extension), begin(extension), [](unsigned char c)->unsigned char{ return std::tolower(c); });
 
   for (auto& loader : assetLoaders)
   {
@@ -589,7 +589,7 @@ std::shared_ptr<gli::texture> Viewer::loadTexture(const std::string& fileName, b
   auto index = fullFileName.find_last_of('.');
   CHECK_LOG_THROW(index == std::string::npos, "File does not have an extension " << fileName);
   auto extension = fullFileName.substr(index + 1);
-  std::transform(begin(extension), end(extension), begin(extension), std::tolower);
+  std::transform(begin(extension), end(extension), begin(extension), [](unsigned char c)->unsigned char{ return std::tolower(c); });
 
   for (auto& loader : textureLoaders)
   {
