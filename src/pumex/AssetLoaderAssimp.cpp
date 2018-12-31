@@ -81,7 +81,14 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
 std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
   const aiScene* scene = Importer.ReadFile(fileName.c_str(), importFlags);
-  CHECK_LOG_THROW(scene == nullptr, "Cannot load model file : " << fileName)
+  CHECK_LOG_THROW(scene == nullptr, "Cannot load model file : " << fileName);
+
+  // method uses full file name to access file - get the directory part and use it
+  // later for storing texture file names.
+  std::string directoryName;
+  auto directoryIndex = fileName.find_last_of("/\\");
+  if (directoryIndex != std::string::npos)
+    directoryName = fileName.substr(0, directoryIndex+1);
 
   //creating asset
   std::shared_ptr<Asset> asset = std::make_shared<Asset>();
@@ -371,8 +378,11 @@ std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool
         {
           aiString texName;
           aiReturn res = scene->mMaterials[i]->GetTexture(texTypes[j], k, &texName);
+          // loaded models store whole texture filenames
+          std::string sTexName(texName.C_Str());
+          sTexName = directoryName + sTexName;
           // FIXME : we are skipping k parameter here...
-          material.textures.insert({ j, texName.C_Str() });
+          material.textures.insert({ j, sTexName });
         }
       }
       // There is no civilized way to iterate over assimp material properties...

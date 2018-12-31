@@ -22,6 +22,7 @@
 
 #include <pumex/Viewer.h>
 #include <algorithm>
+#include <cctype>
 #include <pumex/utils/Log.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/PhysicalDevice.h>
@@ -562,10 +563,11 @@ std::shared_ptr<Asset> Viewer::loadAsset(const std::string& fileName, bool anima
   auto fullFileName = getAbsoluteFilePath(fileName);
   CHECK_LOG_THROW(fullFileName.empty(), "Cannot find asset file " << fileName);
 
-  // find loader that will load this asset - loader is matched by file extension
+  // find loader that will load this asset - loader is matched by file extension ( lowercase )
   auto index = fullFileName.find_last_of('.');
   CHECK_LOG_THROW(index == std::string::npos, "File does not have an extension " << fileName);
   auto extension = fullFileName.substr(index + 1);
+  std::transform(begin(extension), end(extension), begin(extension), std::tolower);
 
   for (auto& loader : assetLoaders)
   {
@@ -583,10 +585,11 @@ std::shared_ptr<gli::texture> Viewer::loadTexture(const std::string& fileName, b
   auto fullFileName = getAbsoluteFilePath(fileName);
   CHECK_LOG_THROW(fullFileName.empty(), "Cannot find texture file " << fileName);
 
-  // find loader that will load this texture - loader is matched by file extension
+  // find loader that will load this texture - loader is matched by file extension ( lowercase )
   auto index = fullFileName.find_last_of('.');
   CHECK_LOG_THROW(index == std::string::npos, "File does not have an extension " << fileName);
   auto extension = fullFileName.substr(index + 1);
+  std::transform(begin(extension), end(extension), begin(extension), std::tolower);
 
   for (auto& loader : textureLoaders)
   {

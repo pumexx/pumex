@@ -12,7 +12,7 @@
   </asset>
   <library_images>
     <image id="green" name="green">
-      <init_from>people/green.dds</init_from>
+      <init_from>green.dds</init_from>
     </image>
   </library_images>
   <library_effects>

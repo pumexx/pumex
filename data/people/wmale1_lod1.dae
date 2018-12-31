@@ -12,10 +12,10 @@
   </asset>
   <library_images>
     <image id="young_lightskinned_male_diffuse2" name="young_lightskinned_male_diffuse2">
-      <init_from>people/young_lightskinned_male_diffuse2.dds</init_from>
+      <init_from>young_lightskinned_male_diffuse2.dds</init_from>
     </image>
     <image id="blue_eye" name="blue_eye">
-      <init_from>people/blue_eye.dds</init_from>
+      <init_from>blue_eye.dds</init_from>
     </image>
   </library_images>
   <library_effects>

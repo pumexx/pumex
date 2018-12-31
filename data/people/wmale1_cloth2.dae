@@ -12,7 +12,7 @@
   </asset>
   <library_images>
     <image id="male_worksuit01_diffuse" name="male_worksuit01_diffuse">
-      <init_from>people/male_worksuit01_diffuse.dds</init_from>
+      <init_from>male_worksuit01_diffuse.dds</init_from>
     </image>
   </library_images>
   <library_effects>

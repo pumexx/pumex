@@ -12,7 +12,7 @@
   </asset>
   <library_images>
     <image id="M_Swimming_trunks_01" name="M_Swimming_trunks_01">
-      <init_from>people/M_Swimming_trunks_01.dds</init_from>
+      <init_from>M_Swimming_trunks_01.dds</init_from>
     </image>
   </library_images>
   <library_effects>
