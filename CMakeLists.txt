@@ -5,7 +5,21 @@ set( PUMEX_SOVERSION 1 )
 
 message( STATUS "Building PUMEX library version ${PUMEX_VERSION_MAJOR}.${PUMEX_VERSION_MINOR}.${PUMEX_VERSION_PATCH}" )
 
-option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
+if ( UNIX AND NOT APPLE AND NOT ANDROID AND NOT WEBGL )
+  set( LINUX TRUE )
+else()	
+  set( LINUX FALSE )  
+endif()
+
+if (POLICY CMP0076)
+  cmake_policy(SET CMP0076 OLD)
+endif()
+
+if(NOT ANDROID)
+  option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
+else()
+  option( PUMEX_BUILD_EXAMPLES             "Build examples" OFF )
+endif()  
 option( PUMEX_BUILD_QT                   "Build Pumex with QT support" OFF )
 option( PUMEX_BUILD_TEXTURE_LOADERS      "Build Pumex with PNG, JPEG, etc support" ON )
 if(WIN32)
@@ -18,7 +32,17 @@ if(WIN32)
   option( PUMEX_DOWNLOAD_EXTERNAL_ZLIB     "Download ZLIB library"      ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_PNG      "Download LibPNG library"    ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_JPEG     "Download LibJPEG library"   ON )
-else()
+elseif(ANDROID)
+  option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ARGS     "Download ARGS library"      ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP   "Download Assimp library"    ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE "Download Freetype2 library" ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_TBB      "Download TBB library"       ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_ZLIB     "Download ZLIB library"      OFF )
+  option( PUMEX_DOWNLOAD_EXTERNAL_PNG      "Download LibPNG library"    ON )
+  option( PUMEX_DOWNLOAD_EXTERNAL_JPEG     "Download LibJPEG library"   ON )
+elseif(LINUX)
   option( PUMEX_DOWNLOAD_EXTERNAL_GLM      "Download GLM library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_GLI      "Download GLI library"       ON )
   option( PUMEX_DOWNLOAD_EXTERNAL_ARGS     "Download ARGS library"      ON )
@@ -128,9 +152,13 @@ if(WIN32)
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/HPClockWin32.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/WindowWin32.h
   )
-elseif(UNIX AND NOT APPLE)
+elseif(LINUX)
   list( APPEND PUMEXLIB_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/linux/WindowXcb.h
+  )  
+elseif(ANDROID)
+  list( APPEND PUMEXLIB_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/android/WindowAndroid.h
   )  
 endif()
 if(PUMEX_BUILD_QT)
@@ -144,7 +172,6 @@ if(PUMEX_BUILD_TEXTURE_LOADERS)
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderJPEG.h
   )
 endif()
-
 
 set( PUMEXLIB_SOURCES )
 set( PUMEXLIB_SOURCES_QT )
@@ -212,9 +239,13 @@ if(WIN32)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/win32/HPClockWin32.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/win32/WindowWin32.cpp
   )
-elseif(UNIX AND NOT APPLE)
+elseif(LINUX)
   list( APPEND PUMEXLIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/linux/WindowXcb.cpp
+  )
+elseif(ANDROID)
+  list( APPEND PUMEXLIB_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/android/WindowAndroid.cpp
   )
 endif()
 if(PUMEX_BUILD_QT)
@@ -259,8 +290,10 @@ target_compile_definitions( pumexlib
 )
 if(WIN32)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_WIN32_KHR )
-elseif(UNIX AND NOT APPLE)
+elseif(LINUX)
   target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
+elseif(ANDROID)
+  target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_ANDROID_KHR )
 endif()
 
 if(PUMEX_BUILD_TEXTURE_LOADERS)

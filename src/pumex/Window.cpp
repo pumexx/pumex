@@ -27,9 +27,9 @@
 #if defined(VK_USE_PLATFORM_XCB_KHR)
   #include <pumex/platform/linux/WindowXcb.h>
 #endif
-//#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-//  #include <pumex/platform/win32/WindowWin32.h>
-//#endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <pumex/platform/android/WindowAndroid.h>
+#endif
 #include <pumex/Viewer.h>
 #include <pumex/Surface.h>
 
@@ -58,10 +58,9 @@ std::shared_ptr<Window> Window::createNativeWindow(const WindowTraits& windowTra
 #if defined(VK_USE_PLATFORM_XCB_KHR)
   return std::make_shared<WindowXcb>(windowTraits);
 #endif
-//#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-//  return std::make_shared<WindowXcb>(windowTraits);
-//#endif
-
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  return std::make_shared<WindowAndroid>(windowTraits);
+#endif
 }
 
 void Window::endFrame()
