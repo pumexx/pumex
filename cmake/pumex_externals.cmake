@@ -1,24 +1,19 @@
-set( PUMEXLIB_EXTERNALS )
-set( PUMEXLIB_PUBLIC_INCLUDES )
+set( PUMEX_PUBLIC_INCLUDES )
 set( PUMEXLIB_PRIVATE_INCLUDES )
-set( PUMEXLIB_LIBRARIES )
-set( PUMEX_EXAMPLES_EXTERNALS )
-set( PUMEX_EXAMPLES_INCLUDES )
-
-set( INTERMEDIATE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/deps )
-file ( MAKE_DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin ${INTERMEDIATE_INSTALL_DIR}/lib ${INTERMEDIATE_INSTALL_DIR}/include )
-
-list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR}/include )
+set( PUMEX_LIBRARIES_PUBLIC_DOWNLOADED )
+set( PUMEX_LIBRARIES_PUBLIC )
+set( PUMEX_LIBRARIES_PRIVATE_DOWNLOADED )
+set( PUMEX_LIBRARIES_PRIVATE )
 
 if( LINUX )
   find_package( X11 REQUIRED )
   find_package( XCB REQUIRED )
   find_package( Threads REQUIRED )
-  list( APPEND PUMEXLIB_LIBRARIES ${XCB_LIBRARIES} ${X11_LIBRARIES} )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC XBC::XCB X11::X11 Threads::Threads )
 endif()
 
 find_package( Vulkan REQUIRED )
-list( APPEND PUMEXLIB_LIBRARIES Vulkan::Vulkan )
+list( APPEND PUMEX_LIBRARIES_PUBLIC Vulkan::Vulkan )
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   SET(EXPERIMENTAL_FILESYSTEM_LIBRARIES stdc++fs)
@@ -27,319 +22,205 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 else()
   SET(EXPERIMENTAL_FILESYSTEM_LIBRARIES )
 endif()
-list( APPEND PUMEXLIB_LIBRARIES ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
+list( APPEND PUMEX_LIBRARIES_PUBLIC ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
 
-IF(ANDROID)
-  SET( CROSS_COMPILE_PARAMETERS -DANDROID_PLATFORM=${ANDROID_PLATFORM} -DANDROID_ABI=${ANDROID_ABI} -DANDROID_STL=${ANDROID_STL} -DANDROID_NDK=${ANDROID_NDK} -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM} -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} )
-else()  
-  SET( CROSS_COMPILE_PARAMETERS )
-endif()
-
-include( ExternalProject )
+include( FetchContent )
 #include( FindPackageHandleStandardArgs )
 
+set( CMAKE_DEBUG_POSTFIX "d" CACHE STRING "Overriden by Pumex" )
 if( PUMEX_DOWNLOAD_EXTERNAL_GLM )
-  set( GLM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glm )
-  set( GLM_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/glm )
-  ExternalProject_Add( glm-external
-    PREFIX "${GLM_BUILD_DIR}"
-    BINARY_DIR "${GLM_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/glm"
+  message( STATUS "Fetching content from GLM library")
+  set( GLM_TEST_ENABLE off CACHE BOOL "Overriden by Pumex" )
+  FetchContent_Declare(
+    glm
     GIT_REPOSITORY "https://github.com/g-truc/glm.git"
-    GIT_TAG "0.9.9.3"
-    SOURCE_DIR "${GLM_SOURCE_DIR}"
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    UPDATE_COMMAND ""
-    PATCH_COMMAND ""
-    TEST_COMMAND ""
-    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory "${GLM_SOURCE_DIR}/glm" "${INTERMEDIATE_INSTALL_DIR}/include/glm"
-    UPDATE_DISCONNECTED TRUE
+    GIT_TAG        "0.9.9.3"
   )
-  ExternalProject_Add_Step( glm-external glm-copy-intermediate
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES install
-  )
-  list( APPEND PUMEXLIB_EXTERNALS glm-external )
+  FetchContent_GetProperties(glm)
+  if(NOT glm_POPULATED)
+    FetchContent_Populate(glm)
+    add_subdirectory(${glm_SOURCE_DIR} ${glm_BINARY_DIR})
+	add_library( glm::glm ALIAS glm)
+  endif()
+  list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED glm::glm )
 else()
   find_package( glm REQUIRED )
-  list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${GLM_INCLUDE_DIRS} )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC glm::glm )
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_GLI )
-  set( GLI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/gli )
-  set( GLI_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gli )
-  ExternalProject_Add( gli-external
-    PREFIX "${GLI_BUILD_DIR}"
-    BINARY_DIR "${GLI_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/gli"
+  message( STATUS "Fetching content from GLI library")
+  set( GLI_TEST_ENABLE off CACHE BOOL "Overriden by Pumex" )
+  FetchContent_Declare(
+    gli
     GIT_REPOSITORY "https://github.com/g-truc/gli.git"
-    SOURCE_DIR "${GLI_SOURCE_DIR}"
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    UPDATE_COMMAND ""
-    PATCH_COMMAND ""
-    TEST_COMMAND ""
-    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory "${GLI_SOURCE_DIR}/gli" "${INTERMEDIATE_INSTALL_DIR}/include/gli"
-    UPDATE_DISCONNECTED TRUE
+    PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/external/gli_fix/CMakeLists.txt" "${gli_SOURCE_DIR}/CMakeLists.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/external/gli_fix/test/CMakeLists.txt" "${gli_SOURCE_DIR}/test/CMakeLists.txt"
   )
-  ExternalProject_Add_Step( gli-external gli-copy-intermediate
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES install
-  )
-  list( APPEND PUMEXLIB_EXTERNALS gli-external )
+  FetchContent_GetProperties(gli)
+  if(NOT gli_POPULATED)
+    FetchContent_Populate(gli)
+    add_subdirectory(${gli_SOURCE_DIR} ${gli_BINARY_DIR})
+	add_library( gli::gli ALIAS gli)
+  endif()
+  list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED gli::gli )
 else()
   find_package( gli REQUIRED )
-  list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${GLI_INCLUDE_DIRS} )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC gli::gli )
 endif()
 
 if( PUMEX_BUILD_EXAMPLES )
   if( PUMEX_DOWNLOAD_EXTERNAL_ARGS )
-    set( ARGS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/args )
-    set( ARGS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/args" )
-    ExternalProject_Add( args-external
-      PREFIX "${ARGS_BUILD_DIR}"
-      BINARY_DIR "${ARGS_BUILD_DIR}/build"
-      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/args"
+    message( STATUS "Fetching content from ARGS library")
+    set( ARGS_TEST_ENABLE off CACHE BOOL "Overriden by Pumex" )
+    FetchContent_Declare(
+      args
       GIT_REPOSITORY "https://github.com/Taywee/args.git"
-      GIT_TAG "6.1.0"
-      SOURCE_DIR "${ARGS_SOURCE_DIR}"
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND ""
-      UPDATE_COMMAND ""
-      PATCH_COMMAND ""
-      TEST_COMMAND ""
-      INSTALL_COMMAND ${CMAKE_COMMAND} -E copy "${ARGS_SOURCE_DIR}/args.hxx" "${INTERMEDIATE_INSTALL_DIR}/include/args.hxx"
-      UPDATE_DISCONNECTED TRUE
     )
-    ExternalProject_Add_Step( args-external args-copy-intermediate
-      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-      DEPENDEES install
-    )
-    list( APPEND PUMEX_EXAMPLES_EXTERNALS args-external )
+    FetchContent_GetProperties(args)
+    if(NOT args_POPULATED)
+      FetchContent_Populate(args)
+      add_subdirectory(${args_SOURCE_DIR} ${args_BINARY_DIR})
+	  add_library( args::args ALIAS args)
+    endif()
+    list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED args::args )
   else()
     find_package( args REQUIRED )
-    list( APPEND PUMEX_EXAMPLES_INCLUDES ${ARGS_INCLUDE_DIRS} )
+    list( APPEND PUMEX_LIBRARIES_PUBLIC args::args )
   endif()
+endif()
+
+if(PUMEX_DOWNLOAD_EXTERNAL_ZLIB)
+  message( STATUS "Fetching content from ZLIB library")
+  FetchContent_Declare(
+    zlib
+    GIT_REPOSITORY "https://github.com/madler/zlib.git"
+    GIT_TAG "v1.2.11"
+  )
+  FetchContent_GetProperties(zlib)
+  if(NOT zlib_POPULATED)
+    FetchContent_Populate(zlib)
+    add_subdirectory(${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
+    add_library( zlib::zlib ALIAS zlib)
+  endif()
+  list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED zlib::zlib )
+
+  if(WIN32)
+    set( ZLIB_LIBRARY_RELEASE ${zlib_BINARY_DIR}/Release/zlib.lib )
+    set( ZLIB_LIBRARY_DEBUG ${zlib_BINARY_DIR}/Debug/zlibd.lib )
+  else()
+    set( ZLIB_LIBRARY_RELEASE ${zlib_BINARY_DIR}/lib/zlib.so )
+    set( ZLIB_LIBRARY_DEBUG ${zlib_BINARY_DIR}/lib/zlibd.so )
+  endif()
+  set( ZLIB_INCLUDE_DIR ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR} )
+else()
+  find_package( ZLIB REQUIRED )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC zlib::zlib )
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP )
-  set( ASSIMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/assimp )
-  set( ASSIMP_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/assimp )
-  ExternalProject_Add( assimp-external
-    PREFIX "${ASSIMP_BUILD_DIR}"
-    BINARY_DIR "${ASSIMP_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/assimp"
+  message( STATUS "Fetching content from ASSIMP library")
+  set( assimp_TEST_ENABLE off CACHE BOOL "Overriden by Pumex" )
+  FetchContent_Declare(
+    assimp
     GIT_REPOSITORY "https://github.com/assimp/assimp.git"
     GIT_TAG "v4.1.0"
-    SOURCE_DIR "${ASSIMP_SOURCE_DIR}"
-    UPDATE_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DASSIMP_BUILD_ASSIMP_TOOLS=off -DASSIMP_BUILD_TESTS=off -DCMAKE_DEBUG_POSTFIX=d "${CROSS_COMPILE_PARAMETERS}"
-    UPDATE_DISCONNECTED TRUE
   )
-  
-  ExternalProject_Add_Step( assimp-external assimp-copy-intermediate
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES install
-  )
-
-  if( MSVC12 )
-    set( ASSIMP_MSVC_VERSION "vc120" )
-  else()
-    set( ASSIMP_MSVC_VERSION "vc140" )
+  FetchContent_GetProperties(assimp)
+  if(NOT assimp_POPULATED)
+    FetchContent_Populate(assimp)
+    add_subdirectory(${assimp_SOURCE_DIR} ${assimp_BINARY_DIR})
+	add_library( Assimp::assimp ALIAS assimp)
   endif()
-  if( MSVC12 OR MSVC14 )
-    set( ASSIMP_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/assimp-${ASSIMP_MSVC_VERSION}-mt.lib )
-    set( ASSIMP_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/assimp-${ASSIMP_MSVC_VERSION}-mtd.lib )
-    set( ASSIMP_LIBRARIES optimized "${ASSIMP_LIBRARY_RELEASE}" debug "${ASSIMP_LIBRARY_DEBUG}" )
-  endif()
-  list( APPEND PUMEXLIB_LIBRARIES ${ASSIMP_LIBRARIES} )
-  list( APPEND PUMEXLIB_EXTERNALS assimp-external )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED Assimp::assimp )
 else()
-  find_package( ASSIMP REQUIRED )
-  list( APPEND PUMEXLIB_PRIVATE_INCLUDES ${ASSIMP_INCLUDE_DIR} )
-  list( APPEND PUMEXLIB_LIBRARIES ${ASSIMP_LIBRARIES} )
+  find_package( assimp REQUIRED )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC assimp::assimp )
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_FREETYPE )
-  set( FREETYPE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/freetype )
-  set( FREETYPE_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/freetype )
-  ExternalProject_Add( freetype-external
-    PREFIX "${FREETYPE_BUILD_DIR}"
-    BINARY_DIR "${FREETYPE_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/freetype"
+  message( STATUS "Fetching content from Freetype library")
+  FetchContent_Declare(
+    freetype
     GIT_REPOSITORY "git://git.sv.nongnu.org/freetype/freetype2.git"
-    GIT_TAG "VER-2-8"
-    SOURCE_DIR "${FREETYPE_SOURCE_DIR}"
-    UPDATE_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d -DBUILD_SHARED_LIBS:BOOL=true "${CROSS_COMPILE_PARAMETERS}"
-    UPDATE_DISCONNECTED TRUE
+    GIT_TAG        "VER-2-8"
+    PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/external/freetype_fix/CMakeLists.txt" "${freetype_SOURCE_DIR}/CMakeLists.txt"
   )
-  ExternalProject_Add_Step( freetype-external freetype-copy-intermediate
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES install
-  )
-
-  if(WIN32)
-    set( FREETYPE_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/freetype.lib )
-    set( FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/freetyped.lib )
-  else()
-    set( FREETYPE_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libfreetype.so )
-    set( FREETYPE_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libfreetyped.so )
+  FetchContent_GetProperties(freetype)
+  if(NOT freetype_POPULATED)
+    FetchContent_Populate(freetype)
+    add_subdirectory(${freetype_SOURCE_DIR} ${freetype_BINARY_DIR})
+	add_library( freetype::freetype ALIAS freetype)
   endif()
-  set( FREETYPE_LIBRARIES optimized "${FREETYPE_LIBRARY_RELEASE}" debug "${FREETYPE_LIBRARY_DEBUG}" )
-  list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${FREETYPE_SOURCE_DIR}/include )
-  list( APPEND PUMEXLIB_LIBRARIES ${FREETYPE_LIBRARIES} )
-  list( APPEND PUMEXLIB_EXTERNALS freetype-external )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED freetype::freetype )
 else()
-  find_package( Freetype REQUIRED )
-  list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${FREETYPE_INCLUDE_DIRS} )
-  list( APPEND PUMEXLIB_LIBRARIES ${FREETYPE_LIBRARIES} )
+  find_package( freetype REQUIRED )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC freetype::freetype )
 endif()
 
 if( PUMEX_DOWNLOAD_EXTERNAL_TBB )
-  set( TBB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/tbb )
-  set( TBB_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/tbb )
-  ExternalProject_Add( tbb-external
-    PREFIX "${TBB_BUILD_DIR}"
-    BINARY_DIR "${TBB_BUILD_DIR}/build"
-    STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/tbb"
+  message( STATUS "Fetching content from TBB library")
+  set( TBB_BUILD_TESTS off CACHE BOOL "Overriden by Pumex" )
+  FetchContent_Declare(
+    tbb
     GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
-    SOURCE_DIR "${TBB_SOURCE_DIR}"
-    UPDATE_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=_debug -DTBB_BUILD_TESTS=OFF "${CROSS_COMPILE_PARAMETERS}"
-    UPDATE_DISCONNECTED TRUE
   )
-  ExternalProject_Add_Step( tbb-external tbb-copy-intermediate
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDEES install
-  )
-  if( WIN32 )
-    set( TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb.lib )
-    set( TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/tbb_debug.lib )
-  else()
-    set( TBB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb.so )
-    set( TBB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libtbb_debug.so )
+  FetchContent_GetProperties(tbb)
+  if(NOT tbb_POPULATED)
+    FetchContent_Populate(tbb)
+    add_subdirectory(${tbb_SOURCE_DIR} ${tbb_BINARY_DIR})
+	add_library( tbb::tbb ALIAS tbb)
   endif()
-  set( TBB_LIBRARIES optimized "${TBB_LIBRARY_RELEASE}" debug "${TBB_LIBRARY_DEBUG}" )
-  list( APPEND PUMEXLIB_LIBRARIES ${TBB_LIBRARIES} )
-  list( APPEND PUMEXLIB_EXTERNALS tbb-external )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED tbb::tbb )
 else()
-  find_package( TBB COMPONENTS tbbmalloc tbbmalloc_proxy )
-  list( APPEND PUMEXLIB_PRIVATE_INCLUDES  ${TBB_INCLUDE_DIRS} )
-  list( APPEND PUMEXLIB_LIBRARIES ${TBB_LIBRARIES} )
+  find_package( tbb COMPONENTS tbbmalloc tbbmalloc_proxy )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC tbb::tbb tbb::tbbmalloc tbb::tbbmalloc_proxy )
 endif()
 
 if(PUMEX_BUILD_QT)
   find_package( Qt5 REQUIRED COMPONENTS Core Gui )
-  list( APPEND PUMEXLIB_LIBRARIES Qt5::Core Qt5::Gui )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC Qt5::Core Qt5::Gui )
 endif()
 
 # additional texture loaders consist of ZLIB, LIBPNG
 if(PUMEX_BUILD_TEXTURE_LOADERS)
-  if(PUMEX_DOWNLOAD_EXTERNAL_ZLIB)
-    set( ZLIB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/zlib )
-    set( ZLIB_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/zlib )
-    ExternalProject_Add( zlib-external
-      PREFIX "${ZLIB_BUILD_DIR}"
-      BINARY_DIR "${ZLIB_BUILD_DIR}/build"
-      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/zlib"
-      GIT_REPOSITORY "https://github.com/madler/zlib.git"
-      GIT_TAG "v1.2.11"
-      SOURCE_DIR "${ZLIB_SOURCE_DIR}"
-      UPDATE_COMMAND ""
-      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d "${CROSS_COMPILE_PARAMETERS}"
-      UPDATE_DISCONNECTED TRUE
-    )
-    ExternalProject_Add_Step( zlib-external zlib-copy-intermediate
-      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-      DEPENDEES install
-    )
-    if(WIN32)
-      set( ZLIB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/zlib.lib )
-      set( ZLIB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/zlibd.lib )
-    else()
-      set( ZLIB_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/zlib.so )
-      set( ZLIB_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/zlibd.so )
-    endif()
-    set( ZLIB_LIBRARIES optimized "${ZLIB_LIBRARY_RELEASE}" debug "${ZLIB_LIBRARY_DEBUG}" )
-    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${ZLIB_SOURCE_DIR}/include )
-    list( APPEND PUMEXLIB_LIBRARIES ${ZLIB_LIBRARIES} )
-    list( APPEND PUMEXLIB_EXTERNALS zlib-external )
-  else()
-    find_package( ZLIB REQUIRED )
-    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${ZLIB_INCLUDE_DIRS} )
-    list( APPEND PUMEXLIB_LIBRARIES ${ZLIB_LIBRARIES} )
-  endif()
-  
   if(PUMEX_DOWNLOAD_EXTERNAL_PNG)
-    set( PNG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/libpng )
-    set( PNG_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/libpng )
-    ExternalProject_Add( libpng-external
-      PREFIX "${PNG_BUILD_DIR}"
-      BINARY_DIR "${PNG_BUILD_DIR}/build"
-      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/libpng"
+    message( STATUS "Fetching content from LibPNG library")
+    FetchContent_Declare(
+      png
       GIT_REPOSITORY "git://git.code.sf.net/p/libpng/code"
       GIT_TAG "v1.6.36"
-      SOURCE_DIR "${PNG_SOURCE_DIR}"
-      UPDATE_COMMAND ""
-      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d "${CROSS_COMPILE_PARAMETERS}"
-      UPDATE_DISCONNECTED TRUE
     )
-    ExternalProject_Add_Step( libpng-external libpng-copy-intermediate
-      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-      DEPENDEES install
-    )
-    if(WIN32)
-      set( PNG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16.lib )
-      set( PNG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16d.lib )
-    else()
-      set( PNG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16.so )
-      set( PNG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libpng16d.so )
+    FetchContent_GetProperties(png)
+    if(NOT png_POPULATED)
+      FetchContent_Populate(png)
+      add_subdirectory(${png_SOURCE_DIR} ${png_BINARY_DIR})
+	  add_library( png::png ALIAS png)
     endif()
-    set( PNG_LIBRARIES optimized "${PNG_LIBRARY_RELEASE}" debug "${PNG_LIBRARY_DEBUG}" )
-    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${PNG_BUILD_DIR}/include )
-    list( APPEND PUMEXLIB_LIBRARIES ${PNG_LIBRARIES} )
-    list( APPEND PUMEXLIB_EXTERNALS libpng-external )
+    list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED png::png )
   else()
-    find_package( PNG REQUIRED )
-    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${PNG_INCLUDE_DIRS} )
-    list( APPEND PUMEXLIB_LIBRARIES ${PNG_LIBRARIES} )
+    find_package( png REQUIRED )
+    list( APPEND PUMEX_LIBRARIES_PUBLIC png::png )
   endif()
   
   if(PUMEX_DOWNLOAD_EXTERNAL_JPEG)
-    set( JPEG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg )
-    set( JPEG_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/libjpeg )
-    ExternalProject_Add( libjpeg-external
-      PREFIX "${JPEG_BUILD_DIR}"
-      BINARY_DIR "${JPEG_BUILD_DIR}/build"
-      STAMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stamp/libjpeg"
+    message( STATUS "Fetching content from JPEG library")
+    FetchContent_Declare(
+      jpeg
       GIT_REPOSITORY "https://github.com/LuaDist/libjpeg.git"
-      PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg_fix/jmorecfg.h" "${JPEG_SOURCE_DIR}/jmorecfg.h"
-      SOURCE_DIR "${JPEG_SOURCE_DIR}"
-      UPDATE_COMMAND ""
-      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${INTERMEDIATE_INSTALL_DIR} -DCMAKE_DEBUG_POSTFIX=d "${CROSS_COMPILE_PARAMETERS}"
-      UPDATE_DISCONNECTED TRUE
+      PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg_fix/jmorecfg.h" "${jpeg_SOURCE_DIR}/jmorecfg.h"
     )
-    ExternalProject_Add_Step( libjpeg-external libjpeg-copy-intermediate
-      COMMAND ${CMAKE_COMMAND} -E copy_directory "${INTERMEDIATE_INSTALL_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-      DEPENDEES install
-    )
-    if(WIN32)
-      set( JPEG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/jpeg.lib )
-      set( JPEG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/jpegd.lib )
-    else()
-      set( JPEG_LIBRARY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/lib/libjpeg.so )
-      set( JPEG_LIBRARY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/lib/libjpegd.so )
+    FetchContent_GetProperties(jpeg)
+    if(NOT jpeg_POPULATED)
+      FetchContent_Populate(jpeg)
+      add_subdirectory(${jpeg_SOURCE_DIR} ${jpeg_BINARY_DIR})
+	  add_library( jpeg::jpeg ALIAS jpeg)
     endif()
-    set( JPEG_LIBRARIES optimized "${JPEG_LIBRARY_RELEASE}" debug "${JPEG_LIBRARY_DEBUG}" )
-    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${JPEG_BUILD_DIR}/include )
-    list( APPEND PUMEXLIB_LIBRARIES ${JPEG_LIBRARIES} )
-    list( APPEND PUMEXLIB_EXTERNALS libjpeg-external )
+    list( APPEND PUMEX_LIBRARIES_PUBLIC_DOWNLOADED jpeg::jpeg )
   else()
-    find_package( JPEG REQUIRED )
-    list( APPEND PUMEXLIB_PUBLIC_INCLUDES ${JPEG_INCLUDE_DIRS} )
-    list( APPEND PUMEXLIB_LIBRARIES ${JPEG_LIBRARIES} )
+    find_package( jpeg REQUIRED )
+    list( APPEND PUMEX_LIBRARIES_PUBLIC jpeg::jpeg )
   endif()
-  
 endif()
+
+list( APPEND PUMEX_PUBLIC_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR}/include )

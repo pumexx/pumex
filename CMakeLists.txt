@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.7.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.11.0 FATAL_ERROR)
 
-project( PUMEX LANGUAGES CXX VERSION 0.2.0 )
-set( PUMEX_SOVERSION 1 )
+project( LIBPUMEX LANGUAGES CXX VERSION 0.2.0 )
+set( LIBPUMEX_SOVERSION 1 )
 
-message( STATUS "Building PUMEX library version ${PUMEX_VERSION_MAJOR}.${PUMEX_VERSION_MINOR}.${PUMEX_VERSION_PATCH}" )
+message( STATUS "Configuring PUMEX library version ${LIBPUMEX_VERSION_MAJOR}.${LIBPUMEX_VERSION_MINOR}.${LIBPUMEX_VERSIONPUMEX_VERSION_PATCH}" )
 
 if ( UNIX AND NOT APPLE AND NOT ANDROID AND NOT WEBGL )
   set( LINUX TRUE )
@@ -15,11 +15,11 @@ if (POLICY CMP0076)
   cmake_policy(SET CMP0076 OLD)
 endif()
 
-if(NOT ANDROID)
-  option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
-else()
+if(ANDROID)
   option( PUMEX_BUILD_EXAMPLES             "Build examples" OFF )
-endif()  
+else()
+  option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
+endif()
 option( PUMEX_BUILD_QT                   "Build Pumex with QT support" OFF )
 option( PUMEX_BUILD_TEXTURE_LOADERS      "Build Pumex with PNG, JPEG, etc support" ON )
 if(WIN32)
@@ -69,20 +69,20 @@ configure_file (
 include( pumex_macros )
 include( pumex_externals )
 
-set( PUMEXLIB_SHADER_NAMES
+set( PUMEX_SHADER_NAMES
   shaders/text_draw.vert
   shaders/text_draw.geom
   shaders/text_draw.frag
   shaders/stat_draw.vert
   shaders/stat_draw.frag
 )
-process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXLIB_SHADER_NAMES PUMEXLIB_INPUT_SHADERS PUMEXLIB_OUTPUT_SHADERS )
-add_custom_target ( pumexlib-shaders DEPENDS ${PUMEXLIB_OUTPUT_SHADERS} SOURCES ${PUMEXLIB_INPUT_SHADERS} )
-add_custom_command(TARGET pumexlib-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEX_SHADER_NAMES PUMEX_INPUT_SHADERS PUMEX_OUTPUT_SHADERS )
+add_custom_target ( pumex-shaders DEPENDS ${PUMEX_OUTPUT_SHADERS} SOURCES ${PUMEX_INPUT_SHADERS} )
+add_custom_command(TARGET pumex-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
-set( PUMEXLIB_HEADERS )
-set( PUMEXLIB_HEADERS_QT )
-list( APPEND PUMEXLIB_HEADERS
+set( PUMEX_HEADERS )
+set( PUMEX_HEADERS_QT )
+list( APPEND PUMEX_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Asset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBuffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/AssetBufferNode.h
@@ -148,34 +148,34 @@ list( APPEND PUMEXLIB_HEADERS
   ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h
 )
 if(WIN32)
-  list( APPEND PUMEXLIB_HEADERS
+  list( APPEND PUMEX_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/HPClockWin32.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/win32/WindowWin32.h
   )
 elseif(LINUX)
-  list( APPEND PUMEXLIB_HEADERS
+  list( APPEND PUMEX_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/linux/WindowXcb.h
   )  
 elseif(ANDROID)
-  list( APPEND PUMEXLIB_HEADERS
+  list( APPEND PUMEX_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/android/WindowAndroid.h
   )  
 endif()
 if(PUMEX_BUILD_QT)
-  list( APPEND PUMEXLIB_HEADERS_QT
+  list( APPEND PUMEX_HEADERS_QT
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/platform/qt/WindowQT.h
   )
 endif()
 if(PUMEX_BUILD_TEXTURE_LOADERS)
-  list( APPEND PUMEXLIB_HEADERS
+  list( APPEND PUMEX_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderPNG.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/TextureLoaderJPEG.h
   )
 endif()
 
-set( PUMEXLIB_SOURCES )
-set( PUMEXLIB_SOURCES_QT )
-list( APPEND PUMEXLIB_SOURCES
+set( PUMEX_SOURCES )
+set( PUMEX_SOURCES_QT )
+list( APPEND PUMEX_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Asset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/AssetBufferNode.cpp
@@ -235,85 +235,92 @@ list( APPEND PUMEXLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Shapes.cpp
 )
 if(WIN32)
-  list( APPEND PUMEXLIB_SOURCES
+  list( APPEND PUMEX_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/win32/HPClockWin32.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/win32/WindowWin32.cpp
   )
 elseif(LINUX)
-  list( APPEND PUMEXLIB_SOURCES
+  list( APPEND PUMEX_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/linux/WindowXcb.cpp
   )
 elseif(ANDROID)
-  list( APPEND PUMEXLIB_SOURCES
+  list( APPEND PUMEX_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/android/WindowAndroid.cpp
   )
 endif()
 if(PUMEX_BUILD_QT)
-  list( APPEND PUMEXLIB_SOURCES_QT
+  list( APPEND PUMEX_SOURCES_QT
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/platform/qt/WindowQT.cpp
   )
 endif()
 if(PUMEX_BUILD_TEXTURE_LOADERS)
-  list( APPEND PUMEXLIB_SOURCES
+  list( APPEND PUMEX_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderPNG.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/TextureLoaderJPEG.cpp
   )
 endif()
 
-set( PUMEXLIB_SOURCES_QT_MOC )
+set( PUMEX_SOURCES_QT_MOC )
 if( PUMEX_BUILD_QT )
-  qt5_wrap_cpp( PUMEXLIB_SOURCES_QT_MOC ${PUMEXLIB_HEADERS_QT} )
+  qt5_wrap_cpp( PUMEX_SOURCES_QT_MOC ${PUMEX_HEADERS_QT} )
 endif()
 
-add_library( pumexlib SHARED "" )
-target_sources( pumexlib
+add_library( pumex SHARED "" )
+target_sources( pumex
   PUBLIC
-    $<BUILD_INTERFACE: ${PUMEXLIB_HEADERS} ${PUMEXLIB_HEADERS_QT}>
+    $<BUILD_INTERFACE: ${PUMEX_HEADERS} ${PUMEX_HEADERS_QT}>
   PRIVATE
-    ${PUMEXLIB_SOURCES}
-    ${PUMEXLIB_SOURCES_QT}
-	${PUMEXLIB_SOURCES_QT_MOC}
+    ${PUMEX_SOURCES}
+    ${PUMEX_SOURCES_QT}
+	${PUMEX_SOURCES_QT_MOC}
 )
-target_include_directories( pumexlib
+target_include_directories( pumex
   PUBLIC
-    $<BUILD_INTERFACE:${PUMEXLIB_PUBLIC_INCLUDES}>
+    $<BUILD_INTERFACE:${PUMEX_PUBLIC_INCLUDES}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
   PRIVATE
-    $<BUILD_INTERFACE:${PUMEXLIB_PRIVATE_INCLUDES}>
+    $<BUILD_INTERFACE:${pumex_PRIVATE_INCLUDES}>
 )
-target_compile_definitions( pumexlib
+target_compile_definitions( pumex
   PUBLIC
     NOMINMAX GLM_ENABLE_EXPERIMENTAL GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_CTOR_INIT
   PRIVATE
     PUMEX_EXPORTS
 )
 if(WIN32)
-  target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_WIN32_KHR )
+  target_compile_definitions( pumex PUBLIC VK_USE_PLATFORM_WIN32_KHR )
 elseif(LINUX)
-  target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_XCB_KHR )
+  target_compile_definitions( pumex PUBLIC VK_USE_PLATFORM_XCB_KHR )
 elseif(ANDROID)
-  target_compile_definitions( pumexlib PUBLIC VK_USE_PLATFORM_ANDROID_KHR )
+  target_compile_definitions( pumex PUBLIC VK_USE_PLATFORM_ANDROID_KHR )
 endif()
 
 if(PUMEX_BUILD_TEXTURE_LOADERS)
-  target_compile_definitions( pumexlib PRIVATE PUMEX_BUILD_TEXTURE_LOADERS )
+  target_compile_definitions( pumex PRIVATE PUMEX_BUILD_TEXTURE_LOADERS )
 endif()
 
-add_dependencies( pumexlib pumexlib-shaders ${PUMEXLIB_EXTERNALS} )
-set_target_properties( pumexlib PROPERTIES 
-  VERSION   ${PUMEX_VERSION} 
-  SOVERSION ${PUMEX_SOVERSION}
-  RESOURCE  "${PUMEXLIB_OUTPUT_SHADERS}"
+add_dependencies( pumex pumex-shaders )
+set_target_properties( pumex PROPERTIES 
+  VERSION   ${LIBPUMEX_VERSION} 
+  SOVERSION ${LIBPUMEX_SOVERSION}
+  RESOURCE  "${PUMEX_OUTPUT_SHADERS}"
 )
-target_link_libraries( pumexlib ${PUMEXLIB_LIBRARIES} )
-set_target_postfixes( pumexlib )
+target_link_libraries( pumex 
+  PUBLIC
+    ${PUMEX_LIBRARIES_PUBLIC_DOWNLOADED} 
+    ${PUMEX_LIBRARIES_PUBLIC_DOWNLOADED} 
+  PRIVATE
+    ${PUMEX_LIBRARIES_PRIVATE_DOWNLOADED} 
+    ${PUMEX_LIBRARIES_PRIVATE} 
+)
+set_target_postfixes( pumex )
 
 if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )
 endif()
 
-install( TARGETS pumexlib 
+install( TARGETS pumex 
          EXPORT PumexTargets
          ARCHIVE DESTINATION lib COMPONENT libraries
          LIBRARY DESTINATION lib COMPONENT libraries
@@ -338,7 +345,7 @@ install( FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pumex-config.cmake DESTINATION 
 
 include( CMakePackageConfigHelpers )
 write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake
-  VERSION ${PUMEX_VERSION}
+  VERSION ${LIBPUMEX_VERSION}
   COMPATIBILITY SameMajorVersion
 )
 install( FILES ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake DESTINATION lib/cmake/pumex COMPONENT cmake_files )
@@ -346,10 +353,10 @@ install( FILES ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake DESTINATIO
 set( CPACK_PACKAGE_NAME "pumex" )
 set( CPACK_PACKAGE_VENDOR "CMake.org" )
 set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Pumex - Vulkan library oriented on high speed rendering" )
-set( CPACK_PACKAGE_VERSION ${PUMEX_VERSION} )
-set( CPACK_PACKAGE_VERSION_MAJOR ${PUMEX_VERSION_MAJOR} )
-set( CPACK_PACKAGE_VERSION_MINOR ${PUMEX_VERSION_MINOR} )
-set( CPACK_PACKAGE_VERSION_PATCH ${PUMEX_VERSION_PATCH} )
+set( CPACK_PACKAGE_VERSION ${LIBPUMEX_VERSION} )
+set( CPACK_PACKAGE_VERSION_MAJOR ${LIBPUMEX_VERSION_MAJOR} )
+set( CPACK_PACKAGE_VERSION_MINOR ${LIBPUMEX_VERSION_MINOR} )
+set( CPACK_PACKAGE_VERSION_PATCH ${LIBPUMEX_VERSION_PATCH} )
 set( CPACK_PACKAGE_INSTALL_DIRECTORY "Pumex" )
 set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE" )
 
