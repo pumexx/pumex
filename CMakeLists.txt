@@ -77,8 +77,8 @@ set( PUMEX_SHADER_NAMES
   shaders/stat_draw.frag
 )
 process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEX_SHADER_NAMES PUMEX_INPUT_SHADERS PUMEX_OUTPUT_SHADERS )
-add_custom_target ( pumex-shaders DEPENDS ${PUMEX_OUTPUT_SHADERS} SOURCES ${PUMEX_INPUT_SHADERS} )
-add_custom_command(TARGET pumex-shaders PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+add_custom_target ( shaders-pumex DEPENDS ${PUMEX_OUTPUT_SHADERS} SOURCES ${PUMEX_INPUT_SHADERS} )
+add_custom_command(TARGET shaders-pumex PRE_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set( PUMEX_HEADERS )
 set( PUMEX_HEADERS_QT )
@@ -277,10 +277,9 @@ target_sources( pumex
 target_include_directories( pumex
   PUBLIC
     $<BUILD_INTERFACE:${PUMEX_PUBLIC_INCLUDES}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
   PRIVATE
-    $<BUILD_INTERFACE:${pumex_PRIVATE_INCLUDES}>
+    $<BUILD_INTERFACE:${PUMEX_PRIVATE_INCLUDES}>
 )
 target_compile_definitions( pumex
   PUBLIC
@@ -300,7 +299,7 @@ if(PUMEX_BUILD_TEXTURE_LOADERS)
   target_compile_definitions( pumex PRIVATE PUMEX_BUILD_TEXTURE_LOADERS )
 endif()
 
-add_dependencies( pumex pumex-shaders )
+add_dependencies( pumex shaders-pumex )
 set_target_properties( pumex PROPERTIES 
   VERSION   ${LIBPUMEX_VERSION} 
   SOVERSION ${LIBPUMEX_SOVERSION}

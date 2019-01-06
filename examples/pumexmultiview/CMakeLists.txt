@@ -7,13 +7,13 @@ set( PUMEXMULTIVIEW_SHADER_NAMES
   shaders/multiview_gbuffers.vert
 )
 process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXMULTIVIEW_SHADER_NAMES PUMEXMULTIVIEW_INPUT_SHADERS PUMEXMULTIVIEW_OUTPUT_SHADERS )
-add_custom_target ( pumexmultiview-shaders DEPENDS ${PUMEXMULTIVIEW_OUTPUT_SHADERS} SOURCES ${PUMEXMULTIVIEW_INPUT_SHADERS})
+add_custom_target ( shaders-pumexmultiview DEPENDS ${PUMEXMULTIVIEW_OUTPUT_SHADERS} SOURCES ${PUMEXMULTIVIEW_INPUT_SHADERS})
 
 add_executable( pumexmultiview pumexmultiview.cpp )
 target_include_directories( pumexmultiview PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
-add_dependencies( pumexmultiview pumexmultiview-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
+add_dependencies( pumexmultiview shaders-pumexmultiview )
 set_target_properties( pumexmultiview PROPERTIES RESOURCE "${PUMEXMULTIVIEW_OUTPUT_SHADERS}" )
-target_link_libraries( pumexmultiview pumexlib )
+target_link_libraries( pumexmultiview pumex ${PUMEX_LIBRARIES_EXAMPLES} )
 set_target_postfixes( pumexmultiview )
 
 install( TARGETS pumexmultiview

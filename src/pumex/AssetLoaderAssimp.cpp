@@ -29,7 +29,7 @@
 using namespace pumex;
 
 AssetLoaderAssimp::AssetLoaderAssimp()
-  : AssetLoader{ {"fbx", "dae", "gltf", "glb", "3ds", "obj", "ply", "dxf", "lwo", "stl", "bvh" } }
+  : AssetLoader{ { "3ds", "bvh", "dae", "dxf", "lwo", "obj", "ply", "fbx", "stl", "x", "gltf", "glb" } }
 {
 }
 

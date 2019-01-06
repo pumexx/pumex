@@ -13,13 +13,13 @@ set( PUMEXIBL_SHADER_NAMES
   shaders/ibl_render.frag
 )
 process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXIBL_SHADER_NAMES PUMEXIBL_INPUT_SHADERS PUMEXIBL_OUTPUT_SHADERS )
-add_custom_target ( pumexibl-shaders DEPENDS ${PUMEXIBL_OUTPUT_SHADERS} SOURCES ${PUMEXIBL_SHADER_NAMES})
+add_custom_target ( shaders-pumexibl DEPENDS ${PUMEXIBL_OUTPUT_SHADERS} SOURCES ${PUMEXIBL_SHADER_NAMES})
 
 add_executable( pumexibl pumexibl.cpp )
 target_include_directories( pumexibl PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
-add_dependencies( pumexibl pumexibl-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
+add_dependencies( pumexibl shaders-pumexibl )
 set_target_properties( pumexibl PROPERTIES RESOURCE "${PUMEXIBL_OUTPUT_SHADERS}" )
-target_link_libraries( pumexibl pumexlib )
+target_link_libraries( pumexibl pumex ${PUMEX_LIBRARIES_EXAMPLES} )
 set_target_postfixes( pumexibl )
 
 install( TARGETS pumexibl

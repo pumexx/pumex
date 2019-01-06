@@ -7,13 +7,13 @@ set( PUMEXGPUCULL_SHADER_NAMES
   shaders/gpucull_static_render.vert
 )
 process_shaders( ${CMAKE_CURRENT_LIST_DIR} PUMEXGPUCULL_SHADER_NAMES PUMEXGPUCULL_INPUT_SHADERS PUMEXGPUCULL_OUTPUT_SHADERS )
-add_custom_target ( pumexgpucull-shaders DEPENDS ${PUMEXGPUCULL_OUTPUT_SHADERS} SOURCES ${PUMEXGPUCULL_INPUT_SHADERS})
+add_custom_target ( shaders-pumexgpucull DEPENDS ${PUMEXGPUCULL_OUTPUT_SHADERS} SOURCES ${PUMEXGPUCULL_INPUT_SHADERS})
 
 add_executable( pumexgpucull pumexgpucull.cpp )
 target_include_directories( pumexgpucull PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
-add_dependencies( pumexgpucull pumexgpucull-shaders ${PUMEX_EXAMPLES_EXTERNALS} )
+add_dependencies( pumexgpucull shaders-pumexgpucull )
 set_target_properties( pumexgpucull PROPERTIES RESOURCE "${PUMEXGPUCULL_OUTPUT_SHADERS}" )
-target_link_libraries( pumexgpucull pumexlib )
+target_link_libraries( pumexgpucull pumex ${PUMEX_LIBRARIES_EXAMPLES} )
 set_target_postfixes( pumexgpucull )
 
 install( TARGETS pumexgpucull
