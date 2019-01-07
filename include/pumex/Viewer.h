@@ -89,7 +89,7 @@ struct PUMEX_EXPORT ViewerTraits
 
   VkDebugReportFlagsEXT    debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT; // | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
   // use debugReportCallback if you want to overwrite default messageCallback() logging function
-  VkDebugReportCallbackEXT debugReportCallback = nullptr;
+  VkDebugReportCallbackEXT debugReportCallback = VK_NULL_HANDLE;
 
   inline bool useDebugLayers() const;
 };

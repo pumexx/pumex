@@ -29,7 +29,6 @@ endif()
 list( APPEND PUMEX_LIBRARIES_PUBLIC ${EXPERIMENTAL_FILESYSTEM_LIBRARIES} )
 
 include( FetchContent )
-#include( FindPackageHandleStandardArgs )
 
 set( CMAKE_DEBUG_POSTFIX "d" CACHE STRING "Overriden by Pumex" )
 if( PUMEX_DOWNLOAD_EXTERNAL_GLM )
@@ -129,7 +128,8 @@ if(PUMEX_DOWNLOAD_EXTERNAL_ZLIB)
   set( ZLIB_INCLUDE_DIR ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR} )
 else()
   find_package( ZLIB REQUIRED )
-  list( APPEND PUMEX_LIBRARIES_PUBLIC zlib::zlib )
+  list( APPEND PUMEX_PUBLIC_INCLUDES ${ZLIB_INCLUDE_DIR} )
+  list( APPEND PUMEX_LIBRARIES_PUBLIC ${ZLIB_LIBRARIES} )
 endif()
 set( ASSIMP_BUILD_ZLIB off CACHE BOOL "Overriden by Pumex" )
 set( PNG_BUILD_ZLIB off CACHE BOOL "Overriden by Pumex" )
@@ -204,6 +204,7 @@ if( PUMEX_DOWNLOAD_EXTERNAL_TBB )
   FetchContent_Declare(
     tbb
     GIT_REPOSITORY "https://github.com/wjakob/tbb.git"
+    PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/external/tbb_fix/CMakeLists.txt" "${FETCHCONTENT_BASE_DIR}/tbb-src/CMakeLists.txt"
   )
   FetchContent_GetProperties(tbb)
   if(NOT tbb_POPULATED)
@@ -229,6 +230,7 @@ if(PUMEX_BUILD_TEXTURE_LOADERS)
   if(PUMEX_DOWNLOAD_EXTERNAL_PNG)
     message( STATUS "Fetching content from LibPNG library")
     set( PNG_TESTS off CACHE BOOL "Overriden by Pumex" )
+    set( SKIP_INSTALL_ALL on CACHE BOOL "Overriden by Pumex" )
     FetchContent_Declare(
       png
       GIT_REPOSITORY "git://git.code.sf.net/p/libpng/code"

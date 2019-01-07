@@ -7,8 +7,8 @@ message( STATUS "Configuring PUMEX library version ${LIBPUMEX_VERSION_MAJOR}.${L
 
 if ( UNIX AND NOT APPLE AND NOT ANDROID AND NOT WEBGL )
   set( LINUX TRUE )
-else()	
-  set( LINUX FALSE )  
+else()
+  set( LINUX FALSE )
 endif()
 
 if (POLICY CMP0076)

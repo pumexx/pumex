@@ -101,7 +101,7 @@ void MemoryBuffer::validate(const RenderContext& renderContext)
     pddit->second.device = renderContext.vkDevice;
 
   // images are created here, when Texture uses sameTraitsPerObject - otherwise it's a reponsibility of the user to create them through setImageTraits() call
-  if (pddit->second.data[activeIndex].buffer == nullptr && sameDataPerObject)
+  if (pddit->second.data[activeIndex].buffer == VK_NULL_HANDLE && sameDataPerObject)
   {
     VkBufferCreateInfo bufferCreateInfo{};
       bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
