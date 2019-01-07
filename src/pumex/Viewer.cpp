@@ -184,7 +184,7 @@ Viewer::Viewer(const ViewerTraits& vt)
     applicationInfo.pApplicationName   = viewerTraits.applicationName.c_str();
     applicationInfo.applicationVersion = 1;
     applicationInfo.pEngineName        = "pumex";
-    applicationInfo.engineVersion      = 10000 * PUMEX_VERSION_MAJOR + 100 * PUMEX_VERSION_MINOR + PUMEX_VERSION_PATCH;
+    applicationInfo.engineVersion      = 10000 * LIBPUMEX_VERSION_MAJOR + 100 * LIBPUMEX_VERSION_MINOR + LIBPUMEX_VERSION_PATCH;
     applicationInfo.apiVersion         = VK_API_VERSION_1_0;
 
   VkInstanceCreateInfo instanceCreateInfo{};

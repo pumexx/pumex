@@ -308,7 +308,7 @@ set_target_properties( pumex PROPERTIES
 target_link_libraries( pumex 
   PUBLIC
     ${PUMEX_LIBRARIES_PUBLIC_DOWNLOADED} 
-    ${PUMEX_LIBRARIES_PUBLIC_DOWNLOADED} 
+    ${PUMEX_LIBRARIES_PUBLIC} 
   PRIVATE
     ${PUMEX_LIBRARIES_PRIVATE_DOWNLOADED} 
     ${PUMEX_LIBRARIES_PRIVATE} 
@@ -319,85 +319,85 @@ if( PUMEX_BUILD_EXAMPLES )
   add_subdirectory( examples )
 endif()
 
-install( TARGETS pumex 
-         EXPORT PumexTargets
-         ARCHIVE DESTINATION lib COMPONENT libraries
-         LIBRARY DESTINATION lib COMPONENT libraries
-         RUNTIME DESTINATION bin COMPONENT libraries
-         RESOURCE DESTINATION share/pumex/shaders COMPONENT libraries
-         )
-install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include COMPONENT headers FILES_MATCHING PATTERN "*.h"  )
-install( FILES ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h DESTINATION include/pumex COMPONENT headers )
-install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/include/ DESTINATION include COMPONENT dependencies )
-install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin/ DESTINATION bin COMPONENT dependencies )
-install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/lib/ DESTINATION lib COMPONENT dependencies )
-install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex/fonts COMPONENT examples )
-install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/people/ DESTINATION share/pumex/people COMPONENT examples )
-install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex/sponza COMPONENT examples )
-install( EXPORT PumexTargets
-  FILE pumex-targets.cmake
-  NAMESPACE pumex::
-  DESTINATION lib/cmake/pumex
-  COMPONENT cmake_files
-)
-install( FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pumex-config.cmake DESTINATION lib/cmake/pumex COMPONENT cmake_files )
-
-include( CMakePackageConfigHelpers )
-write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake
-  VERSION ${LIBPUMEX_VERSION}
-  COMPATIBILITY SameMajorVersion
-)
-install( FILES ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake DESTINATION lib/cmake/pumex COMPONENT cmake_files )
-
-set( CPACK_PACKAGE_NAME "pumex" )
-set( CPACK_PACKAGE_VENDOR "CMake.org" )
-set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Pumex - Vulkan library oriented on high speed rendering" )
-set( CPACK_PACKAGE_VERSION ${LIBPUMEX_VERSION} )
-set( CPACK_PACKAGE_VERSION_MAJOR ${LIBPUMEX_VERSION_MAJOR} )
-set( CPACK_PACKAGE_VERSION_MINOR ${LIBPUMEX_VERSION_MINOR} )
-set( CPACK_PACKAGE_VERSION_PATCH ${LIBPUMEX_VERSION_PATCH} )
-set( CPACK_PACKAGE_INSTALL_DIRECTORY "Pumex" )
-set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE" )
-
-include(CPack)
-
-cpack_add_install_type( Full      DISPLAY_NAME "Full install ( development files with examples )" )
-cpack_add_install_type( Developer DISPLAY_NAME "Development files WITHOUT examples" )
-
-cpack_add_component_group( DevGroup DISPLAY_NAME "Development files" DESCRIPTION "All files required to develop your applications using Pumex library" )
-cpack_add_component_group( ExampleApps DISPLAY_NAME "Example applications" DESCRIPTION "Example applications show Pumex library in action" )
-
-cpack_add_component( dependencies
-  DISPLAY_NAME "3rd party libraries"
-  DESCRIPTION "Libraries that must be installed in order to run Pumex library"
-  GROUP DevGroup
-  INSTALL_TYPES Developer Full
-)
-cpack_add_component( libraries
-  DISPLAY_NAME "Library files"
-  DESCRIPTION "Dynamic libraries used to build applications with Pumex library. Libraries are also used by example applications"
-  GROUP DevGroup
-  INSTALL_TYPES Developer Full
-  DEPENDS dependencies
-)
-cpack_add_component( headers
-  DISPLAY_NAME "Header files"
-  DESCRIPTION "Header files required to write and build applications with Pumex library"
-  GROUP DevGroup
-  INSTALL_TYPES Developer Full
-  DEPENDS libraries
-)
-cpack_add_component( cmake_files
-  DISPLAY_NAME "CMake configuration files"
-  DESCRIPTION "Files that help find Pumex library and use it in your application"
-  GROUP DevGroup
-  INSTALL_TYPES Developer Full
-  DEPENDS libraries
-)
-cpack_add_component( examples
-  DISPLAY_NAME "Example applications"
-  DESCRIPTION "Example applications show Pumex library in action"
-  GROUP ExampleApps
-  INSTALL_TYPES Full
-  DEPENDS libraries
-)
+#install( TARGETS pumex 
+#         EXPORT PumexTargets
+#         ARCHIVE DESTINATION lib COMPONENT libraries
+#         LIBRARY DESTINATION lib COMPONENT libraries
+#         RUNTIME DESTINATION bin COMPONENT libraries
+#         RESOURCE DESTINATION share/pumex/shaders COMPONENT libraries
+#         )
+#install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include COMPONENT headers FILES_MATCHING PATTERN "*.h"  )
+#install( FILES ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h DESTINATION include/pumex COMPONENT headers )
+#install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/include/ DESTINATION include COMPONENT dependencies )
+#install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/bin/ DESTINATION bin COMPONENT dependencies )
+#install( DIRECTORY ${INTERMEDIATE_INSTALL_DIR}/lib/ DESTINATION lib COMPONENT dependencies )
+#install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/fonts/ DESTINATION share/pumex/fonts COMPONENT examples )
+#install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/people/ DESTINATION share/pumex/people COMPONENT examples )
+#install( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/sponza/ DESTINATION share/pumex/sponza COMPONENT examples )
+#install( EXPORT PumexTargets
+#  FILE pumex-targets.cmake
+#  NAMESPACE pumex::
+#  DESTINATION lib/cmake/pumex
+#  COMPONENT cmake_files
+#)
+#install( FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pumex-config.cmake DESTINATION lib/cmake/pumex COMPONENT cmake_files )
+#
+#include( CMakePackageConfigHelpers )
+#write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake
+#  VERSION ${LIBPUMEX_VERSION}
+#  COMPATIBILITY SameMajorVersion
+#)
+#install( FILES ${CMAKE_CURRENT_BINARY_DIR}/pumex-config-version.cmake DESTINATION lib/cmake/pumex COMPONENT cmake_files )
+#
+#set( CPACK_PACKAGE_NAME "pumex" )
+#set( CPACK_PACKAGE_VENDOR "CMake.org" )
+#set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Pumex - Vulkan library oriented on high speed rendering" )
+#set( CPACK_PACKAGE_VERSION ${LIBPUMEX_VERSION} )
+#set( CPACK_PACKAGE_VERSION_MAJOR ${LIBPUMEX_VERSION_MAJOR} )
+#set( CPACK_PACKAGE_VERSION_MINOR ${LIBPUMEX_VERSION_MINOR} )
+#set( CPACK_PACKAGE_VERSION_PATCH ${LIBPUMEX_VERSION_PATCH} )
+#set( CPACK_PACKAGE_INSTALL_DIRECTORY "Pumex" )
+#set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE" )
+#
+#include(CPack)
+#
+#cpack_add_install_type( Full      DISPLAY_NAME "Full install ( development files with examples )" )
+#cpack_add_install_type( Developer DISPLAY_NAME "Development files WITHOUT examples" )
+#
+#cpack_add_component_group( DevGroup DISPLAY_NAME "Development files" DESCRIPTION "All files required to develop your applications using Pumex library" )
+#cpack_add_component_group( ExampleApps DISPLAY_NAME "Example applications" DESCRIPTION "Example applications show Pumex library in action" )
+#
+#cpack_add_component( dependencies
+#  DISPLAY_NAME "3rd party libraries"
+#  DESCRIPTION "Libraries that must be installed in order to run Pumex library"
+#  GROUP DevGroup
+#  INSTALL_TYPES Developer Full
+#)
+#cpack_add_component( libraries
+#  DISPLAY_NAME "Library files"
+#  DESCRIPTION "Dynamic libraries used to build applications with Pumex library. Libraries are also used by example applications"
+#  GROUP DevGroup
+#  INSTALL_TYPES Developer Full
+#  DEPENDS dependencies
+#)
+#cpack_add_component( headers
+#  DISPLAY_NAME "Header files"
+#  DESCRIPTION "Header files required to write and build applications with Pumex library"
+#  GROUP DevGroup
+#  INSTALL_TYPES Developer Full
+#  DEPENDS libraries
+#)
+#cpack_add_component( cmake_files
+#  DISPLAY_NAME "CMake configuration files"
+#  DESCRIPTION "Files that help find Pumex library and use it in your application"
+#  GROUP DevGroup
+#  INSTALL_TYPES Developer Full
+#  DEPENDS libraries
+#)
+#cpack_add_component( examples
+#  DISPLAY_NAME "Example applications"
+#  DESCRIPTION "Example applications show Pumex library in action"
+#  GROUP ExampleApps
+#  INSTALL_TYPES Full
+#  DEPENDS libraries
+#)
