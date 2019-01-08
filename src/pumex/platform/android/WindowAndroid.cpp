@@ -23,7 +23,6 @@
 #include <pumex/platform/android/WindowAndroid.h>
 #include <cstring>
 #include <android/input.h>
-#include <android/native_window.h>
 #include <pumex/Viewer.h>
 #include <pumex/Surface.h>
 #include <pumex/utils/Log.h>
@@ -32,7 +31,6 @@ using namespace pumex;
 
 std::unordered_map<uint32_t, InputEvent::Key> WindowAndroid::androidKeycodes;
 
-static const char PUMEX_WINDOW_CLASS_ON_LINUX[] = "pumex_class\0pumex_class";
 
 WindowAndroid::WindowAndroid(const WindowTraits& windowTraits)
 {
@@ -241,7 +239,7 @@ bool WindowAndroid::checkWindowMessages()
       WindowAndroid* window = WindowAndroid::getWindow(keyEvent->event);
       if(window!=nullptr)
       {
-        InputEvent::Key key = window->xcbKeyCodeToPumex(keyEvent->detail);
+        InputEvent::Key key = window->androidKeyCodeToPumex(keyEvent->detail);
         window->pushInputEvent( InputEvent( timeNow, InputEvent::KEYBOARD_KEY_PRESSED, key ) );
       }
       break;
@@ -252,7 +250,7 @@ bool WindowAndroid::checkWindowMessages()
       WindowAndroid* window = WindowAndroid::getWindow(keyEvent->event);
       if(window!=nullptr)
       {
-        InputEvent::Key key = window->xcbKeyCodeToPumex(keyEvent->detail);
+        InputEvent::Key key = window->androidKeyCodeToPumex(keyEvent->detail);
         window->pushInputEvent( InputEvent( timeNow, InputEvent::KEYBOARD_KEY_RELEASED, key ) );
       }
       break;
