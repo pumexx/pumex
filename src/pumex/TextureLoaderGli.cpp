@@ -30,6 +30,7 @@
   #define GLM_ENABLE_EXPERIMENTAL
   #undef GLM_ENABLE_EXPERIMENTAL_HACK
 #endif
+#include <pumex/utils/ReadFile.h>
 
 using namespace pumex;
 
@@ -40,5 +41,8 @@ TextureLoaderGli::TextureLoaderGli()
 
 std::shared_ptr<gli::texture> TextureLoaderGli::load(const std::string& fileName, bool buildMipMaps)
 {
-  return std::make_shared<gli::texture>( gli::load(fileName) );
+  std::vector<unsigned char> texContents;
+  readFileToMemory(fileName, texContents);
+
+  return std::make_shared<gli::texture>( gli::load(reinterpret_cast<char*>(texContents.data()), texContents.size()) );
 }

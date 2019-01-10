@@ -31,8 +31,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #undef GLM_ENABLE_EXPERIMENTAL_HACK
 #endif
-#include <fstream>
 #include <png.h>
+#include <pumex/utils/ReadFile.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
@@ -69,21 +69,7 @@ TextureLoaderPNG::TextureLoaderPNG()
 std::shared_ptr<gli::texture> TextureLoaderPNG::load(const std::string& fileName, bool buildMipMaps)
 {
   std::vector<png_byte> pngContents;
-  {
-    // open png file
-    std::ifstream file(fileName.c_str(), std::ios::in | std::ios::binary);
-    CHECK_LOG_THROW(!file, "Cannot open PNG file " << fileName);
-
-    // read all file contents into a pngContents vector
-    auto fileBegin = file.tellg();
-    file.seekg(0, std::ios::end);
-    auto fileEnd = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::size_t fileSize = static_cast<std::size_t>(fileEnd - fileBegin);
-    pngContents.resize(fileSize);
-    file.read(reinterpret_cast<char*>(pngContents.data()), fileSize);
-    CHECK_LOG_THROW(file.fail(), "Failed to read PNG file " << fileName);
-  }
+  readFileToMemory( fileName, pngContents );
 
   png_structp pngPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
   CHECK_LOG_THROW(pngPtr == nullptr, "Cannot create PNG read struct");

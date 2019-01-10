@@ -51,6 +51,7 @@
 #endif
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
   #include <pumex/platform/android/WindowAndroid.h>
+  #include <sys/stat.h>              // so we can check if the file exists
 #endif
 
 using namespace pumex;
@@ -89,7 +90,10 @@ Viewer::Viewer(const ViewerTraits& vt)
   timeStatistics->registerChannel(TSV_CHANNEL_EVENT_RENDER_FINISH, TSV_GROUP_RENDER_EVENTS, L"Viewer event render finish", glm::vec4(0.8f, 0.1f, 0.1f, 0.5f));
   timeStatistics->setFlags(TSV_STAT_UPDATE | TSV_STAT_RENDER | TSV_STAT_RENDER_EVENTS);
 
-  // register basic directories - directories listed in PUMEX_DATA_DIR environment variable, separated by colon or semicolon
+  // Register basic directories - directories listed in PUMEX_DATA_DIR environment variable, separated by colon or semicolon
+  // This step is kipped on Android because current NDK(r18) does not have std::filesystem implemented ( even in experimental form )
+  // So on Android all assets/fonts/textures must come from APK file ( and will be loaded through AssetManager ) or must be absolute paths
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
   const char* dataDirVariable = std::getenv("PUMEX_DATA_DIR");
   if (dataDirVariable != nullptr)
   {
@@ -148,6 +152,7 @@ Viewer::Viewer(const ViewerTraits& vt)
   addDefaultDirectory(filesystem::path("/usr/share/pumex"));
   addDefaultDirectory(filesystem::path("/usr/local/share/pumex"));
 #endif
+#endif // VK_USE_PLATFORM_ANDROID_KHR
 
 ////// list all existing default directories
 //  LOG_INFO << "Default directories :" << std::endl;
@@ -531,6 +536,7 @@ void Viewer::removeInputEventHandler(std::shared_ptr<InputEventHandler> eventHan
   inputEventHandlers.erase(std::remove_if(begin(inputEventHandlers), end(inputEventHandlers), [&](std::shared_ptr<InputEventHandler> ie) { return ie.get() == eventHandler.get();  }), end(inputEventHandlers));
 }
 
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
 void Viewer::addDefaultDirectory(const filesystem::path & directory)
 {
   std::error_code ec;
@@ -548,9 +554,11 @@ void Viewer::addDefaultDirectory(const filesystem::path & directory)
   CHECK_LOG_RETURN_VOID(!canonicalPath.is_absolute(), "Viewer::addDefaultDirectory() : Default directory must be absolute : " << directory);
   defaultDirectories.push_back(canonicalPath);
 }
+#endif
 
 std::string Viewer::getAbsoluteFilePath(const std::string& relativeFilePath) const
 {
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
   // check if our relativeFilePath candidate is not absolute path
   filesystem::path candidate(relativeFilePath);
   if (candidate.is_absolute() && filesystem::exists(candidate))
@@ -562,6 +570,18 @@ std::string Viewer::getAbsoluteFilePath(const std::string& relativeFilePath) con
       return targetPath.string();
   }
   return std::string();
+#else
+  // if relativeFilePath starts with "/" it means that is not relative and user wants file from filesystem not from APK
+  if( relativeFilePath.find_first_of("/\\") == 0 )
+  {
+    struct stat buffer;
+    if ( stat(relativeFilePath.c_str(), &buffer) == 0)
+      return relativeFilePath;
+    return std::string();
+  }
+  // file comes from APK and will be loaded by AssetManager
+  return relativeFilePath;
+#endif
 }
 
 std::shared_ptr<Asset> Viewer::loadAsset(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic) const

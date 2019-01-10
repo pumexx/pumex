@@ -31,8 +31,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #undef GLM_ENABLE_EXPERIMENTAL_HACK
 #endif
-#include <fstream>
 #include <jpeglib.h>
+#include <pumex/utils/ReadFile.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
@@ -45,21 +45,7 @@ TextureLoaderJPEG::TextureLoaderJPEG()
 std::shared_ptr<gli::texture> TextureLoaderJPEG::load(const std::string& fileName, bool buildMipMaps)
 {
   std::vector<unsigned char> jpegContents;
-  {
-    // open jpeg file
-    std::ifstream file(fileName.c_str(), std::ios::in | std::ios::binary);
-    CHECK_LOG_THROW(!file, "Cannot open JPEG file " << fileName);
-
-    // read all file contents into a jpegContents vector
-    auto fileBegin = file.tellg();
-    file.seekg(0, std::ios::end);
-    auto fileEnd = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::size_t fileSize = static_cast<std::size_t>(fileEnd - fileBegin);
-    jpegContents.resize(fileSize);
-    file.read(reinterpret_cast<char*>(jpegContents.data()), fileSize);
-    CHECK_LOG_THROW(file.fail(), "Failed to read JPEG file " << fileName);
-  }
+  readFileToMemory( fileName, jpegContents );
 
   jpeg_decompress_struct cinfo;
   jpeg_error_mgr         jerr;

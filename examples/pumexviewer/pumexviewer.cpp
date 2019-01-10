@@ -31,7 +31,6 @@
   #include <pumex/platform/WindowAndroid.h>
 #endif  
 
-
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render graph consists of only one render operation
 

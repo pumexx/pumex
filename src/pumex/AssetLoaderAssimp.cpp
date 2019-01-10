@@ -21,11 +21,13 @@
 //
 
 #include <pumex/AssetLoaderAssimp.h>
-#include <pumex/Viewer.h>
-#include <pumex/utils/Log.h>
 #include <queue>
 #include <map>
 #include <tuple>
+#include <pumex/Viewer.h>
+#include <pumex/utils/ReadFile.h>
+#include <pumex/utils/Log.h>
+
 using namespace pumex;
 
 AssetLoaderAssimp::AssetLoaderAssimp()
@@ -78,10 +80,13 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
     mat.properties.insert({ std::string(key), glm::vec4(value, 0.0f, 0.0f, 0.0f) });
 }
 
+
 std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
-  const aiScene* scene = Importer.ReadFile(fileName.c_str(), importFlags);
-  CHECK_LOG_THROW(scene == nullptr, "Cannot load model file : " << fileName);
+  std::vector<unsigned char> assetContents;
+  readFileToMemory(fileName, assetContents);
+  const aiScene* scene = Importer.ReadFileFromMemory(assetContents.data(), assetContents.size(), importFlags);
+  CHECK_LOG_THROW(scene == nullptr, "Cannot load asset file : " << fileName);
 
   // method uses full file name to access file - get the directory part and use it
   // later for storing texture file names.

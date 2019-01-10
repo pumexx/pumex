@@ -155,6 +155,7 @@ list( APPEND PUMEX_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Buffer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/HashCombine.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Log.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/ReadFile.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/utils/Shapes.h
   ${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h
 )
@@ -243,6 +244,7 @@ list( APPEND PUMEX_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/Window.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Buffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Log.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/ReadFile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pumex/utils/Shapes.cpp
 )
 if(WIN32)

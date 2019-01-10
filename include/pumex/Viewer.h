@@ -30,7 +30,9 @@
 #include <condition_variable>
 #include <mutex>
 #include <functional>
-#include <experimental/filesystem>
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <experimental/filesystem> // as for now std::filesystem is not accessible on Android in any form
+#endif  
 #include <vulkan/vulkan.h>
 #include <tbb/flow_graph.h>
 #include <pumex/Export.h>
@@ -38,7 +40,9 @@
 #include <pumex/Queue.h>
 #include <pumex/Asset.h>
 
-namespace filesystem = std::experimental::filesystem;
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
+  namespace filesystem = std::experimental::filesystem;
+#endif
 
 namespace gli
 {
@@ -153,7 +157,9 @@ public:
   inline HPClock::time_point                    getUpdateTime() const;          // get the time point of the update
   inline HPClock::duration                      getRenderTimeDelta() const;     // get the difference between current render and last update
 
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
   void                                          addDefaultDirectory( const filesystem::path & directory);
+#endif  
   std::string                                   getAbsoluteFilePath( const std::string& relativeFilePath ) const;
   std::shared_ptr<Asset>                        loadAsset(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) const;
   std::shared_ptr<gli::texture>                 loadTexture(const std::string& fileName, bool buildMipMaps = true) const;
@@ -191,8 +197,10 @@ protected:
   void                       buildExecutionFlowGraph();
 
   ViewerTraits                                                            viewerTraits;
-
+  
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
   std::vector<filesystem::path>                                           defaultDirectories;
+#endif  
   std::vector<std::shared_ptr<AssetLoader>>                               assetLoaders;
   std::vector<std::shared_ptr<TextureLoader>>                             textureLoaders;
 
