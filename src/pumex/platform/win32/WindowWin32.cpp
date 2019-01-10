@@ -34,9 +34,8 @@ LRESULT CALLBACK WindowWin32Proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
 {
   WindowWin32* win = WindowWin32::getWindow(hwnd);
   if ( win != nullptr )
-    return win->handleWin32Messages(msg, wParam, lParam);
-  else
-    return ::DefWindowProc(hwnd, msg, wParam, lParam);
+    return win->handleWin32Message(msg, wParam, lParam);
+  return ::DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
 const std::string windowClassName = "Pumex_Window_class_for_Win32";
@@ -188,7 +187,7 @@ bool WindowWin32::checkWindowMessages()
   return true;
 }
 
-LRESULT WindowWin32::handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT WindowWin32::handleWin32Message(UINT msg, WPARAM wParam, LPARAM lParam)
 {
   auto timeNow = HPClock::now();
   switch (msg)

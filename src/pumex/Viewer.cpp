@@ -49,6 +49,9 @@
   #include <X11/Xlib.h>
   #include <unistd.h>
 #endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <pumex/platform/android/WindowAndroid.h>
+#endif
 
 using namespace pumex;
 
@@ -322,6 +325,9 @@ void Viewer::run()
 #endif
 #if defined(VK_USE_PLATFORM_XCB_KHR)
     updateContinueRun = WindowXcb::checkWindowMessages();
+#endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    updateContinueRun = WindowAndroid::checkWindowMessages();
 #endif
 
     if (updateContinueRun)

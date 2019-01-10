@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11.0 FATAL_ERROR)
 
-project( LIBPUMEX LANGUAGES CXX VERSION 0.2.0 )
+project( LIBPUMEX LANGUAGES CXX C VERSION 0.2.0 )
 set( LIBPUMEX_SOVERSION 1 )
 
 message( STATUS "Configuring PUMEX library version ${LIBPUMEX_VERSION_MAJOR}.${LIBPUMEX_VERSION_MINOR}.${LIBPUMEX_VERSIONPUMEX_VERSION_PATCH}" )
@@ -72,6 +72,13 @@ configure_file (
 
 include( pumex_macros )
 include( pumex_externals )
+
+if( ANDROID )
+  add_library( native_app_glue STATIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue/android_native_app_glue.h 
+    ${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue/android_native_app_glue.c 
+  )
+endif()
 
 set( PUMEX_SHADER_NAMES
   shaders/text_draw.vert
@@ -317,6 +324,14 @@ target_link_libraries( pumex
     ${PUMEX_LIBRARIES_PRIVATE_DOWNLOADED} 
     ${PUMEX_LIBRARIES_PRIVATE} 
 )
+if(ANDROID)
+  target_include_directories( pumex
+    PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue>
+)
+
+  target_link_libraries( pumex PRIVATE android log native_app_glue )
+endif()
 set_target_postfixes( pumex )
 
 if( PUMEX_BUILD_EXAMPLES )

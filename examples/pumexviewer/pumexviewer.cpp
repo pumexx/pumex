@@ -23,9 +23,14 @@
 #include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <args.hxx>
 #include <pumex/Pumex.h>
 #include <pumex/utils/Shapes.h>
-#include <args.hxx>
+#if defined(__ANDROID__)
+  #include <android_native_app_glue.h>
+  #include <pumex/platform/WindowAndroid.h>
+#endif  
+
 
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render graph consists of only one render operation
@@ -134,7 +139,7 @@ struct ViewerApplicationData
   std::shared_ptr<pumex::BasicCameraHandler>    camHandler;
 };
 
-int main( int argc, char * argv[] )
+int viewer_main( int argc, char* argv[] )
 {
   SET_LOG_WARNING;
 
@@ -212,6 +217,7 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
     // window traits define the screen on which the window will be shown, coordinates on that window, etc
+	// BTW : all these setting will be ignored on Android
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
@@ -405,3 +411,16 @@ int main( int argc, char * argv[] )
   FLUSH_LOG;
   return 0;
 }
+
+#if defined(__ANDROID__)
+void android_main(struct android_app *app) 
+{
+  return WindowAndroid::runMain(app, viewer_main);
+}
+#else
+int main( int argc, char* argv[] )
+{
+  return viewer_main(argc, argv);
+}
+#endif	
+

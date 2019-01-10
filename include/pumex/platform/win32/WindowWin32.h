@@ -49,7 +49,7 @@ public:
 
   static bool              checkWindowMessages();
 
-  LRESULT                  handleWin32Messages(UINT msg, WPARAM wParam, LPARAM lParam);
+  LRESULT                  handleWin32Message(UINT msg, WPARAM wParam, LPARAM lParam);
 
   void                     normalizeMouseCoordinates( float& x, float& y);
 
