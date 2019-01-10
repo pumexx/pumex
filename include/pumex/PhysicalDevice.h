@@ -63,8 +63,8 @@ public:
   std::vector<VkExtensionProperties>     extensionProperties;
 
   std::vector<VkQueueFamilyProperties>   queueFamilyProperties;
-  // only when VK_EXT_KHR_display extension is present
-  std::vector<VkDisplayPropertiesKHR>    displayProperties;
+  // only when VK_EXT_KHR_display extension is present ( we are not using it atm )
+  //std::vector<VkDisplayPropertiesKHR>    displayProperties;
 
 };
 

@@ -281,6 +281,7 @@ std::shared_ptr<ExternalMemoryObjects> Viewer::getExternalMemoryObjects() const 
 void                                   Viewer::setEventRenderStart(std::function<void(Viewer*)> event)               { eventRenderStart = event; }
 void                                   Viewer::setEventRenderFinish(std::function<void(Viewer*)> event)              { eventRenderFinish = event; }
 
-PUMEX_EXPORT VkBool32 messageCallback( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
+
+VKAPI_ATTR VkBool32 VKAPI_CALL messageCallback( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
 
 }

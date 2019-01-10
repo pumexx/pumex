@@ -81,16 +81,16 @@ PhysicalDevice::PhysicalDevice(VkPhysicalDevice device, Viewer* viewer)
   }
 
   // it's just a begining of VK_KHR_DISPLAY. At the moment there's nothing more
-  if (viewer->instanceExtensionEnabled(VK_KHR_DISPLAY_EXTENSION_NAME))
-  {
-    uint32_t displayCount = 0;
-    VK_CHECK_LOG_THROW(vkGetPhysicalDeviceDisplayPropertiesKHR(physicalDevice, &displayCount, nullptr), "failed vkGetPhysicalDeviceDisplayPropertiesKHR");
-    if (displayCount>0)
-    {
-      displayProperties.resize(displayCount);
-      VK_CHECK_LOG_THROW(vkGetPhysicalDeviceDisplayPropertiesKHR(physicalDevice, &displayCount, displayProperties.data()), "failed vkGetPhysicalDeviceDisplayPropertiesKHR" << displayCount);
-    }
-  }
+  //if (viewer->instanceExtensionEnabled(VK_KHR_DISPLAY_EXTENSION_NAME))
+  //{
+  //  uint32_t displayCount = 0;
+  //  VK_CHECK_LOG_THROW(vkGetPhysicalDeviceDisplayPropertiesKHR(physicalDevice, &displayCount, nullptr), "failed vkGetPhysicalDeviceDisplayPropertiesKHR");
+  //  if (displayCount>0)
+  //  {
+  //    displayProperties.resize(displayCount);
+  //    VK_CHECK_LOG_THROW(vkGetPhysicalDeviceDisplayPropertiesKHR(physicalDevice, &displayCount, displayProperties.data()), "failed vkGetPhysicalDeviceDisplayPropertiesKHR" << displayCount);
+  //  }
+  //}
 }
 
 PhysicalDevice::~PhysicalDevice()
