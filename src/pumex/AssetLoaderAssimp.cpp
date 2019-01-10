@@ -24,8 +24,12 @@
 #include <queue>
 #include <map>
 #include <tuple>
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <assimp/port/AndroidJNI/AndroidJNIIOSystem.h>
+  #include <android_native_app_glue.h>
+  #include <pumex/platform/android/WindowAndroid.h>
+#endif
 #include <pumex/Viewer.h>
-#include <pumex/utils/ReadFile.h>
 #include <pumex/utils/Log.h>
 
 using namespace pumex;
@@ -33,6 +37,10 @@ using namespace pumex;
 AssetLoaderAssimp::AssetLoaderAssimp()
   : AssetLoader{ { "3ds", "bvh", "dae", "dxf", "lwo", "obj", "ply", "fbx", "stl", "x", "gltf", "glb", "gltf2" } }
 {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  Assimp::AndroidJNIIOSystem* ioSystem = new Assimp::AndroidJNIIOSystem(WindowAndroid::getAndroidApp()->activity);
+  Importer.SetIOHandler(ioSystem);
+#endif
 }
 
 glm::mat4 toMat4( const aiMatrix4x4& matrix )
@@ -83,9 +91,7 @@ void getMaterialPropertyInteger(Material& mat, aiMaterial* aiMat, const char* ke
 
 std::shared_ptr<Asset> AssetLoaderAssimp::load(const std::string& fileName, bool animationOnly, const std::vector<VertexSemantic>& requiredSemantic)
 {
-  std::vector<unsigned char> assetContents;
-  readFileToMemory(fileName, assetContents);
-  const aiScene* scene = Importer.ReadFileFromMemory(assetContents.data(), assetContents.size(), importFlags);
+  const aiScene* scene = Importer.ReadFile(fileName, importFlags);
   CHECK_LOG_THROW(scene == nullptr, "Cannot load asset file : " << fileName);
 
   // method uses full file name to access file - get the directory part and use it

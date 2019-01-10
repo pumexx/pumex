@@ -153,6 +153,9 @@ if( PUMEX_DOWNLOAD_EXTERNAL_ASSIMP )
   set( ASSIMP_BUILD_ASSXML_IMPORTER on CACHE BOOL "Overriden by Pumex" )
   set( ASSIMP_BUILD_X3D_IMPORTER on CACHE BOOL "Overriden by Pumex" )
   set( ASSIMP_BUILD_3MF_IMPORTER on CACHE BOOL "Overriden by Pumex" )
+  if( ANDROID )
+    set( ASSIMP_ANDROID_JNIIOSYSTEM on CACHE BOOL "Overriden by Pumex" )
+  endif()
   FetchContent_Declare(
     assimp
     GIT_REPOSITORY "https://github.com/assimp/assimp.git"
