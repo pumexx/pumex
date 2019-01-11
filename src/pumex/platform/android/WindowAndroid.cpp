@@ -206,7 +206,7 @@ InputEvent::Key WindowAndroid::androidKeyCodeToPumex(int32_t keycode) const
   return InputEvent::KEY_UNDEFINED;
 }
 
-int WindowAndroid::runMain(android_app* app, AndroidMainFunction* mainFunction)
+int WindowAndroid::runMain(android_app* app, AndroidMainFunction mainFunction)
 {
   CHECK_LOG_THROW(app==nullptr, "android_app is not defined for this application");
   CHECK_LOG_THROW(mainFunction==nullptr, "mainFunction is not defined for this application");

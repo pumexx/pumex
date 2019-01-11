@@ -95,7 +95,7 @@ macro(CHECK_CXX_COMPILER_AND_LINKER_FLAGS _RESULT _CXX_FLAGS _LINKER_FLAGS)
 endmacro()
 
 # Prefer libc++ in conjunction with Clang
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT ANDROID)
   if (CMAKE_CXX_FLAGS MATCHES "-stdlib=libc\\+\\+")
     message(STATUS "TBB: using libc++.")
   else()

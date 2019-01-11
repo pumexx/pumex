@@ -28,7 +28,7 @@
 #include <pumex/utils/Shapes.h>
 #if defined(__ANDROID__)
   #include <android_native_app_glue.h>
-  #include <pumex/platform/WindowAndroid.h>
+  #include <pumex/platform/android/WindowAndroid.h>
 #endif  
 
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
@@ -414,7 +414,7 @@ int viewer_main( int argc, char* argv[] )
 #if defined(__ANDROID__)
 void android_main(struct android_app *app) 
 {
-  return WindowAndroid::runMain(app, viewer_main);
+  pumex::WindowAndroid::runMain(app, viewer_main);
 }
 #else
 int main( int argc, char* argv[] )

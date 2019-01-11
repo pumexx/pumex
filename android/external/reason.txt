@@ -1,0 +1,5 @@
+CMake downloads and builds external dependencies from Github repository ( using FetchContent )
+Gradle wants to delete most files during build, which fails on git files.
+The only way to succeed in this scenario is to store downloaded dependencies outside externalNativeBuild directory.
+This trick has probably one drawback - you cannot build for more than one ABI ( at least as long as CMake
+has no option to store downloaded *-src directories in different place than *-build and *-subbuild directories ).

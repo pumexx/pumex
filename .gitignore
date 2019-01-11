@@ -13,6 +13,16 @@
 *.exe
 *.pc
 
+# Android Studio directories
+**/.externalNativeBuild
+**/.gradle
+**/.idea
+local.properties
+
+# build deps directories
+**/_deps
+/android/fct
+
 # CMake files
 **/CMakeFiles/**
 CMakeCache.txt
@@ -20,15 +30,7 @@ CMakeCache.txt
 # SPIR-V files
 *.spv
 
-# external dirs
-external/args/
-external/assimp/
-external/freetype/
-external/gli/
-external/glm/
-external/tbb/
-stamp/
-
 #others
 *.tlog
 *.log
+

@@ -49,7 +49,7 @@ public:
   void                        normalizeMouseCoordinates( float& x, float& y) const;
   InputEvent::Key             androidKeyCodeToPumex(int32_t keycode) const;
   
-  static int                  runMain(android_app* androidApp, AndroidMainFunction* mainFunction);
+  static int                  runMain(android_app* androidApp, AndroidMainFunction mainFunction);
   static android_app*         getAndroidApp();
   static bool                 checkWindowMessages();
   

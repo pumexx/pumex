@@ -19,11 +19,7 @@ if (POLICY CMP0076)
   cmake_policy(SET CMP0076 OLD)
 endif()
 
-if(ANDROID)
-  option( PUMEX_BUILD_EXAMPLES             "Build examples" OFF )
-else()
-  option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
-endif()
+option( PUMEX_BUILD_EXAMPLES             "Build examples" ON )
 option( PUMEX_BUILD_QT                   "Build Pumex with QT support" OFF )
 option( PUMEX_BUILD_TEXTURE_LOADERS      "Build Pumex with PNG, JPEG, etc support" ON )
 if(WIN32)
@@ -278,7 +274,7 @@ if( PUMEX_BUILD_QT )
   qt5_wrap_cpp( PUMEX_SOURCES_QT_MOC ${PUMEX_HEADERS_QT} )
 endif()
 
-add_library( pumex SHARED "" )
+add_library( pumex SHARED )
 target_sources( pumex
   PUBLIC
     $<BUILD_INTERFACE: ${PUMEX_HEADERS} ${PUMEX_HEADERS_QT}>
@@ -289,6 +285,8 @@ target_sources( pumex
 )
 target_include_directories( pumex
   PUBLIC
+#    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${PUMEX_PUBLIC_INCLUDES}>
     $<INSTALL_INTERFACE:include>
   PRIVATE
@@ -300,6 +298,7 @@ target_compile_definitions( pumex
   PRIVATE
     PUMEX_EXPORTS
 )
+
 if(WIN32)
   target_compile_definitions( pumex PUBLIC VK_USE_PLATFORM_WIN32_KHR )
 elseif(LINUX)
@@ -328,11 +327,10 @@ target_link_libraries( pumex
 )
 if(ANDROID)
   target_include_directories( pumex
-    PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue>
-)
-
-  target_link_libraries( pumex PRIVATE android log native_app_glue )
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue>
+  )
+  target_link_libraries( pumex PUBLIC android log native_app_glue )
 endif()
 set_target_postfixes( pumex )
 

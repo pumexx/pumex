@@ -1,0 +1,110 @@
+apply plugin: "com.android.application"
+
+android 
+{
+  compileSdkVersion 26
+
+  defaultConfig 
+  {
+    applicationId "org.pumex.viewer"
+    minSdkVersion 24
+    targetSdkVersion 26
+    ndk 
+    {
+      abiFilters "armeabi-v7a"
+    }
+  }
+
+  buildTypes 
+  {
+    debug 
+    {
+      externalNativeBuild 
+      {
+        cmake 
+        {
+          arguments "-DANDROID_TOOLCHAIN=clang",
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Debug",
+                    "-DANDROID_ARM_NEON=ON",
+                    "-DFETCHCONTENT_BASE_DIR=./external"
+
+          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
+        }
+      }
+      jniDebuggable true // Make sure you can debug even release APKs.
+    }
+    release 
+	{
+      externalNativeBuild 
+	  {
+        cmake
+        {
+          arguments "-DANDROID_TOOLCHAIN=clang",
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-DANDROID_ARM_NEON=ON",
+                    "-DFETCHCONTENT_BASE_DIR=./external"
+
+          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
+        }
+      }
+// FIXME : test it later	  
+//      minifyEnabled false
+//      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+      debuggable true // Default for debug config, but not release config.
+      signingConfig signingConfigs.debug // Normally, Gradle will expect
+      jniDebuggable true // Make sure you can debug even release APKs.
+    }
+  }
+
+  sourceSets 
+  {
+    main 
+    {
+      manifest.srcFile "AndroidManifest.xml" // Where is the AndroidManifest.xml relative to this file?
+      resources.srcDirs = ["res"] // Where is the res/ directory relative to this file?
+      res.srcDirs = ["res"] // Where is the res/ directory? (Not sure if this is redundant, but doesn"t hurt ...)
+      assets.srcDirs = ["assets"] // Where can you find assets for application relative to this file? These will be packaged in the APK (use AAssetManager).
+//            jniLibs.srcDirs = ["../../application/platforms/android/renderdoc"] // If you have RenderDoc layer built or other 3rd party libraries, you can bundle it here!
+    }
+  }
+
+  externalNativeBuild 
+  {
+    cmake 
+    {
+      path "../../CMakeLists.txt" // Relative path from build.gradle to where your top-level CMakeLists.txt is found.
+    }
+  }
+}
+
+task copyTask << 
+{
+  copy 
+  {
+    from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
+    into "assets/shaders"
+    include "*.spv"
+  }
+  copy 
+  {
+    from "../../data/people"
+    into "assets/people"
+    include "wmale1_lod0.dae"
+  }
+  copy 
+  {
+    from "../../data/people"
+    into "assets/people"
+    include "wmale1_run.dae"
+  }
+  copy 
+  {
+    from "../../data/fonts"
+    into "assets/fonts"
+    include "DejaVuSans.ttf"
+  }
+}
+
+preBuild.dependsOn copyTask
