@@ -37,6 +37,7 @@ std::mutex                                    WindowXcb::regMutex;
 static const char PUMEX_WINDOW_CLASS_ON_LINUX[] = "pumex_class\0pumex_class";
 
 WindowXcb::WindowXcb(const WindowTraits& windowTraits)
+  : pumex::Window(windowTraits)
 {
   if(xcbKeycodes.empty())
     fillXcbKeycodes();

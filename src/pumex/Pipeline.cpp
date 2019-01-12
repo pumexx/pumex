@@ -24,10 +24,10 @@
 #include <pumex/Descriptor.h>
 #include <pumex/NodeVisitor.h>
 #include <pumex/RenderPass.h>
-#include <pumex/utils/Log.h>
 #include <pumex/RenderContext.h>
 #include <pumex/Viewer.h>
-#include <fstream>
+#include <pumex/utils/ReadFile.h>
+#include <pumex/utils/Log.h>
 
 using namespace pumex;
 
@@ -107,13 +107,7 @@ ShaderModule::ShaderModule(std::shared_ptr<Viewer> viewer, const std::string& f)
 {
   fileName = viewer->getAbsoluteFilePath(f);
   CHECK_LOG_THROW(fileName.empty(), "Cannot find shader file : " << f);
-  std::ifstream file(fileName.c_str(),std::ios::in | std::ios::binary);
-  CHECK_LOG_THROW(!file, "Cannot load shader file : " << fileName);
-  file.seekg(0, std::ios::end);
-  std::ifstream::pos_type pos = file.tellg();
-  file.seekg(0, std::ios::beg);
-  shaderContents.resize(pos);
-  file.read(&shaderContents[0], pos);
+  readFileToMemory( fileName, shaderContents );
 }
 
 ShaderModule::~ShaderModule()

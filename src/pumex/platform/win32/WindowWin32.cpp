@@ -41,6 +41,7 @@ LRESULT CALLBACK WindowWin32Proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
 const std::string windowClassName = "Pumex_Window_class_for_Win32";
 
 WindowWin32::WindowWin32(const WindowTraits& windowTraits)
+  : pumex::Window(windowTraits)
 {
   if(win32Keycodes.empty())
     fillWin32Keycodes();

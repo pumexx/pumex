@@ -150,8 +150,8 @@ public:
   void           validate(const RenderContext& renderContext);
   VkShaderModule getHandle(VkDevice device) const;
 
-  std::string fileName;
-  std::string shaderContents;
+  std::string                fileName;
+  std::vector<unsigned char> shaderContents;
 protected:
   struct PerDeviceData
   {

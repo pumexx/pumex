@@ -22,6 +22,8 @@
 
 #include <pumex/platform/android/WindowAndroid.h>
 #include <cstring>
+#include <chrono>
+#include <thread>
 #include <android/input.h>
 #include <android/native_window.h>
 #include <android_native_app_glue.h>
@@ -51,15 +53,21 @@ int32_t AndroidHandleInputEvent(struct android_app* app, AInputEvent* event)
 }
 
 WindowAndroid::WindowAndroid(const WindowTraits& windowTraits)
+  : Window(windowTraits)
 {
+  mainWindow = true;
+  if(androidKeycodes.empty())
+    fillAndroidKeycodes();
   // WindowAndroid ignores WindowTraits and may only have one window from android_app object
   // Wonder how to organize application with more than one NativeActivity...
   registerWindow(getAndroidApp(), this);
-  // window will be nullptr at this moment
-  window = getAndroidApp()->window;
-	
-  if(androidKeycodes.empty())
-    fillAndroidKeycodes();
+  // window will be nullptr at this moment. We are actively waiting for Android to init the window
+  while( getAndroidApp()->window == nullptr )
+  {
+    using namespace std::chrono_literals;
+    WindowAndroid::checkWindowMessages();
+	std::this_thread::sleep_for(10ms);
+  }
 }
 
 WindowAndroid::~WindowAndroid()
@@ -77,7 +85,7 @@ std::shared_ptr<Surface> WindowAndroid::createSurface(std::shared_ptr<Device> de
   VkSurfaceKHR vkSurface;
   VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo{};
     surfaceCreateInfo.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-    surfaceCreateInfo.window = window;
+    surfaceCreateInfo.window = getAndroidApp()->window;
   VK_CHECK_LOG_THROW(vkCreateAndroidSurfaceKHR(viewer->getInstance(), &surfaceCreateInfo, nullptr, &vkSurface), "Could not create surface");
 
   std::shared_ptr<Surface> result = std::make_shared<Surface>(device, shared_from_this(), vkSurface, surfaceTraits);
@@ -157,16 +165,14 @@ void WindowAndroid::handleAppCmd(int32_t cmd)
   {
   case APP_CMD_INIT_WINDOW:
   {
-    window = getAndroidApp()->window;
-    width  = newWidth  = ANativeWindow_getWidth(window);
-    height = newHeight = ANativeWindow_getHeight(window);
-	// FIXME : release conditional variable ?
+    width  = newWidth  = ANativeWindow_getWidth(getAndroidApp()->window);
+    height = newHeight = ANativeWindow_getHeight(getAndroidApp()->window);
     break;
   }
   case APP_CMD_WINDOW_RESIZED:
   {
-    width  = newWidth  = ANativeWindow_getWidth(window);
-    height = newHeight = ANativeWindow_getHeight(window);
+    width  = newWidth  = ANativeWindow_getWidth(getAndroidApp()->window);
+    height = newHeight = ANativeWindow_getHeight(getAndroidApp()->window);
 	auto surfaceSh = surface.lock();
     surfaceSh->actions.addAction(std::bind(&Surface::resizeSurface, surfaceSh, newWidth, newHeight));
     break;
@@ -221,8 +227,9 @@ int WindowAndroid::runMain(android_app* app, AndroidMainFunction mainFunction)
   int argc = 1;
   char undefinedName[] = "<undefined>";
   char* argv[]  = { undefinedName };
+  
   // the whole application code happens here
-  (*mainFunction)(argc, argv);
+  (*mainFunction)(argc, argv); 
   
   return androidApp->destroyRequested;
 }
@@ -234,7 +241,6 @@ android_app* WindowAndroid::getAndroidApp()
 
 bool WindowAndroid::checkWindowMessages()
 {
-  assert(WindowAndroid::getAndroidApp() != nullptr);
   int events;
   android_poll_source *source;
   // Poll all pending events.
