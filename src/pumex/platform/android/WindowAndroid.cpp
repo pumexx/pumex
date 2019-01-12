@@ -55,14 +55,11 @@ WindowAndroid::WindowAndroid(const WindowTraits& windowTraits)
   // WindowAndroid ignores WindowTraits and may only have one window from android_app object
   // Wonder how to organize application with more than one NativeActivity...
   registerWindow(getAndroidApp(), this);
+  // window will be nullptr at this moment
   window = getAndroidApp()->window;
-  CHECK_LOG_THROW(window==nullptr, "Android window not defined" );
 	
   if(androidKeycodes.empty())
     fillAndroidKeycodes();
-
-  width  = newWidth  = ANativeWindow_getWidth(window);
-  height = newHeight = ANativeWindow_getHeight(window);
 }
 
 WindowAndroid::~WindowAndroid()
@@ -76,7 +73,7 @@ std::shared_ptr<Surface> WindowAndroid::createSurface(std::shared_ptr<Device> de
   if (!surface.expired())
     return surface.lock();
   auto viewer = device->viewer.lock();
-	
+  
   VkSurfaceKHR vkSurface;
   VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo{};
     surfaceCreateInfo.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
@@ -159,8 +156,13 @@ void WindowAndroid::handleAppCmd(int32_t cmd)
   switch (cmd) 
   {
   case APP_CMD_INIT_WINDOW:
+  {
     window = getAndroidApp()->window;
+    width  = newWidth  = ANativeWindow_getWidth(window);
+    height = newHeight = ANativeWindow_getHeight(window);
+	// FIXME : release conditional variable ?
     break;
+  }
   case APP_CMD_WINDOW_RESIZED:
   {
     width  = newWidth  = ANativeWindow_getWidth(window);
@@ -216,8 +218,11 @@ int WindowAndroid::runMain(android_app* app, AndroidMainFunction mainFunction)
   androidApp->onInputEvent     = AndroidHandleInputEvent;
   androidApp->destroyRequested = 0;
   
+  int argc = 1;
+  char undefinedName[] = "<undefined>";
+  char* argv[]  = { undefinedName };
   // the whole application code happens here
-  (*mainFunction)(0, nullptr);
+  (*mainFunction)(argc, argv);
   
   return androidApp->destroyRequested;
 }

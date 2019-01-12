@@ -21,6 +21,9 @@
 //
 
 #include <pumex/utils/Log.h>
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <android/log.h>
+#endif
 
 class NullStreamBuffer : public std::streambuf
 {
@@ -31,6 +34,46 @@ public:
   }
 };
 
+// This code is for redirecting std::cout to Android logcat
+// found here : http://code.i-harness.com/en/q/87591e
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+class AndroidStreamBuffer : public std::streambuf 
+{
+public:
+  enum { bufsize = 256 };
+  AndroidStreamBuffer() 
+  { 
+    this->setp(buffer, buffer + bufsize - 1); 
+  }
+private:
+  int overflow(int c)
+  {
+    if (c == traits_type::eof()) 
+    {
+       *this->pptr() = traits_type::to_char_type(c);
+       this->sbumpc();
+    }
+    return this->sync()? traits_type::eof(): traits_type::not_eof(c);
+  }
+
+  int sync()
+  {
+    int rc = 0;
+    if (this->pbase() != this->pptr()) 
+    {
+      char writebuf[bufsize+1];
+      memcpy(writebuf, this->pbase(), this->pptr() - this->pbase());
+      writebuf[this->pptr() - this->pbase()] = '\0';
+
+      rc = __android_log_write(ANDROID_LOG_INFO, "std", writebuf) > 0;
+      this->setp(buffer, buffer + bufsize - 1);
+    }
+    return rc;
+  }
+
+  char buffer[bufsize];
+};
+#endif
 static float logSeverity = 75.0f;
 static NullStreamBuffer nullStreamBuffer;
 static std::ostream nullStream(&nullStreamBuffer);
@@ -43,7 +86,17 @@ bool isLogEnabled(float severity)
 std::ostream& doLog(float severity)
 {
   if( isLogEnabled(severity) )
+  {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    static bool logcatInitialized = false;
+    if(!logcatInitialized)
+    {
+      std::cout.rdbuf(new AndroidStreamBuffer);
+      logcatInitialized = true;
+    }
+#endif
     return std::cout;
+  }
   return nullStream;
 }
 

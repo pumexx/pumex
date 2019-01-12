@@ -32,7 +32,7 @@ android
           targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
         }
       }
-      jniDebuggable true // Make sure you can debug even release APKs.
+      debuggable true // Default for debug config, but not release config.
     }
     release 
 	{
@@ -54,7 +54,6 @@ android
 //      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
       debuggable true // Default for debug config, but not release config.
       signingConfig signingConfigs.debug // Normally, Gradle will expect
-      jniDebuggable true // Make sure you can debug even release APKs.
     }
   }
 

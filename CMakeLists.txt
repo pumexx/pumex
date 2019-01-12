@@ -65,7 +65,7 @@ configure_file (
   "${CMAKE_CURRENT_SOURCE_DIR}/include/pumex/Version.in"
   "${CMAKE_CURRENT_BINARY_DIR}/include/pumex/Version.h"
   )
-
+  
 include( pumex_macros )
 include( pumex_externals )
 
@@ -74,6 +74,9 @@ if( ANDROID )
     ${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue/android_native_app_glue.h 
     ${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue/android_native_app_glue.c 
   )
+  # we could use target_link_options() instead of rg.pumex.viewer these CMAKE_SHARED_LINKER_FLAGS shenanigans, 
+  # but target_link_options() has been added in CMake 3.13 
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
 endif()
 
 set( PUMEX_SHADER_NAMES
@@ -330,7 +333,7 @@ if(ANDROID)
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/android/native_app_glue>
   )
-  target_link_libraries( pumex PUBLIC android log native_app_glue )
+  target_link_libraries( pumex PUBLIC android log  ) 
 endif()
 set_target_postfixes( pumex )
 
