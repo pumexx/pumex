@@ -34,7 +34,7 @@
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render graph consists of only one render operation
 
-const uint32_t MAX_BONES = 511;
+const uint32_t MAX_BONES = 255;
 
 struct PositionData
 {

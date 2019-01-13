@@ -27,6 +27,7 @@
 #include <pumex/Surface.h>
 #include <pumex/MemoryBuffer.h>
 #include <pumex/Viewer.h>
+#include <pumex/utils/ReadFile.h>
 
 using namespace pumex;
 
@@ -42,7 +43,9 @@ Font::Font(std::shared_ptr<Viewer> viewer, const std::string& fileName, glm::ive
     FT_Init_FreeType(&fontLibrary);
   auto fullFileName = viewer->getAbsoluteFilePath(fileName);
   CHECK_LOG_THROW(fullFileName.empty(), "Cannot find font file : " << fileName);
-  CHECK_LOG_THROW( FT_New_Face(fontLibrary, fullFileName.c_str(), 0, &fontFace) != 0, "Cannot load font file : " << fullFileName);
+  readFileToMemory(fullFileName, fontFileContents);
+  
+  CHECK_LOG_THROW( FT_New_Memory_Face(fontLibrary, fontFileContents.data(), fontFileContents.size(), 0, &fontFace) != 0, "Cannot read font from memory : " << fullFileName);
   fontCount++;
 
   FT_Set_Pixel_Sizes(fontFace, 0, fontPixelHeight);
@@ -60,6 +63,7 @@ Font::~Font()
 {
   std::lock_guard<std::mutex> lock(mutex);
   FT_Done_Face(fontFace);
+  fontFileContents.clear();
   fontCount--;
   if (fontCount == 0)
   {

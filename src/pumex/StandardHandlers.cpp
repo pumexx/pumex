@@ -235,6 +235,8 @@ bool TimeStatisticsHandler::handle(const InputEvent& iEvent, Viewer* viewer)
     default: break;
     }
     break;
+  default:
+    break;
   }
   return handled;
 }

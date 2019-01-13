@@ -1,6 +1,6 @@
 apply plugin: "com.android.application"
 
-android 
+android
 {
   compileSdkVersion 26
 
@@ -32,6 +32,22 @@ android
           targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
         }
       }
+      task copyShadersDebug ( dependsOn: ":pumexviewer:externalNativeBuildDebug" )<<
+      {
+        copy
+        {
+          from ".externalNativeBuild/cmake/debug/armeabi-v7a/shaders"
+          into "assets/shaders"
+          include "*.spv"
+        }
+      }
+      tasks.whenTaskAdded { task ->
+        if (task.name == 'compileDebugSources')
+        {
+            compileDebugSources.dependsOn("copyShadersDebug")
+        }
+      }
+
       debuggable true // Default for debug config, but not release config.
     }
     release 
@@ -49,7 +65,24 @@ android
           targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
         }
       }
-// FIXME : test it later	  
+      task copyShadersRelease ( dependsOn: ":pumexviewer:externalNativeBuildRelease" )<<
+      {
+        println "Copying shaders: release"
+        println project.buildDir
+        copy
+        {
+          from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
+          into "assets/shaders"
+          include "*.spv"
+        }
+      }
+      tasks.whenTaskAdded { task ->
+        if (task.name == 'compileReleaseSources')
+        {
+          compileReleaseSources.dependsOn("copyShadersRelease")
+        }
+      }
+// FIXME : test it later
 //      minifyEnabled false
 //      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
       debuggable true // Default for debug config, but not release config.
@@ -73,30 +106,18 @@ android
   {
     cmake 
     {
-      path "../../CMakeLists.txt" // Relative path from build.gradle to where your top-level CMakeLists.txt is found.
+      path "../../CMakeLists.txt"
     }
   }
 }
 
-task copyTask << 
+task copyAssets << 
 {
   copy 
   {
-    from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
-    into "assets/shaders"
-    include "*.spv"
-  }
-  copy 
-  {
     from "../../data/people"
     into "assets/people"
-    include "wmale1_lod0.dae"
-  }
-  copy 
-  {
-    from "../../data/people"
-    into "assets/people"
-    include "wmale1_run.dae"
+    include "wmale1_lod0.dae", "wmale1_run.dae"
   }
   copy 
   {
@@ -106,4 +127,22 @@ task copyTask <<
   }
 }
 
-preBuild.dependsOn copyTask
+preBuild.dependsOn copyAssets
+
+//task copyShadersRelease ( dependsOn: ":pumexviewer:externalNativeBuildRelease" )<<
+//{
+//  println "Copying shaders: release"
+//  println project.buildDir
+//  copy
+//  {
+//    from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
+//    into "assets/shaders"
+//    include "*.spv"
+//  }
+//}
+
+//afterEvaluate
+//{
+//  assembleDebug.dependsOn copyShadersDebug
+//  assembleRelease.dependsOn copyShadersRelease
+//}

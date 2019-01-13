@@ -23,6 +23,7 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <mutex>
 #include <ft2build.h>
@@ -82,17 +83,18 @@ public:
   Font& operator=(Font&&)      = delete;
   virtual ~Font();
 
-  void addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
+  void                                addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData);
 
-  std::shared_ptr<MemoryImage> fontMemoryImage;
-  std::vector<GlyphData>       glyphData;
+  std::shared_ptr<MemoryImage>        fontMemoryImage;
+  std::vector<GlyphData>              glyphData;
 protected:
-  size_t getGlyphIndex(wchar_t charCode);
+  size_t                              getGlyphIndex(wchar_t charCode);
 
-  mutable std::mutex mutex;
-  static FT_Library  fontLibrary;
-  static uint32_t    fontCount;
-  FT_Face            fontFace = nullptr;
+  mutable std::mutex                  mutex;
+  static FT_Library                   fontLibrary;
+  static uint32_t                     fontCount;
+  FT_Face                             fontFace = nullptr;
+  std::vector<unsigned char>          fontFileContents;
 
   std::shared_ptr<gli::texture2d>     fontTexture2d;
   std::unordered_map<wchar_t, size_t> registeredGlyphs;
