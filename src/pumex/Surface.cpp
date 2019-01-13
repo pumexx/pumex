@@ -36,7 +36,7 @@
 using namespace pumex;
 
 SurfaceTraits::SurfaceTraits(const ResourceDefinition& sdef, uint32_t sic, VkColorSpaceKHR sics, VkPresentModeKHR spm, VkSurfaceTransformFlagBitsKHR pt, VkCompositeAlphaFlagBitsKHR ca)
-  : swapChainDefinition{ sdef }, swapChainImageCount{ sic }, swapChainImageColorSpace{ sics }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }
+  : swapChainDefinition{ sdef }, minSwapChainImageCount{ sic }, swapChainImageColorSpace{ sics }, swapchainPresentMode{ spm }, preTransform{ pt }, compositeAlpha{ ca }
 {
 }
 
@@ -190,9 +190,6 @@ void Surface::realize()
     VK_CHECK_LOG_THROW(vkGetPhysicalDeviceSurfaceSupportKHR(phDev, i, surface, &supportsPresent[i]), "failed vkGetPhysicalDeviceSurfaceSupportKHR for family " << i );
 
   CHECK_LOG_THROW(renderGraphData.empty(), "There are no render graphs defined for surface " << getID());
-  // Create synchronization objects
-  VkSemaphoreCreateInfo semaphoreCreateInfo{};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
   // get all queues and create command pools and entry semaphores for them
   for (uint32_t i=0; i<queueTraits.size(); ++i )
@@ -211,7 +208,13 @@ void Surface::realize()
     commandPools.push_back(commandPool);
 
   }
+  
+  recreateSwapChain();
+  resized = true;
 
+  // Create synchronization objects
+  VkSemaphoreCreateInfo semaphoreCreateInfo{};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
   for (uint32_t i = 0; i < renderGraphData.size(); ++i)
   {
 
@@ -224,7 +227,7 @@ void Surface::realize()
     auto qcbit = queueSubmissionCompletedSemaphores.insert({ renderGraphName, std::vector<VkSemaphore>() }).first;
     for (auto& queueIndex : queueIndices->second)
     {
-      auto commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[queueIndex], surfaceTraits.swapChainImageCount);
+      auto commandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[queueIndex], swapChainImageCount);
       pcbit->second.push_back(commandBuffer);
 
       VkSemaphore semaphore;
@@ -249,7 +252,7 @@ void Surface::realize()
   }
 
   // define basic command buffers required to render a frame
-  presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[presentationQueueIndex], surfaceTraits.swapChainImageCount);
+  presentCommandBuffer = std::make_shared<CommandBuffer>(VK_COMMAND_BUFFER_LEVEL_PRIMARY, deviceSh.get(), commandPools[presentationQueueIndex], swapChainImageCount);
 
   // create all semaphores required to render a frame
   VK_CHECK_LOG_THROW( vkCreateSemaphore(vkDevice, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore), "Could not create image available semaphore");
@@ -258,7 +261,7 @@ void Surface::realize()
   VkFenceCreateInfo fenceCreateInfo{};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-  waitFences.resize(surfaceTraits.swapChainImageCount);
+  waitFences.resize(swapChainImageCount);
   for (auto& fence : waitFences)
     VK_CHECK_LOG_THROW(vkCreateFence(vkDevice, &fenceCreateInfo, nullptr, &fence), "Could not create a surface wait fence");
 
@@ -335,7 +338,7 @@ void Surface::recreateSwapChain()
   VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCreateInfo.surface               = surface;
-    swapchainCreateInfo.minImageCount         = surfaceTraits.swapChainImageCount;
+    swapchainCreateInfo.minImageCount         = surfaceTraits.minSwapChainImageCount;
     swapchainCreateInfo.imageFormat           = surfaceTraits.swapChainDefinition.attachment.format;
     swapchainCreateInfo.imageColorSpace       = surfaceTraits.swapChainImageColorSpace;
     swapchainCreateInfo.imageExtent           = swapChainSize;
@@ -359,26 +362,24 @@ void Surface::recreateSwapChain()
   }
 
   // collect new swap chain images
-  uint32_t imageCount;
-  VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, nullptr), "Could not get swapchain images");
-  std::vector<VkImage> images(imageCount);
-  VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, images.data()), "Could not get swapchain images " << imageCount);
-  for (uint32_t i = 0; i < imageCount; i++)
+  uint32_t newImageCount;
+  VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &newImageCount, nullptr), "Could not get swapchain images");
+  std::vector<VkImage> images(newImageCount);
+  VK_CHECK_LOG_THROW(vkGetSwapchainImagesKHR(vkDevice, swapChain, &newImageCount, images.data()), "Could not get swapchain images " << newImageCount);
+  for (uint32_t i = 0; i < newImageCount; i++)
     swapChainImages.push_back(std::make_shared<Image>(deviceSh.get(), images[i], surfaceTraits.swapChainDefinition.attachment.format, surfaceTraits.swapChainDefinition.attachment.attachmentSize));
-  presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
+
+  CHECK_LOG_THROW( swapChainImageCount != 0 && newImageCount != swapChainImageCount, "Cannot change swapChainImageCount while working" );
+  swapChainImageCount = newImageCount;
+
+  if(presentCommandBuffer != nullptr)
+    presentCommandBuffer->invalidate(std::numeric_limits<uint32_t>::max());
 }
 
 void Surface::beginFrame()
 {
-  resized = false;
   actions.performActions();
   auto deviceSh = device.lock();
-
-  if (swapChain == VK_NULL_HANDLE)
-  {
-    recreateSwapChain();
-    resized = true;
-  }
 
   VkResult result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &swapChainImageIndex);
   if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
@@ -390,7 +391,6 @@ void Surface::beginFrame()
     result = vkAcquireNextImageKHR(deviceSh->device, swapChain, UINT64_MAX, imageAvailableSemaphore, (VkFence)nullptr, &swapChainImageIndex);
   }
   VK_CHECK_LOG_THROW(result, "failed vkAcquireNextImageKHR");
-
   VK_CHECK_LOG_THROW(vkWaitForFences(deviceSh->device, 1, &waitFences[swapChainImageIndex], VK_TRUE, UINT64_MAX), "failed to wait for fence");
   VK_CHECK_LOG_THROW(vkResetFences(deviceSh->device, 1, &waitFences[swapChainImageIndex]), "failed to reset a fence");
 }
@@ -415,6 +415,7 @@ void Surface::validateRenderGraphs()
         frameBuffer->invalidate(renderContext);
       }
     }
+    resized = false;
   }
 
   for (auto& rgData : renderGraphData)

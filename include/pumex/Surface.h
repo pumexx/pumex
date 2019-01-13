@@ -71,10 +71,10 @@ const uint32_t TSS_CHANNEL_EVENTSURFACERENDERFINISH     = 9;
 // struct representing information required to create a Vulkan surface
 struct PUMEX_EXPORT SurfaceTraits
 {
-  explicit SurfaceTraits(const ResourceDefinition& swapChainDefinition, uint32_t swapChainImageCount, VkColorSpaceKHR swapChainImageColorSpace, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
+  explicit SurfaceTraits(const ResourceDefinition& swapChainDefinition, uint32_t minSwapChainImageCount, VkColorSpaceKHR swapChainImageColorSpace, VkPresentModeKHR swapchainPresentMode, VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha);
 
   ResourceDefinition                 swapChainDefinition;
-  uint32_t                           swapChainImageCount;
+  uint32_t                           minSwapChainImageCount;
   VkColorSpaceKHR                    swapChainImageColorSpace;
   VkPresentModeKHR                   swapchainPresentMode;
   VkSurfaceTransformFlagBitsKHR      preTransform;
@@ -148,6 +148,7 @@ public:
   std::vector<VkBool32>                         supportsPresent;
 
   VkExtent2D                                    swapChainSize                = VkExtent2D{1,1};
+  uint32_t                                      swapChainImageCount          = 0;
   uint32_t                                      swapChainImageIndex          = 0;
   std::vector<std::shared_ptr<Image>>           swapChainImages;
 
@@ -193,7 +194,7 @@ public:
 
 bool                         Surface::isRealized() const                                                               { return realized; }
 uint32_t                     Surface::getID() const                                                                    { return id; }
-uint32_t                     Surface::getImageCount() const                                                            { return surfaceTraits.swapChainImageCount; }
+uint32_t                     Surface::getImageCount() const                                                            { return swapChainImageCount; }
 uint32_t                     Surface::getImageIndex() const                                                            { return swapChainImageIndex; }
 void                         Surface::setEventSurfaceRenderStart(std::function<void(std::shared_ptr<Surface>)> event)  { eventSurfaceRenderStart = event; }
 void                         Surface::setEventSurfaceRenderFinish(std::function<void(std::shared_ptr<Surface>)> event) { eventSurfaceRenderFinish = event; }

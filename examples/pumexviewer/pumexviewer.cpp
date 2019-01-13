@@ -26,7 +26,7 @@
 #include <args.hxx>
 #include <pumex/Pumex.h>
 #include <pumex/utils/Shapes.h>
-#if defined(__ANDROID__)
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
   #include <android_native_app_glue.h>
   #include <pumex/platform/android/WindowAndroid.h>
 #endif  
@@ -34,7 +34,7 @@
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render graph consists of only one render operation
 
-const uint32_t MAX_BONES = 255;
+const uint32_t MAX_BONES = 511;
 
 struct PositionData
 {
@@ -235,7 +235,11 @@ int viewer_main( int argc, char* argv[] )
 
     pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
+#else
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D16_UNORM, fullScreenSize, pumex::atDepth);
+#endif
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
       rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
@@ -357,10 +361,12 @@ int viewer_main( int argc, char* argv[] )
       wireframeDescriptorSet->setDescriptor(1, positionUbo);
     wireframePipeline->setDescriptorSet(0, wireframeDescriptorSet);
 
-    // lets add object that calculates time statistics and is able to render it
+    // lets add object that calculates time statistics and is able to render it. Temporary removed from Android due to problems with text rendering
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer);
     viewer->addInputEventHandler(tsHandler);
     renderRoot->addChild(tsHandler->getRoot());
+#endif
 
     // camera handler processes input events at the beggining of the update phase
     std::shared_ptr<pumex::BasicCameraHandler> bcamHandler = std::make_shared<pumex::BasicCameraHandler>();
@@ -384,8 +390,9 @@ int viewer_main( int argc, char* argv[] )
     viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
     surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
     // object calculating statistics must be also connected as an event
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-
+#endif
     // main renderer loop is inside Viewer::run()
     viewer->run();
   }
@@ -411,7 +418,7 @@ int viewer_main( int argc, char* argv[] )
   return 0;
 }
 
-#if defined(__ANDROID__)
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
 void android_main(struct android_app *app) 
 {
   pumex::WindowAndroid::runMain(app, viewer_main);

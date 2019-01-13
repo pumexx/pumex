@@ -22,7 +22,7 @@ layout (binding = 0) uniform CameraUbo
   vec4 params;
 } camera;
 
-layout (binding = 1) uniform PositionSbo
+layout (binding = 1) uniform PositionUbo
 {
   mat4  position;
   mat4  bones[MAX_BONES];
