@@ -3,11 +3,11 @@
 The purpose of the **Pumex** library is to create an efficient and universal rendering engine using **Vulkan API** that has following properties :
 
 - enables **multithreaded rendering on many windows** ( or many screens ) at once, may use many graphics cards in a single application
-- uses **render graph** allowing for complete customization of a renderer ( **Pumex** is not tied up to any particular rendering method, like deferred rendering, direct plus rendering, etc. In fact the user is able to implement any of these methods himself )
+- uses **render graph** allowing for complete customization of a renderer. **Pumex** is not tied up to any particular rendering method, like deferred rendering, direct plus rendering, etc. In fact the user is able to implement any of these methods himself fairly quickly.
 - decouples rendering stage from update stage and enables **update step with constant time rate** independent from rendering time rate
 - uses modern C++ ( C++11 to C++17 ) but not overuses its features if it's not necessary
-- works on many platforms ( at the moment Pumex supports rendering inside native windows on  **Windows** and **Linux** operating systems and optionally - inside **QT** windows. **Android port is planned** ).
-- implements efficient rendering algorithms ( like instanced rendering with vkCmdDrawIndexedIndirect() to draw many objects of different types with one draw call )
+- works on many platforms: currently  **Windows**, **Linux**  and **Android** operating systems are supported. Optionally you may also render to **QT** windows on Linux and Windows.
+- implements efficient rendering algorithms ( like instanced rendering with *vkCmdDrawIndexedIndirect()* to draw many objects of different types with one draw call )
 
 Quick preview on Youtube :
 
@@ -236,6 +236,8 @@ Additional command line parameters :
 
 Minimal pumex application that renders single non-textured 3D model **provided by the user in command line** along with its bounding box. You may render any model as long as Assimp library is able to load it and sum of model's vertex and index size is less than 64 MB.
 
+At the moment the pumexviewer example is only example working on Android. 
+
 Application presents simplest possible render graph with only one render operation.
 
 ![pumexviewer example](doc/images/viewer.png "pumexviewer example")
@@ -328,10 +330,10 @@ Installer does not have QT support at the moment.
 Elements that are required to build and install Pumex on Windows :
 
 - [Vulkan SDK](https://vulkan.lunarg.com/)
-- [CMake](https://cmake.org/) **version at least 3.7.0** ( earlier versions do not have FindVulkan.cmake module) and if you are using Vulkan SDK newer than 1.0.42 then use CMake **version at least 3.9.0**.
+- [CMake](https://cmake.org/) **version at least 3.11.0** ( because new *FetchContent* module is used to download external sources during CMake configuration).
 - [git](https://git-scm.com/)
-- Microsoft Visual Studio 2015 ( 64 bit ) or Microsoft Visual Studio 2017 ( 64 bit )
-- [QT5 GUI library](https://www.qt.io/)  - optionally - if you are planning to build Pumex with support for rendering inside QT windows. Important notice: newest versions of QT library ( QT 5.12 ) have Vulkan support disabled by default, so you need to recompile QT from sources with **Vulkan SDK** present in your system. Have fun.
+- Microsoft Visual Studio 2015 ( 64 bit ) or Microsoft Visual Studio 2017 ( 64 bit ). clang toolchain was not tested on Windows, but it's highly possible that it also works.
+- [QT5 GUI library](https://www.qt.io/)  - optional dependency - if you are planning to build Pumex with support for rendering inside QT windows. Important notice: newest versions of QT library ( QT 5.12 ) have Vulkan support disabled by default, so you need to recompile QT from sources with **Vulkan SDK** present in your system. Have fun.
 
 Steps required to build and install library :
 
@@ -343,7 +345,7 @@ Steps required to build and install library :
 
 3. build Release version for 64 bit. **All external dependencies will be downloaded during first build**. Now you are able to run examples from within Visual Studio
 
-4. *(optional step)* install library and applications by building INSTALL project ( you need to run Visual Studio in administrator mode to be able to perform this step )
+4. *(optional step)* install library and applications by building INSTALL project ( you need to run Visual Studio in administrator mode to be able to perform this step ). *WARNING: due to recent CMake modifications installation is not possible at the moment.*
 
 5. if example programs have problem with opening shader files, or 3D models - set the **PUMEX_DATA_DIR** environment variable so that it points to a directory with data files, for example :
 
@@ -355,12 +357,12 @@ Steps required to build and install library :
 
 ## Building and installation on Linux
 
-Elements that are required to build and install Pumex on Windows :
+Elements that are required to build and install Pumex on Linux :
 
 - [Vulkan SDK](https://vulkan.lunarg.com/)
-- [CMake](https://cmake.org/) **version at least 3.7.0** ( earlier versions do not have FindVulkan.cmake module)
+- [CMake](https://cmake.org/) **version at least 3.11.0** ( because new *FetchContent* module is used to download external sources during CMake configuration).
 - [git](https://git-scm.com/)
-- gcc compiler
+- gcc compiler. clang toolchain was not tested on Linux, but it's highly possible that it also works.
 - following libraries
   - [Assimp](https://github.com/assimp/assimp)
   - [Intel Threading Building Blocks](https://www.threadingbuildingblocks.org/)
@@ -380,13 +382,14 @@ Steps required to build and install library :
 
 1. download Pumex Library from [here](https://github.com/pumexx/pumex)
 
-2. create solution files for gcc using **CMake**, choose "Release" configuration type for maximum performance
+2. create solution files for gcc using **CMake**, choose "Release" configuration type for maximum performance.
 
    1. to build Pumex with support for QT5 library - you need to set the flag **PUMEX_BUILD_QT** manually in CMake GUI. This flag is switched off by default. Also remember, that you have to compile and install QT5 library yourself, because Vulkan support is switched off in QT by default.
 
 3. perform **make -j4**
 
-4. *( optional step )* perform **sudo make install** if necessary.
+4. *( optional step )* perform **sudo make install** if necessary. *WARNING: due to recent CMake modifications installation is not possible at the moment.*
+
    Pumex library instals itself in /usr/local/* directories. On some Linux distributions ( Ubuntu for example ) /usr/local/lib directory is not added to LD_LIBRARY_PATH environment variable. In that case you will see a following error while trying to run one of the example programs :
 
    ```
@@ -396,7 +399,7 @@ Steps required to build and install library :
    In that case you need to add /usr/local/lib directory to LD_LIBRARY_PATH to remove this error :
 
    ```
-   LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+   export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
    ```
 
 5. if example programs have problem with opening shader files, or 3D models - set the **PUMEX_DATA_DIR** environment variable so that it points to a directory with data files, for example :
@@ -407,9 +410,32 @@ Steps required to build and install library :
 
 
 
----
+## Building and installation on Android
 
+Elements that are required to build Pumex on Windows and install it on Android device ( building on Linux has not been tested, but it should look the same )
 
+- [Vulkan SDK](https://vulkan.lunarg.com/)
+- [Android Studio](https://developer.android.com/studio/) with Android SDK and [Android NDK](https://developer.android.com/ndk/) installed - you may install both from within Android Studio ( MainMenu -> Tools -> SDK Manager ). You may also optionally install LLDB debugger if required.
+- [CMake](https://cmake.org/) **version at least 3.11.0** ( because new *FetchContent* module is used to download external dependencies during CMake configuration). 
+- [git](https://git-scm.com/)
+
+Steps required to build and deploy pumexviewer example ( as it is only example working on Android at the moment ) :
+
+1. Import project into Android Studio from **pumex/android** directory.
+
+2. find **local.properties** file in **pumex/android** directory. This file is created by import and is not stored in git, because it contains local settings ). Newest **CMake** version bundled with Android Studio is **3.10** so it's below minimal Pumex requirements. As a result you have to add path to newer CMake to **local.properties** file ( CMake 3.11 at least. Newest version is 3.13). For example :
+
+   ```
+   cmake.dir=C\:\\Program Files\\CMake
+   ```
+
+3. Build project by pressing Build -> Make Project. First project compilation may take some time, because external dependencies are downloaded, patched and built.
+
+4. Deploy to your device using Run -> Run 'pumexviewer'
+
+5. Write github issue describing what went wrong. There's no chance it worked on a first try. Murphy's laws are strong on Android.
+
+You are also able to build project without Android Studio ( standalone build - using gradlew script ). But you still should have proper Android SDK, Android NDK and CMake installed.
 
 ## Dependencies
 
@@ -425,7 +451,7 @@ Pumex renderer is dependent on a following set of libraries :
 * [args](https://github.com/Taywee/args)  - small header-only library for command line parsing.
 * [QT5 GUI library](https://www.qt.io/) - well known GUI library for C++. This is **optional** dependence if you want to render inside QT windows. 
 
-On Windows all mandatory dependencies are downloaded and built on first Pumex library build. On Linux - first three libraries must be installed using your local package manager ( see section about installation on Linux ). On both systems optional QT library must be downloaded manually and built with Vulkan support enabled.
+On Windows and Android all mandatory dependencies are downloaded and built on first Pumex library build. On Linux - some of the libraries may be installed using your local package manager ( see section about installation on Linux ). On both systems optional QT library must be downloaded manually and built with Vulkan support enabled.
 
 
 
@@ -435,11 +461,9 @@ On Windows all mandatory dependencies are downloaded and built on first Pumex li
 
 ## Future plans
 
-- Android port
 - iOS port through [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
 - implement async compute that may be run during update phase
 - scene graphs should only render what is visible ( that's why pumexgpucull example is slower than osggpucull example now ). Should it be mandatory or optional ?
-- more texture loaders ( at the moment only dds, ktx, kmg, png and jpeg texture files are able to load )
 - asynchronous loading of models and textures
 - new examples presenting things like :
   - different types of shadows
@@ -455,5 +479,5 @@ On Windows all mandatory dependencies are downloaded and built on first Pumex li
 
 
 
-**Remark** : Pumex is a "work in progress" which means that some elements of Vulkan API are not implemented yet and some may not work properly on every combination of hardware / operating system. Pumex API is subject to change.
+**Remark** : Pumex is a "work in progress" which means that some elements of Vulkan API are not implemented yet and some may not work properly on every combination of hardware / operating system ( especially on Android ). Pumex API is subject to change.
 
