@@ -32,10 +32,11 @@
 // - model voxelization
 // - rendering of original model and ray marching of voxelized model
 
-const uint32_t MAX_BONES = 511;
-
-const uint32_t CLIPMAP_TEXTURE_COUNT = 1;
-const uint32_t CLIPMAP_TEXTURE_SIZE  = 64;
+const std::string VOXELIZER_DEFAULT_MODEL     = "people/wmale1_lod0.dae";
+const std::string VOXELIZER_DEFAULT_ANIMATION = "people/wmale1_walk.dae";
+const uint32_t MAX_BONES                      = 511;
+const uint32_t CLIPMAP_TEXTURE_COUNT          = 1;
+const uint32_t CLIPMAP_TEXTURE_SIZE           = 128;
 
 struct PositionData
 {
@@ -190,7 +191,7 @@ int main( int argc, char * argv[] )
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
-  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename", "people/wmale1_lod0.dae" );
+  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename" );
   args::Positional<std::string>                animationNameArg(parser, "animation", "3D animation");
   try
   {
@@ -221,6 +222,13 @@ int main( int argc, char * argv[] )
   std::string modelFileName     = args::get(modelNameArg);
   std::string animationFileName = args::get(animationNameArg);
   std::string windowName        = "Pumex voxelizer : ";
+
+  // if model filename and animation filename are missing - show the default model
+  if (modelFileName.empty() && animationFileName.empty())
+  {
+    modelFileName     = VOXELIZER_DEFAULT_MODEL;
+    animationFileName = VOXELIZER_DEFAULT_ANIMATION;
+  }
   windowName += modelFileName;
 
   std::vector<std::string> instanceExtensions;

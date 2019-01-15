@@ -109,7 +109,7 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
 
   std::vector<DescriptorSetLayoutBinding> textLayoutBindings =
   {
-    { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT },
+    { 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
     { 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
   };
   auto textDescriptorSetLayout = std::make_shared<DescriptorSetLayout>(textLayoutBindings);
@@ -123,7 +123,6 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
   {
     { 0, VK_VERTEX_INPUT_RATE_VERTEX, textDefault->textVertexSemantic }
   };
-  textPipeline->topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
   textPipeline->rasterizationSamples = rasterizationSamples;
   textPipeline->blendAttachments =
   {
@@ -136,7 +135,6 @@ TimeStatisticsHandler::TimeStatisticsHandler(std::shared_ptr<Viewer> viewer, std
   textPipeline->shaderStages =
   {
     { VK_SHADER_STAGE_VERTEX_BIT,   std::make_shared<ShaderModule>(viewer, "shaders/text_draw.vert.spv"), "main" },
-    { VK_SHADER_STAGE_GEOMETRY_BIT, std::make_shared<ShaderModule>(viewer, "shaders/text_draw.geom.spv"), "main" },
     { VK_SHADER_STAGE_FRAGMENT_BIT, std::make_shared<ShaderModule>(viewer, "shaders/text_draw.frag.spv"), "main" }
   };
   statisticsRoot->addChild(textPipeline);

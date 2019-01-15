@@ -75,17 +75,18 @@ Font::~Font()
 void Font::addSymbolData(const glm::vec2& startPosition, const glm::vec4& color, const std::wstring& text, std::vector<SymbolData>& symbolData)
 {
   std::lock_guard<std::mutex> lock(mutex);
-  glm::vec4 currentPosition(startPosition.x, startPosition.y, startPosition.x, startPosition.y);
+  glm::vec2 currentPosition = startPosition;
   for (auto& c : text)
   {
     GlyphData& gData = glyphData[getGlyphIndex(c)];
-    symbolData.emplace_back( SymbolData(
-      currentPosition + gData.bearing,
-      gData.texCoords,
-      color
-      ));
+    symbolData.emplace_back(SymbolData(currentPosition + glm::vec2(gData.bearing.x, gData.bearing.y), glm::vec2(gData.texCoords.x, gData.texCoords.y), color));
+    symbolData.emplace_back(SymbolData(currentPosition + glm::vec2(gData.bearing.z, gData.bearing.w), glm::vec2(gData.texCoords.z, gData.texCoords.w), color));
+    symbolData.emplace_back(SymbolData(currentPosition + glm::vec2(gData.bearing.z, gData.bearing.y), glm::vec2(gData.texCoords.z, gData.texCoords.y), color));
+
+    symbolData.emplace_back(SymbolData(currentPosition + glm::vec2(gData.bearing.x, gData.bearing.y), glm::vec2(gData.texCoords.x, gData.texCoords.y), color));
+    symbolData.emplace_back(SymbolData(currentPosition + glm::vec2(gData.bearing.x, gData.bearing.w), glm::vec2(gData.texCoords.x, gData.texCoords.w), color));
+    symbolData.emplace_back(SymbolData(currentPosition + glm::vec2(gData.bearing.z, gData.bearing.w), glm::vec2(gData.texCoords.z, gData.texCoords.w), color));
     currentPosition.x += gData.advance;
-    currentPosition.z += gData.advance;
   }
 }
 
@@ -142,7 +143,7 @@ Text::Text(std::shared_ptr<Font> f, std::shared_ptr<DeviceMemoryAllocator> buffe
   : DrawNode(), font{ f }
 {
   vertexBuffer = std::make_shared<Buffer<std::vector<SymbolData>>>(bufferAllocator, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, pbPerSurface, swForEachImage);
-  textVertexSemantic = { { VertexSemantic::Position, 4 },{ VertexSemantic::TexCoord, 4 } , { VertexSemantic::Color, 4 } };
+  textVertexSemantic = { { VertexSemantic::Position, 4 }, { VertexSemantic::Color, 4 } };
 }
 
 Text::~Text()

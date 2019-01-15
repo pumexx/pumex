@@ -81,7 +81,6 @@ endif()
 
 set( PUMEX_SHADER_NAMES
   shaders/text_draw.vert
-  shaders/text_draw.geom
   shaders/text_draw.frag
   shaders/stat_draw.vert
   shaders/stat_draw.frag

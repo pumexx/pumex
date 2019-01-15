@@ -32,14 +32,11 @@ android
           targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
         }
       }
-      task copyShadersDebug ( dependsOn: ":pumexviewer:externalNativeBuildDebug" )<<
+      task copyShadersDebug ( type: Copy, dependsOn: ":pumexviewer:externalNativeBuildDebug" )<<
       {
-        copy
-        {
-          from ".externalNativeBuild/cmake/debug/armeabi-v7a/shaders"
-          into "assets/shaders"
-          include "*.spv"
-        }
+        from ".externalNativeBuild/cmake/debug/armeabi-v7a/shaders"
+        into "assets/shaders"
+        include "*.spv"
       }
       tasks.whenTaskAdded { task ->
         if (task.name == 'compileDebugSources')
@@ -65,16 +62,11 @@ android
           targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
         }
       }
-      task copyShadersRelease ( dependsOn: ":pumexviewer:externalNativeBuildRelease" )<<
+      task copyShadersRelease ( type: Copy, dependsOn: ":pumexviewer:externalNativeBuildRelease" )<<
       {
-        println "Copying shaders: release"
-        println project.buildDir
-        copy
-        {
-          from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
-          into "assets/shaders"
-          include "*.spv"
-        }
+        from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
+        into "assets/shaders"
+        include "*.spv"
       }
       tasks.whenTaskAdded { task ->
         if (task.name == 'compileReleaseSources')
@@ -117,7 +109,7 @@ task copyAssets <<
   {
     from "../../data/people"
     into "assets/people"
-    include "wmale1_lod0.dae", "wmale1_run.dae"
+    include "wmale1_lod0.dae", "wmale1_walk.dae"
   }
   copy 
   {
@@ -128,21 +120,3 @@ task copyAssets <<
 }
 
 preBuild.dependsOn copyAssets
-
-//task copyShadersRelease ( dependsOn: ":pumexviewer:externalNativeBuildRelease" )<<
-//{
-//  println "Copying shaders: release"
-//  println project.buildDir
-//  copy
-//  {
-//    from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
-//    into "assets/shaders"
-//    include "*.spv"
-//  }
-//}
-
-//afterEvaluate
-//{
-//  assembleDebug.dependsOn copyShadersDebug
-//  assembleRelease.dependsOn copyShadersRelease
-//}

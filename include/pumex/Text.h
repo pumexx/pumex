@@ -63,12 +63,11 @@ struct PUMEX_EXPORT GlyphData
 struct PUMEX_EXPORT SymbolData
 {
   SymbolData() = default;
-  SymbolData( const glm::vec4& p, const glm::vec4& t, const glm::vec4& c)
-    : position{ p }, texCoords{ t }, color{ c }
+  SymbolData( const glm::vec2& p, const glm::vec2& uv, const glm::vec4& c)
+    : positionUV{ p.x, p.y, uv.x, uv.y }, color{ c }
   {}
-  glm::vec4 position;  // left, top, right, bottom
-  glm::vec4 texCoords; // left, top, left + width, top + rows - all divided by texture dimensions
-  glm::vec4 color;     // font color
+  glm::vec4 positionUV; // position=(x,y), uv=(z,w)
+  glm::vec4 color;      // color
 };
 
 // class that stores Font texture and glyph data in memory ( ready to send it to GPU )

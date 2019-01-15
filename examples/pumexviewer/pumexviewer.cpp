@@ -34,7 +34,9 @@
 // pumexviewer is a very basic program, that performs textureless rendering of a 3D asset provided in a command line
 // The whole render graph consists of only one render operation
 
-const uint32_t MAX_BONES = 511;
+const std::string VIEWER_DEFAULT_MODEL     = "people/wmale1_lod0.dae";
+const std::string VIEWER_DEFAULT_ANIMATION = "people/wmale1_walk.dae";
+const uint32_t    MAX_BONES                = 511;
 
 struct PositionData
 {
@@ -149,7 +151,7 @@ int viewer_main( int argc, char* argv[] )
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
   args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
-  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename", "people/wmale1_lod0.dae");
+  args::Positional<std::string>                modelNameArg(parser, "model", "3D model filename");
   args::Positional<std::string>                animationNameArg(parser, "animation", "3D animation");
   try
   {
@@ -180,6 +182,13 @@ int viewer_main( int argc, char* argv[] )
   std::string modelFileName     = args::get(modelNameArg);
   std::string animationFileName = args::get(animationNameArg);
   std::string windowName        = "Pumex viewer : ";
+
+  // if model filename and animation filename are missing - show the default model
+  if (modelFileName.empty() && animationFileName.empty())
+  {
+    modelFileName     = VIEWER_DEFAULT_MODEL;
+    animationFileName = VIEWER_DEFAULT_ANIMATION;
+  }
   windowName += modelFileName;
 
   // We need to prepare ViewerTraits object. It stores all basic configuration for Vulkan instance ( Viewer class )
@@ -238,7 +247,7 @@ int viewer_main( int argc, char* argv[] )
 #if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
 #else
-    pumex::ResourceDefinition depthSamples(VK_FORMAT_D16_UNORM, fullScreenSize, pumex::atDepth);
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D24_UNORM_S8_UINT, fullScreenSize, pumex::atDepth);
 #endif
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
@@ -362,11 +371,9 @@ int viewer_main( int argc, char* argv[] )
     wireframePipeline->setDescriptorSet(0, wireframeDescriptorSet);
 
     // lets add object that calculates time statistics and is able to render it. Temporary removed from Android due to problems with text rendering
-#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     std::shared_ptr<pumex::TimeStatisticsHandler> tsHandler = std::make_shared<pumex::TimeStatisticsHandler>(viewer, pipelineCache, buffersAllocator, texturesAllocator, applicationData->textCameraBuffer);
     viewer->addInputEventHandler(tsHandler);
     renderRoot->addChild(tsHandler->getRoot());
-#endif
 
     // camera handler processes input events at the beggining of the update phase
     std::shared_ptr<pumex::BasicCameraHandler> bcamHandler = std::make_shared<pumex::BasicCameraHandler>();
@@ -390,9 +397,8 @@ int viewer_main( int argc, char* argv[] )
     viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
     surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
     // object calculating statistics must be also connected as an event
-#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-#endif
+
     // main renderer loop is inside Viewer::run()
     viewer->run();
   }
