@@ -35,9 +35,13 @@
   #undef GLM_ENABLE_EXPERIMENTAL_HACK
 #endif
 #include <tbb/tbb.h>
+#include <args.hxx>
 #include <pumex/Pumex.h>
 #include <pumex/utils/Shapes.h>
-#include <args.hxx>
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <android_native_app_glue.h>
+  #include <pumex/platform/android/WindowAndroid.h>
+#endif  
 
 
 // This example shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands
@@ -68,6 +72,14 @@ const uint32_t STATIC_SIMPLE_HOUSE_ID  = 4;
 const uint32_t DYNAMIC_BLIMP_ID = 1;
 const uint32_t DYNAMIC_CAR_ID = 2;
 const uint32_t DYNAMIC_AIRPLANE_ID = 3;
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  float GPUCULL_STATIC_AREA_SIZE = 500.0f;
+  float GPUCULL_DYNAMIC_AREA_SIZE = 250.0f;
+#else
+float GPUCULL_STATIC_AREA_SIZE = 2000.0f;
+float GPUCULL_DYNAMIC_AREA_SIZE = 1000.0f;
+#endif
 
 // struct storing the whole information required by CPU and GPU to render a single static object ( trees and buildings )
 struct StaticInstanceData
@@ -1233,7 +1245,7 @@ struct GpuCullApplicationData
   }
 };
 
-int main(int argc, char * argv[])
+int gpucull_main(int argc, char * argv[])
 {
   SET_LOG_WARNING;
 
@@ -1247,8 +1259,8 @@ int main(int argc, char * argv[])
   args::Flag                                   render3windows(parser, "three_windows", "render in three windows", { 't' });
   args::Flag                                   skipStaticRendering(parser, "skip-static", "skip rendering of static objects", { "skip-static" });
   args::Flag                                   skipDynamicRendering(parser, "skip-dynamic", "skip rendering of dynamic objects", { "skip-dynamic" });
-  args::ValueFlag<float>                       staticAreaSizeArg(parser, "static-area-size", "size of the area for static rendering", { "static-area-size" }, 2000.0f);
-  args::ValueFlag<float>                       dynamicAreaSizeArg(parser, "dynamic-area-size", "size of the area for dynamic rendering", { "dynamic-area-size" }, 1000.0f);
+  args::ValueFlag<float>                       staticAreaSizeArg(parser, "static-area-size", "size of the area for static rendering", { "static-area-size" }, GPUCULL_STATIC_AREA_SIZE);
+  args::ValueFlag<float>                       dynamicAreaSizeArg(parser, "dynamic-area-size", "size of the area for dynamic rendering", { "dynamic-area-size" }, GPUCULL_DYNAMIC_AREA_SIZE);
   args::ValueFlag<float>                       lodModifierArg(parser, "lod-modifier", "LOD range [%]", { "lod-modifier" }, 100.0f);
   args::ValueFlag<float>                       densityModifierArg(parser, "density-modifier", "instance density [%]", { "density-modifier" }, 100.0f);
   args::ValueFlag<float>                       triangleModifierArg(parser, "triangle-modifier", "instance triangle quantity [%]", { "triangle-modifier" }, 100.0f);
@@ -1352,7 +1364,12 @@ int main(int argc, char * argv[])
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("gpucull_render_graph");
 
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
+#else
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D24_UNORM_S8_UINT, fullScreenSize, pumex::atDepth);
+#endif
+
     pumex::ResourceDefinition indirectCounter("indirectCounter");
     pumex::ResourceDefinition indirectIndex("indirectIndex");
     pumex::ResourceDefinition indirectResults("indirectResults");
@@ -1722,3 +1739,16 @@ int main(int argc, char * argv[])
   FLUSH_LOG;
   return 0;
 }
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+void android_main(struct android_app *app)
+{
+  pumex::WindowAndroid::runMain(app, gpucull_main);
+}
+#else
+int main(int argc, char* argv[])
+{
+  return gpucull_main(argc, argv);
+}
+#endif	
+

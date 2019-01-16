@@ -6,7 +6,7 @@ android
 
   defaultConfig 
   {
-    applicationId "org.pumex.viewer"
+    applicationId "org.pumex.gpucull"
     minSdkVersion 24
     targetSdkVersion 27
     ndk 
@@ -29,10 +29,10 @@ android
                     "-DANDROID_ARM_NEON=ON",
                     "-DFETCHCONTENT_BASE_DIR=./external"
 
-          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
+          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexgpucull"
         }
       }
-      task copyShadersDebug ( dependsOn: ":pumexviewer:externalNativeBuildDebug" )<<
+      task copyShadersDebug ( dependsOn: ":pumexgpucull:externalNativeBuildDebug" )<<
       {
         copy
         {
@@ -62,10 +62,10 @@ android
                     "-DANDROID_ARM_NEON=ON",
                     "-DFETCHCONTENT_BASE_DIR=./external"
 
-          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexviewer"
+          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexgpucull"
         }
       }
-      task copyShadersRelease ( dependsOn: ":pumexviewer:externalNativeBuildRelease" )<<
+      task copyShadersRelease ( dependsOn: ":pumexgpucull:externalNativeBuildRelease" )<<
       {
         copy
         {
@@ -111,13 +111,7 @@ android
 
 task copyAssets << 
 {
-  copy 
-  {
-    from "../../data/people"
-    into "assets/people"
-    include "wmale1_lod0.dae", "wmale1_walk.dae"
-  }
-  copy 
+  copy
   {
     from "../../data/fonts"
     into "assets/fonts"

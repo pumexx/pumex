@@ -1,7 +1,7 @@
 add_subdirectory( pumexviewer )
+add_subdirectory( pumexgpucull )
 if( NOT ANDROID )
   add_subdirectory( pumexcrowd )
-  add_subdirectory( pumexgpucull )
   add_subdirectory( pumexdeferred )
   add_subdirectory( pumexvoxelizer )
   add_subdirectory( pumexmultiview )
