@@ -92,11 +92,12 @@ android
   {
     main 
     {
-      manifest.srcFile "AndroidManifest.xml" // Where is the AndroidManifest.xml relative to this file?
-      resources.srcDirs = ["res"] // Where is the res/ directory relative to this file?
-      res.srcDirs = ["res"] // Where is the res/ directory? (Not sure if this is redundant, but doesn"t hurt ...)
-      assets.srcDirs = ["assets"] // Where can you find assets for application relative to this file? These will be packaged in the APK (use AAssetManager).
-//            jniLibs.srcDirs = ["../../application/platforms/android/renderdoc"] // If you have RenderDoc layer built or other 3rd party libraries, you can bundle it here!
+      def ndkDir = project.android.ndkDirectory
+      manifest.srcFile "AndroidManifest.xml"
+      resources.srcDirs = ["res"]
+      res.srcDirs = ["res"]
+      assets.srcDirs = ["assets"]
+//      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
     }
   }
 

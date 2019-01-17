@@ -1,2 +1,4 @@
-include ':pumexviewer' 
-include ':pumexgpucull' 
+include ':pumexviewer'
+// include ':pumexcrowd' // Shader compilation failed for shaderType: 0  Info log: 'MaterialTypesSbo' : the number of ubo/ssbo exceeds limit. What limit ?!?
+// include ':pumexdeferred' // SIGSEGV 11 inside vkCreateGraphicsPipelines
+include ':pumexgpucull'

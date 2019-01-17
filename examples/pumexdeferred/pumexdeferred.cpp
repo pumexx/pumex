@@ -23,9 +23,13 @@
 #include <iomanip>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <args.hxx>
 #include <pumex/Pumex.h>
 #include <pumex/utils/Shapes.h>
-#include <args.hxx>
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <android_native_app_glue.h>
+  #include <pumex/platform/android/WindowAndroid.h>
+#endif  
 
 // This example shows how to setup basic deferred renderer with antialiasing.
 // Render graph defines three render operations :
@@ -33,8 +37,18 @@
 // - second one fills gbuffers with data
 // - third one renders lights using gbuffers as input
 
-const uint32_t              MAX_BONES       = 511;
+const uint32_t              MAX_BONES       = 255;
 const uint32_t              MODEL_SPONZA_ID = 1;
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  const uint32_t DEFAULT_SAMPLES_PER_PIXEL = 2;
+  const VkPresentModeKHR DEFERRED_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
+#else
+  const uint32_t DEFAULT_SAMPLES_PER_PIXEL = 4;
+  const VkPresentModeKHR DEFERRED_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_MAILBOX_KHR;
+#endif
+
+
 
 struct PositionData
 {
@@ -192,7 +206,7 @@ struct DeferredApplicationData
   std::shared_ptr<pumex::BasicCameraHandler>                  camHandler;
 };
 
-int main( int argc, char * argv[] )
+int deferred_main( int argc, char * argv[] )
 {
   SET_LOG_WARNING;
 
@@ -208,10 +222,10 @@ int main( int argc, char * argv[] )
   args::HelpFlag                                    help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                                        enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                                        useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
-  args::MapFlag<std::string, VkPresentModeKHR>      presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::MapFlag<std::string, VkPresentModeKHR>      presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, DEFERRED_DEFAULT_PRESENT_MODE);
   args::ValueFlag<uint32_t>                         updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Flag                                        skipDepthPrepass(parser, "nodp", "skip depth prepass", { 'n' });
-  args::MapFlag<std::string, uint32_t>              samplesPerPixel(parser, "samples", "samples per pixel (1,2,4,8)", { 's' }, availableSamplesPerPixel, 4);
+  args::MapFlag<std::string, uint32_t>              samplesPerPixel(parser, "samples", "samples per pixel (1,2,4,8)", { 's' }, availableSamplesPerPixel, DEFAULT_SAMPLES_PER_PIXEL);
   try
   {
     parser.ParseCLI(argc, argv);
@@ -284,9 +298,13 @@ int main( int argc, char * argv[] )
     pumex::ImageSize fullScreenSizeMultisampled{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, sampleCount };
     pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSizeMultisampled, pumex::atDepth);
+#else
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D24_UNORM_S8_UINT, fullScreenSizeMultisampled, pumex::atDepth);
+#endif
     pumex::ResourceDefinition vec3Samples(VK_FORMAT_R16G16B16A16_SFLOAT, fullScreenSizeMultisampled, pumex::atColor);
     pumex::ResourceDefinition colorSamples(VK_FORMAT_B8G8R8A8_UNORM,     fullScreenSizeMultisampled, pumex::atColor);
-    pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT,         fullScreenSizeMultisampled, pumex::atDepth);
     pumex::ResourceDefinition resolveSamples(VK_FORMAT_B8G8R8A8_UNORM,   fullScreenSizeMultisampled, pumex::atColor);
     pumex::ResourceDefinition color(VK_FORMAT_B8G8R8A8_UNORM,            fullScreenSize,             pumex::atColor);
 
@@ -356,7 +374,13 @@ int main( int argc, char * argv[] )
     std::shared_ptr<pumex::MaterialRegistry<MaterialData>> materialRegistry = std::make_shared<pumex::MaterialRegistry<MaterialData>>(buffersAllocator);
     std::shared_ptr<pumex::MaterialSet> materialSet = std::make_shared<pumex::MaterialSet>(viewer, materialRegistry, textureRegistry, buffersAllocator, textureSemantic);
 
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    viewer->setAssetTextureRename("\\.dds", "_mobi.ktx");
+#endif
     std::shared_ptr<pumex::Asset> asset = viewer->loadAsset("sponza/sponza.dae", false, requiredSemantic);
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    viewer->clearAssetTextureRename();
+#endif
 
     pumex::BoundingBox bbox = pumex::calculateBoundingBox(*asset, 1);
 
@@ -613,3 +637,15 @@ int main( int argc, char * argv[] )
   FLUSH_LOG;
   return 0;
 }
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+void android_main(struct android_app *app)
+{
+  pumex::WindowAndroid::runMain(app, deferred_main);
+}
+#else
+int main(int argc, char* argv[])
+{
+  return deferred_main(argc, argv);
+}
+#endif	

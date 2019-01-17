@@ -927,6 +927,8 @@ void DefaultRenderGraphCompiler::buildPipelineBarriers(const RenderGraph& render
             LOG_INFO << "Image barrier: " << bar.imageRange.aspectMask << "_(" << bar.imageRange.baseMipLevel << "_" << bar.imageRange.levelCount << ")x(" << bar.imageRange.baseArrayLayer << "_" << bar.imageRange.layerCount << "), ";
             LOG_INFO<< bar.srcAccessMask << ", " << bar.dstAccessMask << ", " << bar.srcQueueIndex << ", " << bar.dstQueueIndex << ", " << bar.oldLayout << ", " << bar.newLayout << "\n";
             break;
+          default:
+            break;
           }
         }
       }

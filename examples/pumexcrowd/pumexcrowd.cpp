@@ -37,8 +37,12 @@
   #undef GLM_ENABLE_EXPERIMENTAL_HACK
 #endif
 #include <tbb/tbb.h>
-#include <pumex/Pumex.h>
 #include <args.hxx>
+#include <pumex/Pumex.h>
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  #include <android_native_app_glue.h>
+  #include <pumex/platform/android/WindowAndroid.h>
+#endif  
 
 
 // This example shows how to render multiple different objects using a minimal number of vkCmdDrawIndexedIndirect commands
@@ -57,6 +61,14 @@
 
 const uint32_t MAX_BONES = 63;
 const uint32_t MAIN_RENDER_MASK = 1;
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+  const float DEFAULT_PEOPLE_DENSITY = 200000;
+  const VkPresentModeKHR CROWD_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
+#else
+  const float DEFAULT_PEOPLE_DENSITY = 50000;
+  const VkPresentModeKHR CROWD_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_MAILBOX_KHR;
+#endif
 
 // Structure storing information about people and objects.
 // Structure is used by update loop to update its parameters.
@@ -181,6 +193,17 @@ std::vector<std::tuple<uint32_t, std::string, bool, std::string, std::string, st
   std::make_tuple( 12, "wmale3_cloth3", false, "people/wmale3_cloth3.dae", "",                       "",                       pumex::AssetLodDefinition(0.0f, 100.0f), pumex::AssetLodDefinition(0.0f, 0.0f),  pumex::AssetLodDefinition(0.0f, 0.0f)    )
 };
 
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+std::multimap<uint32_t, std::vector<std::tuple<std::string, std::string>>> materialVariants =
+{
+  { 1, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse_1_mobi.ktx"     ) } },
+  { 1, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse_mobi.ktx"       ) } },
+  { 2, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse3_1_mobi.ktx"    ) } },
+  { 2, { std::make_tuple( "body_mat", "people/dragon_female_white_mobi.ktx"                   ) } },
+  { 3, { std::make_tuple( "body_mat", "people/middleage_lightskinned_male_diffuse_1_mobi.ktx" ) } },
+  { 3, { std::make_tuple( "body_mat", "people/ork_texture_mobi.ktx"                           ) } }
+};
+#else
 std::multimap<uint32_t, std::vector<std::tuple<std::string, std::string>>> materialVariants =
 {
   { 1, { std::make_tuple( "body_mat", "people/young_lightskinned_male_diffuse_1.dds"     ) } },
@@ -190,6 +213,7 @@ std::multimap<uint32_t, std::vector<std::tuple<std::string, std::string>>> mater
   { 3, { std::make_tuple( "body_mat", "people/middleage_lightskinned_male_diffuse_1.dds" ) } },
   { 3, { std::make_tuple( "body_mat", "people/ork_texture.dds"                           ) } }
 };
+#endif
 
 std::multimap<uint32_t, std::vector<uint32_t>> clothVariants =
 {
@@ -282,6 +306,9 @@ struct CrowdApplicationData
     }
 
     skeletons.push_back(pumex::Skeleton()); // empty skeleton for null type
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    viewer->setAssetTextureRename("\\.dds", "_mobi.ktx");
+#endif
     for (auto& modelDef : modelDefinitions)
     {
       uint32_t                               typeID;
@@ -329,6 +356,9 @@ struct CrowdApplicationData
       }
       materialVariantCount[typeID] = materialSet->getMaterialVariantCount(typeID);
     }
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    viewer->clearAssetTextureRename();
+#endif
     materialSet->endRegisterMaterials();
   }
 
@@ -589,8 +619,7 @@ struct CrowdApplicationData
 
 };
 
-
-int main(int argc, char * argv[])
+int crowd_main(int argc, char * argv[])
 {
   SET_LOG_WARNING;
 
@@ -598,7 +627,7 @@ int main(int argc, char * argv[])
   args::HelpFlag                               help(parser, "help", "display this help menu", {'h', "help"});
   args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", {'d'});
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", {'f'});
-  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, CROWD_DEFAULT_PRESENT_MODE);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Flag                                   renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
   args::Flag                                   render3windows(parser, "three_windows", "render in three windows", {'t'});
@@ -681,7 +710,11 @@ int main(int argc, char * argv[])
 
     pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f) };
 
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
+#else
+    pumex::ResourceDefinition depthSamples(VK_FORMAT_D24_UNORM_S8_UINT, fullScreenSize, pumex::atDepth);
+#endif
     pumex::ResourceDefinition indirectResults("indirectResults");
     pumex::ResourceDefinition indirectDraw("indirectDraw");
 
@@ -721,7 +754,11 @@ int main(int argc, char * argv[])
     auto skeletalAssetBuffer      = std::make_shared<pumex::AssetBuffer>(assetSemantics, buffersAllocator, verticesAllocator);
 
     std::shared_ptr<pumex::TextureRegistryTextureArray>    textureRegistry  = std::make_shared<pumex::TextureRegistryTextureArray>();
+#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
+#else
+    auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_ASTC_6X6_UNORM_BLOCK16, gli::texture::extent_type(1024, 1024, 1), 24, 1, 12);
+#endif
     auto sampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
     textureRegistry->setCombinedImageSampler(0, std::make_shared<pumex::MemoryImage>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
     std::vector<pumex::TextureSemantic>                    textureSemantic  = { { pumex::TextureSemantic::Diffuse, 0 } };
@@ -766,7 +803,7 @@ int main(int argc, char * argv[])
     filterPipeline->addChild(assetBufferFilterNode);
     viewer->getExternalMemoryObjects()->addMemoryObject("indirect_draw_buffer", indirectDraw, assetBufferFilterNode->getDrawIndexedIndirectBuffer(MAIN_RENDER_MASK));
 
-    applicationData->setupInstances(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), 200000, assetBufferFilterNode);
+    applicationData->setupInstances(glm::vec3(-25, -25, 0), glm::vec3(25, 25, 0), DEFAULT_PEOPLE_DENSITY, assetBufferFilterNode);
 
     // TODO : instance count
     uint32_t instanceCount = applicationData->updateData.people.size() + applicationData->updateData.clothes.size();
@@ -922,6 +959,19 @@ int main(int argc, char * argv[])
   FLUSH_LOG;
   return 0;
 }
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+void android_main(struct android_app *app)
+{
+  pumex::WindowAndroid::runMain(app, crowd_main);
+}
+#else
+int main(int argc, char* argv[])
+{
+  return crowd_main(argc, argv);
+}
+#endif	
+
 
 // Small hint : print spir-v in human readable format
 // glslangValidator -H instanced_animation.vert -o instanced_animation.vert.spv >>instanced_animation.vert.txt

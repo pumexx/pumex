@@ -1,0 +1,129 @@
+apply plugin: "com.android.application"
+
+android
+{
+  compileSdkVersion 27
+
+  defaultConfig 
+  {
+    applicationId "org.pumex.crowd"
+    minSdkVersion 24
+    targetSdkVersion 27
+    ndk 
+    {
+      abiFilters "armeabi-v7a"
+    }
+  }
+
+  buildTypes 
+  {
+    debug 
+    {
+      externalNativeBuild 
+      {
+        cmake 
+        {
+          arguments "-DANDROID_TOOLCHAIN=clang",
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Debug",
+                    "-DANDROID_ARM_NEON=ON",
+                    "-DFETCHCONTENT_BASE_DIR=./external"
+
+          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexcrowd"
+        }
+      }
+      task copyShadersDebug ( dependsOn: ":pumexcrowd:externalNativeBuildDebug" )<<
+      {
+        copy
+        {
+          from ".externalNativeBuild/cmake/debug/armeabi-v7a/shaders"
+          into "assets/shaders"
+          include "*.spv"
+        }
+      }
+      tasks.whenTaskAdded { task ->
+        if (task.name == 'checkDebugLibraries')
+        {
+            checkDebugLibraries.dependsOn("copyShadersDebug")
+        }
+      }
+
+      debuggable true // Default for debug config, but not release config.
+    }
+    release 
+	{
+      externalNativeBuild 
+	  {
+        cmake
+        {
+          arguments "-DANDROID_TOOLCHAIN=clang",
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-DANDROID_ARM_NEON=ON",
+                    "-DFETCHCONTENT_BASE_DIR=./external"
+
+          targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexcrowd"
+        }
+      }
+      task copyShadersRelease ( dependsOn: ":pumexcrowd:externalNativeBuildRelease" )<<
+      {
+        copy
+        {
+          from ".externalNativeBuild/cmake/release/armeabi-v7a/shaders"
+          into "assets/shaders"
+          include "*.spv"
+        }
+      }
+      tasks.whenTaskAdded { task ->
+        if (task.name == 'checkReleaseLibraries')
+        {
+            checkReleaseLibraries.dependsOn("copyShadersRelease")
+        }
+      }
+// FIXME : test it later
+//      minifyEnabled false
+//      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+      debuggable true // Default for debug config, but not release config.
+      signingConfig signingConfigs.debug // Normally, Gradle will expect
+    }
+  }
+
+  sourceSets 
+  {
+    main 
+    {
+      def ndkDir = project.android.ndkDirectory
+      manifest.srcFile "AndroidManifest.xml"
+      resources.srcDirs = ["res"]
+      res.srcDirs = ["res"]
+      assets.srcDirs = ["assets"]
+//      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
+    }
+  }
+
+  externalNativeBuild 
+  {
+    cmake 
+    {
+      path "../../CMakeLists.txt"
+    }
+  }
+}
+
+task copyAssets << 
+{
+  copy 
+  {
+    from "../../data/people"
+    into "assets/people"
+    include "*.dae", "*_mobi.ktx"
+  }
+  copy 
+  {
+    from "../../data/fonts"
+    into "assets/fonts"
+    include "DejaVuSans.ttf"
+  }
+}
+
+preBuild.dependsOn copyAssets

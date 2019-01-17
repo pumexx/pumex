@@ -14,7 +14,6 @@ if(NOT ANDROID)
 else()
   add_library( pumexgpucull SHARED pumexgpucull.cpp )
 endif()
-
 target_include_directories( pumexgpucull PRIVATE ${PUMEX_EXAMPLES_INCLUDES} )
 add_dependencies( pumexgpucull shaders-pumexgpucull )
 set_target_properties( pumexgpucull PROPERTIES RESOURCE "${PUMEXGPUCULL_OUTPUT_SHADERS}" )

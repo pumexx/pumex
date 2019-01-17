@@ -163,6 +163,8 @@ public:
   std::string                                   getAbsoluteFilePath( const std::string& relativeFilePath ) const;
   std::shared_ptr<Asset>                        loadAsset(const std::string& fileName, bool animationOnly = false, const std::vector<VertexSemantic>& requiredSemantic = std::vector<VertexSemantic>()) const;
   std::shared_ptr<gli::texture>                 loadTexture(const std::string& fileName, bool buildMipMaps = true) const;
+  inline void                                   setAssetTextureRename(const std::string& regexRule, const std::string& regexReplacement);
+  inline void                                   clearAssetTextureRename();
 
   bool                                          instanceExtensionImplemented(const char* extensionName) const;
   bool                                          instanceExtensionEnabled(const char* extensionName) const;
@@ -203,6 +205,8 @@ protected:
 #endif  
   std::vector<std::shared_ptr<AssetLoader>>                               assetLoaders;
   std::vector<std::shared_ptr<TextureLoader>>                             textureLoaders;
+  std::string                                                             regexRule; 
+  std::string                                                             regexReplacement;
 
   std::vector<std::shared_ptr<PhysicalDevice>>                            physicalDevices;
   std::unordered_map<uint32_t, std::shared_ptr<Device>>                   devices;
@@ -273,6 +277,9 @@ HPClock::time_point                    Viewer::getApplicationStartTime() const {
 HPClock::duration                      Viewer::getUpdateDuration() const       { return (HPClock::duration(std::chrono::seconds(1))) / viewerTraits.updatesPerSecond; }
 HPClock::time_point                    Viewer::getUpdateTime() const           { return updateTimes[updateIndex]; }
 HPClock::duration                      Viewer::getRenderTimeDelta() const      { return renderStartTime - updateTimes[renderIndex]; }
+void                                   Viewer::setAssetTextureRename(const std::string& r0, const std::string& r1) { regexRule = r0; regexReplacement = r1; }
+void                                   Viewer::clearAssetTextureRename()       { regexRule.clear(); regexReplacement.clear(); }
+
 void                                   Viewer::doNothing() const               {}
 void                                   Viewer::setFrameBufferAllocator(std::shared_ptr<DeviceMemoryAllocator> fba)   { frameBufferAllocator = fba; }
 void                                   Viewer::setRenderGraphCompiler(std::shared_ptr<RenderGraphCompiler> compiler) { renderGraphCompiler = compiler; }

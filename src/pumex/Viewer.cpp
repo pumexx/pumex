@@ -23,6 +23,7 @@
 #include <pumex/Viewer.h>
 #include <algorithm>
 #include <cctype>
+#include <regex>
 #include <pumex/utils/Log.h>
 #include <pumex/DeviceMemoryAllocator.h>
 #include <pumex/PhysicalDevice.h>
@@ -600,7 +601,15 @@ std::shared_ptr<Asset> Viewer::loadAsset(const std::string& fileName, bool anima
     const auto& exts = loader->getSupportedExtensions();
     if (std::find(begin(exts), end(exts), extension) == end(exts))
       continue;
-    return loader->load(fullFileName, animationOnly, requiredSemantic);
+    std::shared_ptr<Asset> loadedAsset = loader->load(fullFileName, animationOnly, requiredSemantic);
+    if (!regexRule.empty())
+    {
+      std::regex reg(regexRule);
+      for (auto& mat : loadedAsset->materials)
+        for (auto& tex : mat.textures)
+          tex.second = std::regex_replace(tex.second, reg, regexReplacement);
+    }
+    return loadedAsset;
   }
   LOG_WARNING << "Cannot find loader for asset " << fileName << std::endl;
   return std::shared_ptr<Asset>();
@@ -790,9 +799,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
+//      LOG_ERROR << "beginFrame" << std::endl;
 
       surface->beginFrame();
 
+//      LOG_ERROR << "beginFrame" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {
         auto tickEnd = HPClock::now();
@@ -804,9 +815,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_EVENTS))
         tickStart = HPClock::now();
+//      LOG_ERROR << "onEventSurfaceRenderStart" << std::endl;
 
       surface->onEventSurfaceRenderStart();
 
+//      LOG_ERROR << "onEventSurfaceRenderStart" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_EVENTS))
       {
         auto tickEnd = HPClock::now();
@@ -818,9 +831,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
+//      LOG_ERROR << "validateRenderGraphs" << std::endl;
 
       surface->validateRenderGraphs();
 
+//      LOG_ERROR << "validateRenderGraphs" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {
         auto tickEnd = HPClock::now();
@@ -840,9 +855,11 @@ void Viewer::buildExecutionFlowGraph()
           HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
             tickStart = HPClock::now();
+//          LOG_ERROR << "validatePrimaryNodes" << std::endl;
 
           surface->validatePrimaryNodes(i);
 
+//          LOG_ERROR << "validatePrimaryNodes" << std::endl;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
           {
             auto tickEnd = HPClock::now();
@@ -863,9 +880,11 @@ void Viewer::buildExecutionFlowGraph()
           HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
             tickStart = HPClock::now();
+//          LOG_ERROR << "validatePrimaryDescriptors" << std::endl;
 
           surface->validatePrimaryDescriptors(i);
 
+//          LOG_ERROR << "validatePrimaryDescriptors" << std::endl;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
           {
             auto tickEnd = HPClock::now();
@@ -886,9 +905,11 @@ void Viewer::buildExecutionFlowGraph()
           HPClock::time_point tickStart;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
             tickStart = HPClock::now();
+//          LOG_ERROR << "buildPrimaryCommandBuffer" << std::endl;
 
           surface->buildPrimaryCommandBuffer(i);
 
+//          LOG_ERROR << "buildPrimaryCommandBuffer" << std::endl;
           if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
           {
             auto tickEnd = HPClock::now();
@@ -903,9 +924,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
         tickStart = HPClock::now();
+//      LOG_ERROR << "validateSecondaryNodes" << std::endl;
 
       surface->validateSecondaryNodes();
 
+//      LOG_ERROR << "validateSecondaryNodes" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
       {
         auto tickEnd = HPClock::now();
@@ -921,9 +944,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
         tickStart = HPClock::now();
+//      LOG_ERROR << "validateSecondaryDescriptors" << std::endl;
 
       surface->validateSecondaryDescriptors();
 
+//      LOG_ERROR << "validateSecondaryDescriptors" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
       {
         auto tickEnd = HPClock::now();
@@ -935,10 +960,12 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
         tickStart = HPClock::now();
+//      LOG_ERROR << "buildSecondaryCommandBuffers" << std::endl;
 
       surface->setCommandBufferIndices();
       surface->buildSecondaryCommandBuffers();
 
+//      LOG_ERROR << "buildSecondaryCommandBuffers" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BUFFERS))
       {
         auto tickEnd = HPClock::now();
@@ -950,9 +977,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
+//      LOG_ERROR << "draw" << std::endl;
 
       surface->draw();
 
+//      LOG_ERROR << "draw" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {
         auto tickEnd = HPClock::now();
@@ -964,9 +993,11 @@ void Viewer::buildExecutionFlowGraph()
       HPClock::time_point tickStart;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
         tickStart = HPClock::now();
+//      LOG_ERROR << "endFrame" << std::endl;
 
       surface->endFrame();
 
+//      LOG_ERROR << "endFrame" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_BASIC))
       {
         auto tickEnd = HPClock::now();
@@ -975,9 +1006,11 @@ void Viewer::buildExecutionFlowGraph()
 
       if (surface->timeStatistics->hasFlags(TSS_STAT_EVENTS))
         tickStart = HPClock::now();
+//      LOG_ERROR << "onEventSurfaceRenderFinish" << std::endl;
 
       surface->onEventSurfaceRenderFinish();
 
+//      LOG_ERROR << "onEventSurfaceRenderFinish" << std::endl;
       if (surface->timeStatistics->hasFlags(TSS_STAT_EVENTS))
       {
         auto tickEnd = HPClock::now();

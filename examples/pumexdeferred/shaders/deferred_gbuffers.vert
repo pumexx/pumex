@@ -3,7 +3,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-#define MAX_BONES 511
+#define MAX_BONES 255
 
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec3 inNormal;

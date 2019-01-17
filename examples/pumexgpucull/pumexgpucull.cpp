@@ -74,11 +74,13 @@ const uint32_t DYNAMIC_CAR_ID = 2;
 const uint32_t DYNAMIC_AIRPLANE_ID = 3;
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-  float GPUCULL_STATIC_AREA_SIZE = 500.0f;
-  float GPUCULL_DYNAMIC_AREA_SIZE = 250.0f;
+  const float GPUCULL_STATIC_AREA_SIZE = 500.0f;
+  const float GPUCULL_DYNAMIC_AREA_SIZE = 250.0f;
+  const VkPresentModeKHR GPUCULL_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
 #else
-float GPUCULL_STATIC_AREA_SIZE = 2000.0f;
-float GPUCULL_DYNAMIC_AREA_SIZE = 1000.0f;
+  const float GPUCULL_STATIC_AREA_SIZE  = 2000.0f;
+  const float GPUCULL_DYNAMIC_AREA_SIZE = 1000.0f;
+  const VkPresentModeKHR GPUCULL_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_MAILBOX_KHR;
 #endif
 
 // struct storing the whole information required by CPU and GPU to render a single static object ( trees and buildings )
@@ -1253,7 +1255,7 @@ int gpucull_main(int argc, char * argv[])
   args::HelpFlag                               help(parser, "help", "display this help menu", { 'h', "help" });
   args::Flag                                   enableDebugging(parser, "debug", "enable Vulkan debugging", { 'd' });
   args::Flag                                   useFullScreen(parser, "fullscreen", "create fullscreen window", { 'f' });
-  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, VK_PRESENT_MODE_MAILBOX_KHR);
+  args::MapFlag<std::string, VkPresentModeKHR> presentationMode(parser, "presentation_mode", "presentation mode (immediate, mailbox, fifo, fifo_relaxed)", { 'p' }, pumex::Surface::nameToPresentationModes, GPUCULL_DEFAULT_PRESENT_MODE);
   args::ValueFlag<uint32_t>                    updatesPerSecond(parser, "update_frequency", "number of update calls per second", { 'u' }, 60);
   args::Flag                                   renderVRwindows(parser, "vrwindows", "create two halfscreen windows for VR", { 'v' });
   args::Flag                                   render3windows(parser, "three_windows", "render in three windows", { 't' });
@@ -1377,7 +1379,7 @@ int gpucull_main(int argc, char * argv[])
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
       rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
-      rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
+      rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.6f, 0.6f, 1.0f, 1.0f)));
 
     if (showStaticRendering)
     {

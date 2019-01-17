@@ -298,7 +298,7 @@ void MemoryImage::setImageLayer(uint32_t layer, std::shared_ptr<gli::texture> te
   CHECK_LOG_THROW(tex->format() != texture->format(), "Input texture has wrong format : " << tex->format() << " should be " << texture->format());
   CHECK_LOG_THROW(tex->layers() > 1, "Cannot call setTextureLayer() with texture that has more than one layer");
   CHECK_LOG_THROW(tex->base_level() != texture->base_level(), "Cannot set image layer when there are different base mip levels");
-  CHECK_LOG_THROW(tex->levels() != texture->levels(), "Cannot set image layer when there is different count of mip levels");
+  CHECK_LOG_THROW(tex->levels() != texture->levels(), "Cannot set image layer when there is different count of mip levels : " << tex->levels() <<" should be " << texture->levels());
   gli::texture::extent_type extent = tex->extent();
   gli::texture::extent_type myExtent = texture->extent();
   CHECK_LOG_THROW((extent.x != myExtent.x) || (extent.y != myExtent.y) , "Texture has wrong size : ( " << extent.x << " x " << extent.y << " ) should be ( " << myExtent.x << " x " << myExtent.y << " )");
