@@ -63,10 +63,10 @@ const uint32_t MAX_BONES = 63;
 const uint32_t MAIN_RENDER_MASK = 1;
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-  const float DEFAULT_PEOPLE_DENSITY = 200000;
+  const float DEFAULT_PEOPLE_DENSITY = 50000;
   const VkPresentModeKHR CROWD_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
 #else
-  const float DEFAULT_PEOPLE_DENSITY = 50000;
+  const float DEFAULT_PEOPLE_DENSITY = 200000;
   const VkPresentModeKHR CROWD_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_MAILBOX_KHR;
 #endif
 
@@ -94,7 +94,6 @@ struct UpdateData
   std::unordered_map<uint32_t, ObjectData> people;
   std::unordered_map<uint32_t, ObjectData> clothes;
 };
-
 
 struct RenderData
 {
@@ -666,7 +665,16 @@ int crowd_main(int argc, char * argv[])
   std::vector<std::string> instanceExtensions;
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
+  {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_threading");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_core_validation");
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_unique_objects");
+#else
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+#endif
+  }
   pumex::ViewerTraits viewerTraits{ "Crowd rendering application", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
@@ -702,8 +710,8 @@ int crowd_main(int argc, char * argv[])
     for (const auto& wt : windowTraits)
       windows.push_back(pumex::Window::createNativeWindow(wt));
 
-    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
-    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
     for (auto& window : windows)
       surfaces.push_back(window->createSurface(device, surfaceTraits));
@@ -757,7 +765,7 @@ int crowd_main(int argc, char * argv[])
 #if !defined(VK_USE_PLATFORM_ANDROID_KHR)
     auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_DXT1_UNORM_BLOCK8, gli::texture::extent_type(2048, 2048, 1), 24, 1, 12);
 #else
-    auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_ASTC_6X6_UNORM_BLOCK16, gli::texture::extent_type(1024, 1024, 1), 24, 1, 12);
+    auto regTex = std::make_shared<gli::texture>(gli::target::TARGET_2D_ARRAY, gli::format::FORMAT_RGBA_ASTC_6X6_UNORM_BLOCK16, gli::texture::extent_type(1024, 1024, 1), 24, 1, 11);
 #endif
     auto sampler = std::make_shared<pumex::Sampler>(pumex::SamplerTraits());
     textureRegistry->setCombinedImageSampler(0, std::make_shared<pumex::MemoryImage>(regTex, texturesAllocator, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_USAGE_SAMPLED_BIT, pumex::pbPerDevice), sampler);
@@ -840,8 +848,8 @@ int crowd_main(int argc, char * argv[])
       { 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
       { 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+      { 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
     };

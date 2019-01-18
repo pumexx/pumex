@@ -47,8 +47,9 @@ android
             checkDebugLibraries.dependsOn("copyShadersDebug")
         }
       }
-
       debuggable true // Default for debug config, but not release config.
+      minifyEnabled false
+      signingConfig signingConfigs.debug // Normally, Gradle will expect	  
     }
     release 
 	{
@@ -80,11 +81,8 @@ android
             checkReleaseLibraries.dependsOn("copyShadersRelease")
         }
       }
-// FIXME : test it later
-//      minifyEnabled false
+      minifyEnabled true
 //      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-      debuggable true // Default for debug config, but not release config.
-      signingConfig signingConfigs.debug // Normally, Gradle will expect
     }
   }
 
@@ -97,7 +95,7 @@ android
       resources.srcDirs = ["res"]
       res.srcDirs = ["res"]
       assets.srcDirs = ["assets"]
-//      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
+      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
     }
   }
 

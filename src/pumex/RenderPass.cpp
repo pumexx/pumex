@@ -27,6 +27,7 @@
 #include <pumex/Device.h>
 #include <pumex/utils/Log.h>
 #include <pumex/Surface.h>
+#include <pumex/PhysicalDevice.h>
 #include <pumex/FrameBuffer.h>
 #include <pumex/RenderVisitors.h>
 
@@ -110,13 +111,20 @@ SubpassDependencyDescription::SubpassDependencyDescription(uint32_t ss, uint32_t
 {
 }
 
-VkSubpassDependency SubpassDependencyDescription::getDependency() const
+VkSubpassDependency SubpassDependencyDescription::getDependency(PhysicalDevice* phDevice) const
 {
+  // suppress not implemented pipeline stages ( debug layer error )
+  VkPipelineStageFlags switchOffMasks = 0;
+  if (!phDevice->features.geometryShader)
+    switchOffMasks |= VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT;
+  if (!phDevice->features.tessellationShader)
+    switchOffMasks |= VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
+
   VkSubpassDependency dep;
     dep.srcSubpass      = srcSubpass;
     dep.dstSubpass      = dstSubpass;
-    dep.srcStageMask    = srcStageMask;
-    dep.dstStageMask    = dstStageMask;
+    dep.srcStageMask    = srcStageMask & ~switchOffMasks;
+    dep.dstStageMask    = dstStageMask & ~switchOffMasks;
     dep.srcAccessMask   = srcAccessMask;
     dep.dstAccessMask   = dstAccessMask;
     dep.dependencyFlags = dependencyFlags;
@@ -194,9 +202,10 @@ void RenderPass::validate(const RenderContext& renderContext)
     multiViewMasks.push_back(sp.lock()->definition.multiViewMask);
   }
 
+  PhysicalDevice* physicalDevice = renderContext.device->physical.lock().get();
   std::vector<VkSubpassDependency> dependencyDescriptors;
   for (const auto& dp : dependencies)
-    dependencyDescriptors.emplace_back(dp.getDependency());
+    dependencyDescriptors.emplace_back(dp.getDependency(physicalDevice));
 
   VkRenderPassCreateInfo renderPassCI{};
     renderPassCI.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;

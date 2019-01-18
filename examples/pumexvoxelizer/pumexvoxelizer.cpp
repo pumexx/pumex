@@ -36,7 +36,7 @@ const std::string VOXELIZER_DEFAULT_MODEL     = "people/wmale1_lod0.dae";
 const std::string VOXELIZER_DEFAULT_ANIMATION = "people/wmale1_walk.dae";
 const uint32_t MAX_BONES                      = 511;
 const uint32_t CLIPMAP_TEXTURE_COUNT          = 1;
-const uint32_t CLIPMAP_TEXTURE_SIZE           = 128;
+const uint32_t CLIPMAP_TEXTURE_SIZE           = 64;
 
 struct PositionData
 {
@@ -69,7 +69,7 @@ struct VoxelizerApplicationData
 
     // build 3D texture
     pumex::ImageSize volumeSize{ pumex::isAbsolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
-    pumex::ImageTraits   volumeImageTraits( VK_FORMAT_B8G8R8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
+    pumex::ImageTraits   volumeImageTraits(VK_FORMAT_R8G8B8A8_UNORM, volumeSize, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_TYPE_3D, VK_SHARING_MODE_EXCLUSIVE);
     volumeMemoryImage = std::make_shared<pumex::MemoryImage>(volumeImageTraits, volumeAllocator, VK_IMAGE_ASPECT_COLOR_BIT, pumex::pbPerSurface, pumex::swOnce);
 
     pumex::BoundingBox bbox;
@@ -261,7 +261,7 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM);
     pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
@@ -281,7 +281,7 @@ int main( int argc, char * argv[] )
     pumex::ImageSize volumeSize3D{ pumex::isAbsolute, glm::vec3(CLIPMAP_TEXTURE_SIZE, CLIPMAP_TEXTURE_SIZE , CLIPMAP_TEXTURE_SIZE), CLIPMAP_TEXTURE_COUNT, 1, 1 };
 
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT, fullScreenSize, pumex::atDepth);
-    pumex::ResourceDefinition image_3d(VK_FORMAT_B8G8R8A8_UNORM, volumeSize3D, pumex::atColor, "image_3d");
+    pumex::ResourceDefinition image_3d(VK_FORMAT_R8G8B8A8_UNORM, volumeSize3D, pumex::atColor, "image_3d");
 
     pumex::RenderOperation voxelization("voxelization", pumex::opGraphics, volumeSize2D);
       voxelization.addImageOutput("outVoxels", image_3d, pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)), pumex::ImageSubresourceRange(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_USAGE_STORAGE_BIT, 0, VK_IMAGE_VIEW_TYPE_3D);

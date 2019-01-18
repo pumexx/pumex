@@ -292,7 +292,7 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Multiview deferred rendering with PBR and antialiasing", true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM);
     pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
@@ -303,10 +303,10 @@ int main( int argc, char * argv[] )
     pumex::ImageSize fullScreenSize{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 };
 
     pumex::ResourceDefinition vec3Samples(VK_FORMAT_R16G16B16A16_SFLOAT, halfScreenSizeMultiSampled, pumex::atColor);
-    pumex::ResourceDefinition colorSamples(VK_FORMAT_B8G8R8A8_UNORM,     halfScreenSizeMultiSampled, pumex::atColor);
+    pumex::ResourceDefinition colorSamples(VK_FORMAT_R8G8B8A8_UNORM,     halfScreenSizeMultiSampled, pumex::atColor);
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D32_SFLOAT,         halfScreenSizeMultiSampled, pumex::atDepth);
-    pumex::ResourceDefinition resolveSamples(VK_FORMAT_B8G8R8A8_UNORM,   halfScreenSizeMultiSampled, pumex::atColor);
-    pumex::ResourceDefinition color(VK_FORMAT_B8G8R8A8_UNORM,            halfScreenSize,             pumex::atColor);
+    pumex::ResourceDefinition resolveSamples(VK_FORMAT_R8G8B8A8_UNORM,   halfScreenSizeMultiSampled, pumex::atColor);
+    pumex::ResourceDefinition color(VK_FORMAT_R8G8B8A8_UNORM,            halfScreenSize,             pumex::atColor);
 
     pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, halfScreenSizeMultiSampled, 0x3U);
       gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
@@ -322,7 +322,7 @@ int main( int argc, char * argv[] )
       lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
       lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 2));
       lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
-      lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), 0, false, "resolve" );
+      lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), 0, 0, false, "resolve" );
 
     pumex::RenderOperation multiview("multiview", pumex::opGraphics, fullScreenSize, 0x0);
       multiview.addImageInput("color", color,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT);

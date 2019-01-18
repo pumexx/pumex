@@ -97,7 +97,7 @@ android
       resources.srcDirs = ["res"]
       res.srcDirs = ["res"]
       assets.srcDirs = ["assets"]
-//      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
+      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
     }
   }
 

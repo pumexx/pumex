@@ -19,7 +19,7 @@ layout (std430,binding = 4) readonly buffer MaterialDataSbo
   MaterialData materialData[];
 };
 
-layout (binding = 5) uniform texture2D diffuseSamplers[64];
+layout (binding = 5) uniform texture2D diffuseSamplers[32];
 layout (binding = 6) uniform sampler samp;
 
 void main()

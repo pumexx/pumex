@@ -223,11 +223,17 @@ int WindowAndroid::runMain(android_app* app, AndroidMainFunction mainFunction)
   androidApp->onAppCmd         = AndroidHandleAppCmd;
   androidApp->onInputEvent     = AndroidHandleInputEvent;
   androidApp->destroyRequested = 0;
-  
+
+#if 0
   int argc = 1;
   char undefinedName[] = "<undefined>";
   char* argv[]  = { undefinedName };
-  
+#else  
+  int argc = 2;
+  char undefinedName[] = "<undefined>";
+  char debugging[] = "-d";
+  char* argv[]  = { undefinedName, debugging };
+#endif  
   // the whole application code happens here
   (*mainFunction)(argc, argv); 
   

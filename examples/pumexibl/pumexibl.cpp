@@ -72,9 +72,9 @@ struct MaterialDataPBR
 };
 
 
-struct ViewerApplicationData
+struct IBLApplicationData
 {
-  ViewerApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
+  IBLApplicationData( std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator )
   {
     // create buffers visible from renderer
     cameraBuffer     = std::make_shared<pumex::Buffer<pumex::Camera>>(buffersAllocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, pumex::pbPerSurface, pumex::swOnce, true);
@@ -214,7 +214,7 @@ int main( int argc, char * argv[] )
   std::string equirectangularFileName = args::get(equirectangularImageName);
   std::string modelFileName           = args::get(modelNameArg);
   std::string animationFileName       = args::get(animationNameArg);
-  std::string windowName              = "Pumex viewer : ";
+  std::string windowName              = "Pumex IBL : ";
   windowName += modelFileName;
 
   // We need to prepare ViewerTraits object. It stores all basic configuration for Vulkan instance ( Viewer class )
@@ -222,7 +222,7 @@ int main( int argc, char * argv[] )
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, updateFrequency };
+  pumex::ViewerTraits viewerTraits{ "pumex ibl", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
   std::shared_ptr<pumex::Viewer> viewer;
@@ -277,7 +277,7 @@ int main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM);
     pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
@@ -309,7 +309,7 @@ int main( int argc, char * argv[] )
       std::stringstream str;
       str<<"eqr_"<<i;
       pumex::RenderOperation cubeMapRender(str.str(), pumex::opGraphics, cubeMapRenderSize);
-        cubeMapRender.addAttachmentOutput("face", environmentCubeMapNoMipDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+        cubeMapRender.addAttachmentOutput("face", environmentCubeMapNoMipDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
       prepareIblRenderGraph->addRenderOperation(cubeMapRender);
     }
 
@@ -326,7 +326,7 @@ int main( int argc, char * argv[] )
       str << "irr_" << i;
       pumex::RenderOperation irradianceRender(str.str(), pumex::opGraphics, irradianceRenderSize);
         irradianceRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
-        irradianceRender.addAttachmentOutput("face", irradianceCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+        irradianceRender.addAttachmentOutput("face", irradianceCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
       prepareIblRenderGraph->addRenderOperation(irradianceRender);
     }
 
@@ -342,14 +342,14 @@ int main( int argc, char * argv[] )
         pumex::ImageSize prefilteredEnvironmentRenderSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE >> j, IBL_CUBEMAP_SIZE >> j), 1, 1, 1 };
         pumex::RenderOperation prefilteredRender(str.str(), pumex::opGraphics, prefilteredEnvironmentRenderSize);
           prefilteredRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
-          prefilteredRender.addAttachmentOutput("face_mip", prefilteredEnvironmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, i, 1), VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+          prefilteredRender.addAttachmentOutput("face_mip", prefilteredEnvironmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
         prepareIblRenderGraph->addRenderOperation(prefilteredRender);
       }
     }
 
     // next operation generates BRDF map
     pumex::RenderOperation brdfRender("brdf", pumex::opGraphics, brdfTextureSize);
-      brdfRender.addAttachmentOutput("brdf_out", brdfDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1), 0, true);
+      brdfRender.addAttachmentOutput("brdf_out", brdfDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1), 0, 0, true);
     prepareIblRenderGraph->addRenderOperation(brdfRender);
 
     // and finally - last operation renders model to screen using previously generated cubemaps to realize image based lighting
@@ -767,7 +767,7 @@ int main( int argc, char * argv[] )
     bkPipeline->addChild(sphereAssetNode);
 
     // Application data class stores all information required to update rendering ( animation state, camera position, etc )
-    std::shared_ptr<ViewerApplicationData> applicationData = std::make_shared<ViewerApplicationData>(buffersAllocator);
+    std::shared_ptr<IBLApplicationData> applicationData = std::make_shared<IBLApplicationData>(buffersAllocator);
 
     // is this the fastest way to calculate all global transformations for a model ?
     std::vector<glm::mat4> globalTransforms = pumex::calculateResetPosition(*asset);
@@ -828,8 +828,8 @@ int main( int argc, char * argv[] )
     tbb::flow::make_edge(update, viewer->opEndUpdateGraph);
 
     // events are used to call application data update methods. These methods generate data visisble by renderer through uniform buffers
-    viewer->setEventRenderStart( std::bind( &ViewerApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
-    surface->setEventSurfaceRenderStart( std::bind(&ViewerApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
+    viewer->setEventRenderStart( std::bind( &IBLApplicationData::prepareModelForRendering, applicationData, std::placeholders::_1, asset) );
+    surface->setEventSurfaceRenderStart( std::bind(&IBLApplicationData::prepareCameraForRendering, applicationData, std::placeholders::_1) );
     // object calculating statistics must be also connected as an event
     surface->setEventSurfacePrepareStatistics(std::bind(&pumex::TimeStatisticsHandler::collectData, tsHandler, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 

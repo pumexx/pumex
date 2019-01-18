@@ -40,7 +40,7 @@ public:
 class AndroidStreamBuffer : public std::streambuf 
 {
 public:
-  enum { bufsize = 256 };
+  enum { bufsize = 2048 };
   AndroidStreamBuffer() 
   { 
     this->setp(buffer, buffer + bufsize - 1); 

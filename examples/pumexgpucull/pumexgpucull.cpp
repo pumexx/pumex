@@ -1311,7 +1311,16 @@ int gpucull_main(int argc, char * argv[])
   std::vector<std::string> instanceExtensions;
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
+  {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_threading");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_core_validation");
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_unique_objects");
+#else
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+#endif
+  }
   pumex::ViewerTraits viewerTraits{ "Gpu cull comparison", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
@@ -1347,8 +1356,8 @@ int gpucull_main(int argc, char * argv[])
     std::vector<std::string> requestDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     std::shared_ptr<pumex::Device> device = viewer->addDevice(0, requestDeviceExtensions);
 
-    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
-    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR };
     std::vector<std::shared_ptr<pumex::Surface>> surfaces;
     for (auto& window : windows)
       surfaces.push_back(window->createSurface(device, surfaceTraits));

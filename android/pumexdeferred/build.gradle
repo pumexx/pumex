@@ -32,6 +32,7 @@ android
           targets "IrrXML", "assimp", "freetype", "jpeg", "png", "tbb", "pumex", "pumexdeferred"
         }
       }
+	  
       task copyShadersDebug ( dependsOn: ":pumexdeferred:externalNativeBuildDebug" )<<
       {
         copy
@@ -47,8 +48,9 @@ android
             checkDebugLibraries.dependsOn("copyShadersDebug")
         }
       }
-
       debuggable true // Default for debug config, but not release config.
+      minifyEnabled false
+      signingConfig signingConfigs.debug // Normally, Gradle will expect	  
     }
     release 
 	{
@@ -97,7 +99,7 @@ android
       resources.srcDirs = ["res"]
       res.srcDirs = ["res"]
       assets.srcDirs = ["assets"]
-//      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
+      jniLibs.srcDirs = ["$ndkDir/sources/third_party/vulkan/src/build-android/jniLibs"] // uncomment to use Vulkan debug layers
     }
   }
 

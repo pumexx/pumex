@@ -201,7 +201,16 @@ int viewer_main( int argc, char* argv[] )
   std::vector<std::string> instanceExtensions;
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
+  {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_threading");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_core_validation");
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_unique_objects");
+#else
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+#endif
+  }
   pumex::ViewerTraits viewerTraits{ "pumex viewer", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
@@ -235,8 +244,8 @@ int viewer_main( int argc, char* argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 640, 480, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, windowName, true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM);
-    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapChainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM);
+    pumex::SurfaceTraits surfaceTraits{ swapChainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
     // alocate 1 MB for uniform and storage buffers
@@ -257,7 +266,7 @@ int viewer_main( int argc, char* argv[] )
 #endif
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("viewer_render_graph");

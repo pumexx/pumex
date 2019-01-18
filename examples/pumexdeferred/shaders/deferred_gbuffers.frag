@@ -22,10 +22,10 @@ layout (std430,binding = 4) readonly buffer MaterialDataSbo
   MaterialData materialData[];
 };
 
-layout (binding = 5) uniform texture2D diffuseSamplers[64];
-layout (binding = 6) uniform texture2D roughnessSamplers[64];
-layout (binding = 7) uniform texture2D metallicSamplers[64];
-layout (binding = 8) uniform texture2D normalSamplers[64];
+layout (binding = 5) uniform texture2D diffuseSamplers[32];
+layout (binding = 6) uniform texture2D roughnessSamplers[32];
+layout (binding = 7) uniform texture2D metallicSamplers[32];
+layout (binding = 8) uniform texture2D normalSamplers[32];
 layout (binding = 9) uniform sampler samp;
 
 

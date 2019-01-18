@@ -60,7 +60,7 @@ struct PUMEX_EXPORT ImageTraits
   ImageTraits(const ImageTraits& traits)            = default;
   ImageTraits& operator=(const ImageTraits& traits) = default;
 
-  VkFormat                 format         = VK_FORMAT_B8G8R8A8_UNORM;
+  VkFormat                 format         = VK_FORMAT_R8G8B8A8_UNORM;
   ImageSize                imageSize      = ImageSize{ isAbsolute, glm::vec3{1.0f, 1.0f, 1.0f}, 1, 1 };
   VkImageUsageFlags        usage          = VK_IMAGE_USAGE_SAMPLED_BIT;
   bool                     linearTiling   = false;

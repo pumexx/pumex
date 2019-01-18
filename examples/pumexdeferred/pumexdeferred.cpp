@@ -1,5 +1,5 @@
 //
-// Copyright(c) 2017-2018 Pawe³ Ksiê¿opolski ( pumexx )
+// Copyright(c) 2017-2018 PaweÅ‚ KsiÄ™Å¼opolski ( pumexx )
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -47,8 +47,6 @@ const uint32_t              MODEL_SPONZA_ID = 1;
   const uint32_t DEFAULT_SAMPLES_PER_PIXEL = 4;
   const VkPresentModeKHR DEFERRED_DEFAULT_PRESENT_MODE = VK_PRESENT_MODE_MAILBOX_KHR;
 #endif
-
-
 
 struct PositionData
 {
@@ -274,7 +272,16 @@ int deferred_main( int argc, char * argv[] )
   std::vector<std::string> instanceExtensions;
   std::vector<std::string> requestDebugLayers;
   if (enableDebugging)
+  {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_threading");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    requestDebugLayers.push_back("VK_LAYER_LUNARG_core_validation");
+    requestDebugLayers.push_back("VK_LAYER_GOOGLE_unique_objects");
+#else
     requestDebugLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+#endif
+  }
   pumex::ViewerTraits viewerTraits{ "Deferred PBR", instanceExtensions, requestDebugLayers, updateFrequency };
   viewerTraits.debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT;// | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
@@ -291,8 +298,8 @@ int deferred_main( int argc, char * argv[] )
     pumex::WindowTraits windowTraits{ 0, 100, 100, 1024, 768, useFullScreen ? pumex::WindowTraits::FULLSCREEN : pumex::WindowTraits::WINDOW, "Deferred rendering with PBR and antialiasing", true };
     std::shared_ptr<pumex::Window> window = pumex::Window::createNativeWindow(windowTraits);
 
-    pumex::ResourceDefinition swapchainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_B8G8R8A8_UNORM, 1);
-    pumex::SurfaceTraits surfaceTraits{ swapchainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR };
+    pumex::ResourceDefinition swapchainDefinition = pumex::SWAPCHAIN_DEFINITION(VK_FORMAT_R8G8B8A8_UNORM, 1);
+    pumex::SurfaceTraits surfaceTraits{ swapchainDefinition, 3, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, presentMode, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR };
     std::shared_ptr<pumex::Surface> surface = window->createSurface(device, surfaceTraits);
 
     pumex::ImageSize fullScreenSizeMultisampled{ pumex::isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, sampleCount };
@@ -304,9 +311,9 @@ int deferred_main( int argc, char * argv[] )
     pumex::ResourceDefinition depthSamples(VK_FORMAT_D24_UNORM_S8_UINT, fullScreenSizeMultisampled, pumex::atDepth);
 #endif
     pumex::ResourceDefinition vec3Samples(VK_FORMAT_R16G16B16A16_SFLOAT, fullScreenSizeMultisampled, pumex::atColor);
-    pumex::ResourceDefinition colorSamples(VK_FORMAT_B8G8R8A8_UNORM,     fullScreenSizeMultisampled, pumex::atColor);
-    pumex::ResourceDefinition resolveSamples(VK_FORMAT_B8G8R8A8_UNORM,   fullScreenSizeMultisampled, pumex::atColor);
-    pumex::ResourceDefinition color(VK_FORMAT_B8G8R8A8_UNORM,            fullScreenSize,             pumex::atColor);
+    pumex::ResourceDefinition colorSamples(VK_FORMAT_R8G8B8A8_UNORM,     fullScreenSizeMultisampled, pumex::atColor);
+    pumex::ResourceDefinition resolveSamples(VK_FORMAT_R8G8B8A8_UNORM,   fullScreenSizeMultisampled, pumex::atColor);
+    pumex::ResourceDefinition color(VK_FORMAT_R8G8B8A8_UNORM,            fullScreenSize,             pumex::atColor);
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");
 
@@ -330,7 +337,7 @@ int deferred_main( int argc, char * argv[] )
       lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpDontCare());
       lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpDontCare());
       lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare());
-      lighting.addAttachmentResolveOutput(pumex::SWAPCHAIN_NAME, swapchainDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), 0, true, "resolve" );
+      lighting.addAttachmentResolveOutput(pumex::SWAPCHAIN_NAME, swapchainDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), 0, 0, true, "resolve" );
 
     if (!skipDepthPrepass)
       renderGraph->addRenderOperation(zPrepass);
@@ -419,7 +426,7 @@ int deferred_main( int argc, char * argv[] )
         { 2, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
         { 3, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
         { 4, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-        { 5, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+        { 5, 32, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
         { 6, 1,  VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
       };
       auto buildzDescriptorSetLayout = std::make_shared<pumex::DescriptorSetLayout>(buildzLayoutBindings);
@@ -471,10 +478,10 @@ int deferred_main( int argc, char * argv[] )
       { 2, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 3, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
       { 4, 1,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 5, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 6, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 7, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
-      { 8, 64, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 5, 32, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 6, 32, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 7, 32, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
+      { 8, 32, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT },
       { 9, 1,  VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
 
     };

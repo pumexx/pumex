@@ -102,7 +102,7 @@ struct PUMEX_EXPORT SubpassDependencyDescription
   VkAccessFlags           dstAccessMask;
   VkDependencyFlags       dependencyFlags;
 
-  VkSubpassDependency getDependency() const;
+  VkSubpassDependency getDependency(PhysicalDevice* physicalDevice) const;
 };
 
 class RenderSubPass;

@@ -25,18 +25,6 @@ struct InstanceData
   uint mainInstance;
 };
 
-struct MaterialTypeDefinition
-{
-  uint variantFirst;
-  uint variantSize;
-};
-
-struct MaterialVariantDefinition
-{
-  uint materialFirst;
-  uint materialSize;
-};
-
 layout (binding = 0) uniform CameraUbo
 {
   mat4 viewMatrix;
@@ -61,16 +49,6 @@ layout (std430,binding = 3) readonly buffer OffValuesSbo
   uint typeOffsetValues[];
 };
 
-layout (std430,binding = 4) readonly buffer MaterialTypesSbo
-{
-  MaterialTypeDefinition materialTypes[];
-};
-
-layout (std430,binding = 5) readonly buffer MaterialVariantsSbo
-{
-  MaterialVariantDefinition materialVariants[];
-};
-
 const vec3 lightDirection = vec3(0,0,1);
 
 layout (location = 0) out vec3 outNormal;
@@ -78,7 +56,7 @@ layout (location = 1) out vec3 outColor;
 layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
-layout (location = 5) flat out uint materialID;
+layout (location = 5) flat out uvec3 materialID; // typeID, variantID, materialID from model
 
 void main()
 {
@@ -99,5 +77,5 @@ void main()
   outLightVec = normalize ( mat3( camera.viewMatrixInverse ) * lightDirection );
   outViewVec  = -pos.xyz;
 
-  materialID  = materialVariants[materialTypes[instances[instanceIndex].typeID].variantFirst + instances[instanceIndex].materialVariant].materialFirst + uint(inUV.z);
+  materialID = uvec3( instances[instanceIndex].typeID, instances[instanceIndex].materialVariant, uint(inUV.z) );
 }
