@@ -1419,15 +1419,15 @@ int gpucull_main(int argc, char * argv[])
 
     if (showStaticRendering)
     {
-      renderGraph->addResourceTransition("static_filter", "static_indirect_counter", "rendering", "static_indirect_counter", "static_indirect_counter_buffer");
-      renderGraph->addResourceTransition("static_filter", "static_indirect_index",   "rendering", "static_indirect_index",   "static_indirect_index_buffer");
-      renderGraph->addResourceTransition("static_filter", "static_indirect_results", "rendering", "static_indirect_results", "static_indirect_results_buffer");
-      renderGraph->addResourceTransition("static_filter", "static_indirect_draw",    "rendering", "static_indirect_draw",    "static_indirect_draw_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_counter", "rendering", "static_indirect_counter", 0, "static_indirect_counter_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_index",   "rendering", "static_indirect_index",   0, "static_indirect_index_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_results", "rendering", "static_indirect_results", 0, "static_indirect_results_buffer");
+      renderGraph->addResourceTransition("static_filter", "static_indirect_draw",    "rendering", "static_indirect_draw",    0, "static_indirect_draw_buffer");
     }
     if (showDynamicRendering)
     {
-      renderGraph->addResourceTransition("dynamic_filter", "dynamic_indirect_results", "rendering", "dynamic_indirect_results", "dynamic_indirect_results_buffer");
-      renderGraph->addResourceTransition("dynamic_filter", "dynamic_indirect_draw",    "rendering", "dynamic_indirect_draw",    "dynamic_indirect_draw_buffer");
+      renderGraph->addResourceTransition("dynamic_filter", "dynamic_indirect_results", "rendering", "dynamic_indirect_results", 0, "dynamic_indirect_results_buffer");
+      renderGraph->addResourceTransition("dynamic_filter", "dynamic_indirect_draw",    "rendering", "dynamic_indirect_draw",    0, "dynamic_indirect_draw_buffer");
     }
 
     std::shared_ptr<GpuCullApplicationData> applicationData = std::make_shared<GpuCullApplicationData>(buffersAllocator);

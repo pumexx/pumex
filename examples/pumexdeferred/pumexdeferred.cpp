@@ -206,7 +206,7 @@ struct DeferredApplicationData
 
 int deferred_main( int argc, char * argv[] )
 {
-  SET_LOG_WARNING;
+  SET_LOG_INFO;
 
   std::unordered_map<std::string, uint32_t> availableSamplesPerPixel
   {
@@ -317,8 +317,12 @@ int deferred_main( int argc, char * argv[] )
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");
 
-    pumex::RenderOperation zPrepass("zPrepass", pumex::opGraphics, fullScreenSizeMultisampled);
-      zPrepass.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
+    if (!skipDepthPrepass)
+    {
+      pumex::RenderOperation zPrepass("zPrepass", pumex::opGraphics, fullScreenSizeMultisampled);
+        zPrepass.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
+      renderGraph->addRenderOperation(zPrepass);
+    }
 
     pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, fullScreenSizeMultisampled);
       gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
@@ -329,6 +333,10 @@ int deferred_main( int argc, char * argv[] )
       gbuffer.setAttachmentDepthInput("depth", depthSamples, pumex::loadOpDontCare());
     else
       gbuffer.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)));
+    renderGraph->addRenderOperation(gbuffer);
+
+    if (!skipDepthPrepass)
+      renderGraph->addResourceTransition("zPrepass", "depth", "gbuffer", "depth");
 
     pumex::RenderOperation lighting("lighting", pumex::opGraphics, fullScreenSizeMultisampled);
       lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpDontCare());
@@ -338,14 +346,8 @@ int deferred_main( int argc, char * argv[] )
       lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpDontCare());
       lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare());
       lighting.addAttachmentResolveOutput(pumex::SWAPCHAIN_NAME, swapchainDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(), 0, 0, true, "resolve" );
-
-    if (!skipDepthPrepass)
-      renderGraph->addRenderOperation(zPrepass);
-    renderGraph->addRenderOperation(gbuffer);
     renderGraph->addRenderOperation(lighting);
 
-    if (!skipDepthPrepass)
-      renderGraph->addResourceTransition("zPrepass",  "depth", "gbuffer",  "depth" );
     renderGraph->addResourceTransition("gbuffer", "position", "lighting", "position");
     renderGraph->addResourceTransition("gbuffer",  "normals",  "lighting",  "normals");
     renderGraph->addResourceTransition("gbuffer",  "albedo",   "lighting",  "albedo");

@@ -33,8 +33,8 @@
 
 using namespace pumex;
 
-AttachmentDescription::AttachmentDescription(uint32_t id, VkFormat f, VkSampleCountFlagBits s, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
-  : imageDefinitionIndex{ id }, format{ f }, samples{ s }, loadOp { lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }
+AttachmentDescription::AttachmentDescription(uint32_t id, const ImageSubresourceRange& ir, VkFormat f, VkSampleCountFlagBits s, bool isw, VkAttachmentLoadOp lop, VkAttachmentStoreOp sop, VkAttachmentLoadOp slop, VkAttachmentStoreOp ssop, VkImageLayout il, VkImageLayout fl, VkAttachmentDescriptionFlags fs)
+  : objectID{ id }, imageRange{ ir }, format{ f }, samples{ s }, isSwapchain{ isw }, loadOp{ lop }, storeOp{ sop }, stencilLoadOp{ slop }, stencilStoreOp{ ssop }, initialLayout{ il }, finalLayout{ fl }, flags{ fs }
 {
 }
 

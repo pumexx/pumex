@@ -21,7 +21,7 @@
 //
 #include <pumex/ResourceRange.h>
 #include <pumex/utils/Log.h>
-
+#include <list>
 using namespace pumex;
 
 BufferSubresourceRange::BufferSubresourceRange()
@@ -82,9 +82,75 @@ bool ImageSubresourceRange::contains(const ImageSubresourceRange& subRange) cons
 namespace pumex
 {
 
+  bool anyRangeOverlaps(const std::vector<BufferSubresourceRange>& ranges)
+  {
+    for (auto& lhs : ranges)
+      for (auto& rhs : ranges)
+        if (rangeOverlaps(lhs, rhs))
+          return true;
+    return false;
+  }
+
   bool rangeOverlaps(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs)
   {
     return (lhs.offset < rhs.offset) ? (lhs.offset + lhs.range > rhs.offset) : (rhs.offset + rhs.range > lhs.offset);
+  }
+
+  BufferSubresourceRange mergeRanges(const std::vector<BufferSubresourceRange>& ranges)
+  {
+    // check fast paths
+    if (ranges.empty())
+      return BufferSubresourceRange(0, 0);
+    if (ranges.size() == 1)
+      return ranges[0];
+
+    std::list<BufferSubresourceRange> rangeList;
+    std::copy(begin(ranges), end(ranges), std::back_inserter(rangeList));
+    rangeList.sort();
+    while (rangeList.size() > 1)
+    {
+      bool mergedAnyRanges = false;
+      std::list<BufferSubresourceRange> rangeList2;
+      rangeList2.push_back(rangeList.front());
+      rangeList.pop_front();
+      while (!rangeList.empty())
+      {
+        auto& lhs = rangeList2.back();
+        auto rhs = rangeList.front();
+        rangeList.pop_front();
+        auto merged = mergeRange(lhs, rhs);
+        if (merged.valid())
+        {
+          rangeList2.pop_back();
+          rangeList2.push_back(merged);
+          mergedAnyRanges = true;
+        }
+        else
+          rangeList2.push_back(rhs);
+      }
+      rangeList = rangeList2;
+      if (!mergedAnyRanges)
+        break;
+    }
+    if (rangeList.size() > 1)
+      return BufferSubresourceRange(0, 0);
+    return rangeList.front();
+  }
+
+  BufferSubresourceRange mergeRange(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs)
+  {
+    if (lhs.offset + lhs.range == rhs.offset)
+      return BufferSubresourceRange(lhs.offset, rhs.offset + rhs.range);
+    return BufferSubresourceRange(0, 0);
+  }
+
+  bool anyRangeOverlaps(const std::vector<ImageSubresourceRange>& ranges)
+  {
+    for (auto lhs=begin(ranges); lhs!=end(ranges); ++lhs)
+      for (auto rhs = lhs+1; rhs != end(ranges); ++rhs)
+        if (rangeOverlaps(*lhs, *rhs))
+          return true;
+    return false;
   }
 
   bool rangeOverlaps(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs)
@@ -94,6 +160,68 @@ namespace pumex
     return mipmapOverlaps && arrayOverlaps;
   }
 
+  ImageSubresourceRange mergeRanges(const std::vector<ImageSubresourceRange>& ranges)
+  {
+    // check fast paths
+    if(ranges.empty())
+      return ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 0, 0);
+    if (ranges.size() == 1)
+      return ranges[0];
+
+    std::list<ImageSubresourceRange> rangeList;
+    std::copy(begin(ranges), end(ranges), std::back_inserter(rangeList));
+    rangeList.sort();
+    while (rangeList.size() > 1)
+    {
+      bool mergedAnyRanges = false;
+      std::list<ImageSubresourceRange> rangeList2;
+      rangeList2.push_back(rangeList.front());
+      rangeList.pop_front();
+      while(!rangeList.empty())
+      {
+        auto& lhs = rangeList2.back();
+        auto rhs = rangeList.front();
+        rangeList.pop_front();
+        auto merged = mergeRange(lhs, rhs);
+        if (merged.valid())
+        {
+          rangeList2.pop_back();
+          rangeList2.push_back(merged);
+          mergedAnyRanges = true;
+        }
+        else
+          rangeList2.push_back(rhs);
+      }
+      rangeList = rangeList2;
+      if (!mergedAnyRanges)
+        break;
+    }
+    if( rangeList.size() > 1 )
+      return ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 0, 0);
+    return rangeList.front();
+  }
+
+  ImageSubresourceRange mergeRange(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs)
+  {
+    if (lhs.aspectMask != rhs.aspectMask)
+      return ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT,0,0,0,0);
+    if(lhs.baseMipLevel+lhs.levelCount == rhs.baseMipLevel && lhs.baseArrayLayer == rhs.baseArrayLayer && lhs.layerCount == rhs.layerCount)
+      return ImageSubresourceRange(
+        lhs.aspectMask, 
+        lhs.baseMipLevel, 
+        lhs.levelCount + rhs.levelCount, 
+        lhs.baseArrayLayer, 
+        lhs.layerCount);
+    if (lhs.baseArrayLayer + lhs.layerCount == rhs.baseArrayLayer && lhs.baseMipLevel == rhs.baseMipLevel && lhs.levelCount == rhs.levelCount)
+      return ImageSubresourceRange(
+        lhs.aspectMask,
+        lhs.baseMipLevel,
+        lhs.levelCount,
+        lhs.baseArrayLayer,
+        lhs.layerCount + rhs.layerCount);
+    return ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 0, 0);
+  }
+  
   VkImageType vulkanImageTypeFromImageSize(const ImageSize& is)
   {
     if (is.size.z > 1)

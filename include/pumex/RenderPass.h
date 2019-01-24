@@ -44,10 +44,12 @@ class  FrameBuffer;
 // VkAttachmentDescription wrapper
 struct PUMEX_EXPORT AttachmentDescription
 {
-  AttachmentDescription(uint32_t imageDefinitionIndex, VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
-  uint32_t                     imageDefinitionIndex;
+  AttachmentDescription(uint32_t objectID, const ImageSubresourceRange& imageRange, VkFormat format, VkSampleCountFlagBits samples, bool isSwapchain, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout, VkImageLayout finalLayout, VkAttachmentDescriptionFlags flags);
+  uint32_t                     objectID;
+  ImageSubresourceRange        imageRange;
   VkFormat                     format;
   VkSampleCountFlagBits        samples;
+  bool                         isSwapchain;
   VkAttachmentLoadOp           loadOp;
   VkAttachmentStoreOp          storeOp;
   VkAttachmentLoadOp           stencilLoadOp;

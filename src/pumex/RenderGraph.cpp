@@ -198,16 +198,10 @@ std::vector<std::reference_wrapper<const RenderOperationEntry>> RenderOperation:
   return results;
 }
 
-ResourceTransition::ResourceTransition(uint32_t rteid, uint32_t tid, const std::vector<RenderOperation>::const_iterator& op, const std::map<std::string, RenderOperationEntry>::const_iterator& e, const std::string& emon)
-  : rteid_{ rteid }, tid_{ tid }, operation_{ op }, entry_{ e }, externalMemoryObjectName_{ emon }
+ResourceTransition::ResourceTransition(uint32_t rteid, uint32_t tid, uint32_t oid, const std::list<RenderOperation>::const_iterator& op, const std::map<std::string, RenderOperationEntry>::const_iterator& e, const std::string& emon, VkImageLayout ela)
+  : rteid_{ rteid }, tid_{ tid }, oid_{ oid }, operation_ { op }, entry_{ e }, externalMemoryObjectName_{ emon }, externalLayout_{ela}
 {
 }
-
-ResourceTransitionDescription::ResourceTransitionDescription(const std::string& gop, const std::string& gen, const std::string& cop, const std::string& cen)
-  : generatingOperation{ gop }, generatingEntry{ gen }, consumingOperation{ cop }, consumingEntry{ cen }
-{
-}
-
 
 RenderGraph::RenderGraph(const std::string& n)
   : name{ n }
@@ -223,155 +217,231 @@ void RenderGraph::addRenderOperation(const RenderOperation& op)
   auto it = std::find_if(begin(operations), end(operations), [&op](const RenderOperation& opx) { return opx.name == op.name; });
   CHECK_LOG_THROW(it != end(operations), "RenderGraph : operation already exists : " + op.name);
   operations.push_back(op);
-//  valid = false;
+  valid = false;
 }
 
-void RenderGraph::addResourceTransition(const ResourceTransitionDescription& resTran, const std::string& externalMemoryObjectName)
+uint32_t RenderGraph::addResourceTransition(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName)
 {
-  CHECK_LOG_THROW(resTran.generatingOperation == resTran.consumingOperation, "RenderGraph : generating and consuming operation can't be the same : " << resTran.generatingOperation);
-  auto genOp = std::find_if(begin(operations), end(operations), [&resTran](const RenderOperation& opx) { return opx.name == resTran.generatingOperation; });
-  CHECK_LOG_THROW(genOp == end(operations), "RenderGraph : generating operation not defined : " << resTran.generatingOperation);
-  auto conOp = std::find_if(begin(operations), end(operations), [&resTran](const RenderOperation& opx) { return opx.name == resTran.consumingOperation; });
-  CHECK_LOG_THROW(conOp == end(operations), "RenderGraph : consuming operation not defined : " << resTran.consumingOperation);
+  return addResourceTransition({ generatingOperation, generatingEntry }, { { consumingOperation, consumingEntry } }, suggestedObjectID, externalMemoryObjectName);
+}
 
-  auto genEntry = genOp->entries.find(resTran.generatingEntry);
-  CHECK_LOG_THROW(genEntry == end(genOp->entries), "RenderGraph : operation " << resTran.generatingOperation << " does not have entry named : " << resTran.generatingEntry);
-  CHECK_LOG_THROW((genEntry->second.entryType & opeAllOutputs) == 0, "RenderGraph : entry " << resTran.generatingOperation << "->" << resTran.generatingEntry << " is not an output");
+uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, const ResourceTransitionEntry& con, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName)
+{
+  std::vector<ResourceTransitionEntry> cons;
+  cons.push_back(con);
+  return addResourceTransition( gen, cons, suggestedObjectID, externalMemoryObjectName );
+}
 
-  auto conEntry = conOp->entries.find(resTran.consumingEntry);
-  CHECK_LOG_THROW(conEntry == end(conOp->entries), "RenderGraph : operation " << resTran.consumingOperation << " does not have entry named : " << resTran.consumingEntry);
-  CHECK_LOG_THROW((conEntry->second.entryType & opeAllInputs) == 0, "RenderGraph : entry " << resTran.consumingOperation << "->" << resTran.consumingEntry << " is not an input");
+uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, const std::vector<ResourceTransitionEntry>& cons, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName)
+{
+  CHECK_LOG_THROW(cons.empty(), "RenderGraph : vector of consumers is empty : " << gen.first);
 
-  // both entries must have the same resource definition
-  CHECK_LOG_THROW(!(genEntry->second.resourceDefinition == conEntry->second.resourceDefinition), "RenderGraph : entries " << resTran.generatingOperation << "->" << resTran.generatingEntry << " and " << resTran.consumingOperation << "->" << resTran.consumingEntry << " must have the same resource definition");
+  const auto genOp = std::find_if(begin(operations), end(operations), [&gen](const RenderOperation& opx) { return opx.name == gen.first; });
+  CHECK_LOG_THROW(genOp == end(operations), "RenderGraph : generating operation not defined : " << gen.first);
 
-  // consuming entry must have at most one input
-  auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && rt.entryIter() == conEntry); });
-  CHECK_LOG_THROW(existingConTransition != end(transitions), "RenderGraph : Entry " << resTran.consumingOperation << "->" << resTran.consumingEntry << " cannot have more than one input");
+  const auto genEntry = genOp->entries.find(gen.second);
+  CHECK_LOG_THROW(genEntry == end(genOp->entries), "RenderGraph : operation " << gen.first << " does not have entry named : " << gen.second);
+  CHECK_LOG_THROW((genEntry->second.entryType & opeAllOutputs) == 0, "RenderGraph : entry " << gen.first << "->" << gen.second << " is not an output");
 
   // generating entry may have zero or more outputs
   auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && rt.entryIter() == genEntry); });
-  uint32_t transitionID;
+  uint32_t transitionID, objectID;
   if (existingGenTransition != end(transitions))
   {
     // all transitions using the same output must have the same external resource defined
-    CHECK_LOG_THROW(existingGenTransition->externalMemoryObjectName() != externalMemoryObjectName, "RenderGraph : All transitions using " << resTran.generatingOperation << "->" << resTran.generatingEntry << " must have the same external resource : " << existingGenTransition->externalMemoryObjectName() << " != " << externalMemoryObjectName);
+    CHECK_LOG_THROW(existingGenTransition->externalMemoryObjectName() != externalMemoryObjectName, "RenderGraph : All transitions using " << gen.first << "->" << gen.second << " must have the same external resource : " << existingGenTransition->externalMemoryObjectName() << " != " << externalMemoryObjectName);
     transitionID = existingGenTransition->tid();
+    objectID     = existingGenTransition->oid();
+    // if suggestedObjectID is provided, then it must be the same as the one that exists already - two different objects cannot use the same generating entry
+    CHECK_LOG_THROW( suggestedObjectID!=0 && objectID != suggestedObjectID, "RenderGraph : All transitions using entry " << gen.first << "->" << gen.second << " must have the same objectID");
   }
   else
   {
     transitionID = generateTransitionID();
-    transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, genOp, genEntry, externalMemoryObjectName));
+    objectID     = (suggestedObjectID!=0) ? suggestedObjectID : generateObjectID();
   }
-  transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, conOp, conEntry, externalMemoryObjectName));
-  valid = false;
-}
 
-void RenderGraph::addResourceTransition(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry, const std::string& externalMemoryObjectName)
-{
-  addResourceTransition({ generatingOperation, generatingEntry, consumingOperation, consumingEntry }, externalMemoryObjectName);
-}
-
-void RenderGraph::addResourceTransition(const std::vector<ResourceTransitionDescription>& resTrans, const std::string& externalMemoryObjectName)
-{
-  CHECK_LOG_THROW(resTrans.empty(), "No resource transition definitions have been provided to addResourceTransition()");
-  auto firstGenOp = std::find_if(begin(operations), end(operations), [&resTrans](const RenderOperation& opx) { return opx.name == resTrans[0].generatingOperation; });
-  CHECK_LOG_THROW(firstGenOp == end(operations), "RenderGraph : generating operation not defined : " << resTrans[0].generatingOperation);
-  auto firstGenEntry = firstGenOp->entries.find(resTrans[0].generatingEntry);
-  CHECK_LOG_THROW(firstGenEntry == end(firstGenOp->entries), "RenderGraph : operation " << resTrans[0].generatingOperation << " does not have entry named : " << resTrans[0].generatingEntry);
-  for (auto& resTran : resTrans)
+  std::vector<ImageSubresourceRange>  imageRanges;
+  std::set<VkImageLayout>             conImageLayouts;
+  std::vector<BufferSubresourceRange> bufferRanges;
+  for (const auto& con : cons)
   {
-    CHECK_LOG_THROW(resTran.generatingOperation == resTran.consumingOperation, "RenderGraph : generating and consuming operation is the same : " << resTran.generatingOperation);
-    auto genOp = std::find_if(begin(operations), end(operations), [&resTran](const RenderOperation& opx) { return opx.name == resTran.generatingOperation; });
-    CHECK_LOG_THROW(genOp == end(operations), "RenderGraph : generating operation not defined : " << resTran.generatingOperation);
-    auto conOp = std::find_if(begin(operations), end(operations), [&resTran](const RenderOperation& opx) { return opx.name == resTran.consumingOperation; });
-    CHECK_LOG_THROW(conOp == end(operations), "RenderGraph : consuming operation not defined : " << resTran.consumingOperation);
+    CHECK_LOG_THROW(gen.first == con.first, "RenderGraph : generating and consuming operation can't be the same : " << gen.first);
 
-    auto genEntry = genOp->entries.find(resTran.generatingEntry);
-    CHECK_LOG_THROW(genEntry == end(genOp->entries), "RenderGraph : operation " << resTran.generatingOperation << " does not have entry named : " << resTran.generatingEntry);
-    CHECK_LOG_THROW((genEntry->second.entryType & opeAllOutputs) == 0, "RenderGraph : entry " << resTran.generatingOperation << "->" << resTran.generatingEntry << " is not an output");
+    auto conOp = std::find_if(begin(operations), end(operations), [&con](const RenderOperation& opx) { return opx.name == con.first; });
+    CHECK_LOG_THROW(conOp == end(operations), "RenderGraph : consuming operation not defined : " << con.first);
 
-    auto conEntry = conOp->entries.find(resTran.consumingEntry);
-    CHECK_LOG_THROW(conEntry == end(conOp->entries), "RenderGraph : operation " << resTran.consumingOperation << " does not have entry named : " << resTran.consumingEntry);
-    CHECK_LOG_THROW((conEntry->second.entryType & opeAllInputs) == 0, "RenderGraph : entry " << resTran.consumingOperation << "->" << resTran.consumingEntry << " is not an input");
+    auto conEntry = conOp->entries.find(con.second);
+    CHECK_LOG_THROW(conEntry == end(conOp->entries), "RenderGraph : operation " << con.first << " does not have entry named : " << con.second);
+    CHECK_LOG_THROW((conEntry->second.entryType & opeAllInputs) == 0, "RenderGraph : entry " << con.first << "->" << con.second << " is not an input");
 
-    // all entries must have the same resource definition
-    CHECK_LOG_THROW(!(genEntry->second.resourceDefinition == firstGenEntry->second.resourceDefinition), "RenderGraph : entry " << resTran.generatingOperation << "->" << resTran.generatingEntry << "  has different resource definition");
-    CHECK_LOG_THROW(!(conEntry->second.resourceDefinition == firstGenEntry->second.resourceDefinition), "RenderGraph : entry " << resTran.consumingOperation << "->" << resTran.consumingEntry << "  has different resource definition");
+    conImageLayouts.insert(conEntry->second.layout);
 
-    // generating entries must be empty
+    // both entries must have the same resource definition
+    CHECK_LOG_THROW(!(genEntry->second.resourceDefinition == conEntry->second.resourceDefinition), "RenderGraph : entries " << gen.first << "->" << gen.second << " and " << con.first << "->" << con.second << " must have the same resource definition");
+
+    // only one consuming transition may exist
+    auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && rt.entryIter() == conEntry); });
+    CHECK_LOG_THROW(existingConTransition != end(transitions), "RenderGraph : consuming operation may only have one entry : " << con.first << "->" << con.second);
+
+    if ((conEntry->second.entryType & ( opeAllImages | opeAllAttachments )) != 0)
+      imageRanges.push_back(conEntry->second.imageRange);
+    else
+      bufferRanges.push_back(conEntry->second.bufferRange);
+  }
+  CHECK_LOG_THROW(imageRanges.empty() == bufferRanges.empty(), "RenderGraph : all consuming operations must be either image based or buffer based");
+  if (!imageRanges.empty())
+  {
+    auto consumentRange = mergeRanges(imageRanges);
+    CHECK_LOG_THROW(consumentRange.valid() && !genEntry->second.imageRange.contains(consumentRange), "RenderGraph : generating transition image range must contain consuming image ranges" << gen.first << "->" << gen.second);
+    CHECK_LOG_THROW(conImageLayouts.size() > 1, "RenderGraph : all consuming image layouts must be the same for generating tranistion : " << gen.first << "->" << gen.second);
+  }
+  else if (!bufferRanges.empty())
+  {
+    auto consumentRange = mergeRanges(bufferRanges);
+    CHECK_LOG_THROW(consumentRange.valid() && !genEntry->second.bufferRange.contains(consumentRange), "RenderGraph : generating transition buffer range must contain consuming buffer ranges" << gen.first << "->" << gen.second);
+  }
+
+  if (existingGenTransition == end(transitions))
+    transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, genOp, genEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
+  for (const auto& con : cons)
+  {
+    auto conOp = std::find_if(begin(operations), end(operations), [&con](const RenderOperation& opx) { return opx.name == con.first; });
+    auto conEntry = conOp->entries.find(con.second);
+
+    transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, conOp, conEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
+  }
+  valid = false;
+  return objectID;
+}
+
+uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransitionEntry>& gens, const ResourceTransitionEntry& con, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName)
+{
+  CHECK_LOG_THROW(gens.empty(), "RenderGraph : vector of generators is empty : " << con.first);
+  auto conOp = std::find_if(begin(operations), end(operations), [&con](const RenderOperation& opx) { return opx.name == con.first; });
+  CHECK_LOG_THROW(conOp == end(operations), "RenderGraph : consuming operation not defined : " << con.first);
+
+  auto conEntry = conOp->entries.find(con.second);
+  CHECK_LOG_THROW(conEntry == end(conOp->entries), "RenderGraph : operation " << con.first << " does not have entry named : " << con.second);
+  CHECK_LOG_THROW((conEntry->second.entryType & opeAllInputs) == 0, "RenderGraph : entry " << con.first << "->" << con.second << " is not an input");
+
+  // consuming entry may have inly one input
+  auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && rt.entryIter() == conEntry); });
+  CHECK_LOG_THROW(existingConTransition != end(transitions), "RenderGraph : consuming operation may only have one entry : " << con.first << "->" << con.second);
+
+  // Before we add any transition - we must choose tid and oid for new set of transitions. Problem is that some generating transitions may be defined already.
+  // OK, so idea is that all existing generating transitions must have at most one tid and oid defined.
+  std::set<uint32_t>                  existingTransitionID;
+  std::set<uint32_t>                  existingObjectID;
+  std::vector<ImageSubresourceRange>  imageRanges;
+  std::set<VkImageLayout>             genImageLayouts;
+  std::vector<BufferSubresourceRange> bufferRanges;
+
+  for (const auto& gen : gens)
+  {
+    auto genOp = std::find_if(begin(operations), end(operations), [&gen](const RenderOperation& opx) { return opx.name == gen.first; });
+    CHECK_LOG_THROW(genOp == end(operations), "RenderGraph : generating operation not defined : " << gen.first);
+
+    auto genEntry = genOp->entries.find(gen.second);
+    CHECK_LOG_THROW(genEntry == end(genOp->entries), "RenderGraph : operation " << gen.first << " does not have entry named : " << gen.second);
+    CHECK_LOG_THROW((genEntry->second.entryType & opeAllOutputs) == 0, "RenderGraph : entry " << gen.first << "->" << gen.second << " is not an output");
+
+    // both entries must have the same resource definition
+    CHECK_LOG_THROW(!(genEntry->second.resourceDefinition == conEntry->second.resourceDefinition), "RenderGraph : entries " << gen.first << "->" << gen.second << " and " << con.first << "->" << con.second << " must have the same resource definition");
+
+    genImageLayouts.insert(genEntry->second.layout);
+
     auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && rt.entryIter() == genEntry); });
-    CHECK_LOG_THROW( existingGenTransition != end(transitions), "RenderGraph : operation " << resTran.generatingOperation << "->" << resTran.generatingEntry <<  " cannot have any generating transitions defined.");
-
-    // all existing consuming entries must not overlap with a new one
-    std::vector<ResourceTransition> existingConsumingTransitions;
-    std::copy_if(begin(transitions), end(transitions), std::back_inserter(existingConsumingTransitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && rt.entryIter() == conEntry); });
-    for (auto& ect : existingConsumingTransitions)
+    if (existingGenTransition != end(transitions))
     {
-      if ((conEntry->second.entryType & (opeAllAttachments | opeAllImages)) != 0)
-      {
-        CHECK_LOG_THROW(rangeOverlaps(ect.entry().imageRange, conEntry->second.imageRange), "RenderGraph : Entry " << resTran.consumingOperation << "->" << resTran.consumingEntry << " overlaps with entry " << ect.operationName() << "->" << ect.entryName());
-      }
-      else
-        CHECK_LOG_THROW(rangeOverlaps(ect.entry().bufferRange, conEntry->second.bufferRange), "RenderGraph : Entry " << resTran.consumingOperation << "->" << resTran.consumingEntry << " overlaps with entry " << ect.operationName() << "->" << ect.entryName());
+      // all transitions using the same output must have the same external resource defined
+      CHECK_LOG_THROW(existingGenTransition->externalMemoryObjectName() != externalMemoryObjectName, "RenderGraph : All transitions using " << gen.first << "->" << gen.second << " must have the same external resource : " << existingGenTransition->externalMemoryObjectName() << " != " << externalMemoryObjectName);
+
+      existingTransitionID.insert(existingGenTransition->tid());
+      existingObjectID.insert(existingGenTransition->oid());
     }
+    if ((genEntry->second.entryType & ( opeAllImages | opeAllAttachments )) != 0)
+      imageRanges.push_back(genEntry->second.imageRange);
+    else
+      bufferRanges.push_back(genEntry->second.bufferRange);
+  }
+  CHECK_LOG_THROW(imageRanges.empty() == bufferRanges.empty(), "RenderGraph : all generating operations must be either image based or buffer based");
+  if (!imageRanges.empty())
+  {
+    auto generatorRange = mergeRanges(imageRanges);
+    CHECK_LOG_THROW(generatorRange.valid() && !generatorRange.contains(conEntry->second.imageRange), "RenderGraph : generating transition image range must contain consuming image ranges" << con.first << "->" << con.second);
+    CHECK_LOG_THROW(genImageLayouts.size() > 1, "RenderGraph : all generating image layouts must be the same for consuming tranistion : " << con.first << "->" << con.second);
+    CHECK_LOG_THROW(anyRangeOverlaps(imageRanges), "RenderGraph : all generating image transitions must have disjunctive image ranges : " << con.first << "->" << con.second);
+  }
+  else if( !bufferRanges.empty() )
+  {
+    auto generatorRange = mergeRanges(bufferRanges);
+    CHECK_LOG_THROW(generatorRange.valid() && !generatorRange.contains( conEntry->second.bufferRange), "RenderGraph : generating transition buffer range must contain consuming buffer ranges" << con.first << "->" << con.second);
+    CHECK_LOG_THROW(anyRangeOverlaps(bufferRanges), "RenderGraph : all generating buffer transitions must have disjunctive buffer ranges : " << con.first << "->" << con.second);
   }
 
-  // minimize the number of TransitionEntryID ( rteid ) ( the same rteid for the same entry ( operation, entry ) )
-  struct RTEID
-  {
-    RTEID(const std::string& o, const std::string& e, uint32_t i)
-      : op{ o }, en{ e }, id{ i }
-    {
-    }
-    std::string op;
-    std::string en;
-    uint32_t    id;
-  };
-  std::vector<RTEID> genRteid, conRteid;
   uint32_t transitionID = generateTransitionID();
-  for (auto& resTran : resTrans)
+  uint32_t objectID;
+  CHECK_LOG_THROW(existingTransitionID.size() > 1, "RenderGraph : cannot add generating transitions, because some transitions already exist and have different IDs. Consumer : " << con.first << "->" << con.second);
+  if (!existingTransitionID.empty())
   {
-    auto git = std::find_if(begin(genRteid), end(genRteid), [&resTran](const RTEID& rteid) { return rteid.op == resTran.generatingOperation && rteid.en == resTran.generatingEntry; });
-    if (git == end(genRteid))
-    {
-      auto newRteid = generateTransitionEntryID();
-      genRteid.push_back(RTEID(resTran.generatingOperation, resTran.generatingEntry, newRteid));
-      auto genOp = std::find_if(begin(operations), end(operations), [&resTran](const RenderOperation& opx) { return opx.name == resTran.generatingOperation; });
-      auto genEntry = genOp->entries.find(resTran.generatingEntry);
-      transitions.push_back(ResourceTransition(newRteid, transitionID, genOp, genEntry, externalMemoryObjectName));
-    }
-    auto cit = std::find_if(begin(conRteid), end(conRteid), [&resTran](const RTEID& rteid) { return rteid.op == resTran.consumingOperation && rteid.en == resTran.consumingEntry; });
-    if (cit == end(conRteid))
-    {
-      auto newRteid = generateTransitionEntryID();
-      conRteid.push_back(RTEID(resTran.consumingOperation, resTran.consumingEntry, newRteid));
-      auto conOp = std::find_if(begin(operations), end(operations), [&resTran](const RenderOperation& opx) { return opx.name == resTran.consumingOperation; });
-      auto conEntry = conOp->entries.find(resTran.consumingEntry);
-      transitions.push_back(ResourceTransition(newRteid, transitionID, conOp, conEntry, externalMemoryObjectName));
-    }
+    transitionID = *begin(existingTransitionID);
+    objectID     = *begin(existingObjectID);
+    // if suggestedObjectID is provided, then it must be the same as the one that exists already - two different objects cannot use the same generating entry
+    CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using consuming entry " << con.first << "->" << con.second << " must have the same objectID");
+  }
+  else
+  {
+    transitionID = generateTransitionID();
+    objectID     = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
+  }
+
+  transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, conOp, conEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
+  for (const auto& gen : gens)
+  {
+    auto genOp = std::find_if(begin(operations), end(operations), [&gen](const RenderOperation& opx) { return opx.name == gen.first; });
+    auto genEntry = genOp->entries.find(gen.second);
+
+    auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && rt.entryIter() == genEntry); });
+    if (existingGenTransition == end(transitions))
+      transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, genOp, genEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
   }
   valid = false;
+  return objectID;
 }
 
-
-void RenderGraph::addResourceTransition(const std::string& opName, const std::string& entryName, const std::string& externalMemoryObjectName)
+uint32_t RenderGraph::addResourceTransition(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
 {
-  auto op = std::find_if(begin(operations), end(operations), [&opName](const RenderOperation& opx) { return opx.name == opName; });
-  CHECK_LOG_THROW(op == end(operations), "RenderGraph : generating operation not defined : " << opName);
+  return addResourceTransition({ opName, entryName }, suggestedObjectID, externalMemoryObjectName, externalLayout);
+}
 
-  auto entry = op->entries.find(entryName);
-  CHECK_LOG_THROW(entry == end(op->entries), "RenderGraph : operation " << opName << " does not have entry named : " << entryName);
+uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& tren, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
+{
+  auto op = std::find_if(begin(operations), end(operations), [&tren](const RenderOperation& opx) { return opx.name == tren.first; });
+  CHECK_LOG_THROW(op == end(operations), "RenderGraph : generating operation not defined : " << tren.first);
+
+  auto entry = op->entries.find(tren.second);
+  CHECK_LOG_THROW(entry == end(op->entries), "RenderGraph : operation " << tren.first << " does not have entry named : " << tren.second);
 
   auto existingTransition = std::find_if(begin(transitions), end(transitions), [op, entry](const ResourceTransition& rt) { return (rt.operationIter() == op && rt.entryIter() == entry); });
+  uint32_t transitionID, objectID;
   if (existingTransition != end(transitions))
   {
-    LOG_WARNING << "RenderGraph : operation " << opName << " already has entry named : " << entryName << " connected to a transition. Overwriting externalMemoryObjectName" << std::endl;
-    existingTransition->setExternalMemoryObjectName(externalMemoryObjectName);
-    return;
+    // all transitions using the same output must have the same external resource defined
+    CHECK_LOG_THROW(existingTransition->externalMemoryObjectName() != externalMemoryObjectName, "RenderGraph : All transitions using " << tren.first << "->" << tren.second << " must have the same external resource : " << existingTransition->externalMemoryObjectName() << " != " << externalMemoryObjectName);
+    transitionID = existingTransition->tid();
+    objectID     = existingTransition->oid();
+    // if suggestedObjectID is provided, then it must be the same as the one that exists already - two different objects () cannot use the same generating entry
+    CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using entry " << tren.first << "->" << tren.second << " must have the same objectID");
   }
-  transitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), op, entry, externalMemoryObjectName));
+  else
+  {
+    transitionID = generateTransitionID();
+    objectID     = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
+  }
+  transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, op, entry, externalMemoryObjectName, externalLayout));
   valid = false;
+  return objectID;
 }
 
 void RenderGraph::addMissingResourceTransitions()
@@ -382,7 +452,7 @@ void RenderGraph::addMissingResourceTransitions()
     auto opTransitions = getOperationIO(opit->name, opeAllInputsOutputs);
     for (auto opeit = begin(opit->entries); opeit != end(opit->entries); ++opeit)
       if (std::none_of(begin(opTransitions), end(opTransitions), [&opeit](const ResourceTransition& tr) { return opeit->first == tr.entryName(); }))
-        emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), opit, opeit, std::string()));
+        emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), generateObjectID(), opit, opeit, std::string(), VK_IMAGE_LAYOUT_UNDEFINED));
     std::copy(begin(emptyTransitions), end(emptyTransitions), std::back_inserter(transitions));
   }
 }
@@ -443,6 +513,19 @@ std::reference_wrapper<const ResourceTransition> RenderGraph::getTransition(uint
   return *it;
 }
 
+std::vector<std::reference_wrapper<const ResourceTransition>> RenderGraph::getObjectIO(uint32_t objectID, OperationEntryTypeFlags entryTypes) const
+{
+  std::vector<std::reference_wrapper<const ResourceTransition>> results;
+  std::copy_if(begin(transitions), end(transitions), std::back_inserter(results),
+    [objectID, entryTypes](const ResourceTransition& c)->bool { return c.oid() == objectID && (c.entry().entryType & entryTypes); });
+  return results;
+}
+
+uint32_t RenderGraph::generateTransitionEntryID()
+{
+  auto result = nextTransitionEntryID++;
+  return result;
+}
 
 uint32_t RenderGraph::generateTransitionID()
 {
@@ -450,9 +533,9 @@ uint32_t RenderGraph::generateTransitionID()
   return result;
 }
 
-uint32_t RenderGraph::generateTransitionEntryID()
+uint32_t RenderGraph::generateObjectID()
 {
-  auto result = nextTransitionEntryID++;
+  auto result = nextObjectID++;
   return result;
 }
 
@@ -466,12 +549,22 @@ ResourceDefinition SWAPCHAIN_DEFINITION(VkFormat format, uint32_t arrayLayers)
 
 RenderOperationSet getInitialOperations(const RenderGraph& renderGraph)
 {
-  // operation is initial when there are no input resources
+  // operation is initial when there are no input resources, or input resources do not have outputs that created them
   RenderOperationSet initialOperations;
   for (const auto& it : renderGraph.getOperations())
   {
     auto inTransitions = renderGraph.getOperationIO(it.name, opeAllInputs);
     if(inTransitions.empty())
+      initialOperations.insert(it);
+    bool existingOutputs = false;
+    for (auto& inTransition : inTransitions)
+    {
+      auto outTransitions = renderGraph.getTransitionIO(inTransition.get().tid(), opeAllOutputs);
+      existingOutputs = !outTransitions.empty();
+      if(existingOutputs)
+        break;
+    }
+    if(!existingOutputs)
       initialOperations.insert(it);
   }
   return initialOperations;
@@ -479,12 +572,22 @@ RenderOperationSet getInitialOperations(const RenderGraph& renderGraph)
 
 RenderOperationSet getFinalOperations(const RenderGraph& renderGraph)
 {
-  // operation is final when there are no output resources
+  // operation is final when there are no output resources, or output resources do not have inputs that consume them
   RenderOperationSet finalOperations;
   for (const auto& it : renderGraph.getOperations())
   {
     auto outTransitions = renderGraph.getOperationIO(it.name, opeAllOutputs);
     if (outTransitions.empty())
+      finalOperations.insert(it);
+    bool existingInputs = false;
+    for (auto& outTransition : outTransitions)
+    {
+      auto inTransitions = renderGraph.getTransitionIO(outTransition.get().tid(), opeAllInputs);
+      existingInputs = !inTransitions.empty();
+      if (existingInputs)
+        break;
+    }
+    if (!existingInputs)
       finalOperations.insert(it);
   }
   return finalOperations;

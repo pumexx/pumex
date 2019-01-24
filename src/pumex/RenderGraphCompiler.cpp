@@ -44,8 +44,11 @@ std::shared_ptr<RenderGraphExecutable> DefaultRenderGraphCompiler::compile(const
   // build render commands and render passes
   buildCommandSequences(renderGraph, operationSchedule, executable);
   
-  // build information about all images used in a graph, find aliased attachments
+  // build information about all images and buffers used in a graph, find aliased resources
   buildImageInfo(renderGraph, partialOrdering, executable);
+
+  // build image views and buffer views
+  buildObjectViewInfo(renderGraph, executable);
 
   // Build framebuffer for each render pass
   // TODO : specification is not clear what compatible render passes are. Neither are debug layers. One day I will decrease the number of frame buffers
@@ -72,17 +75,22 @@ std::vector<std::reference_wrapper<const RenderOperation>> DefaultRenderGraphCom
     {
       // if operation has no inputs, or all inputs are on existingResources then operation may be added to partial ordering
       auto inTransitions = renderGraph.getOperationIO(operation.get().name, opeAllInputs);
-      uint32_t notVisitedInputCount = std::count_if(begin(inTransitions), end(inTransitions),
-        [&visitedTransitions](const ResourceTransition& transition) { return visitedTransitions.find(transition.tid()) == end(visitedTransitions); });
+      uint32_t notVisitedInputCount = 0;
+      for (auto& inTransition : inTransitions)
+      {
+        auto outTransitions = renderGraph.getTransitionIO(inTransition.get().tid(), opeAllOutputs);
+        notVisitedInputCount += std::count_if(begin(outTransitions), end(outTransitions),
+          [&visitedTransitions](const ResourceTransition& transition) { return visitedTransitions.find(transition.rteid()) == end(visitedTransitions); });
+      }
       if (notVisitedInputCount == 0)
       {
         // operation is performed - add it to partial ordering
         partialOrdering.push_back(operation);
         doneOperations.insert(operation);
-        // mark output resources as existing
+        // mark output transitions as visited
         auto outTransitions = renderGraph.getOperationIO(operation.get().name, opeAllOutputs);
-        for (auto outTransition : outTransitions)
-          visitedTransitions.insert(outTransition.get().tid());
+        for (auto& outTransition : outTransitions)
+          visitedTransitions.insert(outTransition.get().rteid());
         // add next operations to nextOperations2
         auto follow = getNextOperations(renderGraph, operation.get().name);
         std::copy(begin(follow), end(follow), std::inserter(nextOperations2, end(nextOperations2)));
@@ -336,7 +344,6 @@ std::vector<uint32_t> recursiveLongestPath(const std::vector<std::pair<uint32_t,
   if (vertices.empty())
     return std::vector<uint32_t>();
 
-
   std::vector<std::vector<uint32_t>> results;
   for (const auto& x : vertices)
   {
@@ -364,16 +371,16 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
   std::map<uint32_t, RenderGraphImageInfo>     imageInfo;
   std::map<std::string, uint32_t>              operationIndices;
   uint32_t operationIndex = 1;
-  for( auto& op : partialOrdering )
+  for (auto& op : partialOrdering)
   {
     operationIndices.insert({ op.get().name, operationIndex });
     // operations are ordered. Create vector with all sorted image transitions ( input transitions before output transitions )
-    auto opTransitions  = renderGraph.getOperationIO(op.get().name, opeAllAttachmentInputs | opeImageInput);
+    auto opTransitions = renderGraph.getOperationIO(op.get().name, opeAllAttachmentInputs | opeImageInput);
     auto outTransitions = renderGraph.getOperationIO(op.get().name, opeAllAttachmentOutputs | opeImageOutput);
     std::copy(begin(outTransitions), end(outTransitions), std::back_inserter(opTransitions));
     for (auto transition : opTransitions)
     {
-      auto it = imageInfo.find(transition.get().tid());
+      auto it = imageInfo.find(transition.get().oid());
       if (it == end(imageInfo)) // if image is not in the imageInfo already - add it to vector, save its initial layout, guess layout before graph
       {
         RenderGraphImageInfo newInfo(
@@ -381,15 +388,14 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
           transition.get().externalMemoryObjectName(),
           getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage,
           transition.get().entry().imageCreate,
-          transition.get().entry().imageViewType,
           transition.get().entryName() == SWAPCHAIN_NAME,
           transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL);
-        it = imageInfo.insert({ transition.get().tid(), newInfo }).first;
+        it = imageInfo.insert({ transition.get().oid(), newInfo }).first;
       }
       else // accumulate image usage
       {
         it->second.imageCreate |= transition.get().entry().imageCreate;
-        it->second.imageUsage  |= getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage;
+        it->second.imageUsage |= getAttachmentUsage(transition.get().entry().layout) | transition.get().entry().imageUsage;
       }
     }
     operationIndex++;
@@ -407,9 +413,9 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     // - a swapchain
     // - an external image
     // - when attachment is different on a second image
-    if( followingImage.second.isSwapchainImage || !followingImage.second.externalMemoryImageName.empty() )
+    if (followingImage.second.isSwapchainImage || !followingImage.second.externalMemoryImageName.empty())
       continue;
-    auto allGeneratingTransitions = renderGraph.getTransitionIO(followingImage.first, opeAllOutputs);
+    auto allGeneratingTransitions = renderGraph.getObjectIO(followingImage.first, opeAllOutputs);
 
     RenderOperationSet allPreviousOperations;
     for (const auto& generatingTransition : allGeneratingTransitions)
@@ -420,10 +426,10 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
 
     for (const auto& precedingImage : imageInfo)
     {
-      if (precedingImage.first == followingImage.first || precedingImage.second.isSwapchainImage || !precedingImage.second.externalMemoryImageName.empty() || precedingImage.second.attachmentDefinition != followingImage.second.attachmentDefinition )
+      if (precedingImage.first == followingImage.first || precedingImage.second.isSwapchainImage || !precedingImage.second.externalMemoryImageName.empty() || precedingImage.second.attachmentDefinition != followingImage.second.attachmentDefinition)
         continue;
       // if all transitions are reachable from followingImage
-      auto transitions = renderGraph.getTransitionIO(precedingImage.first, opeAllInputsOutputs);
+      auto transitions = renderGraph.getObjectIO(precedingImage.first, opeAllInputsOutputs);
       if (std::all_of(begin(transitions), end(transitions), [&allPreviousOperations](const ResourceTransition& tr) { return allPreviousOperations.find(tr.operation()) != end(allPreviousOperations);  }))
         potentialAliases.push_back({ precedingImage.first, followingImage.first });
     }
@@ -454,103 +460,31 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     else break; // there are no more aliases
   }
   // add null aliases for all transitions that have no alias ( including buffers - buffers cannot be aliased, but maybe one day, who knows... )
-  for (const auto& transition : renderGraph.getTransitions() )
+  for (const auto& transition : renderGraph.getTransitions())
   {
-    auto it = imageAliases.find(transition.tid());
+    auto it = imageAliases.find(transition.oid());
     if (it == end(imageAliases))
-      imageAliases.insert({ transition.tid(), transition.tid() });
+      imageAliases.insert({ transition.oid(), transition.oid() });
   }
 
-  // Attachment will be created only when it aliases itself. Other attachments only alias existing ones
-  executable->memoryObjectAliases = imageAliases;
-  std::copy_if(begin(imageInfo), end(imageInfo), std::inserter(executable->imageInfo, end(executable->imageInfo)), [&imageAliases](const std::pair<uint32_t, RenderGraphImageInfo>& p0)
-    { return std::count_if(begin(imageAliases), end(imageAliases), [&p0](const std::pair<uint32_t, uint32_t>& p1)
-      { return p0.first == p1.second && p1.first != p1.second; }) == 0; });
   executable->operationIndices = operationIndices;
+  // Attachment will be created only when it aliases itself. Other attachments only alias existing ones
+  std::copy_if(begin(imageInfo), end(imageInfo), std::inserter(executable->imageInfo, end(executable->imageInfo)), [&imageAliases](const std::pair<uint32_t, RenderGraphImageInfo>& p0)
+  { return std::count_if(begin(imageAliases), end(imageAliases), [&p0](const std::pair<uint32_t, uint32_t>& p1)
+  { return p0.first == p1.second && p1.first != p1.second; }) == 0; });
+  executable->memoryObjectAliases = imageAliases;
 
+  // build memoryImages
   for (const auto& image : executable->imageInfo)
   {
-    if (!image.second.externalMemoryImageName.empty()) // set only the internal images. External images should be set already
+    if (!image.second.externalMemoryImageName.empty()) // set only the internal images. External images should be set by user
       continue;
     auto imageType = vulkanImageTypeFromImageSize(image.second.attachmentDefinition.attachmentSize);
     ImageTraits imageTraits(image.second.attachmentDefinition.format, image.second.attachmentDefinition.attachmentSize, image.second.imageUsage, false, VK_IMAGE_LAYOUT_UNDEFINED, 0, imageType, VK_SHARING_MODE_EXCLUSIVE);
     SwapChainImageBehaviour scib = (image.second.isSwapchainImage) ? swForEachImage : swOnce;
     VkImageAspectFlags aspectMask = getAspectMask(image.second.attachmentDefinition.attachmentType);
-    auto imageIt = executable->memoryImages.insert({ image.first, std::make_shared<MemoryImage>(imageTraits, executable->frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) }).first;
+    executable->memoryImages.insert({ image.first, std::make_shared<MemoryImage>(imageTraits, executable->frameBufferAllocator, aspectMask, pbPerSurface, scib, false, false) });
   }
-
-  // collect layouts and stuff
-  std::vector<RenderGraphImageViewInfo> imageViewInfo;
-  std::set<uint32_t> usedRteid;
-  for (auto& op : partialOrdering)
-  {
-    auto operationIndex = operationIndices.at(op.get().name);
-    auto opTransitions = renderGraph.getOperationIO(op.get().name, opeAllAttachmentInputs | opeImageInput);
-    auto outTransitions = renderGraph.getOperationIO(op.get().name, opeAllAttachmentOutputs | opeImageOutput);
-    std::copy(begin(outTransitions), end(outTransitions), std::back_inserter(opTransitions));
-
-    for (auto& transition : opTransitions)
-    {
-      if (usedRteid.find(transition.get().rteid()) != end(usedRteid))
-        continue;
-      usedRteid.insert(transition.get().rteid());
-      auto aliasIt = executable->memoryObjectAliases.find(transition.get().tid());
-      if (aliasIt == end(executable->memoryObjectAliases))
-        continue;
-      uint32_t objectID = aliasIt->second;
-      auto iiit = executable->imageInfo.find(objectID);
-      if (iiit == end(executable->imageInfo))
-        continue;
-      RenderGraphImageViewInfo newInfo(transition.get().rteid(), transition.get().tid(), objectID, operationIndex, transition.get().entry().imageRange);
-
-      newInfo.layouts.resize(operationIndex, transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL);
-      newInfo.layouts.push_back(transition.get().entry().layout);
-      newInfo.operationParticipants.resize(operationIndex, 0);
-      newInfo.operationParticipants.push_back(transition.get().tid());
-
-      imageViewInfo.push_back(newInfo);
-    }
-    // fill up values for not used transitions
-    for (auto& ivInfo : imageViewInfo)
-    {
-      VkImageLayout lastLayout = ivInfo.layouts.back();
-      ivInfo.layouts.resize(operationIndex + 1, lastLayout);
-      ivInfo.operationParticipants.resize(operationIndex + 1, 0);
-    }
-  }
-  // we will add additional layout to image info - the same as te last one for all images except for swapchain image - this one gets VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-  for (auto& ivInfo : imageViewInfo)
-  {
-    VkImageLayout lastLayout = executable->imageInfo[ivInfo.oid].isSwapchainImage ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : ivInfo.layouts.back();
-    ivInfo.layouts.push_back(lastLayout);
-    ivInfo.operationParticipants.push_back(0);
-  }
-  executable->imageViewInfo = imageViewInfo;
-
-  // collect buffer view info
-  std::vector<RenderGraphBufferViewInfo> bufferViewInfo;
-  for (auto& op : partialOrdering)
-  {
-    auto operationIndex = operationIndices.at(op.get().name);
-    auto opTransitions = renderGraph.getOperationIO(op.get().name, opeBufferInput);
-    auto outTransitions = renderGraph.getOperationIO(op.get().name, opeBufferOutput);
-    std::copy(begin(outTransitions), end(outTransitions), std::back_inserter(opTransitions));
-
-    for (auto& transition : opTransitions)
-    {
-      if (usedRteid.find(transition.get().rteid()) != end(usedRteid))
-        continue;
-      usedRteid.insert(transition.get().rteid());
-      auto aliasIt = executable->memoryObjectAliases.find(transition.get().tid());
-      if (aliasIt == end(executable->memoryObjectAliases))
-        continue;
-      uint32_t objectID = aliasIt->second;
-      RenderGraphBufferViewInfo newInfo(transition.get().rteid(), transition.get().tid(), objectID, operationIndex, transition.get().entry().bufferRange);
-      bufferViewInfo.push_back(newInfo);
-    }
-  }
-  executable->bufferViewInfo = bufferViewInfo;
-
 
   LOG_INFO << "ImageInfo:\n";
   LOG_INFO << "objectID, externalMemoryImageName, attachmentType, format, size type, x, y, z, arrayLayers, mipLevels, samples\n";
@@ -559,25 +493,160 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
     LOG_INFO << image.first << ", " << (image.second.externalMemoryImageName.empty() ? std::string("<internal>") : image.second.externalMemoryImageName) << ", " << image.second.attachmentDefinition.attachmentType << ", " << image.second.attachmentDefinition.format << ", " << image.second.attachmentDefinition.attachmentSize.type << ", " << image.second.attachmentDefinition.attachmentSize.size.x << ", " << image.second.attachmentDefinition.attachmentSize.size.y << ", " << image.second.attachmentDefinition.attachmentSize.size.z;
     LOG_INFO << ", " << image.second.attachmentDefinition.attachmentSize.arrayLayers << ", " << image.second.attachmentDefinition.attachmentSize.mipLevels << ", " << image.second.attachmentDefinition.attachmentSize.samples << "\n";
   }
+}
 
-  LOG_INFO << "\nImageViewInfo :\n";
-  LOG_INFO << "rteid, tid, oid, opidx, imageRange, _before, ";
-  for (unsigned int i = 1; i <= operationIndices.size(); ++i)
+void DefaultRenderGraphCompiler::buildObjectViewInfo(const RenderGraph& renderGraph, std::shared_ptr<RenderGraphExecutable> executable)
+{
+  // build image view info, collect layouts and stuff
+  std::vector<RenderGraphImageViewInfo>    imageViewInfo;
+  std::map<uint32_t, std::size_t>          imageViewInfoByRteID;
+  for (int j = 0; j < executable->commands.size(); ++j)
   {
-    auto oit = std::find_if(begin(operationIndices), end(operationIndices), [i](const std::pair<std::string, uint32_t>& p) { return p.second == i; });
+    for (uint32_t i = 0; i < executable->commands[j].size(); ++i)
+    {
+      auto renderCommand  = executable->commands[j][i];
+      auto operationIndex = executable->operationIndices.at(renderCommand->operation.name);
+      auto opTransitions  = renderGraph.getOperationIO(renderCommand->operation.name, opeAllAttachmentInputs | opeImageInput);
+      auto outTransitions = renderGraph.getOperationIO(renderCommand->operation.name, opeAllAttachmentOutputs | opeImageOutput);
+      std::copy(begin(outTransitions), end(outTransitions), std::back_inserter(opTransitions));
+
+      for (auto& transition : opTransitions)
+      {
+        auto aliasIt = executable->memoryObjectAliases.find(transition.get().oid());
+        if (aliasIt == end(executable->memoryObjectAliases))
+          continue;
+        uint32_t objectID = aliasIt->second;
+        // find memory image ( skip buffers )
+        auto miit = executable->memoryImages.find(objectID);
+        if (miit == end(executable->memoryImages))
+          continue;
+        auto imageRange = transition.get().entry().imageRange;
+        VkImageViewType imageViewType;
+        if (transition.get().entry().imageViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM)
+          imageViewType = transition.get().entry().imageViewType;
+        else
+          imageViewType = (transition.get().entry().resourceDefinition.attachment.attachmentSize.arrayLayers > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+
+        auto existingImageViewInfo = std::find_if(begin(imageViewInfo), end(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivInfo) { return ivInfo.oid == objectID && ivInfo.imageView->subresourceRange == imageRange; });
+        if (existingImageViewInfo == end(imageViewInfo))
+        {
+          auto imageView = std::make_shared<ImageView>(miit->second, imageRange, imageViewType);
+          RenderGraphImageViewInfo newInfo(transition.get().tid(), objectID, operationIndex, imageView);
+            newInfo.layouts.resize(operationIndex, transition.get().externalMemoryObjectName().empty() ? VK_IMAGE_LAYOUT_UNDEFINED : transition.get().externalLayout());
+            newInfo.layouts.resize(executable->operationIndices.size()+2, transition.get().entry().layout);
+            newInfo.operationParticipants.resize(executable->operationIndices.size() + 2, 0);
+            newInfo.operationParticipants[operationIndex] = transition.get().tid();
+            imageViewInfoByRteID.insert({ transition.get().rteid(), imageViewInfo.size() });
+          imageViewInfo.push_back(newInfo);
+
+          renderCommand->imageViews.insert({ transition.get().rteid(), imageView });
+        }
+        else
+        {
+          for (uint32_t i = operationIndex; i < executable->operationIndices.size() + 2; ++i)
+          {
+            if (existingImageViewInfo->operationParticipants[i] != 0)
+              break;
+            existingImageViewInfo->layouts[i] = transition.get().entry().layout;
+          }
+          existingImageViewInfo->operationParticipants[operationIndex] = transition.get().tid();
+
+          std::size_t index = std::distance(begin(imageViewInfo), existingImageViewInfo);
+          imageViewInfoByRteID.insert({ transition.get().rteid(), index });
+          renderCommand->imageViews.insert({ transition.get().rteid(), existingImageViewInfo->imageView });
+        }
+      }
+    }
+  }
+  // establish the last layout
+  std::set<uint32_t> usedIndex;
+  for (auto& idx : imageViewInfoByRteID)
+  {
+    if (usedIndex.find(idx.second) != end(usedIndex))
+      continue;
+    usedIndex.insert(idx.second);
+    auto& ivInfo = imageViewInfo[idx.second];
+    auto transition = renderGraph.getTransition(idx.first);
+    VkImageLayout lastLayout;
+    if (!transition.get().externalMemoryObjectName().empty())
+      lastLayout = transition.get().externalLayout(); // for external objects - last layout is defined by transition.externalLayout()
+    else if (executable->imageInfo[ivInfo.oid].isSwapchainImage)
+      lastLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // for swapchain image - last layout should be set to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    else
+      lastLayout = ivInfo.layouts.back(); // for regular objects - last layout does not change
+    ivInfo.layouts[executable->operationIndices.size()+1]                 = lastLayout;
+    ivInfo.operationParticipants[executable->operationIndices.size() + 1] = 0;
+  }
+  executable->imageViewInfo        = imageViewInfo;
+  executable->imageViewInfoByRteID = imageViewInfoByRteID;
+
+  // collect buffer view info
+  std::vector<RenderGraphBufferViewInfo>   bufferViewInfo;
+  std::map<uint32_t, std::size_t>          bufferViewInfoByRteID;
+  std::vector<std::shared_ptr<BufferView>> allCreatedBufferViews;
+  for (int j = 0; j < executable->commands.size(); ++j)
+  {
+    for (uint32_t i = 0; i < executable->commands[j].size(); ++i)
+    {
+      auto renderCommand  = executable->commands[j][i];
+      auto operationIndex = executable->operationIndices.at(renderCommand->operation.name);
+      auto opTransitions  = renderGraph.getOperationIO(renderCommand->operation.name, opeBufferInput);
+      auto outTransitions = renderGraph.getOperationIO(renderCommand->operation.name, opeBufferOutput);
+      std::copy(begin(outTransitions), end(outTransitions), std::back_inserter(opTransitions));
+
+      for (auto& transition : opTransitions)
+      {
+        auto aliasIt = executable->memoryObjectAliases.find(transition.get().oid());
+        if (aliasIt == end(executable->memoryObjectAliases))
+          continue;
+        uint32_t objectID = aliasIt->second;
+        // find memory image ( skip buffers )
+        auto miit = executable->memoryBuffers.find(objectID);
+        if (miit == end(executable->memoryBuffers))
+          continue;
+
+        auto bufferRange = transition.get().entry().bufferRange;
+        auto existingBufferViewInfo = std::find_if(begin(bufferViewInfo), end(bufferViewInfo), [objectID, &bufferRange](const RenderGraphBufferViewInfo& bvInfo) { return bvInfo.oid == objectID && bvInfo.bufferRange == bufferRange; });
+        if (existingBufferViewInfo == end(bufferViewInfo))
+        {
+          RenderGraphBufferViewInfo newInfo(transition.get().tid(), objectID, operationIndex, transition.get().entry().bufferRange);
+          bufferViewInfoByRteID.insert({ transition.get().rteid(), bufferViewInfo.size() });
+          bufferViewInfo.push_back(newInfo);
+
+          auto bufferView = std::make_shared<BufferView>(miit->second, bufferRange, transition.get().entry().bufferFormat);
+          allCreatedBufferViews.push_back(bufferView);
+          renderCommand->bufferViews.insert({ transition.get().rteid(), bufferView });
+        }
+        else
+        {
+          std::size_t index = std::distance(begin(bufferViewInfo), existingBufferViewInfo);
+          bufferViewInfoByRteID.insert({ transition.get().rteid(), index });
+          renderCommand->bufferViews.insert({ transition.get().rteid(), allCreatedBufferViews.at(index) });
+        }
+      }
+    }
+  }
+  executable->bufferViewInfo        = bufferViewInfo;
+  executable->bufferViewInfoByRteID = bufferViewInfoByRteID;
+
+  LOG_INFO << "\nImageViewInfo :\ntid, oid, opidx, imageRange, _before, ";
+  for (unsigned int i = 1; i <= executable->operationIndices.size(); ++i)
+  {
+    auto oit = std::find_if(begin(executable->operationIndices), end(executable->operationIndices), [i](const std::pair<std::string, uint32_t>& p) { return p.second == i; });
     LOG_INFO << oit->first << ", ";
   }
   LOG_INFO << "_after, , _before, ";
-  for (unsigned int i = 1; i <= operationIndices.size(); ++i)
+  for (unsigned int i = 1; i <= executable->operationIndices.size(); ++i)
   {
-    auto oit = std::find_if(begin(operationIndices), end(operationIndices), [i](const std::pair<std::string, uint32_t>& p) { return p.second == i; });
+    auto oit = std::find_if(begin(executable->operationIndices), end(executable->operationIndices), [i](const std::pair<std::string, uint32_t>& p) { return p.second == i; });
     LOG_INFO << oit->first << ", ";
   }
   LOG_INFO << "_after \n";
-  for (auto& ivInfo : executable->imageViewInfo)
+  for (const auto& ivInfo : executable->imageViewInfo)
   {
-    LOG_INFO << ivInfo.rteid << "," << ivInfo.tid << "," << ivInfo.oid << "," << ivInfo.opidx <<",";
-    LOG_INFO << ivInfo.imageRange.aspectMask <<"_("<< ivInfo.imageRange.baseMipLevel << "_" << ivInfo.imageRange.levelCount << ")x(" << ivInfo.imageRange.baseArrayLayer<< "_" << ivInfo.imageRange.layerCount << "),";
+    const auto& imageRange = ivInfo.imageView->subresourceRange;
+    LOG_INFO << ivInfo.tid << "," << ivInfo.oid << "," << ivInfo.opidx <<",";
+    LOG_INFO << imageRange.aspectMask <<"_("<< imageRange.baseMipLevel << "_" << imageRange.levelCount << ")x(" << imageRange.baseArrayLayer<< "_" << imageRange.layerCount << "),";
     for (auto x : ivInfo.layouts)
       LOG_INFO << x << ",";
     LOG_INFO << ",";
@@ -588,55 +657,20 @@ void DefaultRenderGraphCompiler::buildImageInfo(const RenderGraph& renderGraph, 
   LOG_INFO << std::endl;
 
 /*********/
-  LOG_INFO << "\nBufferViewInfo :\n";
-  LOG_INFO << "rteid, tid, oid, opidx, bufferRange\n";
+  LOG_INFO << "\nBufferViewInfo :\ntid, oid, opidx, bufferRange\n";
   for (auto& bfInfo : executable->bufferViewInfo)
-    LOG_INFO << bfInfo.rteid << "," << bfInfo.tid << "," << bfInfo.oid << "," << bfInfo.opidx << "," << bfInfo.bufferRange.offset << "_" << bfInfo.bufferRange.range << "\n";
+    LOG_INFO << bfInfo.tid << "," << bfInfo.oid << "," << bfInfo.opidx << "," << bfInfo.bufferRange.offset << "_" << bfInfo.bufferRange.range << "\n";
   LOG_INFO << std::endl;
-
 }
 
 void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGraph& renderGraph, const std::vector<std::reference_wrapper<const RenderOperation>>& partialOrdering, std::shared_ptr<RenderGraphExecutable> executable)
 {
-  // build all image views - for render subpasses and compute subpasses, additionally create all render passes
+  // find all render passes
   std::vector<std::shared_ptr<RenderPass>> renderPasses;
   for (int j = 0; j<executable->commands.size(); ++j)
   {
     for (uint32_t i = 0; i<executable->commands[j].size(); ++i)
     {
-      auto renderCommand = executable->commands[j][i];
-      for (const auto& entry : renderCommand->entries)
-      {
-        auto transition = renderGraph.getTransition(entry.second);
-        // check if such transition exists
-        auto aliasIt = executable->memoryObjectAliases.find(transition.get().tid());
-        if (aliasIt == end(executable->memoryObjectAliases))
-          continue;
-        uint32_t objectID = aliasIt->second;
-        
-        const auto& opEntry = transition.get().entry();
-        // for images and attachments - create imageViews
-        if ((opEntry.entryType & (opeAllAttachments | opeAllImages)) != 0)
-        {
-          auto miit = executable->memoryImages.find(objectID);
-          CHECK_LOG_THROW(miit == end(executable->memoryImages), "Not all memory images have been supplied");
-          
-          VkImageViewType imageViewType;
-          if (transition.get().entry().imageViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM)
-            imageViewType = transition.get().entry().imageViewType;
-          else
-            imageViewType = (opEntry.resourceDefinition.attachment.attachmentSize.arrayLayers > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
-          renderCommand->imageViews.insert({ entry.second, std::make_shared<ImageView>(miit->second, opEntry.imageRange, imageViewType) });
-        }
-        else if (opEntry.bufferFormat != VK_FORMAT_UNDEFINED)// for buffers - add buffer views, but only if buffer format was defined, Only texel buffers use buffer views
-        {
-          auto miit = executable->memoryBuffers.find(objectID);
-          CHECK_LOG_THROW(miit == end(executable->memoryBuffers), "Not all memory buffers have been supplied");
-
-          renderCommand->bufferViews.insert({ entry.second, std::make_shared<BufferView>(miit->second, opEntry.bufferRange, opEntry.bufferFormat) });
-        }
-      }
-
       if (executable->commands[j][i]->commandType != RenderCommand::ctRenderSubPass)
         continue;
       auto subpass = std::dynamic_pointer_cast<RenderSubPass>(executable->commands[j][i]);
@@ -648,14 +682,22 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
     }
   }
 
-  // build framebuffers for each render pass
+  // build framebuffers and subpass attachments for each render pass
   for (auto& renderPass : renderPasses)
   {
     ImageSize frameBufferSize = renderPass->subPasses[0].lock()->operation.attachmentSize;
-    // ImageView, RenderGraphImageInfo
+
     std::vector<std::shared_ptr<ImageView>> frameBufferImageViews;
     std::vector<AttachmentDescription>      frameBufferAttachments;
+    std::vector<VkClearValue>               clearValues;
+    std::set<std::size_t>                   visitedImageViews;
 
+    auto firstOperationName  = renderPass->subPasses.front().lock()->operation.name;
+    auto lastOperationName   = renderPass->subPasses.back().lock()->operation.name;
+    auto firstOperationIndex = executable->operationIndices.at(firstOperationName);
+    auto lastOperationIndex  = executable->operationIndices.at(lastOperationName);
+
+    // build framebuffers for each render pass
     for (auto sb : renderPass->subPasses)
     {
       auto subpass = sb.lock();
@@ -665,46 +707,61 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
         // if it's not attachment entry - it should not be in a framebuffer
         if ((transition.get().entry().entryType  & opeAllAttachments) == 0)
           continue;
-        // find imageInfo
-        auto aliasIt = executable->memoryObjectAliases.find(transition.get().tid());
-        if (aliasIt == end(executable->memoryObjectAliases))
+
+        auto imageViewInfoIndex = executable->imageViewInfoByRteID.find(entry.second);
+        if (visitedImageViews.find(imageViewInfoIndex->second) != end(visitedImageViews))
           continue;
-        uint32_t objectID = aliasIt->second;
+        visitedImageViews.insert(imageViewInfoIndex->second);
+        const auto& ivInfo = executable->imageViewInfo[imageViewInfoIndex->second];
+        frameBufferImageViews.push_back(ivInfo.imageView);
 
-
-        auto vit = subpass->imageViews.find(entry.second);
-        CHECK_LOG_THROW(vit == end(subpass->imageViews), "FrameBuffer::FrameBuffer() : not all memory image views have been supplied : " << subpass->operation.name << "->"<< entry.first);
-        frameBufferImageViews.push_back(vit->second);
-
-        auto iiit = executable->imageInfo.find(objectID);
+        auto iiit                          = executable->imageInfo.find(ivInfo.oid);
         CHECK_LOG_THROW(iiit == end(executable->imageInfo), "FrameBuffer::FrameBuffer() : not all memory images have been supplied : " << subpass->operation.name << "->" << entry.first);
+        VkImageLayout initialLayout        = executable->getImageLayout(firstOperationName, ivInfo.oid, ivInfo.imageView->subresourceRange, -1);
+        VkImageLayout finalLayout          = executable->getImageLayout(lastOperationName, ivInfo.oid, ivInfo.imageView->subresourceRange, 0);
+
+        AttachmentType at                  = transition.get().entry().resourceDefinition.attachment.attachmentType;
+        bool colorDepthAttachment          = (at == atColor) || (at == atDepth) || (at == atDepthStencil);
+        bool stencilAttachment             = (at == atDepthStencil) || (at == atStencil);
+        bool stencilDepthAttachment        = (at == atDepth) || (at == atDepthStencil) || (at == atStencil);
+        VkAttachmentLoadOp loadOp          = colorDepthAttachment ? static_cast<VkAttachmentLoadOp>(transition.get().entry().loadOp.loadType) : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        VkAttachmentLoadOp stencilLoadOp   = stencilAttachment ? static_cast<VkAttachmentLoadOp>(transition.get().entry().loadOp.loadType) : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+        auto opParticipants                = executable->getOperationParticipants(ivInfo.oid, transition.get().entry().imageRange);
+        
+        bool usedAfterRenderPass           = std::find_if(begin(opParticipants) + lastOperationIndex + 1, end(opParticipants), [](const uint32_t& participant) { return participant != 0; }) != end(opParticipants);
+        bool isSwapchain                   = transition.get().entryName() == SWAPCHAIN_NAME;
+
+        VkAttachmentStoreOp storeOp        = colorDepthAttachment && ( usedAfterRenderPass || isSwapchain) ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        VkAttachmentStoreOp stencilStoreOp = stencilAttachment && ( usedAfterRenderPass || isSwapchain) ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
         frameBufferAttachments.push_back(AttachmentDescription(
-          entry.second,
+          ivInfo.oid,
+          transition.get().entry().imageRange,
           iiit->second.attachmentDefinition.format,
           makeSamples(iiit->second.attachmentDefinition.attachmentSize),
-          VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-          VK_ATTACHMENT_STORE_OP_DONT_CARE,
-          VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-          VK_ATTACHMENT_STORE_OP_DONT_CARE,
-          VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_UNDEFINED,
+          isSwapchain,
+          loadOp,
+          storeOp,
+          stencilLoadOp,
+          stencilStoreOp,
+          initialLayout,
+          finalLayout,
           0
         ));
+        if (stencilDepthAttachment)
+          clearValues.push_back( makeDepthStencilClearValue(transition.get().entry().loadOp.clearColor.x, transition.get().entry().loadOp.clearColor.y));
+        else
+          clearValues.push_back(makeColorClearValue(transition.get().entry().loadOp.clearColor));
       }
     }
     auto frameBuffer = std::make_shared<FrameBuffer>(frameBufferSize, renderPass, frameBufferImageViews);
     executable->frameBuffers.push_back(frameBuffer);
 
-    // build attachments, clear values and image layouts
-    std::vector<char>                  initialLayoutsInitialized(frameBufferAttachments.size(), false);
-    std::vector<VkClearValue>          clearValues(frameBufferAttachments.size(), makeColorClearValue(glm::vec4(0.0f)));
-    std::vector<char>                  clearValuesInitialized(frameBufferAttachments.size(), false);
-
-    // find all information about attachments and clear values
+    // build subpass attachments
     for (auto& sb : renderPass->subPasses)
     {
       auto subPass            = sb.lock();
-      bool lastSubpass        = ((subPass->subpassIndex + 1) == renderPass->subPasses.size());
       auto transitions        = renderGraph.getOperationIO(subPass->operation.name, opeAllAttachments | opeAllImages);
       auto resolveTransitions = renderGraph.getOperationIO(subPass->operation.name, opeAttachmentResolveOutput);
 
@@ -712,50 +769,17 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
       AttachmentReference              dsa{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
       std::set<uint32_t>               attachmentUsed;
 
-      // fill attachment information with render subpass specifics ( initial layout, final layout, load op, clear values )
+      // fill attachment information
       for (const auto& transition : transitions)
       {
-        auto attit = std::find_if(begin(frameBufferAttachments), end(frameBufferAttachments), [&transition](const AttachmentDescription& ad) { return transition.get().rteid() == ad.imageDefinitionIndex; });
+        uint32_t objectID = executable->memoryObjectAliases.at(transition.get().oid());
+        auto imageRange = transition.get().entry().imageRange;
+
+        auto attit = std::find_if(begin(frameBufferAttachments), end(frameBufferAttachments), [objectID, &imageRange](const AttachmentDescription& ad) { return ad.objectID == objectID && ad.imageRange == imageRange; });
         if (attit == end(frameBufferAttachments))
           continue;
         uint32_t attIndex = std::distance(begin(frameBufferAttachments), attit);
         attachmentUsed.insert(attIndex);
-        uint32_t objectID = executable->memoryObjectAliases.at(transition.get().tid());
-
-        if (!initialLayoutsInitialized[attIndex])
-        {
-          frameBufferAttachments[attIndex].initialLayout = executable->getImageLayout(subPass->operation.name, objectID, transition.get().entry().imageRange, -1);
-          initialLayoutsInitialized[attIndex] = true;
-        }
-        frameBufferAttachments[attIndex].finalLayout = executable->getImageLayout(subPass->operation.name, objectID, transition.get().entry().imageRange, 0);
-
-        AttachmentType at                      = transition.get().entry().resourceDefinition.attachment.attachmentType;
-        bool colorDepthAttachment              = (at == atColor) || (at == atDepth) || (at == atDepthStencil);
-        bool stencilAttachment                 = (at == atDepthStencil) || (at == atStencil);
-        bool stencilDepthAttachment            = (at == atDepth) || (at == atDepthStencil) || (at == atStencil);
-        if (frameBufferAttachments[attIndex].loadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-          frameBufferAttachments[attIndex].loadOp = colorDepthAttachment ? static_cast<VkAttachmentLoadOp>(transition.get().entry().loadOp.loadType) : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        if (frameBufferAttachments[attIndex].stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-          frameBufferAttachments[attIndex].stencilLoadOp = stencilAttachment ? static_cast<VkAttachmentLoadOp>(transition.get().entry().loadOp.loadType) : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-
-        if (!clearValuesInitialized[attIndex])
-        {
-          if (stencilDepthAttachment)
-            clearValues[attIndex] = makeDepthStencilClearValue(transition.get().entry().loadOp.clearColor.x, transition.get().entry().loadOp.clearColor.y);
-          else
-            clearValues[attIndex] = makeColorClearValue(transition.get().entry().loadOp.clearColor);
-          clearValuesInitialized[attIndex] = true;
-        }
-        auto opParticipants            = executable->getOperationParticipants(objectID, transition.get().entry().imageRange);
-        uint32_t operationIndex        = executable->operationIndices.at(subPass->operation.name);
-        bool usedLater                 = std::find(begin(opParticipants) + operationIndex + 1, end(opParticipants), transition.get().tid()) != end(opParticipants);
-        bool isSwapchain               = transition.get().entryName() == SWAPCHAIN_NAME;
-        bool needSave                  = ( transition.get().entry().entryType & opeAllOutputs ) != 0 && transition.get().entry().storeAttachment;
-        if (needSave || usedLater || isSwapchain)
-        {
-          if (colorDepthAttachment) frameBufferAttachments[attIndex].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-          if (stencilAttachment)    frameBufferAttachments[attIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-        }
 
         if(transition.get().entry().entryType == opeAttachmentInput)
           ia.push_back({ attIndex, transition.get().entry().layout });
@@ -765,7 +789,8 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
           auto it = std::find_if(begin(resolveTransitions), end(resolveTransitions), [&transition](const ResourceTransition& rt) -> bool { return rt.entry().resolveSourceEntryName == transition.get().entryName(); });
           if (it != end(resolveTransitions))
           {
-            auto attit = std::find_if(begin(frameBufferAttachments), end(frameBufferAttachments), [&it](const AttachmentDescription& ad) { return it->get().rteid() == ad.imageDefinitionIndex; });
+            uint32_t rObjectID = executable->memoryObjectAliases.at(it->get().oid());
+            auto attit = std::find_if(begin(frameBufferAttachments), end(frameBufferAttachments), [rObjectID](const AttachmentDescription& ad) { return ad.objectID == rObjectID; });
             if (attit != end(frameBufferAttachments))
               ra.push_back({ static_cast<uint32_t>(std::distance(begin(frameBufferAttachments), attit)), it->get().entry().layout });
             else
@@ -787,12 +812,10 @@ void DefaultRenderGraphCompiler::buildFrameBuffersAndRenderPasses(const RenderGr
         if (attachmentUsed.find(attIndex) != end(attachmentUsed))
           continue;
         // find all transitions using this attachment
-        auto transition     = renderGraph.getTransition(frameBufferAttachments[attIndex].imageDefinitionIndex);
-        uint32_t objectID   = executable->memoryObjectAliases.at(transition.get().tid());
-        auto opParticipants = executable->getOperationParticipants(objectID, transition.get().entry().imageRange);
-        bool usedBefore     = std::find(begin(opParticipants), begin(opParticipants) + operationIndex, transition.get().tid()) != (begin(opParticipants) + operationIndex);
-        bool usedLater      = std::find(begin(opParticipants) + operationIndex + 1, end(opParticipants), transition.get().tid()) != end(opParticipants);
-        bool isSwapchain    = transition.get().entryName() == SWAPCHAIN_NAME;
+        auto opParticipants = executable->getOperationParticipants(frameBufferAttachments[attIndex].objectID, frameBufferAttachments[attIndex].imageRange);
+        bool usedBefore     = std::find_if(begin(opParticipants), begin(opParticipants) + operationIndex, [](const uint32_t& participant) { return participant != 0; }) != (begin(opParticipants) + operationIndex);
+        bool usedLater      = std::find_if(begin(opParticipants) + operationIndex + 1, end(opParticipants), [](const uint32_t& participant) { return participant != 0; }) != end(opParticipants);
+        bool isSwapchain    = frameBufferAttachments[attIndex].isSwapchain;
         if(usedBefore && (usedLater || isSwapchain))
           pa.push_back(attIndex);
       }
@@ -914,18 +937,18 @@ void DefaultRenderGraphCompiler::buildPipelineBarriers(const RenderGraph& render
       LOG_INFO << "Operation: " << comm->operation.name << "\n";
       for (auto& barg : comm->barriersBeforeOp)
       {
-        LOG_INFO << "Barrier Group: " << barg.first.srcStageMask << ", " << barg.first.dstStageMask << ", " << barg.first.dependencyFlags << "\n";
+        LOG_INFO << "Barrier Group: 0x" << std::hex << barg.first.srcStageMask << ", 0x" << barg.first.dstStageMask << ", 0x" << barg.first.dependencyFlags << "\n";
         for (auto& bar : barg.second)
         {
           switch (bar.objectType)
           {
           case MemoryObject::moBuffer:
-            LOG_INFO << "Buffer barrier: (" << bar.bufferRange.offset << "_" << bar.bufferRange.range << "), ";
-            LOG_INFO << bar.srcAccessMask << ", " << bar.dstAccessMask << ", " << bar.srcQueueIndex << ", " << bar.dstQueueIndex << "\n";
+            LOG_INFO << "Buffer barrier: (" << std::dec << bar.bufferRange.offset << "_" << bar.bufferRange.range << "), 0x";
+            LOG_INFO << std::hex << bar.srcAccessMask << ", 0x" << bar.dstAccessMask << ", " << std::dec << bar.srcQueueIndex << ", " << bar.dstQueueIndex << "\n";
             break;
           case MemoryObject::moImage:
-            LOG_INFO << "Image barrier: " << bar.imageRange.aspectMask << "_(" << bar.imageRange.baseMipLevel << "_" << bar.imageRange.levelCount << ")x(" << bar.imageRange.baseArrayLayer << "_" << bar.imageRange.layerCount << "), ";
-            LOG_INFO<< bar.srcAccessMask << ", " << bar.dstAccessMask << ", " << bar.srcQueueIndex << ", " << bar.dstQueueIndex << ", " << bar.oldLayout << ", " << bar.newLayout << "\n";
+            LOG_INFO << "Image barrier: 0x" << std::hex << bar.imageRange.aspectMask << "_(" << std::dec << bar.imageRange.baseMipLevel << "_" << bar.imageRange.levelCount << ")x(" << bar.imageRange.baseArrayLayer << "_" << bar.imageRange.layerCount << "), 0x";
+            LOG_INFO<< std::hex << bar.srcAccessMask << ", 0x" << bar.dstAccessMask << ", " << std::dec << bar.srcQueueIndex << ", " << bar.dstQueueIndex << ", " << bar.oldLayout << ", " << bar.newLayout << "\n";
             break;
           default:
             break;
@@ -954,7 +977,7 @@ void DefaultRenderGraphCompiler::buildPipelineBarriers(const RenderGraph& render
         LOG_INFO << sb.lock()->operation.name << ", ";
       LOG_INFO << "\nsrcSubpass, dstSubpass, srcStageMask, dstStageMask, srcAccessMask, dstAccessMask, dependencyFlags\n";
       for (auto& dep : renderPass->dependencies)
-        LOG_INFO << dep.srcSubpass << ", " << dep.dstSubpass << ", " << dep.srcStageMask << ", " << dep.dstStageMask << ", " << dep.srcAccessMask << ", " << dep.dstAccessMask << ", " << dep.dependencyFlags << "\n";
+        LOG_INFO << dep.srcSubpass << ", " << dep.dstSubpass << ", 0x" << std::hex << dep.srcStageMask << ", 0x" << dep.dstStageMask << ", 0x" << dep.srcAccessMask << ", 0x" << dep.dstAccessMask << ", 0x" << dep.dependencyFlags << std::dec <<"\n";
     }
   }
   LOG_INFO << std::endl;
@@ -1136,7 +1159,6 @@ void getPipelineStageMasks(const ResourceTransition& generatingTransition, const
   default: break;
   }
 
-
   switch (consumingTransition.entry().entryType)
   {
   case opeAttachmentInput:
@@ -1180,7 +1202,6 @@ void getPipelineStageMasks(const ResourceTransition& generatingTransition, const
     break;
   default: break;
   }
-
 }
 
 void getAccessMasks(const ResourceTransition& generatingTransition, const ResourceTransition& consumingTransition, VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask)

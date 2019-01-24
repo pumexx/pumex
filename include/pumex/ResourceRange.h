@@ -22,6 +22,7 @@
 
 #pragma once
 #include <cmath>
+#include <vector>
 #include <vulkan/vulkan.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -68,12 +69,19 @@ struct PUMEX_EXPORT BufferSubresourceRange
   BufferSubresourceRange(VkDeviceSize offset, VkDeviceSize range);
 
   bool contains(const BufferSubresourceRange& subRange) const;
+  inline bool valid() const;
 
   VkDeviceSize offset;
   VkDeviceSize range;
 };
 
+inline bool operator==(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs);
+inline bool operator<(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs);
+
+PUMEX_EXPORT bool anyRangeOverlaps(const std::vector<BufferSubresourceRange>& ranges);
 PUMEX_EXPORT bool rangeOverlaps(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs);
+PUMEX_EXPORT BufferSubresourceRange mergeRanges(const std::vector<BufferSubresourceRange>& ranges);
+PUMEX_EXPORT BufferSubresourceRange mergeRange(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs);
 
 // struct defining subresource range for image
 struct PUMEX_EXPORT ImageSubresourceRange
@@ -85,6 +93,7 @@ struct PUMEX_EXPORT ImageSubresourceRange
   VkImageSubresourceLayers getSubresourceLayers() const;
 
   bool contains(const ImageSubresourceRange& subRange) const;
+  inline bool valid() const;
 
   VkImageAspectFlags    aspectMask;
   uint32_t              baseMipLevel;
@@ -93,10 +102,15 @@ struct PUMEX_EXPORT ImageSubresourceRange
   uint32_t              layerCount;
 };
 
-inline bool compareRenderOperationSizeWithImageSize(const ImageSize& operationSize, const ImageSize& imageSize, const ImageSubresourceRange& imageRange );
+inline bool operator==(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
+inline bool operator<(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
 
-
+PUMEX_EXPORT bool anyRangeOverlaps(const std::vector<ImageSubresourceRange>& ranges);
 PUMEX_EXPORT bool rangeOverlaps(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
+PUMEX_EXPORT ImageSubresourceRange mergeRanges(const std::vector<ImageSubresourceRange>& ranges);
+PUMEX_EXPORT ImageSubresourceRange mergeRange(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs);
+
+inline bool compareRenderOperationSizeWithImageSize(const ImageSize& operationSize, const ImageSize& imageSize, const ImageSubresourceRange& imageRange);
 
 // inlines
 
@@ -108,6 +122,46 @@ bool operator==(const ImageSize& lhs, const ImageSize& rhs)
 bool operator!=(const ImageSize& lhs, const ImageSize& rhs)
 {
   return lhs.type != rhs.type || lhs.size != rhs.size || lhs.arrayLayers != rhs.arrayLayers || lhs.mipLevels != rhs.mipLevels;
+}
+
+bool BufferSubresourceRange::valid() const
+{
+  return range > 0;
+}
+
+bool operator==(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs)
+{
+  return (lhs.offset == rhs.offset) && (lhs.range == rhs.range);
+}
+
+bool operator<(const BufferSubresourceRange& lhs, const BufferSubresourceRange& rhs)
+{
+  if (lhs.offset != rhs.offset)
+    return lhs.offset < rhs.offset;
+  return lhs.range < rhs.range;
+}
+
+bool ImageSubresourceRange::valid() const
+{
+  return ( levelCount * layerCount ) > 0;
+}
+
+bool operator==(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs)
+{
+  return (lhs.aspectMask == rhs.aspectMask) && (lhs.baseMipLevel == rhs.baseMipLevel) && (lhs.levelCount == rhs.levelCount) && (lhs.baseArrayLayer == rhs.baseArrayLayer) && (lhs.layerCount == rhs.layerCount);
+}
+
+bool operator<(const ImageSubresourceRange& lhs, const ImageSubresourceRange& rhs)
+{
+  if ( lhs.aspectMask != rhs.aspectMask )
+    return lhs.aspectMask < rhs.aspectMask;
+  if ( lhs.baseMipLevel != rhs.baseMipLevel )
+    return lhs.baseMipLevel < rhs.baseMipLevel;
+  if (lhs.baseArrayLayer != rhs.baseArrayLayer)
+    return lhs.baseArrayLayer < rhs.baseArrayLayer;
+  if (lhs.levelCount != rhs.levelCount)
+    return lhs.levelCount < rhs.levelCount;
+  return lhs.layerCount < rhs.layerCount;
 }
 
 bool compareRenderOperationSizeWithImageSize(const ImageSize& operationSize, const ImageSize& imageSize, const ImageSubresourceRange& imageRange)

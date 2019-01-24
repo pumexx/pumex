@@ -308,12 +308,15 @@ int main( int argc, char * argv[] )
     pumex::ResourceDefinition resolveSamples(VK_FORMAT_R8G8B8A8_UNORM,   halfScreenSizeMultiSampled, pumex::atColor);
     pumex::ResourceDefinition color(VK_FORMAT_R8G8B8A8_UNORM,            halfScreenSize,             pumex::atColor);
 
+    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("multiview_render_graph");
+
     pumex::RenderOperation gbuffer("gbuffer", pumex::opGraphics, halfScreenSizeMultiSampled, 0x3U);
       gbuffer.addAttachmentOutput("position",   vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
       gbuffer.addAttachmentOutput("normals",    vec3Samples,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
       gbuffer.addAttachmentOutput("albedo",     colorSamples, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
       gbuffer.addAttachmentOutput("pbr",        colorSamples, pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
       gbuffer.setAttachmentDepthOutput("depth", depthSamples, pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 2));
+    renderGraph->addRenderOperation(gbuffer);
 
     pumex::RenderOperation lighting("lighting", pumex::opGraphics, halfScreenSizeMultiSampled, 0x3U);
       lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
@@ -323,21 +326,19 @@ int main( int argc, char * argv[] )
       lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 2));
       lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
       lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), 0, 0, false, "resolve" );
+    renderGraph->addRenderOperation(lighting);
+
+    renderGraph->addResourceTransition("gbuffer", "position", "lighting", "position");
+    renderGraph->addResourceTransition("gbuffer", "normals", "lighting", "normals");
+    renderGraph->addResourceTransition("gbuffer", "albedo", "lighting", "albedo");
+    renderGraph->addResourceTransition("gbuffer", "pbr", "lighting", "pbr");
+    renderGraph->addResourceTransition("gbuffer", "depth", "lighting", "depth");
 
     pumex::RenderOperation multiview("multiview", pumex::opGraphics, fullScreenSize, 0x0);
       multiview.addImageInput("color", color,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT);
       multiview.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpDontCare());
+    renderGraph->addRenderOperation(multiview);
 
-    std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("deferred_render_graph");
-      renderGraph->addRenderOperation(gbuffer);
-      renderGraph->addRenderOperation(lighting);
-      renderGraph->addRenderOperation(multiview);
-
-    renderGraph->addResourceTransition("gbuffer",  "position", "lighting",  "position" );
-    renderGraph->addResourceTransition("gbuffer",  "normals",  "lighting",  "normals");
-    renderGraph->addResourceTransition("gbuffer",  "albedo",   "lighting",  "albedo");
-    renderGraph->addResourceTransition("gbuffer",  "pbr",      "lighting",  "pbr");
-    renderGraph->addResourceTransition("gbuffer",  "depth",    "lighting",  "depth");
     renderGraph->addResourceTransition("lighting", "color",    "multiview", "color");
 
     std::shared_ptr<pumex::DeviceMemoryAllocator> buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("buffers", VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);

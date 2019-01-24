@@ -33,18 +33,18 @@ void ExternalMemoryObjects::addMemoryObject(const std::string& name, const Resou
   resourceDefinitions.insert({ name,resourceDefinition });
 }
 
-RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, VkImageCreateFlags ic, VkImageViewType ivt, bool iscim, VkImageLayout il)
-  : attachmentDefinition{ ad }, externalMemoryImageName{ im }, imageUsage{ iu }, imageCreate{ ic }, imageViewType{ ivt }, isSwapchainImage{ iscim }, initialLayout{ il }
+RenderGraphImageInfo::RenderGraphImageInfo(const AttachmentDefinition& ad, const std::string& im, VkImageUsageFlags iu, VkImageCreateFlags ic, bool iscim, VkImageLayout il)
+  : attachmentDefinition{ ad }, externalMemoryImageName{ im }, imageUsage{ iu }, imageCreate{ ic }, isSwapchainImage{ iscim }, initialLayout{ il }
 {
 }
 
-RenderGraphImageViewInfo::RenderGraphImageViewInfo(uint32_t ri, uint32_t ti, uint32_t oi, uint32_t op, const ImageSubresourceRange& ir)
-  : rteid{ ri }, tid{ ti }, oid{ oi }, opidx {op}, imageRange{ ir }
+RenderGraphImageViewInfo::RenderGraphImageViewInfo(uint32_t ti, uint32_t oi, uint32_t op, std::shared_ptr<ImageView> iv)
+  : tid{ ti }, oid{ oi }, opidx{ op }, imageView{ iv }
 {
 }
 
-RenderGraphBufferViewInfo::RenderGraphBufferViewInfo(uint32_t ri, uint32_t ti, uint32_t oi, uint32_t op, const BufferSubresourceRange& br)
-: rteid{ ri }, tid{ ti }, oid{ oi }, opidx{ op }, bufferRange{ br }
+RenderGraphBufferViewInfo::RenderGraphBufferViewInfo(uint32_t ti, uint32_t oi, uint32_t op, const BufferSubresourceRange& br)
+: tid{ ti }, oid{ oi }, opidx{ op }, bufferRange{ br }
 {
 }
 
@@ -81,7 +81,6 @@ void RenderGraphExecutable::resizeImages(const RenderContext& renderContext, std
   }
 }
 
-
 void RenderGraphExecutable::setExternalMemoryObjects(const RenderGraph& renderGraph, const ExternalMemoryObjects& memoryObjects)
 {
   // copy RenderGraph associated resources to RenderGraphResults registered resources
@@ -90,18 +89,18 @@ void RenderGraphExecutable::setExternalMemoryObjects(const RenderGraph& renderGr
     std::set<uint32_t> visitedIDs;
     for (const auto& transition : renderGraph.getTransitions())
     {
-      if (visitedIDs.find(transition.tid()) != end(visitedIDs))
+      if (visitedIDs.find(transition.oid()) != end(visitedIDs))
         continue;
       if (transition.externalMemoryObjectName() == mit.first)
       {
-        visitedIDs.insert(transition.tid());
+        visitedIDs.insert(transition.oid());
         switch (mit.second->getType())
         {
         case MemoryObject::moBuffer:
-          memoryBuffers.insert({ transition.tid(), std::dynamic_pointer_cast<MemoryBuffer>(mit.second) });
+          memoryBuffers.insert({ transition.oid(), std::dynamic_pointer_cast<MemoryBuffer>(mit.second) });
           break;
         case MemoryObject::moImage:
-          memoryImages.insert({ transition.tid(), std::dynamic_pointer_cast<MemoryImage>(mit.second) });
+          memoryImages.insert({ transition.oid(), std::dynamic_pointer_cast<MemoryImage>(mit.second) });
           break;
         default:
           break;
@@ -130,10 +129,10 @@ std::shared_ptr<MemoryBuffer> RenderGraphExecutable::getMemoryBuffer(const std::
         if (it == end(command->entries))
           return std::shared_ptr<MemoryBuffer>();
         uint32_t rteid = it->second;
-        auto it2 = std::find_if(begin(bufferViewInfo), end(bufferViewInfo), [rteid](const RenderGraphBufferViewInfo& bfInfo) { return bfInfo.rteid == rteid; });
-        if (it2 == end(bufferViewInfo))
+        auto it2 = bufferViewInfoByRteID.find(rteid);
+        if (it2 == end(bufferViewInfoByRteID))
           return std::shared_ptr<MemoryBuffer>();
-        return getMemoryBuffer(it2->tid);
+        return getMemoryBuffer(bufferViewInfo[it2->second].oid);
       }
   return std::shared_ptr<MemoryBuffer>();
 }
@@ -156,16 +155,15 @@ std::shared_ptr<BufferView> RenderGraphExecutable::getBufferView(const std::stri
   return std::shared_ptr<BufferView>();
 }
 
-std::shared_ptr<MemoryObject> RenderGraphExecutable::getMemoryObject(uint32_t transitionID) const
+std::shared_ptr<MemoryObject> RenderGraphExecutable::getMemoryObject(uint32_t objectID) const
 {
-  auto ait = memoryObjectAliases.find(transitionID);
+  auto ait = memoryObjectAliases.find(objectID);
   if (ait == end(memoryObjectAliases))
     return std::shared_ptr<MemoryObject>();
-  uint32_t objectID = ait->second;
-  auto itImage = memoryImages.find(objectID);
+  auto itImage = memoryImages.find(ait->second);
   if (itImage == end(memoryImages))
   {
-    auto itBuffer = memoryBuffers.find(objectID);
+    auto itBuffer = memoryBuffers.find(ait->second);
     if (itBuffer == end(memoryBuffers))
       return std::shared_ptr<MemoryObject>();
     return itBuffer->second;
@@ -173,9 +171,9 @@ std::shared_ptr<MemoryObject> RenderGraphExecutable::getMemoryObject(uint32_t tr
   return itImage->second;
 }
 
-std::shared_ptr<MemoryImage> RenderGraphExecutable::getMemoryImage(uint32_t transitionID) const
+std::shared_ptr<MemoryImage> RenderGraphExecutable::getMemoryImage(uint32_t objectID) const
 {
-  auto ait = memoryObjectAliases.find(transitionID);
+  auto ait = memoryObjectAliases.find(objectID);
   if (ait == end(memoryObjectAliases))
     return std::shared_ptr<MemoryImage>();
 
@@ -185,9 +183,9 @@ std::shared_ptr<MemoryImage> RenderGraphExecutable::getMemoryImage(uint32_t tran
   return mit->second;
 }
 
-std::shared_ptr<MemoryBuffer> RenderGraphExecutable::getMemoryBuffer(uint32_t transitionID) const
+std::shared_ptr<MemoryBuffer> RenderGraphExecutable::getMemoryBuffer(uint32_t objectID) const
 {
-  auto ait = memoryObjectAliases.find(transitionID);
+  auto ait = memoryObjectAliases.find(objectID);
   if (ait == end(memoryObjectAliases))
     return std::shared_ptr<MemoryBuffer>();
 
@@ -205,7 +203,7 @@ VkImageLayout RenderGraphExecutable::getImageLayout(uint32_t opidx, uint32_t obj
     return ivinfo.opidx > opidx; 
   });
   // find last operation that changed layout of this object in this imageRange ( reverse search )
-  auto rvit = std::find_if(std::make_reverse_iterator(vit), rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && (ivinfo.imageRange.contains(imageRange) || imageRange.contains(ivinfo.imageRange)) ; });
+  auto rvit = std::find_if(std::make_reverse_iterator(vit), rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && (ivinfo.imageView->subresourceRange.contains(imageRange) || imageRange.contains(ivinfo.imageView->subresourceRange)) ; });
   // if not found - find first layout of objectID ( undefined for internal attachments or general for external attachments ) ( forward search )
   if (rvit == rend(imageViewInfo))
   {
@@ -230,14 +228,14 @@ std::vector<VkImageLayout> RenderGraphExecutable::getImageLayouts(uint32_t objec
 {
   // all done in reverse search
   // find last use of object in that range - copy all layouts to results
-  auto rvit = std::find_if(rbegin(imageViewInfo), rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && (ivinfo.imageRange.contains(imageRange) || imageRange.contains(ivinfo.imageRange)); });
+  auto rvit = std::find_if(rbegin(imageViewInfo), rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && (ivinfo.imageView->subresourceRange.contains(imageRange) || imageRange.contains(ivinfo.imageView->subresourceRange)); });
   // security - what if that objectID is not used in imageViewInfo at all ?
   std::vector<VkImageLayout> results(operationIndices.size() + 2, VK_IMAGE_LAYOUT_UNDEFINED);
   if (rvit != rend(imageViewInfo))
     results = rvit->layouts;
   while (rvit != rend(imageViewInfo))
   {
-    rvit = std::find_if(rvit+1, rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && (ivinfo.imageRange.contains(imageRange) || imageRange.contains(ivinfo.imageRange)); });
+    rvit = std::find_if(rvit+1, rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && (ivinfo.imageView->subresourceRange.contains(imageRange) || imageRange.contains(ivinfo.imageView->subresourceRange)); });
     if (rvit != rend(imageViewInfo))
       std::copy(begin(rvit->layouts), begin(rvit->layouts) + rvit->opidx + 1, begin(results));
   }
@@ -248,14 +246,14 @@ std::vector<uint32_t> RenderGraphExecutable::getOperationParticipants(uint32_t o
 {
   // all done in reverse search
   // find last use of object in that range - copy all layouts to results
-  auto rvit = std::find_if(rbegin(imageViewInfo), rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && ivinfo.imageRange.contains(imageRange); });
+  auto rvit = std::find_if(rbegin(imageViewInfo), rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && ivinfo.imageView->subresourceRange.contains(imageRange); });
   // security - what if that objectID is not used in imageViewInfo at all ?
   std::vector<uint32_t> results(operationIndices.size() + 2, 0);
   if (rvit != rend(imageViewInfo))
     results = rvit->operationParticipants;
   while (rvit != rend(imageViewInfo))
   {
-    rvit = std::find_if(rvit + 1, rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && ivinfo.imageRange.contains(imageRange); });
+    rvit = std::find_if(rvit + 1, rend(imageViewInfo), [objectID, &imageRange](const RenderGraphImageViewInfo& ivinfo) { return ivinfo.oid == objectID && ivinfo.imageView->subresourceRange.contains(imageRange); });
     if (rvit != rend(imageViewInfo))
       std::copy(begin(rvit->operationParticipants), begin(rvit->operationParticipants) + rvit->opidx + 1, begin(results));
   }

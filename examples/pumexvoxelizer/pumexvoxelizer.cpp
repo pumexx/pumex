@@ -295,7 +295,7 @@ int main( int argc, char * argv[] )
     renderGraph->addRenderOperation(voxelization);
     renderGraph->addRenderOperation(rendering);
 
-    renderGraph->addResourceTransition("voxelization", "outVoxels", "rendering", "inVoxels", "voxels" );
+    renderGraph->addResourceTransition("voxelization", "outVoxels", "rendering", "inVoxels", 0, "voxels" );
 
     std::shared_ptr<VoxelizerApplicationData> applicationData = std::make_shared<VoxelizerApplicationData>(buffersAllocator, volumeAllocator, asset);
 

@@ -23,6 +23,7 @@
 #pragma once
 #include <vector>
 #include <set>
+#include <list>
 #include <map>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -208,37 +209,33 @@ class PUMEX_EXPORT ResourceTransition
 {
 public:
   ResourceTransition() = delete;
-  explicit ResourceTransition(uint32_t rteid, uint32_t tid, const std::vector<RenderOperation>::const_iterator& operation, const std::map<std::string, RenderOperationEntry>::const_iterator& entry, const std::string& externalMemoryObjectName);
+  explicit ResourceTransition(uint32_t rteid, uint32_t tid, uint32_t oid, const std::list<RenderOperation>::const_iterator& operation, const std::map<std::string, RenderOperationEntry>::const_iterator& entry, const std::string& externalMemoryObjectName, VkImageLayout externalLayout);
 
   inline uint32_t                    rteid() const; // identifies specific ResourceTransition connected to specific entry
-  inline uint32_t                    tid() const;  // identifies potential resource ( amny ResourceTransitions may have the same tid
+  inline uint32_t                    tid() const;   // identifies a group of resource transitions ( 1-1, 1-N, N-1 transitions may have the same tid )
+  inline uint32_t                    oid() const;   // identifies potential resource ( many transition groups may have the same oid defined )
+                                                    // if two transitions have the same tid - they MUST have the same oid
   inline const RenderOperation&      operation() const;
   inline const RenderOperationEntry& entry() const;
   inline const std::string&          operationName() const;
   inline const std::string&          entryName() const;
   inline const std::string&          externalMemoryObjectName() const;
-  inline const std::vector<RenderOperation>::const_iterator                operationIter() const;
+  inline VkImageLayout               externalLayout() const;
+  inline const std::list<RenderOperation>::const_iterator                  operationIter() const;
   inline const std::map<std::string, RenderOperationEntry>::const_iterator entryIter() const;
   inline void                        setExternalMemoryObjectName(const std::string& externalMemoryObjectName);
 
 protected:
   uint32_t                                                    rteid_;
   uint32_t                                                    tid_;
-  std::vector<RenderOperation>::const_iterator                operation_;
+  uint32_t                                                    oid_;
+  std::list<RenderOperation>::const_iterator                  operation_;
   std::map<std::string, RenderOperationEntry>::const_iterator entry_;
   std::string                                                 externalMemoryObjectName_;
+  VkImageLayout                                               externalLayout_;
 };
 
-class PUMEX_EXPORT ResourceTransitionDescription
-{
-public:
-  ResourceTransitionDescription(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry);
-
-  std::string generatingOperation;
-  std::string generatingEntry;
-  std::string consumingOperation;
-  std::string consumingEntry;
-};
+using ResourceTransitionEntry = std::pair<std::string, std::string>;
 
 class PUMEX_EXPORT RenderGraph : public std::enable_shared_from_this<RenderGraph>
 {
@@ -252,14 +249,18 @@ public:
   ~RenderGraph();
 
   void                                                          addRenderOperation(const RenderOperation& op);
-  // add resource transition between two operations
-  void                                                          addResourceTransition(const ResourceTransitionDescription& resTran, const std::string& externalMemoryObjectName = std::string());
-  // handy function for adding resource transition between two operations
-  void                                                          addResourceTransition(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry, const std::string& externalMemoryObjectName = std::string() );
-  // add one transition that has many generating operations, but only one resource will be used ( all generating transitions must have disjunctive subresource ranges )
-  void                                                          addResourceTransition(const std::vector<ResourceTransitionDescription>& resTrans, const std::string& externalMemoryObjectName = std::string());
-  // add resource transition between operation and external memory object ( if memory object is not defined, then this is "empty" transition )
-  void                                                          addResourceTransition(const std::string& opName, const std::string& entryName, const std::string& externalMemoryObjectName = std::string());
+  // handy function for adding resource transition between two operations ( 1:1 )
+  uint32_t                                                      addResourceTransition(const std::string& generatingOperation, const std::string& generatingEntry, const std::string& consumingOperation, const std::string& consumingEntry, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string());
+  // add resource transition between two operations ( 1:1 )
+  uint32_t                                                      addResourceTransition(const ResourceTransitionEntry& generator, const ResourceTransitionEntry& consumer, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string());
+  // add transition that has single generating operation and many consuming operations ( 1:N )
+  uint32_t                                                      addResourceTransition(const ResourceTransitionEntry& generator, const std::vector<ResourceTransitionEntry>& consumers, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string());
+  // add transition that has many generating operations and single consuming operation ( N:1, all generating transitions must have disjunctive subresource ranges )
+  uint32_t                                                      addResourceTransition(const std::vector<ResourceTransitionEntry>& generators, const ResourceTransitionEntry& consumer, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string());
+  // handy function for adding resource transition to outside worlf ( 1:out or out:1 )
+  uint32_t                                                      addResourceTransition(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
+  // add resource transition between operation and external memory object ( if memory object is not defined, then this is "empty" transition  ( 1:out, or out:1 depending on entry type )
+  uint32_t                                                      addResourceTransition(const ResourceTransitionEntry& tran, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
   // add missing resource transitions ("empty"). MUST be called before graph compilation
   void                                                          addMissingResourceTransitions();
 
@@ -272,20 +273,23 @@ public:
 
   std::vector<std::reference_wrapper<const ResourceTransition>> getOperationIO(const std::string& opName, OperationEntryTypeFlags entryTypes) const;
   std::vector<std::reference_wrapper<const ResourceTransition>> getTransitionIO(uint32_t transitionID, OperationEntryTypeFlags entryTypes) const;
+  std::vector<std::reference_wrapper<const ResourceTransition>> getObjectIO(uint32_t objectID, OperationEntryTypeFlags entryTypes) const;
   std::reference_wrapper<const ResourceTransition>              getTransition(uint32_t rteid) const;
 
-  inline const std::vector<RenderOperation>&                    getOperations() const;
+  inline const std::list<RenderOperation>&                      getOperations() const;
   inline const std::vector<ResourceTransition>&                 getTransitions() const;
 
   std::string                                                   name;
 protected:
-  std::vector<RenderOperation>                                  operations;
+  std::list<RenderOperation>                                    operations;
   std::vector<ResourceTransition>                               transitions;
 
-  uint32_t                                                      generateTransitionID();
-  uint32_t                                                      nextTransitionID = 1;
   uint32_t                                                      generateTransitionEntryID();
+  uint32_t                                                      generateTransitionID();
+  uint32_t                                                      generateObjectID();
   uint32_t                                                      nextTransitionEntryID = 1;
+  uint32_t                                                      nextTransitionID = 1;
+  uint32_t                                                      nextObjectID = 1;
 
   bool                                                          valid = false;
 };
@@ -331,17 +335,19 @@ bool operator<(const RenderOperation& lhs, const RenderOperation& rhs) { return 
 
 uint32_t                                                          ResourceTransition::rteid() const                    { return rteid_; }
 uint32_t                                                          ResourceTransition::tid() const                      { return tid_; }
+uint32_t                                                          ResourceTransition::oid() const                      { return oid_; }
 const RenderOperation&                                            ResourceTransition::operation() const                { return *operation_; }
 const RenderOperationEntry&                                       ResourceTransition::entry() const                    { return entry_->second; }
 const std::string&                                                ResourceTransition::operationName() const            { return operation_->name; }
 const std::string&                                                ResourceTransition::entryName() const                { return entry_->first; }
 const std::string&                                                ResourceTransition::externalMemoryObjectName() const { return externalMemoryObjectName_; }
-const std::vector<RenderOperation>::const_iterator                ResourceTransition::operationIter() const            { return operation_; }
+VkImageLayout                                                     ResourceTransition::externalLayout() const           { return externalLayout_; }
+const std::list<RenderOperation>::const_iterator                  ResourceTransition::operationIter() const            { return operation_; }
 const std::map<std::string, RenderOperationEntry>::const_iterator ResourceTransition::entryIter() const                { return entry_; }
-void                                          ResourceTransition::setExternalMemoryObjectName(const std::string& emon) { externalMemoryObjectName_ = emon; }
+void                                                              ResourceTransition::setExternalMemoryObjectName(const std::string& emon) { externalMemoryObjectName_ = emon; }
 
-const std::vector<RenderOperation>&                    RenderGraph::getOperations() const { return operations; }
-const std::vector<ResourceTransition>&                 RenderGraph::getTransitions() const { return transitions; }
+const std::list<RenderOperation>&                                 RenderGraph::getOperations() const { return operations; }
+const std::vector<ResourceTransition>&                            RenderGraph::getTransitions() const { return transitions; }
 
 
 

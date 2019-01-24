@@ -620,7 +620,7 @@ struct CrowdApplicationData
 
 int crowd_main(int argc, char * argv[])
 {
-  SET_LOG_WARNING;
+  SET_LOG_INFO;
 
   args::ArgumentParser                         parser("pumex example : multithreaded crowd rendering on more than one window");
   args::HelpFlag                               help(parser, "help", "display this help menu", {'h', "help"});
@@ -740,8 +740,8 @@ int crowd_main(int argc, char * argv[])
       renderGraph->addRenderOperation(crowdCompute);
       renderGraph->addRenderOperation(rendering);
 
-    renderGraph->addResourceTransition("crowd_compute", "indirect_results_out", "rendering", "indirect_results_in", "indirect_results_buffer");
-    renderGraph->addResourceTransition("crowd_compute", "indirect_draw_out",    "rendering", "indirect_draw_in",    "indirect_draw_buffer");
+    renderGraph->addResourceTransition("crowd_compute", "indirect_results_out", "rendering", "indirect_results_in", 0, "indirect_results_buffer");
+    renderGraph->addResourceTransition("crowd_compute", "indirect_draw_out",    "rendering", "indirect_draw_in",    0, "indirect_draw_buffer");
 
     // alocate 12 MB for uniform and storage buffers
     auto buffersAllocator = std::make_shared<pumex::DeviceMemoryAllocator>("buffers", VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 12 * 1024 * 1024, pumex::DeviceMemoryAllocator::FIRST_FIT);
