@@ -149,14 +149,13 @@ class PUMEX_EXPORT RenderOperationEntry
 {
 public:
   RenderOperationEntry() = default;
-  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, VkImageViewType imageViewType, const std::string& resolveSourceEntryName, bool storeAttachment);
+  explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, VkImageViewType imageViewType, const std::string& resolveSourceEntryName);
   explicit RenderOperationEntry(OperationEntryType entryType, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags, VkFormat bufferFormat = VK_FORMAT_UNDEFINED);
 
   OperationEntryType     entryType;
   ResourceDefinition     resourceDefinition;
   LoadOp                 loadOp;                                               // for images and attachments
   std::string            resolveSourceEntryName;                               // for resolve attachments
-  bool                   storeAttachment = false;                              // ensure that output attachment is stored
 
   ImageSubresourceRange  imageRange;                                           // used by images
   VkImageLayout          layout          = VK_IMAGE_LAYOUT_UNDEFINED;          // used by attachments and images ( attachments have this value set automaticaly )
@@ -176,17 +175,17 @@ public:
   RenderOperation();
   RenderOperation(const std::string& name, OperationType operationType = opGraphics, const ImageSize& attachmentSize = ImageSize{ isSurfaceDependent, glm::vec2(1.0f,1.0f), 1, 1, 1 }, uint32_t multiViewMask = 0x0);
 
-  void                  addAttachmentInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0);
-  void                  addAttachmentOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, bool storeAttachment = false);
-  void                  addAttachmentResolveOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, bool storeAttachment = false, const std::string& sourceEntryName = "");
-  void                  setAttachmentDepthInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0);
-  void                  setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, bool storeAttachment = false);
+  void                  addAttachmentInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpLoad(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0);
+  void                  addAttachmentOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0);
+  void                  addAttachmentResolveOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, const std::string& sourceEntryName = "");
+  void                  setAttachmentDepthInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpLoad(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0);
+  void                  setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0);
 
   void                  addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM);
   void                  addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp = loadOpDontCare(), const ImageSubresourceRange& imageRange = ImageSubresourceRange(), VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED, VkImageUsageFlags imageUsage = 0, VkImageCreateFlags imageCreate = 0, VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM);
 
   void                  addBufferInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_READ_BIT);
-  void                  addBufferOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_READ_BIT);
+  void                  addBufferOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange = BufferSubresourceRange(), VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkAccessFlags accessFlags = VK_ACCESS_MEMORY_WRITE_BIT);
 
   void                  setRenderOperationNode(std::shared_ptr<Node> node);
   std::shared_ptr<Node> getRenderOperationNode();
@@ -199,7 +198,8 @@ public:
   uint32_t              multiViewMask   = 0;
   bool                  enabled         = true;
 
-  std::map<std::string, RenderOperationEntry> entries;
+  std::map<std::string, RenderOperationEntry> inputEntries;
+  std::map<std::string, RenderOperationEntry> outputEntries;
   std::shared_ptr<Node>                       node;
 };
 
@@ -257,10 +257,14 @@ public:
   uint32_t                                                      addResourceTransition(const ResourceTransitionEntry& generator, const std::vector<ResourceTransitionEntry>& consumers, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string());
   // add transition that has many generating operations and single consuming operation ( N:1, all generating transitions must have disjunctive subresource ranges )
   uint32_t                                                      addResourceTransition(const std::vector<ResourceTransitionEntry>& generators, const ResourceTransitionEntry& consumer, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string());
-  // handy function for adding resource transition to outside worlf ( 1:out or out:1 )
-  uint32_t                                                      addResourceTransition(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
+  // handy function for adding resource transition to outside world ( out:1 )
+  uint32_t                                                      addResourceTransitionInput(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
   // add resource transition between operation and external memory object ( if memory object is not defined, then this is "empty" transition  ( 1:out, or out:1 depending on entry type )
-  uint32_t                                                      addResourceTransition(const ResourceTransitionEntry& tran, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
+  uint32_t                                                      addResourceTransitionInput(const ResourceTransitionEntry& tran, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
+  // handy function for adding resource transition to outside world ( 1:out )
+  uint32_t                                                      addResourceTransitionOutput(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
+  // add resource transition between operation and external memory object ( if memory object is not defined, then this is "empty" transition  ( 1:out, or out:1 depending on entry type )
+  uint32_t                                                      addResourceTransitionOutput(const ResourceTransitionEntry& tran, uint32_t suggestedObjectID = 0, const std::string& externalMemoryObjectName = std::string(), VkImageLayout externalLayout = VK_IMAGE_LAYOUT_UNDEFINED);
   // add missing resource transitions ("empty"). MUST be called before graph compilation
   void                                                          addMissingResourceTransitions();
 

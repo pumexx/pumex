@@ -52,18 +52,9 @@ ResourceDefinition::ResourceDefinition(const std::string& n)
   CHECK_LOG_THROW(name.empty(), "ResourceDefinition : all buffers must have a name defined");
 }
 
-RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const LoadOp& lop, const ImageSubresourceRange& ir, VkImageLayout il, VkImageUsageFlags iu, VkImageCreateFlags ic, VkImageViewType ivt , const std::string& rse, bool sa)
-  : entryType{ et }, resourceDefinition{ rd }, loadOp{ lop }, imageRange{ ir }, imageUsage{ iu }, imageCreate{ ic }, imageViewType{ ivt }, resolveSourceEntryName{ rse }, storeAttachment{ sa }
+RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const LoadOp& lop, const ImageSubresourceRange& ir, VkImageLayout il, VkImageUsageFlags iu, VkImageCreateFlags ic, VkImageViewType ivt , const std::string& rse)
+  : entryType{ et }, resourceDefinition{ rd }, loadOp{ lop }, imageRange{ ir }, layout{ il }, imageUsage{ iu }, imageCreate{ ic }, imageViewType{ ivt }, resolveSourceEntryName{ rse }
 {
-  switch (entryType)
-  {
-  case opeAttachmentInput:         layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;         break;
-  case opeAttachmentOutput:        layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;         break;
-  case opeAttachmentResolveOutput: layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;         break;
-  case opeAttachmentDepthOutput:   layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; break;
-  case opeAttachmentDepthInput:    layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;  break;
-  default:                         layout = il; break;
-  }
 }
 
 RenderOperationEntry::RenderOperationEntry(OperationEntryType et, const ResourceDefinition& rd, const BufferSubresourceRange& br, VkPipelineStageFlags ps, VkAccessFlags af, VkFormat bf)
@@ -82,98 +73,126 @@ RenderOperation::RenderOperation(const std::string& n, OperationType t, const Im
 
 void RenderOperation::addAttachmentInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Input entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Cannot add input entry when output entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment input is not an image : " << name << "->" << entryName);
   CHECK_LOG_THROW(!compareRenderOperationSizeWithImageSize(attachmentSize, resourceDefinition.attachment.attachmentSize, imageRange ), "RenderOperation : Attachment must have the same size as its operation : " << name << "->" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string(), false } });
+  CHECK_LOG_THROW(loadOp.loadType == LoadOp::DontCare, "RenderOperation : Attachment input cannot have LoadOp equal to LoadOp::DontCare : " << name << "->" << entryName);
+  inputEntries.insert({ entryName, RenderOperationEntry{ opeAttachmentInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string() } });
   //valid = false;
 }
 
-void RenderOperation::addAttachmentOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, bool storeAttachment)
+void RenderOperation::addAttachmentOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Output entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Cannot add output entry when input entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment output is not an image : " << name << "->" << entryName);
   CHECK_LOG_THROW(!compareRenderOperationSizeWithImageSize(attachmentSize, resourceDefinition.attachment.attachmentSize, imageRange), "RenderOperation : Attachment must have the same size as its operation : " << name << "->" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string(), storeAttachment } });
+
+  RenderOperationEntry newEntry{ opeAttachmentOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string() };
+  outputEntries.insert({ entryName, newEntry });
+  // if output is loaded - it means that it also serves as an input ( someone has to generate the data to load )
+  if (loadOp.loadType == LoadOp::Load)
+  {
+    newEntry.entryType = opeAttachmentInput;
+    inputEntries.insert({ entryName, newEntry });
+  }
   //valid = false;
 }
 
-void RenderOperation::addAttachmentResolveOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, bool storeAttachment, const std::string& sourceEntryName)
+void RenderOperation::addAttachmentResolveOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, const std::string& sourceEntryName)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Output entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Cannot add output entry when input entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment output is not an image : " << name << "->" << entryName);
   // compare operation size and attachment size skipping samples
   CHECK_LOG_THROW(!compareRenderOperationSizeWithImageSize(attachmentSize, resourceDefinition.attachment.attachmentSize, imageRange), "RenderOperation : Attachment must have the same size as its operation : " << name << "->" << entryName);
   CHECK_LOG_THROW(sourceEntryName.empty(), "RenderOperation : Resolve source entry not defined : " << name << " : " << entryName);
-  auto sourceEntry = entries.find(sourceEntryName);
-  CHECK_LOG_THROW(sourceEntry == end(entries), "RenderOperation : Resolve source entry does not exist : " << name << "->" << entryName << "(" <<sourceEntryName << ")" );
+  auto sourceEntry = outputEntries.find(sourceEntryName);
+  CHECK_LOG_THROW(sourceEntry == end(outputEntries), "RenderOperation : Resolve source entry does not exist : " << name << "->" << entryName << "(" <<sourceEntryName << ")" );
   CHECK_LOG_THROW(sourceEntry->second.resourceDefinition.metaType != rmtImage, "RenderOperation : Resolve source entry is not an image : " << name << "->" << entryName << "(" << sourceEntryName << ")");
 
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentResolveOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, sourceEntryName, storeAttachment } });
+  outputEntries.insert({ entryName, RenderOperationEntry{ opeAttachmentResolveOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, sourceEntryName } });
   //valid = false;
 }
 
 void RenderOperation::setAttachmentDepthInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Input entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Cannot add input entry when output entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment depth input is not an image : " << name << "->" << entryName);
   CHECK_LOG_THROW(!compareRenderOperationSizeWithImageSize(attachmentSize, resourceDefinition.attachment.attachmentSize, imageRange), "RenderOperation : Attachment must have the same size as its operation : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.attachment.attachmentType != atDepth &&
     resourceDefinition.attachment.attachmentType != atDepthStencil &&
     resourceDefinition.attachment.attachmentType != atStencil, "RenderOperation : Attachment type must be atDepth, atDepthStencil or atStencil : " << name << "->" << entryName);
-  auto redundant = std::find_if(begin(entries), end(entries), [](std::pair<const std::string,RenderOperationEntry>& entry) { return (entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput); });
-  CHECK_LOG_THROW(redundant!= end(entries), "RenderOperation : There must be only one depth input or output : " << name << "->" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string(), false } });
+  auto redundantInput  = std::find_if(begin(inputEntries), end(inputEntries),   [](std::pair<const std::string, RenderOperationEntry>& entry) { return ( entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput ); });
+  auto redundantOutput = std::find_if(begin(outputEntries), end(outputEntries), [](std::pair<const std::string, RenderOperationEntry>& entry) { return ( entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput ); });
+  CHECK_LOG_THROW(redundantInput != end(inputEntries) || redundantOutput != end(outputEntries), "RenderOperation : There must be only one depth input or output : " << name << "->" << entryName);
+  CHECK_LOG_THROW(loadOp.loadType == LoadOp::DontCare, "RenderOperation : Attachment input cannot have LoadOp equal to LoadOp::DontCare : " << name << "->" << entryName);
+  inputEntries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthInput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string() } });
   //valid = false;
 }
 
-void RenderOperation::setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, bool storeAttachment)
+void RenderOperation::setAttachmentDepthOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Output entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Cannot add output entry when input entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as attachment depth output is not an image : " << name << "->" << entryName);
   CHECK_LOG_THROW(!compareRenderOperationSizeWithImageSize(attachmentSize, resourceDefinition.attachment.attachmentSize, imageRange), "RenderOperation : Attachment must have the same size as its operation : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.attachment.attachmentType != atDepth &&
     resourceDefinition.attachment.attachmentType != atDepthStencil &&
     resourceDefinition.attachment.attachmentType != atStencil, "RenderOperation : Attachmenmt type must be atDepth, atDepthStencil or atStencil : " << name << "->" << entryName);
-  auto redundant = std::find_if(begin(entries), end(entries), [](std::pair<const std::string, RenderOperationEntry>& entry) { return (entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput); });
-  CHECK_LOG_THROW(redundant != end(entries), "RenderOperation : There must be only one depth input or output : " << name << "->" << entryName);
-  entries.insert({ entryName, RenderOperationEntry{ opeAttachmentDepthOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_UNDEFINED, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string(), storeAttachment } });
+  auto redundantInput  = std::find_if(begin(inputEntries), end(inputEntries),   [](std::pair<const std::string, RenderOperationEntry>& entry) { return ( entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput ); });
+  auto redundantOutput = std::find_if(begin(outputEntries), end(outputEntries), [](std::pair<const std::string, RenderOperationEntry>& entry) { return ( entry.second.entryType == opeAttachmentDepthInput || entry.second.entryType == opeAttachmentDepthOutput ); });
+  CHECK_LOG_THROW(redundantInput != end(inputEntries) || redundantOutput != end(outputEntries), "RenderOperation : There must be only one depth input or output : " << name << "->" << entryName);
+
+  RenderOperationEntry newEntry{ opeAttachmentDepthOutput, resourceDefinition, loadOp, imageRange, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, imageUsage, imageCreate, VK_IMAGE_VIEW_TYPE_MAX_ENUM, std::string() };
+  outputEntries.insert({ entryName, newEntry });
+  if (loadOp.loadType == LoadOp::Load)
+  {
+    newEntry.entryType = opeAttachmentDepthInput;
+    inputEntries.insert({ entryName, newEntry });
+  }
   //valid = false;
 }
 
 void RenderOperation::addImageInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, VkImageViewType imageViewType)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Input entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Cannot add input entry when output entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as image input is not an image : " << name << "->" << entryName);
 
-  entries.insert({ entryName, RenderOperationEntry{ opeImageInput, resourceDefinition, loadOp, imageRange, layout, imageUsage, imageCreate, imageViewType, std::string(), false } });
+  inputEntries.insert({ entryName, RenderOperationEntry{ opeImageInput, resourceDefinition, loadOp, imageRange, layout, imageUsage, imageCreate, imageViewType, std::string() } });
   //valid = false;
 }
 
 void RenderOperation::addImageOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const LoadOp& loadOp, const ImageSubresourceRange& imageRange, VkImageLayout layout, VkImageUsageFlags imageUsage, VkImageCreateFlags imageCreate, VkImageViewType imageViewType)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Cannot add output entry when input entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtImage, "RenderOperation : Resource used as image output is not an image : " << name << "->" << entryName);
 
-  entries.insert({ entryName, RenderOperationEntry{ opeImageOutput, resourceDefinition, loadOp, imageRange, layout, imageUsage, imageCreate, imageViewType, std::string(), false } });
+  outputEntries.insert({ entryName, RenderOperationEntry{ opeImageOutput, resourceDefinition, loadOp, imageRange, layout, imageUsage, imageCreate, imageViewType, std::string() } });
   //valid = false;
 }
 
 void RenderOperation::addBufferInput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Cannot add input entry when output entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtBuffer, "RenderOperation : Resource used as buffer input is not a buffer : " << name << "->" << entryName);
 
-  entries.insert({ entryName, RenderOperationEntry{ opeBufferInput, resourceDefinition, bufferRange, pipelineStage, accessFlags } });
+  inputEntries.insert({ entryName, RenderOperationEntry{ opeBufferInput, resourceDefinition, bufferRange, pipelineStage, accessFlags } });
   //valid = false;
 }
 
 void RenderOperation::addBufferOutput(const std::string& entryName, const ResourceDefinition& resourceDefinition, const BufferSubresourceRange& bufferRange, VkPipelineStageFlags pipelineStage, VkAccessFlags accessFlags)
 {
-  CHECK_LOG_THROW(entries.find(entryName) != end(entries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(outputEntries.find(entryName) != end(outputEntries), "RenderOperation : Entry with that name already defined : " << name << "->" << entryName);
+  CHECK_LOG_THROW(inputEntries.find(entryName) != end(inputEntries), "RenderOperation : Cannot add output entry when input entry with the same name is already defined : " << name << "->" << entryName);
   CHECK_LOG_THROW(resourceDefinition.metaType != rmtBuffer, "RenderOperation : Resource used as buffer output is not a buffer : " << name << "->" << entryName);
 
-  entries.insert({ entryName, RenderOperationEntry{ opeBufferOutput, resourceDefinition, bufferRange, pipelineStage, accessFlags } });
+  outputEntries.insert({ entryName, RenderOperationEntry{ opeBufferOutput, resourceDefinition, bufferRange, pipelineStage, accessFlags } });
   //valid = false;
 }
 
@@ -190,11 +209,12 @@ std::shared_ptr<Node> RenderOperation::getRenderOperationNode()
 std::vector<std::reference_wrapper<const RenderOperationEntry>> RenderOperation::getEntries(OperationEntryTypeFlags entryTypes) const
 {
   std::vector<std::reference_wrapper<const RenderOperationEntry>> results;
-  for (auto& entry : entries)
-  {
+  for (auto& entry : inputEntries)
     if (entry.second.entryType & entryTypes)
       results.push_back(entry.second);
-  }
+  for (auto& entry : outputEntries)
+    if (entry.second.entryType & entryTypes)
+      results.push_back(entry.second);
   return results;
 }
 
@@ -239,12 +259,12 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, 
   const auto genOp = std::find_if(begin(operations), end(operations), [&gen](const RenderOperation& opx) { return opx.name == gen.first; });
   CHECK_LOG_THROW(genOp == end(operations), "RenderGraph : generating operation not defined : " << gen.first);
 
-  const auto genEntry = genOp->entries.find(gen.second);
-  CHECK_LOG_THROW(genEntry == end(genOp->entries), "RenderGraph : operation " << gen.first << " does not have entry named : " << gen.second);
+  const auto genEntry = genOp->outputEntries.find(gen.second);
+  CHECK_LOG_THROW(genEntry == end(genOp->outputEntries), "RenderGraph : operation " << gen.first << " does not have entry named : " << gen.second);
   CHECK_LOG_THROW((genEntry->second.entryType & opeAllOutputs) == 0, "RenderGraph : entry " << gen.first << "->" << gen.second << " is not an output");
 
   // generating entry may have zero or more outputs
-  auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && rt.entryIter() == genEntry); });
+  auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && ( rt.entry().entryType & opeAllOutputs) && rt.entryIter() == genEntry); });
   uint32_t transitionID, objectID;
   if (existingGenTransition != end(transitions))
   {
@@ -257,8 +277,16 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, 
   }
   else
   {
+    // if the entry is LoadOp::Load, then we have to use objectID from genOp input
     transitionID = generateTransitionID();
-    objectID     = (suggestedObjectID!=0) ? suggestedObjectID : generateObjectID();
+    auto prevConTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && (rt.entry().entryType & opeAllInputs) && rt.entryIter()->first == genEntry->first); });
+    if (prevConTransition != end(transitions))
+    {
+      objectID = prevConTransition->oid();
+      CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using generating entry " << gen.first << "->" << gen.second << " must have the same objectID. Suggested objectID is wrong");
+    }
+    else
+      objectID = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
   }
 
   std::vector<ImageSubresourceRange>  imageRanges;
@@ -271,8 +299,8 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, 
     auto conOp = std::find_if(begin(operations), end(operations), [&con](const RenderOperation& opx) { return opx.name == con.first; });
     CHECK_LOG_THROW(conOp == end(operations), "RenderGraph : consuming operation not defined : " << con.first);
 
-    auto conEntry = conOp->entries.find(con.second);
-    CHECK_LOG_THROW(conEntry == end(conOp->entries), "RenderGraph : operation " << con.first << " does not have entry named : " << con.second);
+    auto conEntry = conOp->inputEntries.find(con.second);
+    CHECK_LOG_THROW(conEntry == end(conOp->inputEntries), "RenderGraph : operation " << con.first << " does not have entry named : " << con.second);
     CHECK_LOG_THROW((conEntry->second.entryType & opeAllInputs) == 0, "RenderGraph : entry " << con.first << "->" << con.second << " is not an input");
 
     conImageLayouts.insert(conEntry->second.layout);
@@ -281,7 +309,7 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, 
     CHECK_LOG_THROW(!(genEntry->second.resourceDefinition == conEntry->second.resourceDefinition), "RenderGraph : entries " << gen.first << "->" << gen.second << " and " << con.first << "->" << con.second << " must have the same resource definition");
 
     // only one consuming transition may exist
-    auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && rt.entryIter() == conEntry); });
+    auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && (rt.entry().entryType & opeAllInputs) && rt.entryIter() == conEntry); });
     CHECK_LOG_THROW(existingConTransition != end(transitions), "RenderGraph : consuming operation may only have one entry : " << con.first << "->" << con.second);
 
     if ((conEntry->second.entryType & ( opeAllImages | opeAllAttachments )) != 0)
@@ -294,7 +322,7 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, 
   {
     auto consumentRange = mergeRanges(imageRanges);
     CHECK_LOG_THROW(consumentRange.valid() && !genEntry->second.imageRange.contains(consumentRange), "RenderGraph : generating transition image range must contain consuming image ranges" << gen.first << "->" << gen.second);
-    CHECK_LOG_THROW(conImageLayouts.size() > 1, "RenderGraph : all consuming image layouts must be the same for generating tranistion : " << gen.first << "->" << gen.second);
+    CHECK_LOG_THROW(conImageLayouts.size() > 1, "RenderGraph : all consuming image layouts must be the same for generating transition : " << gen.first << "->" << gen.second);
   }
   else if (!bufferRanges.empty())
   {
@@ -307,7 +335,7 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& gen, 
   for (const auto& con : cons)
   {
     auto conOp = std::find_if(begin(operations), end(operations), [&con](const RenderOperation& opx) { return opx.name == con.first; });
-    auto conEntry = conOp->entries.find(con.second);
+    auto conEntry = conOp->inputEntries.find(con.second);
 
     transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, conOp, conEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
   }
@@ -321,12 +349,12 @@ uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransition
   auto conOp = std::find_if(begin(operations), end(operations), [&con](const RenderOperation& opx) { return opx.name == con.first; });
   CHECK_LOG_THROW(conOp == end(operations), "RenderGraph : consuming operation not defined : " << con.first);
 
-  auto conEntry = conOp->entries.find(con.second);
-  CHECK_LOG_THROW(conEntry == end(conOp->entries), "RenderGraph : operation " << con.first << " does not have entry named : " << con.second);
+  auto conEntry = conOp->inputEntries.find(con.second);
+  CHECK_LOG_THROW(conEntry == end(conOp->inputEntries), "RenderGraph : operation " << con.first << " does not have entry named : " << con.second);
   CHECK_LOG_THROW((conEntry->second.entryType & opeAllInputs) == 0, "RenderGraph : entry " << con.first << "->" << con.second << " is not an input");
 
   // consuming entry may have inly one input
-  auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && rt.entryIter() == conEntry); });
+  auto existingConTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && (rt.entry().entryType & opeAllInputs) && rt.entryIter() == conEntry); });
   CHECK_LOG_THROW(existingConTransition != end(transitions), "RenderGraph : consuming operation may only have one entry : " << con.first << "->" << con.second);
 
   // Before we add any transition - we must choose tid and oid for new set of transitions. Problem is that some generating transitions may be defined already.
@@ -342,8 +370,8 @@ uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransition
     auto genOp = std::find_if(begin(operations), end(operations), [&gen](const RenderOperation& opx) { return opx.name == gen.first; });
     CHECK_LOG_THROW(genOp == end(operations), "RenderGraph : generating operation not defined : " << gen.first);
 
-    auto genEntry = genOp->entries.find(gen.second);
-    CHECK_LOG_THROW(genEntry == end(genOp->entries), "RenderGraph : operation " << gen.first << " does not have entry named : " << gen.second);
+    auto genEntry = genOp->outputEntries.find(gen.second);
+    CHECK_LOG_THROW(genEntry == end(genOp->outputEntries), "RenderGraph : operation " << gen.first << " does not have entry named : " << gen.second);
     CHECK_LOG_THROW((genEntry->second.entryType & opeAllOutputs) == 0, "RenderGraph : entry " << gen.first << "->" << gen.second << " is not an output");
 
     // both entries must have the same resource definition
@@ -351,7 +379,7 @@ uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransition
 
     genImageLayouts.insert(genEntry->second.layout);
 
-    auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && rt.entryIter() == genEntry); });
+    auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && (rt.entry().entryType & opeAllOutputs) && rt.entryIter() == genEntry); });
     if (existingGenTransition != end(transitions))
     {
       // all transitions using the same output must have the same external resource defined
@@ -360,6 +388,14 @@ uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransition
       existingTransitionID.insert(existingGenTransition->tid());
       existingObjectID.insert(existingGenTransition->oid());
     }
+    else
+    {
+      // transition does not exist, but if the entry is LoadOp::Load then we have to use objectID from previous input transition
+      auto prevConTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && (rt.entry().entryType & opeAllInputs) && rt.entryIter()->first == genEntry->first); });
+      if (prevConTransition != end(transitions))
+        existingObjectID.insert(prevConTransition->oid());
+    }
+
     if ((genEntry->second.entryType & ( opeAllImages | opeAllAttachments )) != 0)
       imageRanges.push_back(genEntry->second.imageRange);
     else
@@ -380,29 +416,34 @@ uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransition
     CHECK_LOG_THROW(anyRangeOverlaps(bufferRanges), "RenderGraph : all generating buffer transitions must have disjunctive buffer ranges : " << con.first << "->" << con.second);
   }
 
-  uint32_t transitionID = generateTransitionID();
-  uint32_t objectID;
+  // check if consumed entry is not treated also as output ( which means that output is used as LoadOp::Load )
+  auto nextGenTransition = std::find_if(begin(transitions), end(transitions), [conOp, conEntry](const ResourceTransition& rt) { return (rt.operationIter() == conOp && (rt.entry().entryType & opeAllOutputs) && rt.entryIter()->first == conEntry->first); });
+  if (nextGenTransition != end(transitions))
+    existingObjectID.insert(nextGenTransition->oid());
+
   CHECK_LOG_THROW(existingTransitionID.size() > 1, "RenderGraph : cannot add generating transitions, because some transitions already exist and have different IDs. Consumer : " << con.first << "->" << con.second);
+  CHECK_LOG_THROW(existingObjectID.size() > 1, "RenderGraph : cannot add generating transitions, because the number of objectID candidates exceeds 1. Consumer : " << con.first << "->" << con.second);
+  uint32_t transitionID, objectID;
   if (!existingTransitionID.empty())
-  {
     transitionID = *begin(existingTransitionID);
-    objectID     = *begin(existingObjectID);
+  else
+    transitionID = generateTransitionID();
+  if (!existingObjectID.empty())
+  {
+    objectID = *begin(existingObjectID);
     // if suggestedObjectID is provided, then it must be the same as the one that exists already - two different objects cannot use the same generating entry
-    CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using consuming entry " << con.first << "->" << con.second << " must have the same objectID");
+    CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using consuming entry " << con.first << "->" << con.second << " must have the same objectID. Suggested objectID is wrong");
   }
   else
-  {
-    transitionID = generateTransitionID();
-    objectID     = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
-  }
+    objectID = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
 
   transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, conOp, conEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
   for (const auto& gen : gens)
   {
     auto genOp = std::find_if(begin(operations), end(operations), [&gen](const RenderOperation& opx) { return opx.name == gen.first; });
-    auto genEntry = genOp->entries.find(gen.second);
+    auto genEntry = genOp->outputEntries.find(gen.second);
 
-    auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && rt.entryIter() == genEntry); });
+    auto existingGenTransition = std::find_if(begin(transitions), end(transitions), [genOp, genEntry](const ResourceTransition& rt) { return (rt.operationIter() == genOp && (rt.entry().entryType & opeAllOutputs) && rt.entryIter() == genEntry); });
     if (existingGenTransition == end(transitions))
       transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, genOp, genEntry, externalMemoryObjectName, VK_IMAGE_LAYOUT_UNDEFINED));
   }
@@ -410,34 +451,74 @@ uint32_t RenderGraph::addResourceTransition(const std::vector<ResourceTransition
   return objectID;
 }
 
-uint32_t RenderGraph::addResourceTransition(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
+uint32_t RenderGraph::addResourceTransitionInput(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
 {
-  return addResourceTransition({ opName, entryName }, suggestedObjectID, externalMemoryObjectName, externalLayout);
+  return addResourceTransitionInput({ opName, entryName }, suggestedObjectID, externalMemoryObjectName, externalLayout);
 }
 
-uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& tren, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
+uint32_t RenderGraph::addResourceTransitionInput(const ResourceTransitionEntry& tren, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
 {
   auto op = std::find_if(begin(operations), end(operations), [&tren](const RenderOperation& opx) { return opx.name == tren.first; });
   CHECK_LOG_THROW(op == end(operations), "RenderGraph : generating operation not defined : " << tren.first);
 
-  auto entry = op->entries.find(tren.second);
-  CHECK_LOG_THROW(entry == end(op->entries), "RenderGraph : operation " << tren.first << " does not have entry named : " << tren.second);
+  auto entry = op->inputEntries.find(tren.second);
+  CHECK_LOG_THROW(entry == end(op->inputEntries), "RenderGraph : operation " << tren.first << " does not have input entry named : " << tren.second);
 
-  auto existingTransition = std::find_if(begin(transitions), end(transitions), [op, entry](const ResourceTransition& rt) { return (rt.operationIter() == op && rt.entryIter() == entry); });
+  auto existingTransition = std::find_if(begin(transitions), end(transitions), [op, entry](const ResourceTransition& rt) { return (rt.operationIter() == op && (rt.entry().entryType & opeAllInputs) && rt.entryIter() == entry); });
+  CHECK_LOG_THROW(existingTransition != end(transitions), "RenderGraph : consuming operation may only have one entry : " << tren.first << "->" << tren.second);
+  uint32_t transitionID, objectID;
+  transitionID = generateTransitionID();
+
+  // check if there is output transition with the same entry name ( LoadOp::Load )
+  auto nextGenTransition = std::find_if(begin(transitions), end(transitions), [op, entry](const ResourceTransition& rt) { return (rt.operationIter() == op && (rt.entry().entryType & opeAllOutputs) && rt.entryIter()->first == entry->first); });
+  if (nextGenTransition != end(transitions))
+  {
+    objectID = nextGenTransition->oid();
+    CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using consuming entry " << tren.first << "->" << tren.second << " must have the same objectID. Suggested objectID is wrong");
+  }
+  else
+    objectID     = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
+
+  transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, op, entry, externalMemoryObjectName, externalLayout));
+  valid = false;
+  return objectID;
+}
+
+uint32_t RenderGraph::addResourceTransitionOutput(const std::string& opName, const std::string& entryName, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
+{
+  return addResourceTransitionOutput({ opName, entryName }, suggestedObjectID, externalMemoryObjectName, externalLayout);
+}
+
+uint32_t RenderGraph::addResourceTransitionOutput(const ResourceTransitionEntry& tren, uint32_t suggestedObjectID, const std::string& externalMemoryObjectName, VkImageLayout externalLayout)
+{
+  auto op = std::find_if(begin(operations), end(operations), [&tren](const RenderOperation& opx) { return opx.name == tren.first; });
+  CHECK_LOG_THROW(op == end(operations), "RenderGraph : generating operation not defined : " << tren.first);
+
+  auto entry = op->outputEntries.find(tren.second);
+  CHECK_LOG_THROW(entry == end(op->outputEntries), "RenderGraph : operation " << tren.first << " does not have output entry named : " << tren.second);
+
+  auto existingTransition = std::find_if(begin(transitions), end(transitions), [op, entry](const ResourceTransition& rt) { return (rt.operationIter() == op && (rt.entry().entryType & opeAllOutputs) && rt.entryIter() == entry); });
   uint32_t transitionID, objectID;
   if (existingTransition != end(transitions))
   {
     // all transitions using the same output must have the same external resource defined
     CHECK_LOG_THROW(existingTransition->externalMemoryObjectName() != externalMemoryObjectName, "RenderGraph : All transitions using " << tren.first << "->" << tren.second << " must have the same external resource : " << existingTransition->externalMemoryObjectName() << " != " << externalMemoryObjectName);
     transitionID = existingTransition->tid();
-    objectID     = existingTransition->oid();
+    objectID = existingTransition->oid();
     // if suggestedObjectID is provided, then it must be the same as the one that exists already - two different objects () cannot use the same generating entry
     CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using entry " << tren.first << "->" << tren.second << " must have the same objectID");
   }
   else
   {
     transitionID = generateTransitionID();
-    objectID     = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
+    auto prevConTransition = std::find_if(begin(transitions), end(transitions), [op, entry](const ResourceTransition& rt) { return (rt.operationIter() == op && (rt.entry().entryType & opeAllInputs) && rt.entryIter()->first == entry->first); });
+    if (prevConTransition != end(transitions))
+    {
+      objectID = prevConTransition->oid();
+      CHECK_LOG_THROW(suggestedObjectID != 0 && objectID != suggestedObjectID, "RenderGraph : All transitions using generating entry " << tren.first << "->" << tren.second << " must have the same objectID. Suggested objectID is wrong");
+    }
+    else
+      objectID = (suggestedObjectID != 0) ? suggestedObjectID : generateObjectID();
   }
   transitions.push_back(ResourceTransition(generateTransitionEntryID(), transitionID, objectID, op, entry, externalMemoryObjectName, externalLayout));
   valid = false;
@@ -446,15 +527,25 @@ uint32_t RenderGraph::addResourceTransition(const ResourceTransitionEntry& tren,
 
 void RenderGraph::addMissingResourceTransitions()
 {
+  std::vector<ResourceTransition> emptyTransitions;
   for (auto opit = begin(operations); opit != end(operations); ++opit)
   {
-    std::vector<ResourceTransition> emptyTransitions;
-    auto opTransitions = getOperationIO(opit->name, opeAllInputsOutputs);
-    for (auto opeit = begin(opit->entries); opeit != end(opit->entries); ++opeit)
-      if (std::none_of(begin(opTransitions), end(opTransitions), [&opeit](const ResourceTransition& tr) { return opeit->first == tr.entryName(); }))
-        emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), generateObjectID(), opit, opeit, std::string(), VK_IMAGE_LAYOUT_UNDEFINED));
-    std::copy(begin(emptyTransitions), end(emptyTransitions), std::back_inserter(transitions));
+    auto inTransitions = getOperationIO(opit->name, opeAllInputs);
+    for (auto opeit = begin(opit->inputEntries); opeit != end(opit->inputEntries); ++opeit)
+      if (std::none_of(begin(inTransitions), end(inTransitions), [&opeit](const ResourceTransition& tr) { return opeit->first == tr.entryName(); }))
+//        if (opeit->first != SWAPCHAIN_NAME)
+//          emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), 0, opit, opeit, std::string(), VK_IMAGE_LAYOUT_UNDEFINED));
+//        else
+          emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), generateObjectID(), opit, opeit, std::string(), VK_IMAGE_LAYOUT_UNDEFINED));
+    auto outTransitions = getOperationIO(opit->name, opeAllOutputs);
+    for (auto opeit = begin(opit->outputEntries); opeit != end(opit->outputEntries); ++opeit)
+      if (std::none_of(begin(outTransitions), end(outTransitions), [&opeit](const ResourceTransition& tr) { return opeit->first == tr.entryName(); }))
+//        if(opeit->first != SWAPCHAIN_NAME)
+//          emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), 0, opit, opeit, std::string(), VK_IMAGE_LAYOUT_UNDEFINED));
+//        else
+          emptyTransitions.push_back(ResourceTransition(generateTransitionEntryID(), generateTransitionID(), generateObjectID(), opit, opeit, std::string(), VK_IMAGE_LAYOUT_UNDEFINED));
   }
+  std::copy(begin(emptyTransitions), end(emptyTransitions), std::back_inserter(transitions));
 }
 
 std::vector<std::string> RenderGraph::getRenderOperationNames() const

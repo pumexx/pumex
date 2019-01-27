@@ -266,7 +266,7 @@ int viewer_main( int argc, char* argv[] )
 #endif
 
     pumex::RenderOperation rendering("rendering", pumex::opGraphics, fullScreenSize);
-      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1), VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
+      rendering.setAttachmentDepthOutput("depth",          depthSamples,        pumex::loadOpClear(glm::vec2(1.0f, 0.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
       rendering.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)));
 
     std::shared_ptr<pumex::RenderGraph> renderGraph = std::make_shared<pumex::RenderGraph>("viewer_render_graph");

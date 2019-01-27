@@ -310,7 +310,7 @@ int main( int argc, char * argv[] )
       std::stringstream str;
       str<<"eqr_"<<i;
       pumex::RenderOperation cubeMapNoMipMaps(str.str(), pumex::opGraphics, cubeMapRenderSize);
-      cubeMapNoMipMaps.addAttachmentOutput("face", environmentCubeMapNoMipDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+      cubeMapNoMipMaps.addAttachmentOutput("face", environmentCubeMapNoMipDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
       prepareIblRenderGraph->addRenderOperation(cubeMapNoMipMaps);
       cubeMapNoMipMapsResults.push_back({ str.str(), "face" });
     }
@@ -330,7 +330,7 @@ int main( int argc, char * argv[] )
       str << "irr_" << i;
       pumex::RenderOperation irradianceRender(str.str(), pumex::opGraphics, irradianceRenderSize);
         irradianceRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
-        irradianceRender.addAttachmentOutput("face", irradianceCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+        irradianceRender.addAttachmentOutput("face", irradianceCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
       prepareIblRenderGraph->addRenderOperation(irradianceRender);
       cubeMapMipMapsResults.push_back({ str.str(), "cubemap_in" });
       irradianceRenderResults.push_back({ str.str(), "face" });
@@ -350,7 +350,7 @@ int main( int argc, char * argv[] )
         pumex::ImageSize prefilteredEnvironmentRenderSize{ pumex::isAbsolute, glm::vec2(IBL_CUBEMAP_SIZE >> j, IBL_CUBEMAP_SIZE >> j), 1, 1, 1 };
         pumex::RenderOperation prefilteredRender(str.str(), pumex::opGraphics, prefilteredEnvironmentRenderSize);
           prefilteredRender.addImageInput("cubemap_in", environmentCubeMapDefinition, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevelNum, 0, 6), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_VIEW_TYPE_CUBE);
-          prefilteredRender.addAttachmentOutput("face_mip", prefilteredEnvironmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, true);
+          prefilteredRender.addAttachmentOutput("face_mip", prefilteredEnvironmentCubeMapDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, j, 1, i, 1), 0, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
         prepareIblRenderGraph->addRenderOperation(prefilteredRender);
         prefilteredRenderInput.push_back({ str.str(), "cubemap_in" });
         prefilteredRenderResults.push_back({ str.str(), "face_mip" });
@@ -360,7 +360,7 @@ int main( int argc, char * argv[] )
 
     // next operation generates BRDF map
     pumex::RenderOperation brdfRender("brdf", pumex::opGraphics, brdfTextureSize);
-      brdfRender.addAttachmentOutput("brdf_out", brdfDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1), 0, 0, true);
+      brdfRender.addAttachmentOutput("brdf_out", brdfDefinition, cubeMapClear, pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1), 0, 0);
     prepareIblRenderGraph->addRenderOperation(brdfRender);
 
     // and finally - last operation renders model to screen using previously generated cubemaps to realize image based lighting

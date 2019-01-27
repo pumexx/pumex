@@ -319,13 +319,13 @@ int main( int argc, char * argv[] )
     renderGraph->addRenderOperation(gbuffer);
 
     pumex::RenderOperation lighting("lighting", pumex::opGraphics, halfScreenSizeMultiSampled, 0x3U);
-      lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
-      lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
-      lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
-      lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
-      lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 2));
+      lighting.addAttachmentInput("position",      vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
+      lighting.addAttachmentInput("normals",       vec3Samples,    pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
+      lighting.addAttachmentInput("albedo",        colorSamples,   pumex::loadOpClear(glm::vec4(0.3f, 0.3f, 0.3f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
+      lighting.addAttachmentInput("pbr",           colorSamples,   pumex::loadOpClear(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
+      lighting.setAttachmentDepthInput("depth",    depthSamples,   pumex::loadOpClear(glm::vec2(1.0f, 0.0f)),             pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 2));
       lighting.addAttachmentOutput("resolve",      resolveSamples, pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2));
-      lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), 0, 0, false, "resolve" );
+      lighting.addAttachmentResolveOutput("color", color,          pumex::loadOpDontCare(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), 0, 0, "resolve" );
     renderGraph->addRenderOperation(lighting);
 
     renderGraph->addResourceTransition("gbuffer", "position", "lighting", "position");
@@ -335,7 +335,7 @@ int main( int argc, char * argv[] )
     renderGraph->addResourceTransition("gbuffer", "depth", "lighting", "depth");
 
     pumex::RenderOperation multiview("multiview", pumex::opGraphics, fullScreenSize, 0x0);
-      multiview.addImageInput("color", color,  pumex::loadOpClear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT);
+      multiview.addImageInput("color", color,  pumex::loadOpLoad(), pumex::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT);
       multiview.addAttachmentOutput(pumex::SWAPCHAIN_NAME, swapChainDefinition, pumex::loadOpDontCare());
     renderGraph->addRenderOperation(multiview);
 
